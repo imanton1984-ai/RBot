@@ -1,0 +1,33 @@
+[binance]
+# USDⓈ-M Futures
+rest_base_url = "https://fapi.binance.com"
+ws_base_url   = "wss://fstream.binance.com"
+
+# Таймауты/ретраи
+http_timeout_ms = 8000
+http_retries = 5
+http_retry_backoff_ms = 250
+http_retry_backoff_max_ms = 5000
+
+ws_ping_interval_sec = 15
+ws_reconnect_backoff_ms = 500
+ws_reconnect_backoff_max_ms = 15000
+
+# Синхронизация времени (важно для подписей и ордеров)
+enable_time_sync = true
+time_sync_interval_sec = 300
+time_sync_max_skew_ms = 250
+
+# Веса запросов / лимиты (мягкие лимиты на клиентской стороне)
+rate_limit_soft_rps = 8
+rate_limit_soft_burst = 16
+
+# Ордерный режим (позже)
+futures_default_leverage = 10
+futures_margin_type = "ISOLATED"    # ISOLATED|CROSSED
+recv_window_ms = 5000
+
+# Ключи:
+# BINANCE_API_KEY
+# BINANCE_API_SECRET
+# BINANCE_TESTNET=1 (если захочешь)

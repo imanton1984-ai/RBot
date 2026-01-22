@@ -1,0 +1,18 @@
+# Database configuration for the trading bot
+
+[database]
+name = "timescaledb_binance"
+user = "postgres"
+password = "postgres"
+host = "localhost"
+port = 5433
+pool_size = 10
+ssl_mode = "disable"
+
+[ports]
+api_gateway = 8080
+market_ingest = 8081
+compute_core = 8082
+db_writer = 8083
+order_engine = 8084
+position_tracker = 8085

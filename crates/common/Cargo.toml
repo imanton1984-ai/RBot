@@ -1,0 +1,25 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# config loader
+config = { workspace = true }
+
+# serde for TOML -> structs
+serde = { workspace = true, features = ["derive"] }
+
+# helpful errors
+thiserror = { workspace = true }
+
+# optional but very handy (remove if you don't use it)
+anyhow = { workspace = true }
+
+# optional: env parsing helpers / validation (remove if you don't use it yet)
+# validator = { workspace = true, features = ["derive"] }

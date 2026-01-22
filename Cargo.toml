@@ -1,0 +1,53 @@
+[workspace]
+members = [
+  "crates/common",
+  "crates/db_init",
+  "crates/db_writer",
+  "ingest"
+]
+resolver = "2"
+
+[workspace.dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+axum = "0.8.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+config = "0.13"
+rmp-serde = "1.0"
+futures = "0.3"
+reqwest = { version = "0.11", features = ["json"] }
+tungstenite = "0.20"
+url = "2.0"
+async-trait = "0.1"
+parking_lot = "0.12"
+dashmap = "5.0"
+mimalloc = "0.1"
+rkyv = { version = "0.7", features = ["validation"] }
+simd-json = "0.13"
+bytemuck = "1.0"
+byteorder = "1.0"
+itertools = "0.12"
+num-traits = "0.2"
+float-cmp = "0.9"
+tokio-postgres = { version = "0.7", features = ["with-uuid-1", "with-serde_json-1"] }
+rdkafka = { version = "0.37", features = ["tokio"] }
+bytes = "1"
+itoa = "1"
+ryu = "1"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"

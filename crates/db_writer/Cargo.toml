@@ -1,0 +1,29 @@
+[package]
+name = "db_writer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "db_writer"
+path = "src/main.rs"
+
+[dependencies]
+common = { path = "../common" }
+
+futures = "0.3"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "signal"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+rdkafka = { workspace = true, features = ["tokio"] }
+
+dashmap = "6"
+bytes = "1"
+
+itoa = "1"
+ryu  = "1"

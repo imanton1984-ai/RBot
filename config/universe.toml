@@ -1,0 +1,39 @@
+[universe]
+quote_asset = "USDT"
+
+# Только USD-M Futures (perpetual)
+futures_only = true
+perpetual_only = true
+
+# Фильтр ликвидности
+min_quote_volume_usdt_24h = 2_000_000.0
+
+# Как часто обновлять "в фоне" (сек)
+refresh_interval_sec = 86400  # 24h
+
+# Чтобы не было резкого churn:
+# если за один refresh выбросилось/добавилось слишком много — не применять автоматически
+max_change_ratio = 0.10       # 10% изменения списка за раз
+
+# Исключаем стейблы как base asset (список можно расширять)
+exclude_base_assets = [
+  "USDC","BUSD","TUSD","FDUSD","USDP","DAI","PAX","USDS","EURS"
+]
+
+# Исключаем "металлы/коммодити аналоги" и прочие нежелательные
+# (подправишь список по факту из exchangeInfo/ticker)
+exclude_symbols = [
+  "PAXGUSDT","XAUTUSDT"
+]
+
+# Manual override:
+# allowlist имеет приоритет: даже если volume ниже — оставляем
+allowlist = []
+
+# denylist имеет приоритет: выкидываем всегда
+denylist = []
+
+# Поведение применения результата:
+# - "startup_required": при старте обязателен refresh (и блокирует warmup до готовности)
+# - "background": потом фоново, без стопа торговли (если безопасно)
+apply_mode = "startup_required"

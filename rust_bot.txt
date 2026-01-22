@@ -1,0 +1,3827 @@
+# Cargo.toml
+
+[workspace]
+members = [
+  "crates/common",
+  "crates/db_init",
+  "crates/db_writer",
+  "ingest"
+]
+resolver = "2"
+
+[workspace.dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+axum = "0.8.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+config = "0.13"
+rmp-serde = "1.0"
+futures = "0.3"
+reqwest = { version = "0.11", features = ["json"] }
+tungstenite = "0.20"
+url = "2.0"
+async-trait = "0.1"
+parking_lot = "0.12"
+dashmap = "5.0"
+mimalloc = "0.1"
+rkyv = { version = "0.7", features = ["validation"] }
+simd-json = "0.13"
+bytemuck = "1.0"
+byteorder = "1.0"
+itertools = "0.12"
+num-traits = "0.2"
+float-cmp = "0.9"
+tokio-postgres = { version = "0.7", features = ["with-uuid-1", "with-serde_json-1"] }
+rdkafka = { version = "0.37", features = ["tokio"] }
+bytes = "1"
+itoa = "1"
+ryu = "1"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+
+
+# rust-toolchain.toml
+
+[toolchain]
+channel = "nightly"
+components = ["rust-src", "clippy", "rustfmt"]
+
+
+# order_engine/src/binance_exec.rs
+
+
+
+
+# order_engine/src/health.rs
+
+
+
+
+# order_engine/src/lib.rs
+
+//! Order management service for the trading bot
+//!
+//! This crate handles the placement, monitoring, and cancellation of trading orders
+//! on Binance Futures, including OCO-like behavior and traced order management.
+
+pub mod risk;
+pub mod oco;
+pub mod traced;
+pub mod binance_exec;
+pub mod health;
+
+pub use risk::*;
+pub use oco::*;
+pub use traced::*;
+pub use binance_exec::*;
+pub use health::*;
+
+
+# order_engine/src/main.rs
+
+//! Main entry point for the order management service
+
+use tracing_subscriber;
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize logging
+    tracing_subscriber::fmt::init();
+    
+    // TODO: Implement actual order engine service startup logic
+    tracing::info!("Starting order management service");
+    
+    // For now, just print a message indicating the service is initialized
+    println!("Order management service initialized");
+    
+    // TODO: Add actual service initialization and runtime loop
+    
+    Ok(())
+}
+
+
+# order_engine/src/sl_manager.rs
+
+
+
+
+# order_engine/src/tp_manager.rs
+
+
+
+
+# order_engine/src/oco/bracket.rs
+
+
+
+
+# order_engine/src/oco/mod.rs
+
+
+
+
+# order_engine/src/traced/mod.rs
+
+
+
+
+# order_engine/src/traced/tp_plan.rs
+
+
+
+
+# order_engine/src/risk/breakers.rs
+
+
+
+
+# order_engine/src/risk/limits.rs
+
+
+
+
+# order_engine/src/risk/mod.rs
+
+
+
+
+# redpanda/topics.sh
+
+
+
+
+# position_tracker/src/health.rs
+
+
+
+
+# position_tracker/src/lib.rs
+
+//! Real-time position tracking service for the trading bot
+//!
+//! This crate monitors open positions, validates trade signals, and manages
+//! dynamic stop-loss and take-profit levels.
+
+pub mod tracker;
+pub mod sl_manager;
+pub mod tp_manager;
+pub mod reconcile;
+pub mod health;
+
+pub use tracker::*;
+pub use sl_manager::*;
+pub use tp_manager::*;
+pub use reconcile::*;
+pub use health::*;
+
+
+# position_tracker/src/main.rs
+
+//! Main entry point for the position tracking service
+
+use tracing_subscriber;
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize logging
+    tracing_subscriber::fmt::init();
+    
+    // TODO: Implement actual position tracker service startup logic
+    tracing::info!("Starting position tracking service");
+    
+    // For now, just print a message indicating the service is initialized
+    println!("Position tracking service initialized");
+    
+    // TODO: Add actual service initialization and runtime loop
+    
+    Ok(())
+}
+
+
+# position_tracker/src/reconcile.rs
+
+
+
+
+# position_tracker/src/tracker.rs
+
+
+
+
+# infra/docker-compose.yaml
+
+# name: rust_trading_bot
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.15.3-pg16
+    container_name: timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-timescaledb_binance}
+      # speed defaults (ok for home server; tune later)
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    shm_size: "1gb"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-timescaledb_binance} -h 127.0.0.1 -p 5432"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "shared_buffers=6GB"
+      - "-c"
+      - "effective_cache_size=18GB"
+      - "-c"
+      - "work_mem=32MB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "wal_compression=on"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "checkpoint_timeout=15min"
+      - "-c"
+      - "max_wal_size=8GB"
+      - "-c"
+      - "min_wal_size=2GB"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "autovacuum=on"
+      - "-c"
+      - "autovacuum_max_workers=5"
+      - "-c"
+      - "autovacuum_vacuum_cost_limit=2000"
+      - "-c"
+      - "autovacuum_vacuum_cost_delay=2ms"
+      - "-c"
+      - "log_min_duration_statement=250ms"
+      - "-c"
+      - "log_checkpoints=on"
+    networks:
+      - botnet
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.9
+    container_name: redpanda
+    restart: unless-stopped
+    ports:
+      # Kafka API
+      - "${RP_KAFKA_PORT:-19092}:19092"
+      # Admin API
+      - "${RP_ADMIN_PORT:-9644}:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "${RP_SMP:-4}"
+      - --memory
+      - "${RP_MEMORY:-4G}"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      # listeners
+      - --kafka-addr
+      - "PLAINTEXT://0.0.0.0:19092"
+      - --advertise-kafka-addr
+      - "PLAINTEXT://redpanda:19092"
+      - --pandaproxy-addr
+      - "0.0.0.0:8082"
+      - --advertise-pandaproxy-addr
+      - "redpanda:8082"
+      - --rpc-addr
+      - "0.0.0.0:33145"
+      - --advertise-rpc-addr
+      - "redpanda:33145"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --api-urls=http://127.0.0.1:9644"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - botnet
+
+  redpanda-console:
+    image: redpandadata/console:v2.6.1
+    container_name: redpanda_console
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "${RP_CONSOLE_PORT:-8080}:8080"
+    environment:
+      KAFKA_BROKERS: "redpanda:19092"
+      KAFKA_SCHEMAREGISTRY_ENABLED: "false"
+      SERVER_LISTENPORT: "8080"
+      # Optional: hide dangerous actions
+      # CONSOLE_DISABLETOPICDELETION: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    networks:
+      - botnet
+
+  # Optional: metrics stack (enable via profile)
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: prometheus
+    restart: unless-stopped
+    profiles: ["metrics"]
+    ports:
+      - "${PROM_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    networks:
+      - botnet
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    restart: unless-stopped
+    profiles: ["metrics"]
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    networks:
+      - botnet
+
+volumes:
+  timescale_data:
+  redpanda_data:
+  prom_data:
+  grafana_data:
+
+networks:
+  botnet:
+    driver: bridge
+
+
+
+# webui/package.json
+
+
+
+
+# crates/db_writer/Cargo.toml
+
+[package]
+name = "db_writer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "db_writer"
+path = "src/main.rs"
+
+[dependencies]
+common = { path = "../common" }
+
+futures = "0.3"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "signal"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+rdkafka = { workspace = true, features = ["tokio"] }
+
+dashmap = "6"
+bytes = "1"
+
+itoa = "1"
+ryu  = "1"
+
+
+
+# crates/db_writer/src/batcher.rs
+
+
+
+
+# crates/db_writer/src/copy.rs
+
+
+
+
+# crates/db_writer/src/copy_row.rs
+
+use bytes::BytesMut;
+use std::io;
+
+pub const NULL: &[u8] = br"\N";
+pub const TAB: u8 = b'\t';
+pub const NL: u8 = b'\n';
+
+/// Writer that appends into BytesMut without allocating.
+pub struct BytesMutWriter<'a> {
+    buf: &'a mut BytesMut,
+}
+
+impl<'a> BytesMutWriter<'a> {
+    #[inline]
+    pub fn new(buf: &'a mut BytesMut) -> Self {
+        Self { buf }
+    }
+}
+
+impl<'a> io::Write for BytesMutWriter<'a> {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.buf.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// TSV row builder.
+/// Usage:
+///   let mut row = CopyRow::new(buf);
+///   row.begin();
+///   row.i64(123); row.f64(1.23); row.null(); row.end();
+pub struct CopyRow<'a> {
+    buf: &'a mut BytesMut,
+    first: bool,
+}
+
+impl<'a> CopyRow<'a> {
+    #[inline]
+    pub fn new(buf: &'a mut BytesMut) -> Self {
+        Self { buf, first: true }
+    }
+
+    #[inline]
+    pub fn begin(&mut self) {
+        self.first = true;
+    }
+
+    #[inline]
+    fn sep(&mut self) {
+        if self.first {
+            self.first = false;
+        } else {
+            self.buf.extend_from_slice(&[TAB]);
+        }
+    }
+
+    #[inline]
+    pub fn end(&mut self) {
+        self.buf.extend_from_slice(&[NL]);
+    }
+
+    #[inline]
+    pub fn null(&mut self) {
+        self.sep();
+        self.buf.extend_from_slice(NULL);
+    }
+
+    // #[inline]
+    // pub fn bytes(&mut self, b: &[u8]) {
+    //     self.sep();
+    //     self.buf.extend_from_slice(b);
+    // }
+
+    #[inline]
+    pub fn str(&mut self, s: &str) {
+        self.sep();
+        self.buf.extend_from_slice(s.as_bytes());
+    }
+
+    #[inline]
+    pub fn i64(&mut self, v: i64) {
+        self.sep();
+        let mut b = itoa::Buffer::new();
+        self.buf.extend_from_slice(b.format(v).as_bytes());
+    }
+
+    // #[inline]
+    // pub fn i16(&mut self, v: i16) {
+    //     self.sep();
+    //     let mut b = itoa::Buffer::new();
+    //     self.buf.extend_from_slice(b.format(v).as_bytes());
+    // }
+
+    // #[inline]
+    // pub fn u64(&mut self, v: u64) {
+    //     self.sep();
+    //     let mut b = itoa::Buffer::new();
+    //     self.buf.extend_from_slice(b.format(v).as_bytes());
+    // }
+
+    #[inline]
+    pub fn f64(&mut self, v: f64) {
+        self.sep();
+        let mut b = ryu::Buffer::new();
+        // format_finite быстрее и без NaN/Inf (их не должно быть)
+        self.buf.extend_from_slice(b.format_finite(v).as_bytes());
+    }
+
+    // #[inline]
+    // pub fn opt_f64(&mut self, v: Option<f64>) {
+    //     match v {
+    //         Some(x) => self.f64(x),
+    //         None => self.null(),
+    //     }
+    // }
+
+    #[inline]
+    pub fn opt_f32(&mut self, v: Option<f32>) {
+        match v {
+            Some(x) => self.f64(x as f64),
+            None => self.null(),
+        }
+    }
+
+    /// Writes JSON into buffer without allocating a String/Vec.
+    #[inline]
+    pub fn opt_json(&mut self, v: &Option<serde_json::Value>) -> Result<(), io::Error> {
+        self.sep();
+        match v {
+            None => {
+                self.buf.extend_from_slice(NULL);
+                Ok(())
+            }
+            Some(j) => {
+                let mut w = BytesMutWriter::new(self.buf);
+                serde_json::to_writer(&mut w, j)
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+                Ok(())
+            }
+        }
+    }
+}
+
+
+
+# crates/db_writer/src/health.rs
+
+
+
+
+# crates/db_writer/src/idempotency.rs
+
+
+
+
+# crates/db_writer/src/lib.rs
+
+//! Database writer service for the trading bot
+//!
+//! This crate handles batch writing of market data, indicators, signals,
+//! orders, and positions to TimescaleDB.
+
+pub mod batcher;
+pub mod copy;
+pub mod migrations;
+pub mod idempotency;
+pub mod retention;
+pub mod health;
+
+// pub use batcher::*;
+// pub use copy::*;
+// pub use migrations::*;
+// pub use idempotency::*;
+// pub use retention::*;
+// pub use health::*;
+
+
+# crates/db_writer/src/main.rs
+
+use anyhow::{Context, Result};
+use bytes::BytesMut;
+use dashmap::DashMap;
+use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::message::Message;
+use rdkafka::ClientConfig;
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tokio::time::{Duration, Instant};
+use futures::SinkExt;
+
+use common::config::load_config;
+use common::timeframe::Timeframe;
+
+mod messages;
+mod copy_row;
+use copy_row::CopyRow;
+use messages::{CandleCloseMsg, IndicatorsSnapshotMsg};
+
+const CH_CAP: usize = 50_000;
+const BATCH_SIZE: usize = 10_000;
+const BATCH_MAX_WAIT_MS: u64 = 200;
+
+#[derive(Clone)]
+struct SymbolCache {
+    map: Arc<DashMap<String, i64>>,
+}
+impl SymbolCache {
+    fn new() -> Self { 
+        Self { map: Arc::new(DashMap::new()) } 
+    }
+    
+    fn get(&self, symbol: &str) -> Option<i64> { 
+        self.map.get(symbol).map(|v| *v) 
+    }
+    
+    // Меняем id на symbol_id
+    fn insert(&self, symbol: String, symbol_id: i64) { 
+        self.map.insert(symbol, symbol_id); 
+    }
+}
+
+#[derive(Debug)]
+enum WriteMsg {
+    // Используем подчеркивание, чтобы скрыть варнинг о неиспользуемом поле, 
+    // но сохраняем его в структуре
+    Candle { symbol_id: i64, _tf: Timeframe, evt: CandleCloseMsg },
+    Indicators { symbol_id: i64, _tf: Timeframe, evt: IndicatorsSnapshotMsg },
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cfg = load_config().context("load_config failed")?;
+    let db_url = cfg.database.url();
+    // в main.rs внутри db_writer
+    let config = Config::from_env()?;
+    println!("DB_WRITER connecting to: {}", config.database_url); // Временно для отладки
+
+    // DB connect (single client used for preload; workers will open their own connections)
+    let (client, connection) = tokio_postgres::connect(&db_url, tokio_postgres::NoTls)
+        .await
+        .context("postgres connect failed")?;
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("postgres connection error: {e}");
+        }
+    });
+
+    let cache = SymbolCache::new();
+    for (sym, id) in preload_symbols(&client).await? {
+        cache.insert(sym, id);
+    }
+
+    // 6 TF channels
+    let (tx_1m, rx_1m) = mpsc::channel::<WriteMsg>(CH_CAP);
+    let (tx_5m, rx_5m) = mpsc::channel::<WriteMsg>(CH_CAP);
+    let (tx_15m, rx_15m) = mpsc::channel::<WriteMsg>(CH_CAP);
+    let (tx_1h, rx_1h) = mpsc::channel::<WriteMsg>(CH_CAP);
+    let (tx_4h, rx_4h) = mpsc::channel::<WriteMsg>(CH_CAP);
+    let (tx_1d, rx_1d) = mpsc::channel::<WriteMsg>(CH_CAP);
+
+    // Spawn 6 workers (each with its own DB connection + COPY+merge)
+    spawn_tf_worker("1m", Timeframe::M1, db_url.clone(), rx_1m);
+    spawn_tf_worker("5m", Timeframe::M5, db_url.clone(), rx_5m);
+    spawn_tf_worker("15m", Timeframe::M15, db_url.clone(), rx_15m);
+    spawn_tf_worker("1h", Timeframe::H1, db_url.clone(), rx_1h);
+    spawn_tf_worker("4h", Timeframe::H4, db_url.clone(), rx_4h);
+    spawn_tf_worker("1d", Timeframe::D1, db_url.clone(), rx_1d);
+
+    // Kafka consumer
+    let consumer: StreamConsumer = ClientConfig::new()
+        .set("bootstrap.servers", cfg.rust_bot.redpanda_brokers.join(","))
+        .set("group.id", format!("db_writer-{}", cfg.rust_bot.instance_id))
+        .set("enable.auto.commit", "false")
+        .set("auto.offset.reset", "latest")
+        .create()
+        .context("create consumer failed")?;
+
+    consumer
+        .subscribe(&[
+            &cfg.rust_bot.topic_candles_close,
+            &cfg.rust_bot.topic_indicators_close,
+        ])
+        .context("subscribe failed")?;
+
+    loop {
+        let m = consumer.recv().await?;
+        let topic = m.topic();
+
+        let payload = match m.payload() {
+            Some(p) => p,
+            None => {
+                consumer.commit_message(&m, rdkafka::consumer::CommitMode::Async).ok();
+                continue;
+            }
+        };
+
+        if topic == cfg.rust_bot.topic_candles_close {
+            if let Ok(evt) = serde_json::from_slice::<CandleCloseMsg>(payload) {
+                if let (Some(symbol_id), Ok(tf)) = (cache.get(&evt.symbol), Timeframe::parse(&evt.tf)) {
+                    // Заменяем tf на _tf
+                    let msg = WriteMsg::Candle { symbol_id, _tf: tf.clone(), evt };
+                    route_tf(&tf, &tx_1m, &tx_5m, &tx_15m, &tx_1h, &tx_4h, &tx_1d, msg).await?;
+                }
+            }
+        } else if topic == cfg.rust_bot.topic_indicators_close {
+            if let Ok(evt) = serde_json::from_slice::<IndicatorsSnapshotMsg>(payload) {
+                if let (Some(symbol_id), Ok(tf)) = (cache.get(&evt.symbol), Timeframe::parse(&evt.tf)) {
+                    // Заменяем tf на _tf
+                    let msg = WriteMsg::Indicators { symbol_id, _tf: tf.clone(), evt };
+                    route_tf(&tf, &tx_1m, &tx_5m, &tx_15m, &tx_1h, &tx_4h, &tx_1d, msg).await?;
+                }
+            }
+        }
+
+        // ✅ v2/simple: commit after enqueue (bounded channel = backpressure)
+        consumer.commit_message(&m, rdkafka::consumer::CommitMode::Async).ok();
+    }
+}
+
+async fn route_tf(
+    tf: &Timeframe,
+    tx_1m: &mpsc::Sender<WriteMsg>,
+    tx_5m: &mpsc::Sender<WriteMsg>,
+    tx_15m: &mpsc::Sender<WriteMsg>,
+    tx_1h: &mpsc::Sender<WriteMsg>,
+    tx_4h: &mpsc::Sender<WriteMsg>,
+    tx_1d: &mpsc::Sender<WriteMsg>,
+    msg: WriteMsg,
+) -> Result<()> {
+    match tf {
+        Timeframe::M1 => tx_1m.send(msg).await.context("send 1m")?,
+        Timeframe::M5 => tx_5m.send(msg).await.context("send 5m")?,
+        Timeframe::M15 => tx_15m.send(msg).await.context("send 15m")?,
+        Timeframe::H1 => tx_1h.send(msg).await.context("send 1h")?,
+        Timeframe::H4 => tx_4h.send(msg).await.context("send 4h")?,
+        Timeframe::D1 => tx_1d.send(msg).await.context("send 1d")?,
+    }
+    Ok(())
+}
+
+fn spawn_tf_worker(name: &'static str, tf: Timeframe, db_url: String, mut rx: mpsc::Receiver<WriteMsg>) {
+    tokio::spawn(async move {
+        if let Err(e) = tf_worker_loop(name, tf, &db_url, &mut rx).await {
+            eprintln!("worker {name} crashed: {e:?}");
+        }
+    });
+}
+
+async fn tf_worker_loop(
+    _name: &'static str,
+    tf: Timeframe,
+    db_url: &str,
+    rx: &mut mpsc::Receiver<WriteMsg>,
+) -> Result<()> {
+    let (client, connection) = tokio_postgres::connect(db_url, tokio_postgres::NoTls).await?;
+    tokio::spawn(async move { let _ = connection.await; });
+
+    let candles_table = tf.candles_table();
+    let indicators_table = tf.indicators_table();
+
+    // per-TF buffers
+    let mut candles_buf = BytesMut::with_capacity(1024 * 512);
+    let mut ind_buf = BytesMut::with_capacity(1024 * 512);
+    let mut candles_n = 0usize;
+    let mut ind_n = 0usize;
+
+    let mut last_flush = Instant::now();
+
+    loop {
+        let timeout = Duration::from_millis(BATCH_MAX_WAIT_MS);
+        let msg = tokio::time::timeout(timeout, rx.recv()).await;
+
+        if let Ok(Some(m)) = msg {
+            match m {
+                // ИСПРАВЛЕННЫЕ match pattern (используем _tf вместо tf)
+                WriteMsg::Candle { symbol_id, _tf: _, evt } => {
+                    let mut row = CopyRow::new(&mut candles_buf);
+                    row.begin();
+                    row.i64(evt.close_time_ms);
+                    row.i64(symbol_id);
+                    row.f64(evt.open);
+                    row.f64(evt.high);
+                    row.f64(evt.low);
+                    row.f64(evt.close);
+                    row.f64(evt.volume);
+                    match evt.source_event_time_ms { Some(x) => row.i64(x), None => row.null() }
+                    row.end();
+                    candles_n += 1;
+                }
+                WriteMsg::Indicators { symbol_id, _tf: _, evt } => {
+                    let mut row = CopyRow::new(&mut ind_buf);
+                    row.begin();
+                    row.i64(evt.close_time_ms);
+                    row.i64(symbol_id);
+
+                    row.opt_f32(evt.ema20); row.opt_f32(evt.ema50); row.opt_f32(evt.ema200);
+                    row.opt_f32(evt.sma);
+
+                    row.opt_f32(evt.rsi);
+                    row.opt_f32(evt.macd); row.opt_f32(evt.macd_signal); row.opt_f32(evt.macd_hist);
+
+                    row.opt_f32(evt.atr); row.opt_f32(evt.adx);
+
+                    row.opt_f32(evt.bb_upper); row.opt_f32(evt.bb_mid); row.opt_f32(evt.bb_lower);
+                    row.opt_f32(evt.stoch_k); row.opt_f32(evt.stoch_d);
+
+                    row.opt_f32(evt.vwap); row.opt_f32(evt.obv); row.opt_f32(evt.cci); row.opt_f32(evt.williams);
+
+                    row.opt_f32(evt.alli_jaw); row.opt_f32(evt.alli_teeth); row.opt_f32(evt.alli_lips);
+
+                    row.opt_json(&evt.sr_levels).map_err(|e| anyhow::anyhow!(e))?;
+
+                    row.str(evt.features_version.as_deref().unwrap_or("v1"));
+                    row.i64(current_time_ms());
+                    row.end();
+                    ind_n += 1;
+                }
+            }
+        }
+
+        let need_flush = candles_n >= BATCH_SIZE
+            || ind_n >= BATCH_SIZE
+            || last_flush.elapsed() >= Duration::from_millis(BATCH_MAX_WAIT_MS);
+
+        if need_flush && (candles_n > 0 || ind_n > 0) {
+            // flush both buffers (each into staging then merge into real table)
+            if candles_n > 0 {
+                flush_candles(&client, candles_table, &mut candles_buf).await?;
+                candles_n = 0;
+            }
+            if ind_n > 0 {
+                flush_indicators(&client, indicators_table, &mut ind_buf).await?;
+                ind_n = 0;
+            }
+            last_flush = Instant::now();
+            // optional log:
+            // eprintln!("worker {name}: flushed");
+        }
+    }
+}
+
+async fn flush_candles(client: &tokio_postgres::Client, dest_table: &str, buf: &mut BytesMut) -> Result<()> {
+    // 1) COPY into staging
+    let copy_sql = "COPY market.candles_staging (time_ms, symbol_id, open, high, low, close, volume, source_event_time_ms) FROM STDIN WITH (FORMAT text)";
+    
+    let sink = client.copy_in(copy_sql).await?; 
+    let data = buf.split().freeze();
+    
+    // Используем пиннинг и SinkExt для отправки данных
+    tokio::pin!(sink);
+    sink.send(data).await.context("failed to send data to postgres copy")?;
+    sink.close().await.context("failed to close postgres copy sink")?;
+
+    // 2) merge with dedup
+    let merge_sql = format!(
+        "INSERT INTO {dest_table} (time_ms, symbol_id, open, high, low, close, volume, source_event_time_ms)
+         SELECT time_ms, symbol_id, open, high, low, close, volume, source_event_time_ms
+         FROM market.candles_staging
+         ON CONFLICT (symbol_id, time_ms) DO NOTHING;
+         DELETE FROM market.candles_staging;"
+    );
+    client.batch_execute(&merge_sql).await?;
+    Ok(())
+}
+
+async fn flush_indicators(client: &tokio_postgres::Client, dest_table: &str, buf: &mut BytesMut) -> Result<()> {
+    let copy_sql = "COPY market.indicators_staging (time_ms, symbol_id, ema20, ema50, ema200, sma, rsi, macd, macd_signal, macd_hist, atr, adx, bb_upper, bb_mid, bb_lower, stoch_k, stoch_d, vwap, obv, cci, williams, alli_jaw, alli_teeth, alli_lips, sr_levels, features_version, updated_at_ms) FROM STDIN WITH (FORMAT text)";
+    
+    let sink = client.copy_in(copy_sql).await?;
+    let data = buf.split().freeze();
+    
+    tokio::pin!(sink);
+    sink.send(data).await.context("failed to send data to postgres copy")?;
+    sink.close().await.context("failed to close postgres copy sink")?;
+
+    let merge_sql = format!(
+        "INSERT INTO {dest_table} (time_ms, symbol_id, ema20, ema50, ema200, sma, rsi, macd, macd_signal, macd_hist, atr, adx, bb_upper, bb_mid, bb_lower, stoch_k, stoch_d, vwap, obv, cci, williams, alli_jaw, alli_teeth, alli_lips, sr_levels, features_version, updated_at_ms)
+         SELECT time_ms, symbol_id, ema20, ema50, ema200, sma, rsi, macd, macd_signal, macd_hist, atr, adx, bb_upper, bb_mid, bb_lower, stoch_k, stoch_d, vwap, obv, cci, williams, alli_jaw, alli_teeth, alli_lips, sr_levels, features_version, updated_at_ms
+         FROM market.indicators_staging
+         ON CONFLICT (symbol_id, time_ms) DO NOTHING;
+         DELETE FROM market.indicators_staging;"
+    );
+    client.batch_execute(&merge_sql).await?;
+    Ok(())
+}
+
+async fn preload_symbols(client: &tokio_postgres::Client) -> Result<Vec<(String, i64)>> {
+    let rows = client.query("SELECT symbol, symbol_id FROM market.pairs WHERE is_active = true", &[]).await?;
+    Ok(rows.into_iter().map(|r| (r.get(0), r.get(1))).collect())
+}
+
+fn current_time_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    (d.as_secs() as i64) * 1000 + (d.subsec_millis() as i64)
+}
+
+
+
+# crates/db_writer/src/messages.rs
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandleCloseMsg {
+    pub symbol: String,        // "BTCUSDT"
+    pub tf: String,            // "1m" etc
+    pub close_time_ms: i64,    // epoch millis (close time)
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+    pub source_event_time_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorsSnapshotMsg {
+    pub symbol: String,
+    pub tf: String,
+    pub close_time_ms: i64,
+
+    // core subset (match your SQL columns)
+    pub ema20: Option<f32>,
+    pub ema50: Option<f32>,
+    pub ema200: Option<f32>,
+    pub sma: Option<f32>,
+
+    pub rsi: Option<f32>,
+    pub macd: Option<f32>,
+    pub macd_signal: Option<f32>,
+    pub macd_hist: Option<f32>,
+
+    pub atr: Option<f32>,
+    pub adx: Option<f32>,
+
+    pub bb_upper: Option<f32>,
+    pub bb_mid: Option<f32>,
+    pub bb_lower: Option<f32>,
+
+    pub stoch_k: Option<f32>,
+    pub stoch_d: Option<f32>,
+
+    pub vwap: Option<f32>,
+    pub obv: Option<f32>,
+    pub cci: Option<f32>,
+    pub williams: Option<f32>,
+
+    pub alli_jaw: Option<f32>,
+    pub alli_teeth: Option<f32>,
+    pub alli_lips: Option<f32>,
+
+    pub sr_levels: Option<serde_json::Value>, // jsonb
+
+    pub features_version: Option<String>, // default v1
+}
+
+
+
+# crates/db_writer/src/migrations.rs
+
+
+
+
+# crates/db_writer/src/retention.rs
+
+
+
+
+# crates/db_init/Cargo.toml
+
+[package]
+name = "db_init"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "db_init"
+path = "src/main.rs"
+
+[dependencies]
+common = { path = "../common" }
+
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio-postgres = { workspace = true, features = ["with-uuid-1", "with-serde_json-1"] }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Для поиска файлов и сортировки
+walkdir = "2"
+
+
+
+# crates/db_init/src/main.rs
+
+use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
+
+use tokio_postgres::{NoTls};
+
+fn default_sql_dir() -> PathBuf {
+    PathBuf::from("infra/database/init")
+}
+
+fn is_sql_file(path: &Path) -> bool {
+    path.extension().map(|e| e == "sql").unwrap_or(false)
+}
+
+fn list_sql_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut files: Vec<PathBuf> = WalkDir::new(dir)
+        .min_depth(1)
+        .max_depth(2)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path().to_path_buf())
+        .filter(|p| is_sql_file(p))
+        .collect();
+
+    files.sort(); // порядок по имени: 001_, 010_, ...
+    Ok(files)
+}
+
+/// DATABASE_URL priority:
+/// 1) env DATABASE_URL
+/// 2) config/database.toml -> common::config::load_config()
+fn resolve_db_url() -> Result<String> {
+    if let Ok(url) = std::env::var("DATABASE_URL") {
+        if !url.trim().is_empty() {
+            return Ok(url);
+        }
+    }
+
+    let cfg = common::config::load_config().context("failed to load config files")?;
+    Ok(cfg.database.url())
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // CLI: allow override SQL dir
+    // Usage:
+    //   cargo run -p db_init -- --dir infra/database/init
+    let mut args = std::env::args().skip(1);
+    let mut dir = default_sql_dir();
+
+    while let Some(a) = args.next() {
+        match a.as_str() {
+            "--dir" => {
+                let v = args.next().context("--dir requires a value")?;
+                dir = PathBuf::from(v);
+            }
+            "--help" | "-h" => {
+                eprintln!("Usage: db_init [--dir <path>]");
+                return Ok(());
+            }
+            other => {
+                eprintln!("Unknown arg: {other}");
+                eprintln!("Usage: db_init [--dir <path>]");
+                std::process::exit(2);
+            }
+        }
+    }
+
+    let db_url = resolve_db_url().context("DATABASE_URL not set and config/database.toml missing")?;
+    let sql_files = list_sql_files(&dir).with_context(|| format!("failed to list sql files in {}", dir.display()))?;
+
+    if sql_files.is_empty() {
+        anyhow::bail!("no .sql files found in {}", dir.display());
+    }
+
+    println!("db_init: connecting to DB...");
+    let (client, connection) = tokio_postgres::connect(&db_url, NoTls)
+        .await
+        .context("failed to connect to postgres")?;
+
+    // драйвер соединения
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("postgres connection error: {e}");
+        }
+    });
+
+    println!("db_init: applying migrations from {}", dir.display());
+    for path in sql_files {
+        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("<unknown>");
+        let sql = std::fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+
+        // Пропускаем пустые файлы/комментарии
+        if sql.trim().is_empty() {
+            println!(" - {name}: skipped (empty)");
+            continue;
+        }
+
+        println!(" - {name}: executing...");
+        client
+            .batch_execute(&sql)
+            .await
+            .with_context(|| format!("failed executing {}", name))?;
+        println!(" - {name}: OK");
+    }
+
+    // sanity ping
+    let row = client.query_one("SELECT 1", &[]).await?;
+    let ok: i32 = row.get(0);
+    println!("db_init: done, ping={ok}");
+
+    Ok(())
+}
+
+
+
+# crates/common/Cargo.toml
+
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# config loader
+config = { workspace = true }
+
+# serde for TOML -> structs
+serde = { workspace = true, features = ["derive"] }
+
+# helpful errors
+thiserror = { workspace = true }
+
+# optional but very handy (remove if you don't use it)
+anyhow = { workspace = true }
+
+# optional: env parsing helpers / validation (remove if you don't use it yet)
+# validator = { workspace = true, features = ["derive"] }
+
+
+
+# crates/common/src/config.rs
+
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AppConfig {
+    pub database: DatabaseConfig,
+    pub binance: BinanceConfig,
+    pub universe: UniverseConfig,
+    pub runtime: RuntimeConfig,
+    pub compute: ComputeConfig,
+    pub rust_bot: RustBotConfig,
+    pub ports: PortsConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DatabaseConfig {
+    pub name: String,
+    pub user: String,
+    pub password: String,
+    pub host: String,
+    pub port: u16,
+    pub pool_size: u32,
+    pub ssl_mode: String, // "disable"|"require"|...
+}
+
+impl DatabaseConfig {
+    pub fn url(&self) -> String {
+        // sslmode: disable/require/verify-ca/verify-full (postgres style)
+        format!(
+            "postgres://{}:{}@{}:{}/{}?sslmode={}",
+            self.user, self.password, self.host, self.port, self.name, self.ssl_mode
+        )
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BinanceConfig {
+    pub rest_base_url: String,
+    pub ws_base_url: String,
+
+    pub http_timeout_ms: u64,
+    pub http_retries: u32,
+    pub http_retry_backoff_ms: u64,
+    pub http_retry_backoff_max_ms: u64,
+
+    pub ws_ping_interval_sec: u64,
+    pub ws_reconnect_backoff_ms: u64,
+    pub ws_reconnect_backoff_max_ms: u64,
+
+    pub enable_time_sync: bool,
+    pub time_sync_interval_sec: u64,
+    pub time_sync_max_skew_ms: u64,
+
+    pub rate_limit_soft_rps: u32,
+    pub rate_limit_soft_burst: u32,
+
+    pub futures_default_leverage: u16,
+    pub futures_margin_type: String,
+    pub recv_window_ms: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UniverseConfig {
+    pub quote_asset: String,
+    pub futures_only: bool,
+    pub perpetual_only: bool,
+
+    pub min_quote_volume_usdt_24h: f64,
+    pub refresh_interval_sec: u64,
+    pub max_change_ratio: f64,
+
+    pub exclude_base_assets: Vec<String>,
+    pub exclude_symbols: Vec<String>,
+
+    pub allowlist: Vec<String>,
+    pub denylist: Vec<String>,
+
+    pub apply_mode: String, // "startup_required"|"background"
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RuntimeConfig {
+    pub timeframes: Vec<String>,              // ["1m","5m","..."]
+    pub backfill_candles: usize,
+
+    pub realtime_ws_timeframes: Vec<String>,  // для WS
+    pub realtime_poll_timeframes: Vec<String>,// для poll/on-close
+    pub poll_on_close_interval_sec: u64,
+
+    pub enable_intra_candle_updates: bool,
+
+    pub persist_live_candle: bool,
+    pub persist_live_candle_every_ms: u64,
+
+    pub intra_update_sampling_ms: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ComputeConfig {
+    pub gpu_enabled: bool,
+    pub gpu_preferred: bool,
+    pub cpu_enabled: bool,
+
+    pub realtime_default_backend: String, // "cpu"|"gpu"
+    pub backfill_default_backend: String, // "cpu"|"gpu"
+
+    pub gpu_catchup_backlog_candles: usize,
+    pub gpu_catchup_max_latency_ms: u64,
+
+    pub gpu_batch_symbols: usize,
+    pub gpu_batch_timeframes: usize,
+    pub gpu_streams: u32,
+
+    pub hot_window_candles: usize,
+    pub hot_indicator_window: usize,
+    #[serde(default)]
+    pub indicators: IndicatorFlags,
+
+    pub raw_signals: RawSignalsConfig,
+    pub final_signals: FinalSignalsConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct IndicatorFlags {
+    pub rsi: bool,
+    pub macd: bool,
+    pub ema20: bool,
+    pub ema50: bool,
+    pub ema200: bool,
+    pub sma: bool,
+    pub bollinger: bool,
+    pub stoch: bool,
+    pub atr: bool,
+    pub adx: bool,
+    pub vwap: bool,
+    pub obv: bool,
+    pub cci: bool,
+    pub williams: bool,
+    pub alligator: bool,
+    pub trend: bool,
+    pub volume_spike: bool,
+    pub sr_levels: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RawSignalsConfig {
+    pub min_indicator_score: f64,
+    pub min_publish_score: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FinalSignalsConfig {
+    pub min_final_score: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RustBotConfig {
+    pub env: String,      // dev|prod
+    pub run_mode: String, // paper|live
+    pub instance_id: String,
+
+    pub log_level: String,
+    pub json_logs: bool,
+
+    pub redpanda_brokers: Vec<String>,
+    pub redpanda_client_id: String,
+
+    pub topic_candles_close: String,
+    pub topic_candles_update: String,
+    pub topic_indicators_close: String,
+    pub topic_raw_signals: String,
+    pub topic_final_signals: String,
+    pub topic_features_snapshot: String,
+    pub topic_orders_cmd: String,
+    pub topic_orders_events: String,
+    pub topic_positions_events: String,
+    #[serde(default)]
+    pub warmup: WarmupConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct WarmupConfig {
+    pub require_db_schema_ready: bool,
+    pub require_universe_ready: bool,
+    pub require_backfill_ready: bool,
+    pub require_bootstrap_indicators_ready: bool,
+    pub require_model_ready: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PortsConfig {
+    pub api_gateway: u16,
+    pub market_ingest: u16,
+    pub compute_core: u16,
+    pub db_writer: u16,
+    pub order_engine: u16,
+    pub position_tracker: u16,
+}
+
+pub fn load_config() -> Result<AppConfig, config::ConfigError> {
+    // Все файлы читаем из ./config/*.toml
+    // Env override: BOT__DATABASE__HOST=... (separator "__")
+    let builder = config::Config::builder()
+        .add_source(config::File::with_name("config/database").required(false))
+        .add_source(config::File::with_name("config/binance").required(false))
+        .add_source(config::File::with_name("config/universe").required(false))
+        .add_source(config::File::with_name("config/runtime").required(false))
+        .add_source(config::File::with_name("config/compute").required(false))
+        .add_source(config::File::with_name("config/rust_bot").required(false))
+        .add_source(
+            config::Environment::with_prefix("BOT")
+                .separator("__")
+                .try_parsing(true)
+                .list_separator(","),
+        );
+
+    let cfg = builder.build()?;
+    cfg.try_deserialize::<AppConfig>()
+}
+
+
+
+# crates/common/src/enums.rs
+
+use serde::{Deserialize, Serialize};
+
+/// 1 long, -1 short, 0 neutral
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum Side {
+    Short = -1,
+    Neutral = 0,
+    Long = 1,
+}
+
+/// kind: 1=entry, 2=filter, 3=warning
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum SignalKind {
+    Entry = 1,
+    Filter = 2,
+    Warning = 3,
+}
+
+/// Индикаторы — фиксируем стабильные ID (важно для storage и аналитики)
+/// Порядок: самые важные — меньше ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum IndicatorId {
+    Rsi = 1,
+    Macd = 2,
+    Ema20 = 3,
+    Ema50 = 4,
+    Ema200 = 5,
+    Sma = 6,
+    Bollinger = 7,
+    Stoch = 8,
+    Atr = 9,
+    Adx = 10,
+    Vwap = 11,
+    Obv = 12,
+    Cci = 13,
+    Williams = 14,
+    Alligator = 15,
+    Trend = 16,
+    VolumeSpike = 17,
+    SrLevels = 18,
+}
+
+/// Для order_engine (futures)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum OrderType {
+    Market = 1,
+    Limit = 2,
+    StopMarket = 3,
+    TakeProfitMarket = 4,
+    StopLimit = 5,
+    TakeProfitLimit = 6,
+}
+
+/// Статус — упрощенный (дальше можно расширить)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum OrderStatus {
+    New = 1,
+    PartiallyFilled = 2,
+    Filled = 3,
+    Canceled = 4,
+    Rejected = 5,
+    Expired = 6,
+}
+
+/// Для position_tracker
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum PositionStatus {
+    Open = 1,
+    Closed = 2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum PositionEventType {
+    Open = 1,
+    Fill = 2,
+    Tp1 = 3,
+    Tp2 = 4,
+    Tp3 = 5,
+    SlMoved = 6,
+    Close = 7,
+    Reconcile = 8,
+}
+
+
+
+# crates/common/src/error.rs
+
+//! Error types for the trading bot
+
+use thiserror::Error;
+
+/// Main error type for the trading bot
+#[derive(Error, Debug)]
+pub enum TradingBotError {
+    /// Error related to data parsing
+    #[error("Data parsing error: {0}")]
+    ParseError(String),
+
+    /// Error related to network communication
+    #[error("Network error: {0}")]
+    NetworkError(#[from] reqwest::Error),
+
+    /// Error related to database operations
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] sqlx::Error),
+
+    /// Error related to serialization/deserialization
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
+
+    /// Error related to candle building
+    #[error("Candle building error: {0}")]
+    CandleBuildError(String),
+
+    /// Error related to indicator calculation
+    #[error("Indicator calculation error: {0}")]
+    IndicatorError(String),
+
+    /// Error related to order management
+    #[error("Order management error: {0}")]
+    OrderError(String),
+
+    /// Error related to position tracking
+    #[error("Position tracking error: {0}")]
+    PositionError(String),
+
+    /// Error related to configuration
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+
+    /// Error related to GPU operations
+    #[error("GPU error: {0}")]
+    GpuError(String),
+
+    /// Error related to ML inference
+    #[error("ML inference error: {0}")]
+    MlError(String),
+
+    /// Error related to invalid state
+    #[error("Invalid state: {0}")]
+    InvalidState(String),
+
+    /// Error related to missing data
+    #[error("Missing data: {0}")]
+    MissingData(String),
+}
+
+
+# crates/common/src/lib.rs
+
+pub mod config;
+pub mod timeframe;
+pub mod enums;
+
+
+# crates/common/src/serde.rs
+
+//! Serialization utilities for the trading bot
+
+use rkyv::{Archive, Deserialize, Serialize};
+use serde::{Deserialize as SerdeDeserialize, Serialize as SerdeSerialize};
+
+/// Trait for types that can be serialized with rkyv
+pub trait RkyvSerializable: Archive + Deserialize<'static> + Serialize {
+    /// Serialize to bytes using rkyv
+    fn serialize_rkyv(&self) -> Result<Vec<u8>, rkyv::ser::Error> {
+        let mut serializer = rkyv::ser::serializers::AllocSerializer::<1024>::default();
+        rkyv::ser::serialize(&self, &mut serializer)?;
+        Ok(serializer.into_vec())
+    }
+
+    /// Deserialize from bytes using rkyv
+    fn deserialize_rkyv(bytes: &[u8]) -> Result<Self::Archived, rkyv::de::Error> 
+    where 
+        Self: Sized,
+    {
+        rkyv::from_bytes(bytes)
+    }
+}
+
+/// Helper function to serialize with serde_json
+pub fn serialize_json<T>(data: &T) -> Result<String, serde_json::Error>
+where
+    T: SerdeSerialize,
+{
+    serde_json::to_string(data)
+}
+
+/// Helper function to deserialize with serde_json
+pub fn deserialize_json<T>(json_str: &str) -> Result<T, serde_json::Error>
+where
+    T: SerdeDeserialize<'static>,
+{
+    serde_json::from_str(json_str)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::Candle;
+
+    #[test]
+    fn test_json_serialization() {
+        let candle = Candle {
+            time: chrono::Utc::now(),
+            symbol: "BTCUSDT".to_string(),
+            timeframe: crate::types::Timeframe::Min1,
+            open: 10000.0,
+            high: 10100.0,
+            low: 9900.0,
+            close: 10050.0,
+            volume: 100.0,
+            is_final: true,
+        };
+
+        let json_str = serialize_json(&candle).unwrap();
+        let deserialized: Candle = deserialize_json(&json_str).unwrap();
+        assert_eq!(candle, deserialized);
+    }
+}
+
+
+# crates/common/src/timeframe.rs
+
+use serde::{Deserialize, Serialize};
+use std::fmt;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[repr(i16)]
+pub enum Timeframe {
+    M1   = 1,
+    M5   = 5,
+    M15  = 15,
+    H1   = 60,
+    H4   = 240,
+    D1   = 1440,
+}
+
+impl Timeframe {
+    #[inline]
+    pub const fn minutes(self) -> i16 {
+        self as i16
+    }
+
+    #[inline]
+    pub const fn as_binance_interval(self) -> &'static str {
+        match self {
+            Timeframe::M1  => "1m",
+            Timeframe::M5  => "5m",
+            Timeframe::M15 => "15m",
+            Timeframe::H1  => "1h",
+            Timeframe::H4  => "4h",
+            Timeframe::D1  => "1d",
+        }
+    }
+
+    #[inline]
+    pub const fn duration_secs(self) -> i64 {
+        (self.minutes() as i64) * 60
+    }
+
+    /// Таблица candles для конкретного TF (у нас candles_{tf})
+    #[inline]
+    pub const fn candles_table(self) -> &'static str {
+        match self {
+            Timeframe::M1  => "market.candles_1m",
+            Timeframe::M5  => "market.candles_5m",
+            Timeframe::M15 => "market.candles_15m",
+            Timeframe::H1  => "market.candles_1h",
+            Timeframe::H4  => "market.candles_4h",
+            Timeframe::D1  => "market.candles_1d",
+        }
+    }
+
+    /// Таблица indicators snapshot для конкретного TF (у нас indicators_{tf})
+    #[inline]
+    pub const fn indicators_table(self) -> &'static str {
+        match self {
+            Timeframe::M1  => "market.indicators_1m",
+            Timeframe::M5  => "market.indicators_5m",
+            Timeframe::M15 => "market.indicators_15m",
+            Timeframe::H1  => "market.indicators_1h",
+            Timeframe::H4  => "market.indicators_4h",
+            Timeframe::D1  => "market.indicators_1d",
+        }
+    }
+
+    /// Парсинг из строки "1m"/"5m"/"15m"/"1h"/"4h"/"1d"
+    pub fn parse(s: &str) -> Result<Self, TimeframeParseError> {
+        match s {
+            "1m"  => Ok(Timeframe::M1),
+            "5m"  => Ok(Timeframe::M5),
+            "15m" => Ok(Timeframe::M15),
+            "1h"  => Ok(Timeframe::H1),
+            "4h"  => Ok(Timeframe::H4),
+            "1d"  => Ok(Timeframe::D1),
+            _ => Err(TimeframeParseError(s.to_string())),
+        }
+    }
+}
+
+impl fmt::Display for Timeframe {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_binance_interval())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid timeframe: {0}")]
+pub struct TimeframeParseError(pub String);
+
+
+
+# crates/common/src/types.rs
+
+//! Core data types for the trading bot
+
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
+
+/// A candlestick (OHLCV) data structure
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Candle {
+    /// Timestamp of the candle
+    pub time: DateTime<Utc>,
+    /// Symbol identifier
+    pub symbol: String,
+    /// Timeframe (1m, 5m, 15m, 1h, 4h, 1d)
+    pub timeframe: Timeframe,
+    /// Opening price
+    pub open: f64,
+    /// Highest price
+    pub high: f64,
+    /// Lowest price
+    pub low: f64,
+    /// Closing price
+    pub close: f64,
+    /// Trading volume
+    pub volume: f64,
+    /// Whether this is the final candle for this period
+    pub is_final: bool,
+}
+
+/// Timeframe enumeration
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum Timeframe {
+    /// 1 minute
+    Min1 = 1,
+    /// 5 minutes
+    Min5 = 5,
+    /// 15 minutes
+    Min15 = 15,
+    /// 1 hour
+    Hour1 = 60,
+    /// 4 hours
+    Hour4 = 240,
+    /// 1 day
+    Day1 = 1440,
+}
+
+impl From<u16> for Timeframe {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => Timeframe::Min1,
+            5 => Timeframe::Min5,
+            15 => Timeframe::Min15,
+            60 => Timeframe::Hour1,
+            240 => Timeframe::Hour4,
+            1440 => Timeframe::Day1,
+            _ => panic!("Unsupported timeframe: {}", value),
+        }
+    }
+}
+
+impl From<Timeframe> for u16 {
+    fn from(tf: Timeframe) -> Self {
+        match tf {
+            Timeframe::Min1 => 1,
+            Timeframe::Min5 => 5,
+            Timeframe::Min15 => 15,
+            Timeframe::Hour1 => 60,
+            Timeframe::Hour4 => 240,
+            Timeframe::Day1 => 1440,
+        }
+    }
+}
+
+/// Indicator state for incremental calculations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorState {
+    /// EMA values
+    pub ema: Option<EmaState>,
+    /// RSI values
+    pub rsi: Option<RsiState>,
+    /// MACD values
+    pub macd: Option<MacdState>,
+    /// ATR values
+    pub atr: Option<AtrState>,
+    /// ADX values
+    pub adx: Option<AdxState>,
+    /// Bollinger Bands values
+    pub bb: Option<BbState>,
+    /// Stochastic values
+    pub stoch: Option<StochState>,
+    /// VWAP values
+    pub vwap: Option<VwapState>,
+    /// OBV values
+    pub obv: Option<ObvState>,
+}
+
+/// EMA state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmaState {
+    pub ema20: f64,
+    pub ema50: f64,
+    pub ema200: f64,
+    pub alpha20: f64,
+    pub alpha50: f64,
+    pub alpha200: f64,
+}
+
+/// RSI state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RsiState {
+    pub avg_gain: f64,
+    pub avg_loss: f64,
+}
+
+/// MACD state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MacdState {
+    pub fast_ema: f64,
+    pub slow_ema: f64,
+    pub signal_ema: f64,
+}
+
+/// ATR state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AtrState {
+    pub tr: f64,
+    pub atr: f64,
+}
+
+/// ADX state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdxState {
+    pub dm_plus: f64,
+    pub dm_minus: f64,
+    pub tr: f64,
+    pub adx: f64,
+}
+
+/// Bollinger Bands state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BbState {
+    pub mean: f64,
+    pub variance: f64,
+}
+
+/// Stochastic state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StochState {
+    pub k: f64,
+    pub d: f64,
+}
+
+/// VWAP state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VwapState {
+    pub cum_pv: f64,
+    pub cum_volume: f64,
+}
+
+/// OBV state for incremental calculation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObvState {
+    pub obv: f64,
+}
+
+/// Raw signal generated by indicator calculations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RawSignal {
+    /// Timestamp of the signal
+    pub time: DateTime<Utc>,
+    /// Symbol identifier
+    pub symbol: String,
+    /// Timeframe
+    pub timeframe: Timeframe,
+    /// Signal score (0.0 to 1.0)
+    pub score: f64,
+    /// Raw indicator scores
+    pub indicator_scores: Vec<f64>,
+    /// Signal type
+    pub signal_type: SignalType,
+}
+
+/// Signal type enumeration
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum SignalType {
+    /// Long signal
+    Long,
+    /// Short signal
+    Short,
+    /// Neutral signal
+    Neutral,
+}
+
+/// Final signal with ML scoring
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Signal {
+    /// Timestamp of the signal
+    pub time: DateTime<Utc>,
+    /// Symbol identifier
+    pub symbol: String,
+    /// Timeframe
+    pub timeframe: Timeframe,
+    /// Final score (0.0 to 1.0)
+    pub final_score: f64,
+    /// ML score
+    pub ml_score: f64,
+    /// Heuristic score
+    pub heur_score: f64,
+    /// Reason for the signal
+    pub reason: String,
+    /// Model version
+    pub model_version: String,
+    /// Signal identifier for idempotency
+    pub signal_id: Uuid,
+}
+
+/// Trade intent generated by the scoring system
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeIntent {
+    /// Timestamp of the intent
+    pub time: DateTime<Utc>,
+    /// Symbol identifier
+    pub symbol: String,
+    /// Timeframe
+    pub timeframe: Timeframe,
+    /// Trade direction
+    pub side: TradeSide,
+    /// Quantity to trade
+    pub quantity: f64,
+    /// Stop loss price
+    pub stop_loss: Option<f64>,
+    /// Take profit prices
+    pub take_profit: Option<Vec<f64>>,
+    /// Final score
+    pub score: f64,
+    /// Features hash
+    pub features_hash: Uuid,
+    /// Signal identifier
+    pub signal_id: Uuid,
+}
+
+/// Trade side enumeration
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum TradeSide {
+    /// Buy/Long
+    Buy,
+    /// Sell/Short
+    Sell,
+}
+
+/// Order event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderEvent {
+    /// Timestamp of the event
+    pub time: DateTime<Utc>,
+    /// Symbol identifier
+    pub symbol: String,
+    /// Order ID
+    pub order_id: String,
+    /// Order type
+    pub order_type: OrderType,
+    /// Order side
+    pub side: TradeSide,
+    /// Quantity
+    pub quantity: f64,
+    /// Price
+    pub price: Option<f64>,
+    /// Status
+    pub status: OrderStatus,
+    /// Event type
+    pub event_type: OrderEventType,
+}
+
+/// Order type enumeration
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum OrderType {
+    /// Market order
+    Market,
+    /// Limit order
+    Limit,
+    /// Stop market order
+    StopMarket,
+    /// Take profit market order
+    TakeProfitMarket,
+}
+
+/// Order status enumeration
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum OrderStatus {
+    /// New order
+    New,
+    /// Filled
+    Filled,
+    /// Partially filled
+    PartiallyFilled,
+    /// Canceled
+    Canceled,
+    /// Rejected
+    Rejected,
+}
+
+/// Order event type enumeration
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum OrderEventType {
+    /// Order placed
+    Placed,
+    /// Order filled
+    Filled,
+    /// Order canceled
+    Canceled,
+    /// Order failed
+    Failed,
+}
+
+/// Position update event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionUpdate {
+    /// Timestamp of the update
+    pub time: DateTime<Utc>,
+    /// Symbol identifier
+    pub symbol: String,
+    /// Position side
+    pub side: TradeSide,
+    /// Position size
+    pub size: f64,
+    /// Average entry price
+    pub entry_price: f64,
+    /// Unrealized profit/loss
+    pub unrealized_pnl: f64,
+    /// Leverage
+    pub leverage: u16,
+    /// Liquidation price
+    pub liquidation_price: Option<f64>,
+}
+
+/// Exit decision event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExitDecision {
+    /// Timestamp of the decision
+    pub time: DateTime<Utc>,
+    /// Symbol identifier
+    pub symbol: String,
+    /// Reason for exit
+    pub reason: String,
+    /// Action to take
+    pub action: ExitAction,
+    /// Signal identifier
+    pub signal_id: Uuid,
+}
+
+/// Exit action enumeration
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum ExitAction {
+    /// Close position immediately
+    Close,
+    /// Tighten stop loss
+    TightenSl,
+    /// Trail stop loss
+    TrailSl,
+    /// Scale out
+    ScaleOut,
+    /// Extend take profit
+    ExtendTp,
+}
+
+
+# crates/api_gateway/Cargo.toml
+
+
+
+
+# crates/api_gateway/src/auth.rs
+
+
+
+
+# crates/api_gateway/src/health.rs
+
+
+
+
+# crates/api_gateway/src/main.rs
+
+
+
+
+# crates/api_gateway/src/routes.rs
+
+
+
+
+# crates/api_gateway/src/ws.rs
+
+
+
+
+# crates/api_binance/Cargo.toml
+
+
+
+
+# crates/api_binance/src/lib.rs
+
+//! Binance API integration for the trading bot
+//!
+//! This crate provides interfaces for interacting with Binance Futures API,
+//! including both REST and WebSocket connections for market data and order management.
+
+pub mod rest;
+pub mod ws_market;
+pub mod ws_user;
+pub mod sign;
+pub mod rate_limit;
+
+pub use rest::*;
+pub use ws_market::*;
+pub use ws_user::*;
+pub use sign::*;
+pub use rate_limit::*;
+
+
+# crates/api_binance/src/rate_limits.rs
+
+
+
+
+# crates/api_binance/src/rest.rs
+
+
+
+
+# crates/api_binance/src/sign.rs
+
+
+
+
+# crates/api_binance/src/ws_market.rs
+
+
+
+
+# crates/api_binance/src/ws_user.rs
+
+
+
+
+# cuda/build.rs
+
+
+
+
+# cuda/kernels/indicators.cu
+
+
+
+
+# cuda/kernels/reduce.cu
+
+
+
+
+# cuda/ptx/indicators.ptx
+
+
+
+
+# scripts/db_health.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${DATABASE_URL:?DATABASE_URL is required}"
+
+PSQL="psql -X -v ON_ERROR_STOP=1 -tA"
+
+fail() {
+  echo "❌ DB HEALTH FAILED: $*" >&2
+  exit 1
+}
+
+ok() {
+  echo "✅ $*"
+}
+
+# --- helpers ---
+q() {
+  # run query, return raw output
+  $PSQL "$DATABASE_URL" -c "$1" | tr -d '\r'
+}
+
+require_true() {
+  local name="$1"
+  local sql="$2"
+  local out
+  out="$(q "$sql")"
+  [[ "$out" == "t" || "$out" == "true" || "$out" == "1" ]] || fail "$name expected TRUE, got: $out"
+  ok "$name"
+}
+
+require_notnull() {
+  local name="$1"
+  local sql="$2"
+  local out
+  out="$(q "$sql")"
+  [[ -n "$out" && "$out" != "f" && "$out" != "false" ]] || fail "$name expected NOT NULL/TRUE, got: $out"
+  ok "$name"
+}
+
+require_min_int() {
+  local name="$1"
+  local sql="$2"
+  local min="$3"
+  local out
+  out="$(q "$sql")"
+  [[ "$out" =~ ^[0-9]+$ ]] || fail "$name expected int, got: $out"
+  (( out >= min )) || fail "$name expected >= $min, got: $out"
+  ok "$name ($out >= $min)"
+}
+
+# --- H00 ping ---
+require_min_int "H00 ping" "SELECT 1;" 1
+
+# --- H01 Timescale ---
+require_true "H01 timescale installed" "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='timescaledb');"
+
+# --- H02 Schemas ---
+require_true "H02 schema market" "SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='market');"
+require_true "H02 schema trade"  "SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='trade');"
+
+# --- H03 Core tables exist ---
+require_true "H03 market.pairs"             "SELECT to_regclass('market.pairs') IS NOT NULL;"
+require_true "H03 market.collected_candles" "SELECT to_regclass('market.collected_candles') IS NOT NULL;"
+require_true "H03 market.candles_live"      "SELECT to_regclass('market.candles_live') IS NOT NULL;"
+require_true "H03 market.raw_signals"       "SELECT to_regclass('market.raw_signals') IS NOT NULL;"
+require_true "H03 trade.final_signals"      "SELECT to_regclass('trade.final_signals') IS NOT NULL;"
+require_true "H03 trade.orders"             "SELECT to_regclass('trade.orders') IS NOT NULL;"
+require_true "H03 trade.positions"          "SELECT to_regclass('trade.positions') IS NOT NULL;"
+require_true "H03 trade.position_events"    "SELECT to_regclass('trade.position_events') IS NOT NULL;"
+require_true "H03 trade.ml_train_examples"  "SELECT to_regclass('trade.ml_train_examples') IS NOT NULL;"
+
+# --- H04 Candle TF tables ---
+require_true "H04 candles_1m"  "SELECT to_regclass('market.candles_1m')  IS NOT NULL;"
+require_true "H04 candles_5m"  "SELECT to_regclass('market.candles_5m')  IS NOT NULL;"
+require_true "H04 candles_15m" "SELECT to_regclass('market.candles_15m') IS NOT NULL;"
+require_true "H04 candles_1h"  "SELECT to_regclass('market.candles_1h')  IS NOT NULL;"
+require_true "H04 candles_4h"  "SELECT to_regclass('market.candles_4h')  IS NOT NULL;"
+require_true "H04 candles_1d"  "SELECT to_regclass('market.candles_1d')  IS NOT NULL;"
+
+# --- H05 Indicators TF tables ---
+require_true "H05 indicators_1m"  "SELECT to_regclass('market.indicators_1m')  IS NOT NULL;"
+require_true "H05 indicators_5m"  "SELECT to_regclass('market.indicators_5m')  IS NOT NULL;"
+require_true "H05 indicators_15m" "SELECT to_regclass('market.indicators_15m') IS NOT NULL;"
+require_true "H05 indicators_1h"  "SELECT to_regclass('market.indicators_1h')  IS NOT NULL;"
+require_true "H05 indicators_4h"  "SELECT to_regclass('market.indicators_4h')  IS NOT NULL;"
+require_true "H05 indicators_1d"  "SELECT to_regclass('market.indicators_1d')  IS NOT NULL;"
+
+# --- H06 Hypertables counts ---
+require_min_int "H06 hypertables candles_*"    "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_schema='market' AND hypertable_name LIKE 'candles_%';" 6
+require_min_int "H06 hypertables indicators_*" "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_schema='market' AND hypertable_name LIKE 'indicators_%';" 6
+require_min_int "H06 hypertable raw_signals"   "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_schema='market' AND hypertable_name='raw_signals';" 1
+require_min_int "H06 hypertable final_signals" "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_schema='trade'  AND hypertable_name='final_signals';" 1
+require_min_int "H06 hypertable ml_train_examples" "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_schema='trade' AND hypertable_name='ml_train_examples';" 1
+require_min_int "H06 hypertable position_events" "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_schema='trade' AND hypertable_name='position_events';" 1
+
+# --- H07 Compression enabled (candles + indicators) ---
+# Если compression_enabled хоть где-то false — считаем ошибкой
+comp_bad="$(q "SELECT count(*) FROM timescaledb_information.hypertables
+              WHERE hypertable_schema='market'
+                AND (hypertable_name LIKE 'candles_%' OR hypertable_name LIKE 'indicators_%')
+                AND compression_enabled = false;")"
+[[ "$comp_bad" =~ ^[0-9]+$ ]] || fail "H07 compression check returned non-int: $comp_bad"
+(( comp_bad == 0 )) || fail "H07 compression enabled: found $comp_bad hypertables without compression"
+ok "H07 compression enabled for candles/indicators"
+
+# --- H08 Retention policy jobs exist (soft check) ---
+# Используем связь через hypertable_name напрямую из вьюхи jobs
+ret_c1d="$(q "SELECT count(*) FROM timescaledb_information.jobs WHERE proc_name='policy_retention' AND hypertable_name = 'candles_1d' AND hypertable_schema = 'market';")"
+ret_i1d="$(q "SELECT count(*) FROM timescaledb_information.jobs WHERE proc_name='policy_retention' AND hypertable_name = 'indicators_1d' AND hypertable_schema = 'market';")"
+
+[[ "$ret_c1d" =~ ^[0-9]+$ ]] || fail "H08 retention candles_1d bad: $ret_c1d"
+[[ "$ret_i1d" =~ ^[0-9]+$ ]] || fail "H08 retention indicators_1d bad: $ret_i1d"
+(( ret_c1d >= 1 )) || fail "H08 retention candles_1d missing"
+(( ret_i1d >= 1 )) || fail "H08 retention indicators_1d missing"
+ok "H08 retention policies present (at least for 1d candles/indicators)"
+
+# --- H09 Compression policy jobs exist (soft check) ---
+comp_c1d="$(q "SELECT count(*) FROM timescaledb_information.jobs WHERE proc_name='policy_compression' AND hypertable_name = 'candles_1d' AND hypertable_schema = 'market';")"
+comp_i1d="$(q "SELECT count(*) FROM timescaledb_information.jobs WHERE proc_name='policy_compression' AND hypertable_name = 'indicators_1d' AND hypertable_schema = 'market';")"
+
+[[ "$comp_c1d" =~ ^[0-9]+$ ]] || fail "H09 comp candles_1d bad: $comp_c1d"
+[[ "$comp_i1d" =~ ^[0-9]+$ ]] || fail "H09 comp indicators_1d bad: $comp_i1d"
+(( comp_c1d >= 1 )) || fail "H09 compression policy candles_1d missing"
+(( comp_i1d >= 1 )) || fail "H09 compression policy indicators_1d missing"
+ok "H09 compression policies present (at least for 1d candles/indicators)"
+
+ok "DB HEALTH OK ✅"
+
+
+
+# scripts/healthcheck.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+WAIT=0
+if [[ "${1:-}" == "--wait" ]]; then WAIT=1; fi
+
+check_url () {
+  local name="$1" url="$2"
+  curl -fsS "$url" >/dev/null && echo "✅ $name" || (echo "❌ $name" && return 1)
+}
+
+check_pg () {
+  docker compose -f infra/docker-compose.yml exec -T timescaledb pg_isready -U postgres >/dev/null
+}
+
+check_redpanda () {
+  docker compose -f infra/docker-compose.yml exec -T redpanda rpk cluster health >/dev/null
+}
+
+check_gpu () {
+  command -v nvidia-smi >/dev/null && nvidia-smi -L >/dev/null
+}
+
+try_once () {
+  echo "== system checks =="
+  check_gpu && echo "✅ GPU" || (echo "❌ GPU"; return 1)
+  check_pg && echo "✅ Postgres" || (echo "❌ Postgres"; return 1)
+  check_redpanda && echo "✅ Redpanda" || (echo "❌ Redpanda"; return 1)
+
+  echo "== service readiness =="
+  check_url "api_gateway"     "http://localhost:8080/readyz"
+  check_url "market_ingest"   "http://localhost:8081/readyz"
+  check_url "compute_core"    "http://localhost:8082/readyz"
+  check_url "db_writer"       "http://localhost:8083/readyz"
+  check_url "order_engine"    "http://localhost:8084/readyz"
+  check_url "position_tracker""http://localhost:8085/readyz"
+}
+
+if [[ "$WAIT" -eq 1 ]]; then
+  for i in {1..60}; do
+    if try_once; then exit 0; fi
+    sleep 1
+  done
+  echo "❌ health gate timeout"
+  exit 1
+else
+  try_once
+fi
+
+
+# scripts/preflight.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Checking system requirements..."
+
+# Check if docker is installed
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker is not installed"
+    exit 1
+fi
+
+# Check if docker compose is installed
+if ! command -v docker compose &> /dev/null; then
+    echo "❌ Docker Compose is not installed"
+    exit 1
+fi
+
+# Check if nvidia-smi is available (for GPU support)
+if ! command -v nvidia-smi &> /dev/null; then
+    echo "⚠️  NVIDIA drivers not detected - GPU acceleration will be disabled"
+else
+    echo "✅ NVIDIA drivers detected"
+fi
+
+# Check if rust is installed
+if ! command -v rustc &> /dev/null; then
+    echo "❌ Rust is not installed"
+    exit 1
+fi
+
+# Check if cargo is installed
+if ! command -v cargo &> /dev/null; then
+    echo "❌ Cargo is not installed"
+    exit 1
+fi
+
+# Check if nightly toolchain is installed
+if ! rustc --version | grep -q "nightly"; then
+    echo "⚠️  Nightly Rust toolchain not detected - installing..."
+    rustup toolchain install nightly
+    rustup default nightly
+fi
+
+# Check if required components are installed
+if ! rustc --version | grep -q "rust-src"; then
+    echo "Installing rust-src component..."
+    rustup component add rust-src
+fi
+
+if ! rustc --version | grep -q "clippy"; then
+    echo "Installing clippy component..."
+    rustup component add clippy
+fi
+
+if ! rustc --version | grep -q "rustfmt"; then
+    echo "Installing rustfmt component..."
+    rustup component add rustfmt
+fi
+
+echo "✅ All prerequisites met"
+
+
+# scripts/restart.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+PID_DIR="${PID_DIR:-./run}"
+COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yml}"
+
+log(){ echo "[$(date +'%H:%M:%S')] $*"; }
+
+stop_pidfile() {
+  local name="$1"
+  local pidfile="$PID_DIR/${name}.pid"
+  if [[ -f "$pidfile" ]]; then
+    local pid; pid="$(cat "$pidfile")"
+    if kill -0 "$pid" 2>/dev/null; then
+      log "Stopping $name (pid=$pid)..."
+      kill "$pid" || true
+      # wait a bit
+      for _ in {1..20}; do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.2
+      done
+      kill -9 "$pid" 2>/dev/null || true
+      log "$name stopped"
+    fi
+    rm -f "$pidfile"
+  fi
+}
+
+main() {
+  log "Restarting services..."
+  mkdir -p "$PID_DIR"
+
+  stop_pidfile "db_writer"
+  # stop_pidfile "market_collector"
+  # stop_pidfile "indicator_engine"
+  # stop_pidfile "signal_scorer"
+  # stop_pidfile "order_engine"
+
+  log "Optional: restarting docker infra (kept running by default)"
+  # docker compose -f "$COMPOSE_FILE" restart
+
+  ./scripts/start.sh
+}
+
+main "$@"
+
+
+
+# scripts/start.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Определяем корневую директорию проекта
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+# --- Конфигурация ---
+COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
+ENV_FILE="${ENV_FILE:-.env}"
+DB_WAIT_SECONDS="${DB_WAIT_SECONDS:-5}"
+BUILD_MODE="${BUILD_MODE:-release}" # можно менять на debug для разработки
+
+# Пути к бинарникам зависят от режима сборки
+BIN_PATH="./target/$BUILD_MODE"
+DB_INIT_BIN="$BIN_PATH/db_init"
+DB_WRITER_BIN="$BIN_PATH/db_writer"
+
+# Директории для логов и пидов
+PID_DIR="./run"
+LOG_DIR="./logs"
+mkdir -p "$PID_DIR" "$LOG_DIR"
+
+log() { echo "[$(date +'%H:%M:%S')] $*"; }
+die() { echo "❌ $*" >&2; exit 1; }
+
+load_env() {
+  if [[ -f "$ENV_FILE" ]]; then
+    set -a; source "$ENV_FILE"; set +a
+    log "Loaded env: $ENV_FILE"
+  else
+    die ".env file not found at $ENV_FILE"
+  fi
+  : "${DATABASE_URL:?DATABASE_URL is required in .env}"
+}
+
+echo "[*] Cleaning up old processes..."
+pkill -f "target/release/ingest" || true
+pkill -f "target/release/db_writer" || true
+# Даем портам 1-2 секунды освободиться
+sleep 2
+
+# Функция автоматической сборки
+ensure_built() {
+  local package=$1
+  local bin=$2
+  if [[ ! -x "$bin" ]]; then
+    log "Binary $bin not found. Building $package..."
+    cargo build --${BUILD_MODE} -p "$package"
+  fi
+}
+
+wait_postgres() {
+  log "Waiting for PostgreSQL ($DB_WAIT_SECONDS s max)..."
+  local start_ts=$(date +%s)
+  
+  # Используем DB_PORT из .env (у вас там 5433)
+  local port=${DB_PORT:-5432}
+
+  while true; do
+    # 1. Проверяем открыт ли порт локально
+    if nc -z 127.0.0.1 "$port" >/dev/null 2>&1; then
+      log "PostgreSQL port $port is open"
+      
+      # 2. Проверяем готовность самой БД внутри контейнера
+      # ВАЖНО: имя сервиса тут 'timescaledb' (как в вашем выводе Docker)
+      if docker compose -f "$COMPOSE_FILE" exec -T timescaledb pg_isready -U "$DB_USER" >/dev/null 2>&1; then
+        log "PostgreSQL is fully ready"
+        return 0
+      fi
+    fi
+
+    local now=$(date +%s)
+    if (( now - start_ts > DB_WAIT_SECONDS )); then
+      log "Full DATABASE_URL check failed. Checking container status..."
+      docker compose -f "$COMPOSE_FILE" ps
+      die "PostgreSQL not ready at localhost:$port after ${DB_WAIT_SECONDS}s"
+    fi
+    sleep 2
+  done
+}
+
+docker_up() {
+  log "Starting docker infrastructure (if not running)..."
+  docker compose -f "$COMPOSE_FILE" up -d
+}
+
+run_db_init() {
+  log "Running db_init migrations..."
+  # Передаем DATABASE_URL явно, если db_init его ожидает
+  "$DB_INIT_BIN" --dir infra/database/init
+}
+
+start_service() {
+  local name="$1"
+  local bin="$2"
+  local pidfile="$PID_DIR/${name}.pid"
+  local logfile="$LOG_DIR/${name}.log"
+
+  if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+    log "Service $name already running (pid $(cat "$pidfile"))"
+    return 0
+  fi
+
+  log "Starting $name..."
+  # Запуск в фоне. Используем env для проброса переменных
+  nohup "$bin" >> "$logfile" 2>&1 &
+  echo $! > "$pidfile"
+  
+  sleep 1
+  if kill -0 $! 2>/dev/null; then
+    log "$name started. PID: $(cat "$pidfile"), Log: $logfile"
+  else
+    die "$name failed to start! Check $logfile"
+  fi
+}
+
+main() {
+  load_env
+  
+  log "Checking/Building binaries..."
+  ensure_built "db_init" "$DB_INIT_BIN"
+  ensure_built "db_writer" "$DB_WRITER_BIN"
+
+  docker_up
+  wait_postgres
+
+  run_db_init
+  
+  # Опционально: проверка здоровья через ваш скрипт
+  if [[ -x "./scripts/db_health.sh" ]]; then
+     ./scripts/db_health.sh || die "DB health check failed"
+  fi
+  
+  echo "[...] Starting ingest..."
+  ./target/release/ingest > ./logs/ingest.log 2>&1 &
+  echo $! > ./run/ingest.pid
+
+  echo "[...] Waiting for stage PAIRS_READY..."
+  ./scripts/wait_stage.sh "http://localhost:8081/stagez" "PAIRS_READY" 120
+
+  # Запуск сервисов
+  start_service "db_writer" "$DB_WRITER_BIN"
+
+  log "✅ ALL SYSTEMS GO"
+}
+
+main "$@"
+
+
+
+
+# scripts/stop.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+PID_DIR="${PID_DIR:-./run}"
+COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yml}"
+
+GRACE_SECONDS="${GRACE_SECONDS:-4}"
+HARD_KILL_AFTER_SECONDS="${HARD_KILL_AFTER_SECONDS:-2}"
+
+DOCKER_ACTION="none"   # none|stop|down
+STOP_ALL=0
+
+log(){ echo "[$(date +'%H:%M:%S')] $*"; }
+die(){ echo "❌ $*" >&2; exit 1; }
+
+usage() {
+  cat <<EOF
+Usage: scripts/stop.sh [options]
+
+Options:
+  --all              Stop all known services (default list inside script)
+  --service NAME     Stop only one service by name (can be repeated)
+  --docker-stop      docker compose stop
+  --docker-down      docker compose down (removes containers)
+  --pid-dir PATH     pid dir (default: ./run)
+  -h, --help         show help
+
+Env:
+  GRACE_SECONDS              soft stop wait (default: 4)
+  HARD_KILL_AFTER_SECONDS    extra wait before -9 (default: 2)
+  COMPOSE_FILE               docker compose file (default: docker-compose.yml)
+EOF
+}
+
+SERVICES_DEFAULT=(
+  "db_writer"
+  "market_collector"
+  "indicator_engine"
+  "signal_scorer"
+  "order_engine"
+  "position_tracker"
+)
+
+SERVICES_TO_STOP=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all)
+      STOP_ALL=1
+      shift
+      ;;
+    --service)
+      shift
+      [[ $# -gt 0 ]] || die "--service requires a NAME"
+      SERVICES_TO_STOP+=("$1")
+      shift
+      ;;
+    --docker-stop)
+      DOCKER_ACTION="stop"
+      shift
+      ;;
+    --docker-down)
+      DOCKER_ACTION="down"
+      shift
+      ;;
+    --pid-dir)
+      shift
+      [[ $# -gt 0 ]] || die "--pid-dir requires a PATH"
+      PID_DIR="$1"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown arg: $1 (use --help)"
+      ;;
+  esac
+done
+
+mkdir -p "$PID_DIR"
+
+stop_pid() {
+  local name="$1"
+  local pidfile="$PID_DIR/${name}.pid"
+
+  if [[ ! -f "$pidfile" ]]; then
+    log "ℹ️  $name: pidfile not found, skip"
+    return 0
+  fi
+
+  local pid
+  pid="$(cat "$pidfile" || true)"
+  if [[ -z "$pid" ]]; then
+    log "⚠️  $name: empty pidfile, removing"
+    rm -f "$pidfile"
+    return 0
+  fi
+
+  if ! kill -0 "$pid" 2>/dev/null; then
+    log "ℹ️  $name: pid $pid not running, removing pidfile"
+    rm -f "$pidfile"
+    return 0
+  fi
+
+  log "🛑 Stopping $name (pid=$pid) ..."
+  kill "$pid" 2>/dev/null || true
+
+  # graceful wait
+  local t=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if (( t >= GRACE_SECONDS * 10 )); then
+      break
+    fi
+    sleep 0.1
+    t=$((t+1))
+  done
+
+  if kill -0 "$pid" 2>/dev/null; then
+    log "⚠️  $name: still alive after ${GRACE_SECONDS}s, sending SIGKILL..."
+    kill -9 "$pid" 2>/dev/null || true
+
+    # short extra wait
+    local t2=0
+    while kill -0 "$pid" 2>/dev/null; do
+      if (( t2 >= HARD_KILL_AFTER_SECONDS * 10 )); then
+        break
+      fi
+      sleep 0.1
+      t2=$((t2+1))
+    done
+  fi
+
+  if kill -0 "$pid" 2>/dev/null; then
+    log "❌ $name: failed to stop pid=$pid"
+    return 1
+  fi
+
+  rm -f "$pidfile"
+  log "✅ $name stopped"
+  return 0
+}
+
+main() {
+  local list=()
+
+  if (( STOP_ALL == 1 )) || (( ${#SERVICES_TO_STOP[@]} == 0 )); then
+    list=("${SERVICES_DEFAULT[@]}")
+  else
+    list=("${SERVICES_TO_STOP[@]}")
+  fi
+
+  log "Stopping services (pid_dir=$PID_DIR)..."
+  local failed=0
+  for s in "${list[@]}"; do
+    stop_pid "$s" || failed=1
+  done
+
+  case "$DOCKER_ACTION" in
+    none)
+      ;;
+    stop)
+      log "🐳 docker compose stop..."
+      docker compose -f "$COMPOSE_FILE" stop || true
+      ;;
+    down)
+      log "🐳 docker compose down..."
+      docker compose -f "$COMPOSE_FILE" down || true
+      ;;
+  esac
+
+  if (( failed == 1 )); then
+    die "Some services failed to stop"
+  fi
+
+  log "✅ STOP OK"
+}
+
+main
+
+
+
+# scripts/wait_pg.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Waiting for TimescaleDB to be ready..."
+timeout=300
+start_time=$(date +%s)
+
+while true; do
+    if docker compose -f infra/docker-compose.yml exec -T timescaledb pg_isready -U postgres >/dev/null 2>&1; then
+        echo "✅ TimescaleDB is ready"
+        exit 0
+    fi
+    
+    current_time=$(date +%s)
+    elapsed=$((current_time - start_time))
+    
+    if [ $elapsed -ge $timeout ]; then
+        echo "❌ Timeout waiting for TimescaleDB"
+        exit 1
+    fi
+    
+    echo "⏳ TimescaleDB not ready yet, waiting..."
+    sleep 5
+done
+
+
+# scripts/wait_redpanda.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Waiting for Redpanda to be ready..."
+timeout=300
+start_time=$(date +%s)
+
+while true; do
+    if docker compose -f infra/docker-compose.yml exec -T redpanda rpk cluster health >/dev/null 2>&1; then
+        echo "✅ Redpanda is ready"
+        exit 0
+    fi
+    
+    current_time=$(date +%s)
+    elapsed=$((current_time - start_time))
+    
+    if [ $elapsed -ge $timeout ]; then
+        echo "❌ Timeout waiting for Redpanda"
+        exit 1
+    fi
+    
+    echo "⏳ Redpanda not ready yet, waiting..."
+    sleep 5
+done
+
+
+# scripts/wait_stage.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+URL="${1:?stagez url}"
+TARGET="${2:?target stage}"
+TIMEOUT="${3:-600}"
+
+start_ts="$(date +%s)"
+while true; do
+  stage="$(curl -fsS "$URL" | sed -n 's/.*"stage"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)"
+  if [[ "$stage" == "$TARGET" ]]; then
+    echo "✅ stage reached: $TARGET"
+    exit 0
+  fi
+  now="$(date +%s)"
+  if (( now - start_ts > TIMEOUT )); then
+    echo "❌ stage timeout. expected=$TARGET got=${stage:-unknown}"
+    exit 1
+  fi
+  sleep 2
+done
+
+
+# config/binance.toml
+
+[binance]
+# USDⓈ-M Futures
+rest_base_url = "https://fapi.binance.com"
+ws_base_url   = "wss://fstream.binance.com"
+
+# Таймауты/ретраи
+http_timeout_ms = 8000
+http_retries = 5
+http_retry_backoff_ms = 250
+http_retry_backoff_max_ms = 5000
+
+ws_ping_interval_sec = 15
+ws_reconnect_backoff_ms = 500
+ws_reconnect_backoff_max_ms = 15000
+
+# Синхронизация времени (важно для подписей и ордеров)
+enable_time_sync = true
+time_sync_interval_sec = 300
+time_sync_max_skew_ms = 250
+
+# Веса запросов / лимиты (мягкие лимиты на клиентской стороне)
+rate_limit_soft_rps = 8
+rate_limit_soft_burst = 16
+
+# Ордерный режим (позже)
+futures_default_leverage = 10
+futures_margin_type = "ISOLATED"    # ISOLATED|CROSSED
+recv_window_ms = 5000
+
+# Ключи:
+# BINANCE_API_KEY
+# BINANCE_API_SECRET
+# BINANCE_TESTNET=1 (если захочешь)
+
+
+
+# config/compute.toml
+
+[compute]
+gpu_enabled = true
+gpu_preferred = true
+cpu_enabled = true
+realtime_default_backend = "cpu"
+backfill_default_backend = "gpu"
+gpu_catchup_backlog_candles = 2500
+gpu_catchup_max_latency_ms = 900
+gpu_batch_symbols = 48
+gpu_batch_timeframes = 6
+gpu_streams = 2
+hot_window_candles = 1200
+hot_indicator_window = 1200
+
+[compute.indicators]
+rsi = true
+macd = true
+ema20 = true
+ema50 = true
+ema200 = true
+sma = true
+bollinger = true
+stoch = true
+atr = true
+adx = true
+vwap = true
+obv = true
+cci = true
+williams = true
+alligator = true
+trend = true
+volume_spike = true
+sr_levels = true
+
+[compute.raw_signals]
+min_indicator_score = 0.60
+min_publish_score = 0.80
+
+[compute.final_signals]
+min_final_score = 0.97
+
+
+# config/database.toml
+
+# Database configuration for the trading bot
+
+[database]
+name = "timescaledb_binance"
+user = "postgres"
+password = "postgres"
+host = "localhost"
+port = 5433
+pool_size = 10
+ssl_mode = "disable"
+
+[ports]
+api_gateway = 8080
+market_ingest = 8081
+compute_core = 8082
+db_writer = 8083
+order_engine = 8084
+position_tracker = 8085
+
+
+
+# config/runtime.toml
+
+[runtime]
+# Таймфреймы которые ДОЛЖНЫ существовать везде (backfill + compute)
+timeframes = ["1m","5m","15m","1h","4h","1d"]
+
+# Сколько свечей на backfill для каждого TF
+backfill_candles = 700
+
+# Реалтайм стратегия:
+# Важно: WS лимит 1024 streams. 250 пар * 6 TF = 1500 стримов — не влезет.
+# Поэтому realtime WS держим на ключевых, старшие TF обновляем poll/on-close.
+realtime_ws_timeframes = ["1m","5m","15m","1h"]
+realtime_poll_timeframes = ["4h","1d"]
+
+poll_on_close_interval_sec = 30     # как часто проверяем "закрылась ли" 4h/1d свеча
+
+# Intra-candle updates (обновлять незакрытую свечу по сообщениям)
+# true = ты получаешь high/low/close внутри свечи тоже
+enable_intra_candle_updates = true
+
+# Persist незакрытой свечи (чтобы рестарт не давал дырки)
+persist_live_candle = true
+persist_live_candle_every_ms = 1500
+
+# Защита от перегруза: sampling внутрисвечных обновлений
+# (close всегда обязателен, sampling касается только intra)
+intra_update_sampling_ms = 200
+
+
+
+# config/rust_bot.toml
+
+[rust_bot]
+env = "dev"
+run_mode = "paper"
+instance_id = "local-01"
+log_level = "info"
+json_logs = false
+redpanda_brokers = ["localhost:19092"]
+redpanda_client_id = "rust-bot"
+
+topic_candles_close     = "candles.close"
+topic_candles_update    = "candles.update"
+topic_indicators_close  = "indicators.close"
+topic_raw_signals       = "signals.raw"
+topic_final_signals     = "signals.final"
+topic_features_snapshot = "features.snapshot"
+topic_orders_cmd        = "orders.cmd"
+topic_orders_events     = "orders.events"
+topic_positions_events  = "positions.events"
+
+[rust_bot.warmup]
+require_db_schema_ready = true
+require_universe_ready = true
+require_backfill_ready = true
+require_bootstrap_indicators_ready = true
+require_model_ready = false
+
+
+# config/universe.toml
+
+[universe]
+quote_asset = "USDT"
+
+# Только USD-M Futures (perpetual)
+futures_only = true
+perpetual_only = true
+
+# Фильтр ликвидности
+min_quote_volume_usdt_24h = 2_000_000.0
+
+# Как часто обновлять "в фоне" (сек)
+refresh_interval_sec = 86400  # 24h
+
+# Чтобы не было резкого churn:
+# если за один refresh выбросилось/добавилось слишком много — не применять автоматически
+max_change_ratio = 0.10       # 10% изменения списка за раз
+
+# Исключаем стейблы как base asset (список можно расширять)
+exclude_base_assets = [
+  "USDC","BUSD","TUSD","FDUSD","USDP","DAI","PAX","USDS","EURS"
+]
+
+# Исключаем "металлы/коммодити аналоги" и прочие нежелательные
+# (подправишь список по факту из exchangeInfo/ticker)
+exclude_symbols = [
+  "PAXGUSDT","XAUTUSDT"
+]
+
+# Manual override:
+# allowlist имеет приоритет: даже если volume ниже — оставляем
+allowlist = []
+
+# denylist имеет приоритет: выкидываем всегда
+denylist = []
+
+# Поведение применения результата:
+# - "startup_required": при старте обязателен refresh (и блокирует warmup до готовности)
+# - "background": потом фоново, без стопа торговли (если безопасно)
+apply_mode = "startup_required"
+
+
+
+# ingest/Cargo.toml
+
+[package]
+name = "ingest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "ingest"
+path = "src/main.rs"
+
+[dependencies]
+common = { path = "../crates/common" }
+
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+axum = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+# Keep tokio-postgres if used elsewhere, but universe.rs needs sqlx
+tokio-postgres = { workspace = true, features = ["with-uuid-1", "with-serde_json-1"] }
+# ADD THESE TWO LINES:
+sqlx = { workspace = true, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+toml = "0.8"
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+
+
+
+
+# ingest/src/backfill.rs
+
+
+
+
+# ingest/src/candle_builder.rs
+
+
+
+
+# ingest/src/config.rs
+
+
+
+
+# ingest/src/gap_fill.rs
+
+
+
+
+# ingest/src/health.rs
+
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use serde::Serialize;
+use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::AppState;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StageView {
+    pub stage: String,
+    pub updated_at_ms: i64,
+    pub details: String,
+}
+
+#[derive(Clone)]
+pub struct StageState {
+    inner: Arc<RwLock<StageView>>,
+}
+
+impl StageState {
+    pub fn new(init_stage: &str) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(StageView {
+                stage: init_stage.to_string(),
+                updated_at_ms: now_ms(),
+                details: String::new(),
+            })),
+        }
+    }
+
+    pub fn set(&self, stage: &str, details: impl Into<String>) {
+        let mut w = self.inner.write().unwrap();
+        w.stage = stage.to_string();
+        w.updated_at_ms = now_ms();
+        w.details = details.into();
+    }
+
+    pub fn get(&self) -> StageView {
+        self.inner.read().unwrap().clone()
+    }
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+pub async fn healthz() -> impl IntoResponse {
+    (StatusCode::OK, "ok")
+}
+
+pub async fn stagez(State(st): State<AppState>) -> impl IntoResponse {
+    Json(st.stage.get())
+}
+
+pub async fn readyz(State(st): State<AppState>) -> impl IntoResponse {
+    let cur = st.stage.get();
+    if cur.stage == "PAIRS_READY" || cur.stage == "RUN" {
+        (StatusCode::OK, Json(cur))
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, Json(cur))
+    }
+}
+
+
+
+
+
+
+# ingest/src/lib.rs
+
+use std::sync::Arc;
+
+pub mod config;
+pub mod ws_manager;
+pub mod candle_builder;
+pub mod backfill;
+pub mod gap_fill;
+
+pub mod health;
+pub mod universe;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub stage: health::StageState,
+    pub db_url: Arc<String>,
+    pub rest_base: Arc<String>,
+    pub universe_cfg_path: Arc<String>,
+}
+
+
+
+# ingest/src/main.rs
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+use anyhow::Result;
+use tracing::{error, info};
+
+use ingest::health::{healthz, readyz, stagez, StageState};
+use ingest::{universe, AppState};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "ingest=info".into()))
+        .init();
+
+    let port: u16 = std::env::var("INGEST_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8081);
+
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
+    let rest_base = std::env::var("BINANCE_REST_BASE")
+        .unwrap_or_else(|_| "https://fapi.binance.com".to_string());
+    let universe_cfg_path = std::env::var("UNIVERSE_CONFIG")
+        .unwrap_or_else(|_| "config/universe.toml".to_string());
+
+    let stage = StageState::new("BOOT");
+
+    let state = AppState {
+        stage: stage.clone(),
+        db_url: Arc::new(db_url),
+        rest_base: Arc::new(rest_base),
+        universe_cfg_path: Arc::new(universe_cfg_path),
+    };
+
+    // Startup universe refresh
+    {
+        let st = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = universe_startup(st).await {
+                error!("universe startup failed: {e:#}");
+            }
+        });
+    }
+
+    let app = Router::new()
+    .route("/healthz", get(healthz))
+    .route("/readyz", get(readyz))
+    .route("/stagez", get(stagez))
+    .route("/universe/refresh", post(universe_refresh))
+    .with_state(state);
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    info!("ingest listening on http://{addr}");
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn universe_refresh(
+    axum::extract::State(st): axum::extract::State<AppState>,
+) -> impl axum::response::IntoResponse {
+    match universe::refresh_pairs(&st.db_url, &st.rest_base, &st.universe_cfg_path).await {
+        Ok(count) => {
+            st.stage.set("PAIRS_READY", format!("pairs loaded: {count}"));
+            (
+                axum::http::StatusCode::OK,
+                axum::Json(serde_json::json!({ "ok": true, "pairs": count })),
+            )
+        }
+        Err(e) => {
+            st.stage.set("STUCK", format!("universe refresh failed: {e:#}"));
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({ "ok": false, "error": format!("{e:#}") })),
+            )
+        }
+    }
+}
+
+async fn universe_startup(st: AppState) -> Result<()> {
+    st.stage.set("LOADING_PAIRS", "startup refresh");
+
+    let mut attempt: u32 = 0;
+    loop {
+        attempt += 1;
+        match universe::refresh_pairs(&st.db_url, &st.rest_base, &st.universe_cfg_path).await {
+            Ok(count) => {
+                st.stage.set("PAIRS_READY", format!("pairs loaded: {count}"));
+                info!("PAIRS_READY (pairs={count})");
+                return Ok(());
+            }
+            Err(e) => {
+                st.stage.set("LOADING_PAIRS", format!("attempt {attempt}: {e:#}"));
+                error!("attempt {attempt}: {e:#}");
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+# ingest/src/universe.rs
+
+use anyhow::{Context, Result};
+use reqwest::Client;
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
+use tokio_postgres::NoTls;
+
+#[derive(Debug, Deserialize)]
+struct UniverseToml {
+    universe: UniverseCfg,
+}
+
+#[derive(Debug, Deserialize)]
+struct UniverseCfg {
+    quote_asset: String,
+
+    _futures_only: bool,
+    perpetual_only: bool,
+
+    min_quote_volume_usdt_24h: f64,
+
+    #[serde(default)]
+    exclude_base_assets: Vec<String>,
+    #[serde(default)]
+    exclude_symbols: Vec<String>,
+
+    #[serde(default)]
+    allowlist: Vec<String>,
+    #[serde(default)]
+    denylist: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExchangeInfoResp {
+    symbols: Vec<ExSymbol>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExSymbol {
+    symbol: String,
+    status: String,
+    #[serde(rename = "baseAsset")]
+    base_asset: String,
+    #[serde(rename = "quoteAsset")]
+    quote_asset: String,
+    #[serde(rename = "contractType")]
+    contract_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Ticker24h {
+    pub symbol: String,
+    
+    #[serde(rename = "quoteVolume")] // На всякий случай проверьте и это
+    pub quote_volume: String,
+
+    #[serde(rename = "lastPrice")]    // <--- ДОБАВЬТЕ ЭТО
+    pub last_price: String,
+}
+
+pub async fn refresh_pairs(db_url: &str, rest_base: &str, universe_cfg_path: &str) -> Result<u64> {
+    // 1) Load Config
+    let cfg_txt = std::fs::read_to_string(universe_cfg_path)
+        .with_context(|| format!("read universe config: {universe_cfg_path}"))?;
+    let cfg: UniverseToml = toml::from_str(&cfg_txt).context("parse universe.toml")?;
+    let u = cfg.universe;
+
+    let exclude_base: HashSet<String> = u.exclude_base_assets.into_iter().collect();
+    let exclude_symbols: HashSet<String> = u.exclude_symbols.into_iter().collect();
+    let allowlist: HashSet<String> = u.allowlist.into_iter().collect();
+    let denylist: HashSet<String> = u.denylist.into_iter().collect();
+
+    // 2) REST calls
+    let client = Client::builder()
+        .timeout(Duration::from_secs(12))
+        .build()?;
+
+    let ex_url = format!("{rest_base}/fapi/v1/exchangeInfo");
+    let ex: ExchangeInfoResp = client
+        .get(&ex_url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    let t_url = format!("{rest_base}/fapi/v1/ticker/24hr");
+    let tickers: Vec<Ticker24h> = client
+        .get(&t_url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    let mut vol_map: HashMap<String, f64> = HashMap::new();
+    let mut price_map: HashMap<String, f64> = HashMap::new();
+    for t in tickers {
+        if let Ok(v) = t.quote_volume.parse::<f64>() {
+            vol_map.insert(t.symbol.clone(), v);
+        }
+        if let Ok(p) = t.last_price.parse::<f64>() { // Добавили этот блок
+            price_map.insert(t.symbol, p);
+        }
+    }
+
+    // 3) Filter
+    // CHANGED: Store (symbol, base, quote) instead of just symbol
+    let mut selected: Vec<(String, String, String, f64, f64)> = Vec::new();
+
+    for s in ex.symbols {
+        if denylist.contains(&s.symbol) { continue; }
+        if s.status != "TRADING" { continue; }
+        if s.quote_asset != u.quote_asset { continue; }
+        if exclude_symbols.contains(&s.symbol) { continue; }
+        if exclude_base.contains(&s.base_asset) { continue; }
+
+        if u.perpetual_only {
+            if let Some(ct) = &s.contract_type {
+                if ct != "PERPETUAL" {
+                    if !allowlist.contains(&s.symbol) { continue; }
+                }
+            } else if !allowlist.contains(&s.symbol) {
+                continue;
+            }
+        }
+
+        let vol = *vol_map.get(&s.symbol).unwrap_or(&0.0);
+        let price = *price_map.get(&s.symbol).unwrap_or(&0.0);
+        if vol < u.min_quote_volume_usdt_24h && !allowlist.contains(&s.symbol) {
+            continue;
+        }
+
+        // Push tuple with all required info
+       
+        selected.push((s.symbol, s.base_asset, s.quote_asset, vol, price));
+    }
+
+    // Sort by symbol
+    selected.sort_by(|a, b| a.0.cmp(&b.0));
+    selected.dedup_by(|a, b| a.0 == b.0);
+
+    // 4) Write to DB
+    let (mut client_pg, connection) = tokio_postgres::connect(db_url, NoTls)
+        .await
+        .context("connect postgres")?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("postgres connection error: {e}");
+        }
+    });
+
+    let tx = client_pg.transaction().await?;
+
+    // Deactivate all
+    tx.execute("UPDATE market.pairs SET is_active = false", &[])
+        .await
+        .context("deactivate pairs")?;
+
+    // Activate selected
+    let mut count: u64 = 0;
+    for (sym, base, quote, vol, price) in &selected {
+        tx.query_one(
+            r#"
+            INSERT INTO market.pairs(symbol, base_asset, quote_asset, volume_24h_usdt, last_price, is_active)
+            VALUES ($1, $2, $3, $4, $5, true)
+            ON CONFLICT (symbol) DO UPDATE
+              SET is_active = EXCLUDED.is_active,
+                  base_asset = EXCLUDED.base_asset,
+                  quote_asset = EXCLUDED.quote_asset,
+                  volume_24h_usdt = EXCLUDED.volume_24h_usdt,
+                  last_price = EXCLUDED.last_price
+            RETURNING symbol_id
+            "#,
+            &[sym, base, quote, vol, price], // Передаем 5 параметров
+        )
+        .await
+        .with_context(|| format!("upsert pair {sym}"))?;
+        count += 1;
+    }
+
+    tx.commit().await?;
+
+    Ok(count)
+}
+
+
+
+
+
+
+
+# ingest/src/ws_manager.rs
+
+
+
+
+# compute/health.rs
+
+
+
+
+# compute/raw_signals/mod.rs
+
+
+
+
+# compute/raw_signals/scoring.rs
+
+
+
+
+# compute/raw_signals/thresholds.rs
+
+
+
+
+# compute/indicators/adx.rs
+
+
+
+
+# compute/indicators/alligator.rs
+
+
+
+
+# compute/indicators/atr.rs
+
+
+
+
+# compute/indicators/bb.rs
+
+
+
+
+# compute/indicators/cci.rs
+
+
+
+
+# compute/indicators/ema.rs
+
+
+
+
+# compute/indicators/macd.rs
+
+
+
+
+# compute/indicators/obv.rs
+
+
+
+
+# compute/indicators/poc.rs
+
+
+
+
+# compute/indicators/rsi.rs
+
+
+
+
+# compute/indicators/sr_levels.rs
+
+
+
+
+# compute/indicators/stoch.rs
+
+
+
+
+# compute/indicators/trend.rs
+
+
+
+
+# compute/indicators/volume_spike.rs
+
+
+
+
+# compute/indicators/vwap.rs
+
+
+
+
+# compute/indicators/williams.rs
+
+
+
+
+# compute/scorer/final_score.rs
+
+
+
+
+# compute/scorer/mod.rs
+
+
+
+
+# compute/planner/gpu_planner.rs
+
+
+
+
+# compute/planner/mod.rs
+
+
+
+
+# compute/ml/features.rs
+
+
+
+
+# compute/ml/mod.rs
+
+
+
+
+# compute/ml/model_manager.rs
+
+
+
+
+# compute/ml/trainer/export_onnx.py
+
+
+
+
+# compute/ml/trainer/features.py
+
+
+
+
+# compute/ml/trainer/schedule.py
+
+
+
+
+# compute/ml/trainer/train.py
+
+
+
+
+# compute/src/lib.rs
+
+//! Core computation engine for the trading bot
+//!
+//! This crate handles the calculation of technical indicators, generation of
+//! raw signals, and final scoring for trade decisions.
+
+pub mod state;
+pub mod indicators;
+pub mod raw_signals;
+pub mod planner;
+pub mod ml;
+pub mod scorer;
+pub mod health;
+
+pub use state::*;
+pub use indicators::*;
+pub use raw_signals::*;
+pub use planner::*;
+pub use ml::*;
+pub use scorer::*;
+pub use health::*;
+
+
+# compute/src/main.rs
+
+//! Main entry point for the compute core service
+
+use tracing_subscriber;
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize logging
+    tracing_subscriber::fmt::init();
+    
+    // TODO: Implement actual compute service startup logic
+    tracing::info!("Starting compute core service");
+    
+    // For now, just print a message indicating the service is initialized
+    println!("Compute core service initialized");
+    
+    // TODO: Add actual service initialization and runtime loop
+    
+    Ok(())
+}
+
+
+# compute/src/pools.rs
+
+
+
+
