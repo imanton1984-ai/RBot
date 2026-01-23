@@ -1,0 +1,23 @@
+[package]
+name = "api_binance"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+tokio = { workspace = true }
+futures-util = { workspace = true }
+tracing = { workspace = true }
+
+# WS (async)
+tokio-tungstenite = { version = "0.20", features = ["rustls-tls-webpki-roots"] }
+tungstenite = { workspace = true }
+
+# signing (на будущее: user stream / ордера)
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"

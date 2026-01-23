@@ -3,6 +3,7 @@
 [workspace]
 members = [
   "crates/common",
+  "crates/api_binance",
   "crates/db_init",
   "crates/db_writer",
   "ingest"
@@ -320,8 +321,9 @@ services:
       # listeners
       - --kafka-addr
       - "PLAINTEXT://0.0.0.0:19092"
-      - --advertise-kafka-addr
-      - "PLAINTEXT://redpanda:19092"
+      # - --advertise-kafka-addr
+      # - "PLAINTEXT://redpanda:19092"
+      - --advertise-kafka-addr=PLAINTEXT://127.0.0.1:19092
       - --pandaproxy-addr
       - "0.0.0.0:8082"
       - --advertise-pandaproxy-addr
@@ -693,9 +695,7 @@ enum WriteMsg {
 async fn main() -> Result<()> {
     let cfg = load_config().context("load_config failed")?;
     let db_url = cfg.database.url();
-    // в main.rs внутри db_writer
-    let config = Config::from_env()?;
-    println!("DB_WRITER connecting to: {}", config.database_url); // Временно для отладки
+    println!("DB_WRITER connecting to: {}", db_url); // для отладки
 
     // DB connect (single client used for preload; workers will open their own connections)
     let (client, connection) = tokio_postgres::connect(&db_url, tokio_postgres::NoTls)
@@ -2149,52 +2149,579 @@ pub enum ExitAction {
 
 # crates/api_binance/Cargo.toml
 
+[package]
+name = "api_binance"
+version = "0.1.0"
+edition = "2021"
+publish = false
 
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+tokio = { workspace = true }
+futures-util = { workspace = true }
+tracing = { workspace = true }
+
+# WS (async)
+tokio-tungstenite = { version = "0.20", features = ["rustls-tls-webpki-roots"] }
+tungstenite = { workspace = true }
+
+# signing (на будущее: user stream / ордера)
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 
 # crates/api_binance/src/lib.rs
 
-//! Binance API integration for the trading bot
-//!
-//! This crate provides interfaces for interacting with Binance Futures API,
-//! including both REST and WebSocket connections for market data and order management.
-
+pub mod rate_limits;
 pub mod rest;
+pub mod sign;
 pub mod ws_market;
 pub mod ws_user;
-pub mod sign;
-pub mod rate_limit;
 
-pub use rest::*;
-pub use ws_market::*;
-pub use ws_user::*;
-pub use sign::*;
-pub use rate_limit::*;
+pub use rate_limits::RateLimiter;
+pub use rest::{BinanceRestClient, ExchangeInfoResp, ExSymbol, Ticker24h, Kline};
+pub use ws_market::{MarketWs, MarketWsConfig, MarketWsEvent};
 
 
 # crates/api_binance/src/rate_limits.rs
 
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+
+#[derive(Clone)]
+pub struct RateLimiter {
+    sem: Arc<Semaphore>,
+    max: usize,
+    refill_per_sec: usize,
+}
+
+pub struct RateGuard {
+    _permit: OwnedSemaphorePermit,
+}
+
+impl RateLimiter {
+    /// Soft limiter: rps + burst.
+    /// Ровно то, что у тебя в config/binance.toml: rps=8 burst=16 (дефолты зададим выше уровнем).
+    pub fn new(rps: u32, burst: u32) -> Self {
+        let max = burst.max(1) as usize;
+        let refill_per_sec = rps.max(1) as usize;
+
+        let sem = Arc::new(Semaphore::new(max));
+        let sem_bg = sem.clone();
+
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Duration::from_secs(1));
+            loop {
+                tick.tick().await;
+                let avail = sem_bg.available_permits();
+                if avail < max {
+                    // добавляем не больше rps и не выходим за burst
+                    let add = (max - avail).min(refill_per_sec);
+                    sem_bg.add_permits(add);
+                }
+            }
+        });
+
+        Self { sem, max, refill_per_sec }
+    }
+
+    /// weight — “стоимость” запроса (можешь позже маппить на Binance weight).
+    pub async fn acquire(&self, weight: u32) -> RateGuard {
+        let mut w = weight.max(1) as usize;
+
+        // если кто-то попросит weight > burst, режем на burst-чанки
+        // (это простая страховка, чтобы не зависнуть навсегда)
+        while w > self.max {
+            let _ = self
+                .sem
+                .clone()
+                .acquire_many_owned(self.max as u32)
+                .await
+                .expect("semaphore closed");
+            // permit дропается сразу => “съели” burst токенов и отпустили;
+            // дальше берем остаток.
+            w -= self.max;
+        }
+
+        let permit = self
+            .sem
+            .clone()
+            .acquire_many_owned(w as u32)
+            .await
+            .expect("semaphore closed");
+
+        RateGuard { _permit: permit }
+    }
+
+    #[allow(dead_code)]
+    pub fn debug_available(&self) -> usize {
+        self.sem.available_permits()
+    }
+
+    #[allow(dead_code)]
+    pub fn debug_refill_per_sec(&self) -> usize {
+        self.refill_per_sec
+    }
+}
 
 
 
 # crates/api_binance/src/rest.rs
 
+use crate::rate_limits::RateLimiter;
+use anyhow::{anyhow, bail, Result};
+use reqwest::StatusCode;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer};
+use std::time::Duration;
+use tracing::{debug, warn};
+
+#[derive(Clone)]
+pub struct BinanceRestClient {
+    base_url: String,
+    http: reqwest::Client,
+    limiter: Option<RateLimiter>,
+    timeout: Duration,
+    retries: u32,
+    backoff_ms: u64,
+    backoff_max_ms: u64,
+}
+
+impl BinanceRestClient {
+    /// Дефолты под твой config/binance.toml:
+    /// timeout=8000ms, retries=5, backoff=250ms..5000ms, limiter=8rps/16burst (подключается отдельно).
+    pub fn new(base_url: impl Into<String>) -> Result<Self> {
+        let base_url = base_url.into();
+        let timeout = Duration::from_millis(8000);
+
+        let http = reqwest::Client::builder()
+            .timeout(timeout)
+            .pool_max_idle_per_host(32)
+            .tcp_nodelay(true)
+            .build()?;
+
+        Ok(Self {
+            base_url,
+            http,
+            limiter: None,
+            timeout,
+            retries: 5,
+            backoff_ms: 250,
+            backoff_max_ms: 5000,
+        })
+    }
+
+    pub fn with_rate_limiter(mut self, limiter: RateLimiter) -> Self {
+        self.limiter = Some(limiter);
+        self
+    }
+
+    pub fn with_timeouts(mut self, timeout: Duration) -> Result<Self> {
+        self.timeout = timeout;
+        self.http = reqwest::Client::builder()
+            .timeout(timeout)
+            .pool_max_idle_per_host(32)
+            .tcp_nodelay(true)
+            .build()?;
+        Ok(self)
+    }
+
+    pub fn with_retries(mut self, retries: u32, backoff_ms: u64, backoff_max_ms: u64) -> Self {
+        self.retries = retries;
+        self.backoff_ms = backoff_ms;
+        self.backoff_max_ms = backoff_max_ms;
+        self
+    }
+
+    fn url(&self, path: &str) -> String {
+        format!(
+            "{}/{}",
+            self.base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        )
+    }
+
+    async fn get_json<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+        weight: u32,
+    ) -> Result<T> {
+        let url = self.url(path);
+
+        let mut attempt: u32 = 0;
+        let mut backoff = self.backoff_ms;
+
+        loop {
+            attempt += 1;
+
+            // soft rate limit
+            if let Some(lim) = &self.limiter {
+                let _g = lim.acquire(weight).await;
+                drop(_g);
+            }
+
+            let resp = self.http.get(&url).query(query).send().await;
+
+            match resp {
+                Ok(r) => {
+                    let status = r.status();
+                    if status.is_success() {
+                        return Ok(r.json::<T>().await?);
+                    }
+
+                    let body = r.text().await.unwrap_or_default();
+
+                    // retry only on “obvious transient”
+                    if attempt <= self.retries && should_retry(status) {
+                        warn!("REST retry (attempt={attempt}/{}) {} -> {} body={}",
+                              self.retries, url, status, trim_body(&body));
+                        tokio::time::sleep(Duration::from_millis(backoff)).await;
+                        backoff = (backoff * 2).min(self.backoff_max_ms);
+                        continue;
+                    }
+
+                    bail!("REST {} failed: status={} body={}", url, status, trim_body(&body));
+                }
+                Err(e) => {
+                    if attempt <= self.retries {
+                        warn!("REST error retry (attempt={attempt}/{}) {} err={e}",
+                              self.retries, url);
+                        tokio::time::sleep(Duration::from_millis(backoff)).await;
+                        backoff = (backoff * 2).min(self.backoff_max_ms);
+                        continue;
+                    }
+                    return Err(anyhow!(e));
+                }
+            }
+        }
+    }
+
+    pub async fn exchange_info_futures(&self) -> Result<ExchangeInfoResp> {
+        // futures exchangeInfo: /fapi/v1/exchangeInfo
+        self.get_json("/fapi/v1/exchangeInfo", &[], 1).await
+    }
+
+    pub async fn ticker_24h_futures(&self) -> Result<Vec<Ticker24h>> {
+        // futures ticker/24hr: /fapi/v1/ticker/24hr
+        self.get_json("/fapi/v1/ticker/24hr", &[], 1).await
+    }
+
+    /// Исторические свечи (под backfill/gap-fill).
+    /// limit max 1500 на Binance.
+    pub async fn klines_futures(
+        &self,
+        symbol: &str,
+        interval: &str,
+        limit: u16,
+        start_time_ms: Option<i64>,
+        end_time_ms: Option<i64>,
+    ) -> Result<Vec<Kline>> {
+        let mut q: Vec<(&str, String)> = vec![
+            ("symbol", symbol.to_string()),
+            ("interval", interval.to_string()),
+            ("limit", limit.to_string()),
+        ];
+        if let Some(v) = start_time_ms {
+            q.push(("startTime", v.to_string()));
+        }
+        if let Some(v) = end_time_ms {
+            q.push(("endTime", v.to_string()));
+        }
+
+        debug!("GET klines {} {} limit={} start={:?} end={:?}", symbol, interval, limit, start_time_ms, end_time_ms);
+
+        self.get_json("/fapi/v1/klines", &q, 1).await
+    }
+}
+
+fn should_retry(status: StatusCode) -> bool {
+    status == StatusCode::TOO_MANY_REQUESTS
+        || status == StatusCode::BAD_GATEWAY
+        || status == StatusCode::SERVICE_UNAVAILABLE
+        || status == StatusCode::GATEWAY_TIMEOUT
+        || status == StatusCode::REQUEST_TIMEOUT
+}
+
+fn trim_body(s: &str) -> String {
+    let s = s.trim();
+    if s.len() > 240 {
+        format!("{}...", &s[..240])
+    } else {
+        s.to_string()
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExchangeInfoResp {
+    pub symbols: Vec<ExSymbol>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExSymbol {
+    pub symbol: String,
+    pub status: String,
+    #[serde(rename = "baseAsset")]
+    pub base_asset: String,
+    #[serde(rename = "quoteAsset")]
+    pub quote_asset: String,
+    #[serde(rename = "contractType")]
+    pub contract_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Ticker24h {
+    pub symbol: String,
+    #[serde(rename = "quoteVolume")]
+    pub quote_volume: String,
+    #[serde(rename = "lastPrice")]
+    pub last_price: String,
+}
+
+/// REST klines row (array) -> struct
+#[derive(Debug, Clone)]
+pub struct Kline {
+    pub open_time_ms: i64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+    pub close_time_ms: i64,
+}
+
+impl<'de> Deserialize<'de> for Kline {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct V;
+
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = Kline;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "binance kline array")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Kline, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let open_time_ms: i64 = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::custom("missing open_time"))?;
+
+                let open_s: String = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::custom("missing open"))?;
+                let high_s: String = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::custom("missing high"))?;
+                let low_s: String = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::custom("missing low"))?;
+                let close_s: String = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::custom("missing close"))?;
+                let vol_s: String = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::custom("missing volume"))?;
+
+                let close_time_ms: i64 = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::custom("missing close_time"))?;
+
+                // Остальные поля (quoteAssetVolume, trades, ...) — пропускаем
+                // (до тех пор пока не понадобятся)
+                // 7..11
+                for _ in 0..5 {
+                    let _ = seq.next_element::<serde_json::Value>()?;
+                }
+
+                let open = open_s.parse::<f64>().map_err(serde::de::Error::custom)?;
+                let high = high_s.parse::<f64>().map_err(serde::de::Error::custom)?;
+                let low = low_s.parse::<f64>().map_err(serde::de::Error::custom)?;
+                let close = close_s.parse::<f64>().map_err(serde::de::Error::custom)?;
+                let volume = vol_s.parse::<f64>().map_err(serde::de::Error::custom)?;
+
+                Ok(Kline {
+                    open_time_ms,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    close_time_ms,
+                })
+            }
+        }
+
+        deserializer.deserialize_seq(V)
+    }
+}
 
 
 
 # crates/api_binance/src/sign.rs
 
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 
+type HmacSha256 = Hmac<Sha256>;
+
+pub fn sign_hmac_sha256_hex(secret: &str, payload: &str) -> String {
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .expect("HMAC can take key of any size");
+    mac.update(payload.as_bytes());
+    let res = mac.finalize().into_bytes();
+    hex::encode(res)
+}
 
 
 # crates/api_binance/src/ws_market.rs
 
+use anyhow::{anyhow, Result};
+use futures_util::{SinkExt, StreamExt};
+use serde::Deserialize;
+use std::time::Duration;
+use tokio::sync::mpsc;
+use tokio_tungstenite::tungstenite::Message;
+use tracing::{info, warn};
+
+#[derive(Clone)]
+pub struct MarketWsConfig {
+    pub ws_base_url: String,
+    pub ping_interval: Duration,
+    pub reconnect_backoff: Duration,
+    pub reconnect_backoff_max: Duration,
+}
+
+impl MarketWsConfig {
+    pub fn futures_default(ws_base_url: impl Into<String>) -> Self {
+        Self {
+            ws_base_url: ws_base_url.into(),
+            ping_interval: Duration::from_secs(15),
+            reconnect_backoff: Duration::from_millis(500),
+            reconnect_backoff_max: Duration::from_millis(15_000),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MarketWs {
+    cfg: MarketWsConfig,
+    streams: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MarketWsEvent {
+    pub stream: String,
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct CombinedMsg {
+    stream: String,
+    data: serde_json::Value,
+}
+
+impl MarketWs {
+    pub fn new(cfg: MarketWsConfig, streams: Vec<String>) -> Self {
+        Self { cfg, streams }
+    }
+
+    fn combined_stream_url(&self) -> String {
+        // wss://fstream.binance.com/stream?streams=btcusdt@kline_1m/ethusdt@kline_1m
+        let base = self.cfg.ws_base_url.trim_end_matches('/');
+        let joined = self.streams.join("/");
+        format!("{base}/stream?streams={joined}")
+    }
+
+    /// Стартует таску, которая:
+    /// - коннектится
+    /// - держит ping
+    /// - на дисконнекте делает reconnect с backoff
+    /// - пушит MarketWsEvent в rx
+    pub fn spawn(self, chan_size: usize) -> mpsc::Receiver<MarketWsEvent> {
+        let (tx, rx) = mpsc::channel(chan_size);
+        tokio::spawn(async move {
+            if let Err(e) = self.run_loop(tx).await {
+                warn!("ws market loop stopped: {e:#}");
+            }
+        });
+        rx
+    }
+
+    async fn run_loop(&self, tx: mpsc::Sender<MarketWsEvent>) -> Result<()> {
+        let mut backoff = self.cfg.reconnect_backoff;
+
+        loop {
+            let url = self.combined_stream_url();
+            info!("ws connect: {}", url);
+
+            match tokio_tungstenite::connect_async(&url).await {
+                Ok((mut ws, _resp)) => {
+                    backoff = self.cfg.reconnect_backoff;
+
+                    let mut ping = tokio::time::interval(self.cfg.ping_interval);
+
+                    loop {
+                        tokio::select! {
+                            _ = ping.tick() => {
+                                // keepalive
+                                let _ = ws.send(Message::Ping(Vec::new())).await;
+                            }
+                            msg = ws.next() => {
+                                match msg {
+                                    Some(Ok(Message::Text(txt))) => {
+                                        if let Ok(cm) = serde_json::from_str::<CombinedMsg>(&txt) {
+                                            if tx.send(MarketWsEvent{ stream: cm.stream, data: cm.data }).await.is_err() {
+                                                // consumer dropped => stop
+                                                return Ok(());
+                                            }
+                                        }
+                                    }
+                                    Some(Ok(Message::Binary(_))) => {}
+                                    Some(Ok(Message::Pong(_))) => {}
+                                    Some(Ok(Message::Close(_))) => break,
+                                    Some(Ok(_)) => {}
+                                    Some(Err(e)) => {
+                                        warn!("ws error: {e}");
+                                        break;
+                                    }
+                                    None => break,
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("ws connect failed: {e}");
+                }
+            }
+
+            // reconnect
+            tokio::time::sleep(backoff).await;
+            backoff = std::cmp::min(backoff * 2, self.cfg.reconnect_backoff_max);
+        }
+    }
+}
 
 
 
 # crates/api_binance/src/ws_user.rs
 
-
+//! User data stream (listenKey) — позже.
+//! Здесь будет:
+//! - REST create/keepalive/close listenKey
+//! - WS connect/reconnect user stream
+//! - разбор executionReport / accountUpdate / etc
 
 
 # cuda/build.rs
@@ -2524,22 +3051,30 @@ main "$@"
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Определяем корневую директорию проекта
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-# --- Конфигурация ---
 COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
 ENV_FILE="${ENV_FILE:-.env}"
 DB_WAIT_SECONDS="${DB_WAIT_SECONDS:-5}"
-BUILD_MODE="${BUILD_MODE:-release}" # можно менять на debug для разработки
 
-# Пути к бинарникам зависят от режима сборки
+# release|debug
+BUILD_MODE="${BUILD_MODE:-release}"
+
+# build flags
+CARGO_FLAGS=()
+if [[ "$BUILD_MODE" == "release" ]]; then
+  CARGO_FLAGS+=(--release)
+elif [[ "$BUILD_MODE" != "debug" ]]; then
+  echo "❌ BUILD_MODE must be 'release' or 'debug' (got: $BUILD_MODE)" >&2
+  exit 1
+fi
+
 BIN_PATH="./target/$BUILD_MODE"
 DB_INIT_BIN="$BIN_PATH/db_init"
 DB_WRITER_BIN="$BIN_PATH/db_writer"
+INGEST_BIN="$BIN_PATH/ingest"
 
-# Директории для логов и пидов
 PID_DIR="./run"
 LOG_DIR="./logs"
 mkdir -p "$PID_DIR" "$LOG_DIR"
@@ -2554,53 +3089,39 @@ load_env() {
   else
     die ".env file not found at $ENV_FILE"
   fi
+
   : "${DATABASE_URL:?DATABASE_URL is required in .env}"
+
+  # дефолты, чтобы set -u не ронял скрипт
+  : "${DB_USER:=postgres}"
+  : "${DB_PASSWORD:=postgres}"
+  : "${DB_NAME:=timescaledb_binance}"
+  : "${DB_PORT:=5433}"
 }
 
-echo "[*] Cleaning up old processes..."
-pkill -f "target/release/ingest" || true
-pkill -f "target/release/db_writer" || true
-# Даем портам 1-2 секунды освободиться
-sleep 2
-
-# Функция автоматической сборки
-ensure_built() {
-  local package=$1
-  local bin=$2
-  if [[ ! -x "$bin" ]]; then
-    log "Binary $bin not found. Building $package..."
-    cargo build --${BUILD_MODE} -p "$package"
+stop_by_pidfile() {
+  local name="$1"
+  local pidfile="$PID_DIR/${name}.pid"
+  if [[ -f "$pidfile" ]]; then
+    local pid
+    pid="$(cat "$pidfile" || true)"
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+      log "Stopping $name (pid $pid)..."
+      kill "$pid" 2>/dev/null || true
+      sleep 1
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pidfile"
   fi
 }
 
-wait_postgres() {
-  log "Waiting for PostgreSQL ($DB_WAIT_SECONDS s max)..."
-  local start_ts=$(date +%s)
-  
-  # Используем DB_PORT из .env (у вас там 5433)
-  local port=${DB_PORT:-5432}
-
-  while true; do
-    # 1. Проверяем открыт ли порт локально
-    if nc -z 127.0.0.1 "$port" >/dev/null 2>&1; then
-      log "PostgreSQL port $port is open"
-      
-      # 2. Проверяем готовность самой БД внутри контейнера
-      # ВАЖНО: имя сервиса тут 'timescaledb' (как в вашем выводе Docker)
-      if docker compose -f "$COMPOSE_FILE" exec -T timescaledb pg_isready -U "$DB_USER" >/dev/null 2>&1; then
-        log "PostgreSQL is fully ready"
-        return 0
-      fi
-    fi
-
-    local now=$(date +%s)
-    if (( now - start_ts > DB_WAIT_SECONDS )); then
-      log "Full DATABASE_URL check failed. Checking container status..."
-      docker compose -f "$COMPOSE_FILE" ps
-      die "PostgreSQL not ready at localhost:$port after ${DB_WAIT_SECONDS}s"
-    fi
-    sleep 2
-  done
+ensure_built() {
+  local package="$1"
+  local bin="$2"
+  if [[ ! -x "$bin" ]]; then
+    log "Binary $bin not found. Building $package..."
+    cargo build "${CARGO_FLAGS[@]}" -p "$package"
+  fi
 }
 
 docker_up() {
@@ -2608,9 +3129,36 @@ docker_up() {
   docker compose -f "$COMPOSE_FILE" up -d
 }
 
+wait_postgres() {
+  log "Waiting for PostgreSQL ($DB_WAIT_SECONDS s max)..."
+  local start_ts
+  start_ts=$(date +%s)
+
+  while true; do
+    if nc -z 127.0.0.1 "$DB_PORT" >/dev/null 2>&1; then
+      log "PostgreSQL port $DB_PORT is open"
+
+      # сервис в compose называется timescaledb :contentReference[oaicite:2]{index=2}
+      if docker compose -f "$COMPOSE_FILE" exec -T timescaledb \
+        pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
+        log "PostgreSQL is fully ready"
+        return 0
+      fi
+    fi
+
+    local now
+    now=$(date +%s)
+    if (( now - start_ts > DB_WAIT_SECONDS )); then
+      log "DB not ready. Container status:"
+      docker compose -f "$COMPOSE_FILE" ps
+      die "PostgreSQL not ready at localhost:$DB_PORT after ${DB_WAIT_SECONDS}s"
+    fi
+    sleep 2
+  done
+}
+
 run_db_init() {
   log "Running db_init migrations..."
-  # Передаем DATABASE_URL явно, если db_init его ожидает
   "$DB_INIT_BIN" --dir infra/database/init
 }
 
@@ -2626,12 +3174,11 @@ start_service() {
   fi
 
   log "Starting $name..."
-  # Запуск в фоне. Используем env для проброса переменных
   nohup "$bin" >> "$logfile" 2>&1 &
   echo $! > "$pidfile"
-  
+
   sleep 1
-  if kill -0 $! 2>/dev/null; then
+  if kill -0 "$(cat "$pidfile")" 2>/dev/null; then
     log "$name started. PID: $(cat "$pidfile"), Log: $logfile"
   else
     die "$name failed to start! Check $logfile"
@@ -2640,35 +3187,48 @@ start_service() {
 
 main() {
   load_env
-  
+
+  log "[*] Cleaning up old processes..."
+  stop_by_pidfile "ingest"
+  stop_by_pidfile "db_writer"
+  pkill -f "/ingest" 2>/dev/null || true
+  pkill -f "/db_writer" 2>/dev/null || true
+  sleep 2
+
   log "Checking/Building binaries..."
   ensure_built "db_init" "$DB_INIT_BIN"
   ensure_built "db_writer" "$DB_WRITER_BIN"
+  ensure_built "ingest" "$INGEST_BIN"
 
   docker_up
   wait_postgres
-
   run_db_init
-  
-  # Опционально: проверка здоровья через ваш скрипт
-  if [[ -x "./scripts/db_health.sh" ]]; then
-     ./scripts/db_health.sh || die "DB health check failed"
-  fi
-  
-  echo "[...] Starting ingest..."
-  ./target/release/ingest > ./logs/ingest.log 2>&1 &
-  echo $! > ./run/ingest.pid
 
-  echo "[...] Waiting for stage PAIRS_READY..."
+  if [[ -x "./scripts/db_health.sh" ]]; then
+    ./scripts/db_health.sh || die "DB health check failed"
+  fi
+
+    
+  # 1. Запускаем ingest (он начнет с загрузки пар, но не начнет backfill, пока не пройдет Loading Pairs)
+  start_service "ingest" "$INGEST_BIN"
+
+  # 2. Ждем только готовности списка пар (это быстро)
+  log "Waiting for stage PAIRS_READY..."
   ./scripts/wait_stage.sh "http://localhost:8081/stagez" "PAIRS_READY" 120
 
-  # Запуск сервисов
+  # 3. СРАЗУ запускаем db_writer, чтобы он был готов принимать поток данных от backfill
+  log "Starting db_writer to consume backfill stream..."
   start_service "db_writer" "$DB_WRITER_BIN"
 
-  log "✅ ALL SYSTEMS GO"
+  # 4. Теперь безопасно ждем завершения тяжелого бэкфилла
+  log "Waiting for stage BACKFILL_CANDLES_READY..."
+  ./scripts/wait_stage.sh "http://localhost:8081/stagez" "BACKFILL_CANDLES_READY" 3600
+
+  log "✅ ALL SYSTEMS GO (Realtime mode active)"
 }
 
 main "$@"
+
 
 
 
@@ -3164,46 +3724,491 @@ name = "ingest"
 path = "src/main.rs"
 
 [dependencies]
-common = { path = "../crates/common" }
-
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 anyhow = { workspace = true }
-thiserror = { workspace = true }
-
 axum = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-
-# Keep tokio-postgres if used elsewhere, but universe.rs needs sqlx
-tokio-postgres = { workspace = true, features = ["with-uuid-1", "with-serde_json-1"] }
-# ADD THESE TWO LINES:
-sqlx = { workspace = true, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
-toml = "0.8"
-
+bytes = { workspace = true }
+common = { path = "../crates/common" }
+futures = { workspace = true }
+log = { workspace = true }
+rdkafka = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
+simd-json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-postgres = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+api_binance = { path = "../crates/api_binance" }
 
+# async websocket
+tokio-tungstenite = { version = "0.20", features = ["rustls-tls-webpki-roots"] }
 
 
 
 # ingest/src/backfill.rs
 
+use anyhow::{Context, Result};
+use common::timeframe::Timeframe;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::util::Timeout;
+use std::collections::HashMap;
+use std::sync::Arc;
+use futures::{StreamExt, stream}; // Важно: нужен futures
+
+use crate::candle_builder::{fetch_klines, now_ms};
+use crate::config::IngestConfig;
+use crate::producer::build_producer;
+use db_writer::messages::CandleCloseMsg;
+
+pub type LastCloseMap = HashMap<(String, String), i64>;
+
+// load_active_symbols оставляем без изменений...
+async fn load_active_symbols(db_url: &str) -> Result<Vec<String>> {
+    let (client, connection) = tokio_postgres::connect(db_url, tokio_postgres::NoTls).await?;
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("postgres connection error: {e:?}");
+        }
+    });
+    let rows = client
+        .query("SELECT symbol FROM market.pairs WHERE is_active = true ORDER BY symbol_id", &[])
+        .await?;
+    Ok(rows.into_iter().map(|r| r.get::<_, String>(0)).collect())
+}
+
+// make_close оставляем без изменений...
+fn make_close(symbol: &str, tf: Timeframe, k: &crate::candle_builder::KlineRow) -> CandleCloseMsg {
+    CandleCloseMsg {
+        symbol: symbol.to_string(),
+        tf: tf.as_binance_interval().to_string(),
+        close_time_ms: k.close_time_ms,
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: k.volume,
+        source_event_time_ms: Some(now_ms()),
+    }
+}
+
+// send_close оставляем без изменений...
+async fn send_close(
+    producer: &FutureProducer,
+    topic: &str,
+    key: &str,
+    msg: &CandleCloseMsg,
+) -> Result<()> {
+    let payload = serde_json::to_vec(msg)?;
+    loop {
+        match producer.send(
+            FutureRecord::to(topic).key(key).payload(&payload),
+            Timeout::Never,
+        ) {
+            Ok(_delivery) => return Ok(()),
+            Err((e, _)) => {
+                if e.to_string().contains("Queue full") {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    continue;
+                }
+                return Err(e.into());
+            }
+        }
+    }
+}
+
+pub async fn run_backfill(cfg: Arc<IngestConfig>) -> Result<(Vec<String>, LastCloseMap)> {
+    let symbols = load_active_symbols(&cfg.db_url)
+        .await
+        .context("load_active_symbols failed")?;
+    
+    let producer = build_producer(&cfg)?;
+    let http = reqwest::Client::builder()
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(32) // Увеличиваем пул соединений
+        .timeout(std::time::Duration::from_millis(15_000))
+        .build()?;
+
+    let mut last_map: LastCloseMap = HashMap::new();
+    
+    // Генерируем список задач (tuple)
+    let mut tasks = Vec::new();
+    for sym in &symbols {
+        for &tf in &cfg.timeframes {
+            tasks.push((sym.clone(), tf));
+        }
+    }
+
+    println!("Starting backfill for {} tasks with concurrency {}", tasks.len(), cfg.http_concurrency);
+
+    // Используем stream::iter + buffer_unordered для "умного" параллелизма
+    let mut stream = stream::iter(tasks)
+        .map(|(sym, tf)| {
+            let http = http.clone();
+            let producer = producer.clone();
+            let cfg = cfg.clone();
+            
+            async move {
+                // Внутри async блока - логика для одной пары/тф
+                let klines = fetch_klines(
+                    &http,
+                    &cfg.rest_base_url,
+                    &sym,
+                    tf,
+                    cfg.backfill_candles,
+                    None,
+                ).await;
+
+                match klines {
+                    Ok(klines) => {
+                        let mut local_last: Option<i64> = None;
+                        for k in klines.iter() {
+                            let evt = make_close(&sym, tf, k);
+                            let key = format!("{}|{}", sym, evt.tf);
+                            if let Err(e) = send_close(&producer, &cfg.topic_candles_close, &key, &evt).await {
+                                return Err(anyhow::anyhow!("producer error: {}", e));
+                            }
+                            local_last = Some(k.close_time_ms);
+                        }
+                        Ok((sym, tf.as_binance_interval().to_string(), local_last))
+                    },
+                    Err(e) => {
+                        // Логируем ошибку, но не роняем весь процесс, возвращаем None
+                        eprintln!("Failed backfill {} {}: {:#}", sym, tf, e);
+                        Ok((sym, tf.as_binance_interval().to_string(), None))
+                    }
+                }
+            }
+        })
+        .buffer_unordered(cfg.http_concurrency); // Здесь вся магия скорости
+
+    // Собираем результаты по мере поступления
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok((sym, tf_str, Some(last))) => {
+                last_map.insert((sym, tf_str), last);
+            },
+            Ok((_, _, None)) => { /* skip failed or empty */ },
+            Err(e) => return Err(e),
+        }
+    }
+
+    println!("Backfill sent to Kafka. Flushing producer...");
+    // Ждем, пока Redpanda подтвердит прием
+    producer.flush(std::time::Duration::from_secs(60));
+    
+    Ok((symbols, last_map))
+}
 
 
 
 # ingest/src/candle_builder.rs
 
+use anyhow::{Context, Result};
+use common::timeframe::Timeframe;
+use serde::Deserialize;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Debug, Clone)]
+pub struct KlineRow {
+    pub open_time_ms: i64,
+    pub close_time_ms: i64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+}
+
+// Binance klines: array of arrays (strings for prices/vol)
+// [ openTime, open, high, low, close, volume, closeTime, ... ]
+#[derive(Debug, Deserialize)]
+struct RawKline(
+    i64,    // open time
+    String, // open
+    String, // high
+    String, // low
+    String, // close
+    String, // volume
+    i64,    // close time
+);
+
+fn pf64(s: &str) -> Result<f64> {
+    Ok(s.parse::<f64>().with_context(|| format!("parse f64: {}", s))?)
+}
+
+pub fn now_ms() -> i64 {
+    let dur = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    (dur.as_millis()) as i64
+}
+
+pub fn tf_ms(tf: Timeframe) -> i64 {
+    tf.duration_ms() as i64
+}
+
+pub async fn fetch_klines(
+    client: &reqwest::Client,
+    rest_base: &str,
+    symbol: &str,
+    tf: Timeframe,
+    limit: usize,
+    start_time_ms: Option<i64>,
+) -> Result<Vec<KlineRow>> {
+    let url = format!("{}/fapi/v1/klines", rest_base.trim_end_matches('/'));
+    let mut req = client
+        .get(url)
+        .query(&[
+            ("symbol", symbol),
+            ("interval", tf.as_binance_interval()),
+            ("limit", &limit.to_string()),
+        ]);
+
+    if let Some(st) = start_time_ms {
+        req = req.query(&[("startTime", &st.to_string())]);
+    }
+
+    // простой retry/backoff (на 429/5xx)
+    let mut backoff_ms = 200u64;
+    for attempt in 0..7u32 {
+        let resp = req
+            .try_clone()
+            .context("reqwest::RequestBuilder::try_clone failed")?
+            .send()
+            .await;
+
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                let bytes = r.bytes().await?;
+                // быстрый parse через simd-json
+                let mut buf = bytes.to_vec();
+                let raw: Vec<RawKline> = simd_json::from_slice(&mut buf)?;
+                let mut out = Vec::with_capacity(raw.len());
+                for rk in raw {
+                    out.push(KlineRow {
+                        open_time_ms: rk.0,
+                        close_time_ms: rk.6,
+                        open: pf64(&rk.1)?,
+                        high: pf64(&rk.2)?,
+                        low: pf64(&rk.3)?,
+                        close: pf64(&rk.4)?,
+                        volume: pf64(&rk.5)?,
+                    });
+                }
+                return Ok(out);
+            }
+            Ok(r) => {
+                let code = r.status().as_u16();
+                if code == 429 || code >= 500 {
+                    tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                    backoff_ms = (backoff_ms * 2).min(5000);
+                    continue;
+                }
+                let body = r.text().await.unwrap_or_default();
+                anyhow::bail!("klines http {} body={}", code, body);
+            }
+            Err(e) => {
+                if attempt >= 6 {
+                    return Err(e.into());
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                backoff_ms = (backoff_ms * 2).min(5000);
+            }
+        }
+    }
+    anyhow::bail!("fetch_klines: exhausted retries")
+}
 
 
 
 # ingest/src/config.rs
 
+use anyhow::{anyhow, Context, Result};
+use common::config::load_config;
+use common::timeframe::Timeframe;
+use std::env;
+
+#[derive(Debug, Clone)]
+pub struct IngestConfig {
+    pub db_url: String,
+
+    pub rest_base_url: String,
+    pub ws_base_url: String,
+
+    pub redpanda_brokers: Vec<String>,
+    pub redpanda_client_id: String,
+
+    pub topic_candles_close: String,
+
+    pub timeframes: Vec<Timeframe>,
+    pub backfill_candles: usize,
+
+    pub ws_timeframes: Vec<Timeframe>,
+    pub poll_timeframes: Vec<Timeframe>,
+    pub poll_on_close_interval_sec: u64,
+
+    pub ws_max_streams_per_conn: usize,
+    pub http_concurrency: usize,
+
+    pub universe_cfg_path: String,
+
+    pub enable_intra_candle_updates: bool,
+    pub persist_live_candle: bool,
+    pub persist_live_candle_every_ms: u64,
+    pub intra_update_sampling_ms: u64,
+}
+
+impl IngestConfig {
+    pub fn load() -> Result<Self> {
+        let cfg = load_config().context("load_config() failed")?;
+
+        // DB url: prefer explicit DATABASE_URL if set (как у тебя уже было)
+        let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
+
+        // Binance base urls (env overrides оставляем)
+        let rest_base_url = env::var("BINANCE_REST_BASE").unwrap_or_else(|_| cfg.binance.rest_base_url);
+        let ws_base_url = env::var("BINANCE_WS_BASE").unwrap_or_else(|_| cfg.binance.ws_base_url);
+
+        let universe_cfg_path = env::var("UNIVERSE_CONFIG").unwrap_or_else(|_| "config/universe.toml".to_string());
+
+        let parse_tfs = |xs: &[String]| -> Result<Vec<Timeframe>> {
+            xs.iter()
+                .map(|s| Timeframe::parse(s).map_err(|_| anyhow!("bad timeframe: {}", s)))
+                .collect()
+        };
+
+        let timeframes = parse_tfs(&cfg.runtime.timeframes)?;
+        let ws_timeframes = parse_tfs(&cfg.runtime.realtime_ws_timeframes)?;
+        let poll_timeframes = parse_tfs(&cfg.runtime.realtime_poll_timeframes)?;
+
+        Ok(Self {
+            db_url,
+            rest_base_url,
+            ws_base_url,
+
+            redpanda_brokers: cfg.rust_bot.redpanda_brokers,
+            redpanda_client_id: cfg.rust_bot.redpanda_client_id,
+
+            topic_candles_close: cfg.rust_bot.topic_candles_close,
+
+            timeframes,
+            backfill_candles: cfg.runtime.backfill_candles,
+
+            ws_timeframes,
+            poll_timeframes,
+            poll_on_close_interval_sec: cfg.runtime.poll_on_close_interval_sec,
+
+            // WS лимит у тебя прямо в runtime.toml описан (1024) :contentReference[oaicite:9]{index=9}
+            ws_max_streams_per_conn: 950, // безопасный запас < 1024
+            http_concurrency: 50,         // чтобы не словить 429 на backfill
+
+            universe_cfg_path,
+
+            enable_intra_candle_updates: cfg.runtime.enable_intra_candle_updates,
+            persist_live_candle: cfg.runtime.persist_live_candle,
+            persist_live_candle_every_ms: cfg.runtime.persist_live_candle_every_ms,
+            intra_update_sampling_ms: cfg.runtime.intra_update_sampling_ms,
+        })
+    }
+}
 
 
 
 # ingest/src/gap_fill.rs
 
+use anyhow::Result;
+use common::timeframe::Timeframe;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::util::Timeout;
+
+use crate::candle_builder::{fetch_klines, tf_ms};
+use crate::config::IngestConfig;
+use db_writer::messages::CandleCloseMsg;
+
+async fn send_close(
+    producer: &FutureProducer,
+    topic: &str,
+    key: &str,
+    msg: &CandleCloseMsg,
+) -> Result<()> {
+    let payload = serde_json::to_vec(msg)?;
+    loop {
+        match producer.send(
+            FutureRecord::to(topic).key(key).payload(&payload),
+            Timeout::Never,
+        ) {
+            Ok(_) => return Ok(()),
+            Err((e, _)) => {
+                if e.to_string().contains("Queue full") {
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                    continue;
+                }
+                return Err(e.into());
+            }
+        }
+    }
+}
+
+fn make_close(symbol: &str, tf: Timeframe, k: &crate::candle_builder::KlineRow, src_ms: i64) -> CandleCloseMsg {
+    CandleCloseMsg {
+        symbol: symbol.to_string(),
+        tf: tf.as_binance_interval().to_string(),
+        close_time_ms: k.close_time_ms,
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: k.volume,
+        source_event_time_ms: Some(src_ms),
+    }
+}
+
+pub async fn gap_fill_between(
+    cfg: &IngestConfig,
+    http: &reqwest::Client,
+    producer: &FutureProducer,
+    symbol: &str,
+    tf: Timeframe,
+    last_close_ms: i64,
+    new_close_ms: i64,
+    source_event_time_ms: i64,
+) -> Result<i64> {
+    let step = tf_ms(tf);
+    if new_close_ms <= last_close_ms + step {
+        return Ok(last_close_ms);
+    }
+
+    // startTime по Binance — это openTime, но мы двигаемся от next bar open:
+    let mut cursor_open = last_close_ms + 1;
+    let mut last_published = last_close_ms;
+
+    while cursor_open + step < new_close_ms {
+        // берём кусок, чтобы не выйти за лимиты (1000)
+        let klines = fetch_klines(http, &cfg.rest_base_url, symbol, tf, 1000, Some(cursor_open)).await?;
+
+        if klines.is_empty() {
+            break;
+        }
+
+        for k in klines {
+            // публикуем только то, что строго “до” new_close (чтобы не задвоить текущий бар из WS)
+            if k.close_time_ms >= new_close_ms {
+                break;
+            }
+            let evt = make_close(symbol, tf, &k, source_event_time_ms);
+            let key = format!("{}|{}", symbol, evt.tf);
+            send_close(producer, &cfg.topic_candles_close, &key, &evt).await?;
+            last_published = k.close_time_ms;
+            cursor_open = k.close_time_ms + 1;
+        }
+
+        if last_published + step >= new_close_ms {
+            break;
+        }
+    }
+
+    Ok(last_published)
+}
 
 
 
@@ -3213,6 +4218,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use serde_json::json;
 
 use crate::AppState;
 
@@ -3259,20 +4265,25 @@ fn now_ms() -> i64 {
 }
 
 pub async fn healthz() -> impl IntoResponse {
-    (StatusCode::OK, "ok")
+    (StatusCode::OK, "OK")
 }
 
-pub async fn stagez(State(st): State<AppState>) -> impl IntoResponse {
-    Json(st.stage.get())
-}
-
-pub async fn readyz(State(st): State<AppState>) -> impl IntoResponse {
-    let cur = st.stage.get();
-    if cur.stage == "PAIRS_READY" || cur.stage == "RUN" {
-        (StatusCode::OK, Json(cur))
+pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
+    let stage = state.stage.get().await;
+    let ok = matches!(
+        stage.as_str(),
+        "PAIRS_READY" | "LOADING_CANDLES" | "BACKFILL_CANDLES_READY" | "RUN"
+    );
+    if ok {
+        (StatusCode::OK, "READY").into_response()
     } else {
-        (StatusCode::SERVICE_UNAVAILABLE, Json(cur))
+        (StatusCode::SERVICE_UNAVAILABLE, "NOT_READY").into_response()
     }
+}
+
+pub async fn stagez(State(state): State<AppState>) -> impl IntoResponse {
+    let stage = state.stage.get().await;
+    Json(json!({ "stage": stage }))
 }
 
 
@@ -3283,19 +4294,42 @@ pub async fn readyz(State(st): State<AppState>) -> impl IntoResponse {
 # ingest/src/lib.rs
 
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
-pub mod config;
-pub mod ws_manager;
-pub mod candle_builder;
 pub mod backfill;
+pub mod candle_builder;
+pub mod config;
 pub mod gap_fill;
-
 pub mod health;
+pub mod producer;
 pub mod universe;
+pub mod ws_manager;
+
+#[derive(Clone)]
+pub struct StageState {
+    pub stage: Arc<RwLock<String>>,
+}
+
+impl StageState {
+    pub fn new(init: &str) -> Self {
+        Self {
+            stage: Arc::new(RwLock::new(init.to_string())),
+        }
+    }
+
+    pub async fn get(&self) -> String {
+        self.stage.read().await.clone()
+    }
+
+    pub async fn set(&self, s: &str) {
+        *self.stage.write().await = s.to_string();
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
     pub stage: health::StageState,
+    pub cfg: Arc<config::IngestConfig>,
     pub db_url: Arc<String>,
     pub rest_base: Arc<String>,
     pub universe_cfg_path: Arc<String>,
@@ -3318,54 +4352,79 @@ use tracing::{error, info};
 use ingest::health::{healthz, readyz, stagez, StageState};
 use ingest::{universe, AppState};
 
+
+use axum::{routing::get, Router};
+use ingest::{AppState, StageState};
+
+
+
+mod config;
+
 #[tokio::main]
-async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "ingest=info".into()))
-        .init();
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
 
-    let port: u16 = std::env::var("INGEST_PORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(8081);
+    let cfg = Arc::new(config::IngestConfig::load()?);
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
-    let rest_base = std::env::var("BINANCE_REST_BASE")
-        .unwrap_or_else(|_| "https://fapi.binance.com".to_string());
-    let universe_cfg_path = std::env::var("UNIVERSE_CONFIG")
-        .unwrap_or_else(|_| "config/universe.toml".to_string());
+    let stage = StageState::new("INIT");
+    let state = AppState { stage: stage.clone(), cfg: cfg.clone() };
 
-    let stage = StageState::new("BOOT");
-
-    let state = AppState {
-        stage: stage.clone(),
-        db_url: Arc::new(db_url),
-        rest_base: Arc::new(rest_base),
-        universe_cfg_path: Arc::new(universe_cfg_path),
-    };
-
-    // Startup universe refresh
+    // 1) universe refresh (у тебя уже есть)
     {
         let st = state.clone();
         tokio::spawn(async move {
-            if let Err(e) = universe_startup(st).await {
-                error!("universe startup failed: {e:#}");
+            if let Err(e) = ingest::universe::run_universe_loop(st).await {
+                tracing::error!("universe loop crashed: {:?}", e);
             }
         });
     }
 
-    let app = Router::new()
-    .route("/healthz", get(healthz))
-    .route("/readyz", get(readyz))
-    .route("/stagez", get(stagez))
-    .route("/universe/refresh", post(universe_refresh))
-    .with_state(state);
+    // 2) candles pipeline
+    {
+        let st = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = candles_pipeline(st).await {
+                tracing::error!("candles pipeline crashed: {:?}", e);
+            }
+        });
+    }
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    info!("ingest listening on http://{addr}");
+    // http
+    let app = Router::new()
+        .route("/healthz", get(ingest::health::healthz))
+        .route("/readyz", get(ingest::health::readyz))
+        .route("/stagez", get(ingest::health::stagez))
+        .with_state(state);
+
+    let port = 8081u16; // либо вытаскивай из cfg.ports.market_ingest если хочешь
+    let addr: SocketAddr = format!("0.0.0.0:{port}").parse()?;
+    tracing::info!("ingest listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service()).await?;
+    Ok(())
+}
+
+async fn wait_for_stage(stage: &StageState, target: &str) {
+    loop {
+        let s = stage.get().stage; // StageView
+        if s == target {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+}
+
+async fn candles_pipeline(state: AppState) -> anyhow::Result<()> {
+    wait_for_stage(&state.stage, "PAIRS_READY").await;
+
+    state.stage.set("LOADING_CANDLES", "starting backfill");
+
+    let (symbols, last_map) = ingest::backfill::run_backfill(state.cfg.clone()).await?;
+
+    state.stage.set("BACKFILL_CANDLES_READY", "backfill done");
+
+    ingest::ws_manager::run_ws_and_poll(state.cfg.clone(), symbols, last_map).await?;
     Ok(())
 }
 
@@ -3417,14 +4476,47 @@ async fn universe_startup(st: AppState) -> Result<()> {
 
 
 
+# ingest/src/producer.rs
+
+use anyhow::Result;
+use rdkafka::config::ClientConfig;
+use rdkafka::producer::FutureProducer;
+
+use crate::config::IngestConfig;
+
+pub fn build_producer(cfg: &IngestConfig) -> Result<FutureProducer> {
+    let brokers = cfg.redpanda_brokers.join(",");
+
+    let producer: FutureProducer = ClientConfig::new()
+        .set("bootstrap.servers", &brokers)
+        .set("client.id", &cfg.redpanda_client_id)
+        // throughput
+        .set("compression.type", "lz4")
+        .set("linger.ms", "5")
+        .set("batch.num.messages", "10000")
+        .set("queue.buffering.max.kbytes", "1048576")
+        .set("queue.buffering.max.messages", "1000000")
+        // reliability baseline
+        .set("acks", "all")
+        .set("enable.idempotence", "true")
+        .set("message.timeout.ms", "10000")
+        .create()?;
+
+    Ok(producer)
+}
+
+
+
 # ingest/src/universe.rs
 
+//universe.rs
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio_postgres::NoTls;
+use api_binance::{BinanceRestClient, RateLimiter};
 
 #[derive(Debug, Deserialize)]
 struct UniverseToml {
@@ -3434,8 +4526,9 @@ struct UniverseToml {
 #[derive(Debug, Deserialize)]
 struct UniverseCfg {
     quote_asset: String,
-
+    #[serde(rename = "futures_only")]
     _futures_only: bool,
+    
     perpetual_only: bool,
 
     min_quote_volume_usdt_24h: f64,
@@ -3490,6 +4583,15 @@ pub async fn refresh_pairs(db_url: &str, rest_base: &str, universe_cfg_path: &st
     let exclude_symbols: HashSet<String> = u.exclude_symbols.into_iter().collect();
     let allowlist: HashSet<String> = u.allowlist.into_iter().collect();
     let denylist: HashSet<String> = u.denylist.into_iter().collect();
+
+    // 2) REST calls (через crates/api_binance)
+    let limiter = RateLimiter::new(8, 16); // soft defaults как в config/binance.toml
+    let rest = BinanceRestClient::new(rest_base)?
+        .with_rate_limiter(limiter)
+        .with_retries(5, 250, 5000);
+
+    let ex = rest.exchange_info_futures().await?;
+    let tickers = rest.ticker_24h_futures().await?;
 
     // 2) REST calls
     let client = Client::builder()
@@ -3614,6 +4716,302 @@ pub async fn refresh_pairs(db_url: &str, rest_base: &str, universe_cfg_path: &st
 
 # ingest/src/ws_manager.rs
 
+use anyhow::{Context, Result};
+use common::timeframe::Timeframe;
+use futures::StreamExt;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::util::Timeout;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
+
+use crate::backfill::LastCloseMap;
+use crate::candle_builder::{fetch_klines, now_ms, tf_ms};
+use crate::config::IngestConfig;
+use crate::gap_fill::gap_fill_between;
+use crate::producer::build_producer;
+use db_writer::messages::CandleCloseMsg;
+
+#[derive(serde::Deserialize)]
+struct WsCombined<T> {
+    stream: String,
+    data: T,
+}
+
+#[derive(serde::Deserialize)]
+struct KlineEvent {
+    #[serde(rename = "E")]
+    event_time_ms: i64,
+    #[serde(rename = "s")]
+    symbol: String,
+    #[serde(rename = "k")]
+    k: KlineData,
+}
+
+#[derive(serde::Deserialize)]
+struct KlineData {
+    #[serde(rename = "i")]
+    interval: String,
+    #[serde(rename = "t")]
+    open_time_ms: i64,
+    #[serde(rename = "T")]
+    close_time_ms: i64,
+    #[serde(rename = "o")]
+    open: String,
+    #[serde(rename = "h")]
+    high: String,
+    #[serde(rename = "l")]
+    low: String,
+    #[serde(rename = "c")]
+    close: String,
+    #[serde(rename = "v")]
+    volume: String,
+    #[serde(rename = "x")]
+    is_closed: bool,
+}
+
+fn pf64(s: &str) -> Result<f64> {
+    Ok(s.parse::<f64>()?)
+}
+
+fn make_close(evt: &KlineEvent) -> Result<CandleCloseMsg> {
+    Ok(CandleCloseMsg {
+        symbol: evt.symbol.clone(),
+        tf: evt.k.interval.clone(),
+        close_time_ms: evt.k.close_time_ms,
+        open: pf64(&evt.k.open)?,
+        high: pf64(&evt.k.high)?,
+        low: pf64(&evt.k.low)?,
+        close: pf64(&evt.k.close)?,
+        volume: pf64(&evt.k.volume)?,
+        source_event_time_ms: Some(evt.event_time_ms),
+    })
+}
+
+async fn send_close(producer: &FutureProducer, topic: &str, key: &str, msg: &CandleCloseMsg) -> Result<()> {
+    let payload = serde_json::to_vec(msg)?;
+    loop {
+        match producer.send(FutureRecord::to(topic).key(key).payload(&payload), Timeout::Never) {
+            Ok(_) => return Ok(()),
+            Err((e, _)) => {
+                if e.to_string().contains("Queue full") {
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                    continue;
+                }
+                return Err(e.into());
+            }
+        }
+    }
+}
+
+// делим symbols на чанки так, чтобы (symbols_in_conn * ws_timeframes.len()) <= max_streams
+fn shard_symbols(symbols: &[String], ws_tfs: usize, max_streams: usize) -> Vec<Vec<String>> {
+    let per_conn = (max_streams / ws_tfs).max(1);
+    symbols
+        .chunks(per_conn)
+        .map(|c| c.to_vec())
+        .collect()
+}
+
+fn build_streams_chunk(symbols: &[String], tfs: &[Timeframe]) -> String {
+    let mut parts = Vec::with_capacity(symbols.len() * tfs.len());
+    for s in symbols {
+        let sl = s.to_lowercase();
+        for tf in tfs {
+            parts.push(format!("{sl}@kline_{}", tf.as_binance_interval()));
+        }
+    }
+    parts.join("/")
+}
+
+pub async fn run_ws_and_poll(
+    cfg: Arc<IngestConfig>,
+    symbols: Vec<String>,
+    last_map: LastCloseMap,
+) -> Result<()> {
+    let http = reqwest::Client::builder()
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(8)
+        .timeout(std::time::Duration::from_millis(10_000))
+        .build()?;
+
+    let producer = build_producer(&cfg)?;
+
+    // shared last-close map (для gap fill + poll)
+    let last = Arc::new(RwLock::new(last_map));
+
+    // WS realtime для ws_timeframes :contentReference[oaicite:11]{index=11}
+    let shards = shard_symbols(&symbols, cfg.ws_timeframes.len().max(1), cfg.ws_max_streams_per_conn);
+
+    for (idx, chunk) in shards.into_iter().enumerate() {
+        let cfg = cfg.clone();
+        let http = http.clone();
+        let producer = producer.clone();
+        let last = last.clone();
+
+        tokio::spawn(async move {
+            loop {
+                let streams = build_streams_chunk(&chunk, &cfg.ws_timeframes);
+                let url = format!("{}/stream?streams={}", cfg.ws_base_url.trim_end_matches('/'), streams);
+
+                let conn = tokio_tungstenite::connect_async(url).await;
+                let (mut ws, _) = match conn {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("[ws#{idx}] connect error: {e:?}");
+                        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+                        continue;
+                    }
+                };
+
+                while let Some(msg) = ws.next().await {
+                    let msg = match msg {
+                        Ok(m) => m,
+                        Err(e) => {
+                            eprintln!("[ws#{idx}] read error: {e:?}");
+                            break;
+                        }
+                    };
+
+                    let text = match msg {
+                        WsMessage::Text(t) => t,
+                        WsMessage::Binary(b) => String::from_utf8_lossy(&b).to_string(),
+                        _ => continue,
+                    };
+
+                    let combined: WsCombined<KlineEvent> = match serde_json::from_str(&text) {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+
+                    let ev = combined.data;
+                    if !ev.k.is_closed {
+                        // intra-candle updates можно добавить позже (topic_candles_update),
+                        // но db_writer пока принимает только close.
+                        continue;
+                    }
+
+                    // tf parse
+                    let tf = match Timeframe::parse(&ev.k.interval) {
+                        Some(t) => t,
+                        None => continue,
+                    };
+
+                    let close_evt = make_close(&ev).context("make_close")?;
+                    let key = format!("{}|{}", close_evt.symbol, close_evt.tf);
+
+                    // gap fill
+                    let mut guard = last.write().await;
+                    let prev = guard.get(&(close_evt.symbol.clone(), close_evt.tf.clone())).copied();
+
+                    if let Some(prev_close) = prev {
+                        let step = tf_ms(tf);
+                        if close_evt.close_time_ms > prev_close + step {
+                            // догружаем между prev_close и current_close (exclusive current)
+                            let filled_last = gap_fill_between(
+                                &cfg,
+                                &http,
+                                &producer,
+                                &close_evt.symbol,
+                                tf,
+                                prev_close,
+                                close_evt.close_time_ms,
+                                ev.event_time_ms,
+                            )
+                            .await
+                            .unwrap_or(prev_close);
+                            guard.insert((close_evt.symbol.clone(), close_evt.tf.clone()), filled_last);
+                        }
+                    }
+
+                    // publish current close
+                    send_close(&producer, &cfg.topic_candles_close, &key, &close_evt).await?;
+                    guard.insert((close_evt.symbol.clone(), close_evt.tf.clone()), close_evt.close_time_ms);
+                }
+
+                tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            }
+
+            #[allow(unreachable_code)]
+            Ok::<(), anyhow::Error>(())
+        });
+    }
+
+    // poll-on-close для старших TF :contentReference[oaicite:12]{index=12}
+    if !cfg.poll_timeframes.is_empty() {
+        let cfg2 = cfg.clone();
+        let http2 = http.clone();
+        let producer2 = producer.clone();
+        let last2 = last.clone();
+        let symbols2 = symbols.clone();
+
+        tokio::spawn(async move {
+            let tick = std::time::Duration::from_secs(cfg2.poll_on_close_interval_sec.max(5));
+            loop {
+                tokio::time::sleep(tick).await;
+
+                // параллелим умеренно (не надо DDOS’ить REST)
+                let sem = Arc::new(tokio::sync::Semaphore::new(cfg2.http_concurrency));
+
+                let mut futs = futures::stream::FuturesUnordered::new();
+
+                for sym in symbols2.iter().cloned() {
+                    for &tf in cfg2.poll_timeframes.iter() {
+                        let permit = sem.clone().acquire_owned().await.unwrap();
+                        let cfg2 = cfg2.clone();
+                        let http2 = http2.clone();
+                        let producer2 = producer2.clone();
+                        let last2 = last2.clone();
+
+                        futs.push(tokio::spawn(async move {
+                            let _permit = permit;
+
+                            // берём последние 2 свечи и публикуем последнюю закрытую
+                            let ks = fetch_klines(&http2, &cfg2.rest_base_url, &sym, tf, 2, None).await?;
+                            if ks.is_empty() {
+                                return Ok::<(), anyhow::Error>(());
+                            }
+                            let k = ks.last().unwrap().clone();
+                            let evt = CandleCloseMsg {
+                                symbol: sym.clone(),
+                                tf: tf.as_binance_interval().to_string(),
+                                close_time_ms: k.close_time_ms,
+                                open: k.open,
+                                high: k.high,
+                                low: k.low,
+                                close: k.close,
+                                volume: k.volume,
+                                source_event_time_ms: Some(now_ms()),
+                            };
+
+                            let key = format!("{}|{}", evt.symbol, evt.tf);
+
+                            let mut guard = last2.write().await;
+                            let prev = guard.get(&(evt.symbol.clone(), evt.tf.clone())).copied();
+                            if prev.map(|p| evt.close_time_ms > p).unwrap_or(true) {
+                                send_close(&producer2, &cfg2.topic_candles_close, &key, &evt).await?;
+                                guard.insert((evt.symbol.clone(), evt.tf.clone()), evt.close_time_ms);
+                            }
+
+                            Ok::<(), anyhow::Error>(())
+                        }));
+                    }
+                }
+
+                while let Some(r) = futs.next().await {
+                    if let Err(e) = r {
+                        eprintln!("poll task join error: {e:?}");
+                    }
+                }
+            }
+        });
+    }
+
+    // держим функцию “живой”
+    futures::future::pending::<()>().await;
+    Ok(())
+}
 
 
 
@@ -3639,7 +5037,7 @@ pub async fn refresh_pairs(db_url: &str, rest_base: &str, universe_cfg_path: &st
 
 # compute/indicators/adx.rs
 
-
+//adx
 
 
 # compute/indicators/alligator.rs

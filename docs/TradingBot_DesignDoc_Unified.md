@@ -697,157 +697,194 @@ set -euo pipefail
 
 ## 13) Репозиторий: структура папок и “пустые” файлы
 ```text
-trading-bot/
-  README.md
-  Cargo.toml
-  rust-toolchain.toml
-  .env.example
-  .gitignore
-
-  infra/
-    docker-compose.yml
-    timescaledb/
-      init.sql
-    redpanda/
-      topics.sh
-    grafana/
-    prometheus/
-
-  scripts/
-    preflight.sh
-    start.sh
-    stop.sh
-    restart.sh
-    healthcheck.sh
-    wait_pg.sh
-    wait_redpanda.sh
-    wait_stage.sh
-    logs.sh
-
-  crates/
-    common/
-      src/
-        lib.rs
-        time.rs
-        types.rs         # Candle, IndicatorState, Signal, etc
-        serde.rs         # binary schema helpers (rkyv/proto)
-        error.rs
-    api_binance/
-      src/
-        lib.rs
-        rest.rs
-        ws_market.rs
-        ws_user.rs
-        sign.rs
-        rate_limit.rs
-    ingest/
-      src/
-        main.rs
-        config.rs
-        ws_manager.rs
-        candle_builder.rs
-        backfill.rs
-        gap_fill.rs
-        health.rs
-    compute/
-      src/
-        main.rs
-        state/
-          mod.rs
-          ring_buffer.rs
-          pools.rs
-        indicators/
-          mod.rs
-          ema.rs
-          rsi.rs
-          macd.rs
-          atr.rs
-          adx.rs
-          bb.rs
-          stoch.rs
-          vwap.rs
-          obv.rs
-          sr_levels.rs      # тяжелый — отдельно
-        raw_signals/
-          mod.rs
-          scoring.rs
-          thresholds.rs
-        planner/
-          mod.rs
-          gpu_planner.rs
-        ml/
-          mod.rs
-          model_manager.rs
-          features.rs
-        scorer/
-          mod.rs
-          final_score.rs
-        health.rs
-    db_writer/
-      src/
-        main.rs
-        batcher.rs
-        copy.rs
-        migrations.rs
-        idempotency.rs
-        retention.rs
-        health.rs
-    order_engine/
-      src/
-        main.rs
-        risk/
-          mod.rs
-          limits.rs
-          circuit_breakers.rs
-        oco/
-          mod.rs
-          bracket.rs
-        traced/
-          mod.rs
-          tp_plan.rs
-        binance_exec.rs
-        health.rs
-    position_tracker/
-      src/
-        main.rs
-        tracker.rs
-        sl_manager.rs
-        tp_manager.rs
-        reconcile.rs
-        health.rs
-    api_gateway/
-      src/
-        main.rs
-        routes.rs
-        ws.rs
-        auth.rs         # v1: single user
-        health.rs
-
-  cuda/
-    kernels/
-      indicators.cu
-      reduce.cu
-    build.rs
-    ptx/
-      indicators.ptx
-
-  ml/
-    trainer/
-      train.py
-      features.py
-      export_onnx.py
-      schedule.py
-    notebooks/
-
-  web/
-    package.json
-    src/
-      app.tsx
-      api/
-      components/
-      charts/
-      store/
-      pages/
+.
+├── Cargo.lock
+├── Cargo.toml
+├── compute
+│   ├── health.rs
+│   ├── indicators
+│   │   ├── adx.rs
+│   │   ├── alligator.rs
+│   │   ├── atr.rs
+│   │   ├── bb.rs
+│   │   ├── cci.rs
+│   │   ├── ema.rs
+│   │   ├── macd.rs
+│   │   ├── obv.rs
+│   │   ├── poc.rs
+│   │   ├── rsi.rs
+│   │   ├── sr_levels.rs
+│   │   ├── stoch.rs
+│   │   ├── trend.rs
+│   │   ├── volume_spike.rs
+│   │   ├── vwap.rs
+│   │   └── williams.rs
+│   ├── ml
+│   │   ├── features.rs
+│   │   ├── model_manager.rs
+│   │   ├── mod.rs
+│   │   ├── notebooks
+│   │   └── trainer
+│   │       ├── export_onnx.py
+│   │       ├── features.py
+│   │       ├── schedule.py
+│   │       └── train.py
+│   ├── planner
+│   │   ├── gpu_planner.rs
+│   │   └── mod.rs
+│   ├── raw_signals
+│   │   ├── mod.rs
+│   │   ├── scoring.rs
+│   │   └── thresholds.rs
+│   ├── scorer
+│   │   ├── final_score.rs
+│   │   └── mod.rs
+│   └── src
+│       ├── lib.rs
+│       ├── main.rs
+│       └── pools.rs
+├── config
+│   ├── binance.toml
+│   ├── compute.toml
+│   ├── database.toml
+│   ├── runtime.toml
+│   ├── rust_bot.toml
+│   └── universe.toml
+├── crates
+│   ├── api_binance
+│   │   ├── Cargo.toml
+│   │   └── src
+│   │       ├── lib.rs
+│   │       ├── rate_limits.rs
+│   │       ├── rest.rs
+│   │       ├── sign.rs
+│   │       ├── ws_market.rs
+│   │       └── ws_user.rs
+│   ├── api_gateway
+│   │   ├── Cargo.toml
+│   │   └── src
+│   │       ├── auth.rs
+│   │       ├── health.rs
+│   │       ├── main.rs
+│   │       ├── routes.rs
+│   │       └── ws.rs
+│   ├── common
+│   │   ├── Cargo.toml
+│   │   └── src
+│   │       ├── config.rs
+│   │       ├── enums.rs
+│   │       ├── error.rs
+│   │       ├── lib.rs
+│   │       ├── serde.rs
+│   │       ├── timeframe.rs
+│   │       └── types.rs
+│   ├── db_init
+│   │   ├── Cargo.toml
+│   │   └── src
+│   │       └── main.rs
+│   └── db_writer
+│       ├── Cargo.toml
+│       └── src
+│           ├── batcher.rs
+│           ├── copy_row.rs
+│           ├── copy.rs
+│           ├── health.rs
+│           ├── idempotency.rs
+│           ├── lib.rs
+│           ├── main.rs
+│           ├── messages.rs
+│           ├── migrations.rs
+│           └── retention.rs
+├── cuda
+│   ├── build.rs
+│   ├── kernels
+│   │   ├── indicators.cu
+│   │   └── reduce.cu
+│   └── ptx
+│       └── indicators.ptx
+├── docs
+│   └── TradingBot_DesignDoc_Unified.md
+├── infra
+│   ├── database
+│   │   └── init
+│   │       ├── 001_extensions_and_schemas.sql
+│   │       ├── 010_market_core.sql
+│   │       ├── 020_market_candles_tf.sql
+│   │       ├── 025_market_staging.sql
+│   │       ├── 030_market_indicators_tf.sql
+│   │       ├── 040_market_raw_signals.sql
+│   │       ├── 050_trade_tables.sql
+│   │       ├── 055_constraints.sql
+│   │       ├── 060_policies.sql
+│   │       ├── 070_views_all.sql
+│   │       └── 080_health_queries.sql
+│   └── docker-compose.yaml
+├── ingest
+│   ├── Cargo.toml
+│   └── src
+│       ├── backfill.rs
+│       ├── candle_builder.rs
+│       ├── config.rs
+│       ├── gap_fill.rs
+│       ├── health.rs
+│       ├── lib.rs
+│       ├── main.rs
+│       ├── universe.rs
+│       └── ws_manager.rs
+├── logs
+│   ├── db_health.log
+│   ├── db_init.log
+│   ├── db_writer.log
+│   └── ingest.log
+├── order_engine
+│   └── src
+│       ├── binance_exec.rs
+│       ├── health.rs
+│       ├── lib.rs
+│       ├── main.rs
+│       ├── oco
+│       │   ├── bracket.rs
+│       │   └── mod.rs
+│       ├── risk
+│       │   ├── breakers.rs
+│       │   ├── limits.rs
+│       │   └── mod.rs
+│       ├── sl_manager.rs
+│       ├── tp_manager.rs
+│       └── traced
+│           ├── mod.rs
+│           └── tp_plan.rs
+├── position_tracker
+│   └── src
+│       ├── health.rs
+│       ├── lib.rs
+│       ├── main.rs
+│       ├── reconcile.rs
+│       └── tracker.rs
+├── project_structure.md
+├── reader.py
+├── README.md
+├── redpanda
+│   └── topics.sh
+├── run
+│   ├── db_writer.pid
+│   └── ingest.pid
+├── rust_bot.txt
+├── rust-toolchain.toml
+├── scripts
+│   ├── db_health.sh
+│   ├── healthcheck.sh
+│   ├── preflight.sh
+│   ├── restart.sh
+│   ├── start.sh
+│   ├── stop.sh
+│   ├── wait_pg.sh
+│   ├── wait_redpanda.sh
+│   └── wait_stage.sh
+├── strategies
+└── webui
+    ├── package.json
+    └── src
 ```
 
 ---

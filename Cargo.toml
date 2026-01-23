@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/common",
+  "crates/api_binance",
   "crates/db_init",
   "crates/db_writer",
   "ingest"

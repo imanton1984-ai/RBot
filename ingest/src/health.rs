@@ -2,6 +2,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use serde_json::json;
 
 use crate::AppState;
 
@@ -48,20 +49,25 @@ fn now_ms() -> i64 {
 }
 
 pub async fn healthz() -> impl IntoResponse {
-    (StatusCode::OK, "ok")
+    (StatusCode::OK, "OK")
 }
 
-pub async fn stagez(State(st): State<AppState>) -> impl IntoResponse {
-    Json(st.stage.get())
-}
-
-pub async fn readyz(State(st): State<AppState>) -> impl IntoResponse {
-    let cur = st.stage.get();
-    if cur.stage == "PAIRS_READY" || cur.stage == "RUN" {
-        (StatusCode::OK, Json(cur))
+pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
+    let stage = state.stage.get().await;
+    let ok = matches!(
+        stage.as_str(),
+        "PAIRS_READY" | "LOADING_CANDLES" | "BACKFILL_CANDLES_READY" | "RUN"
+    );
+    if ok {
+        (StatusCode::OK, "READY").into_response()
     } else {
-        (StatusCode::SERVICE_UNAVAILABLE, Json(cur))
+        (StatusCode::SERVICE_UNAVAILABLE, "NOT_READY").into_response()
     }
+}
+
+pub async fn stagez(State(state): State<AppState>) -> impl IntoResponse {
+    let stage = state.stage.get().await;
+    Json(json!({ "stage": stage }))
 }
 
 

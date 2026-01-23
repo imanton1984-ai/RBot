@@ -9,23 +9,24 @@ name = "ingest"
 path = "src/main.rs"
 
 [dependencies]
-common = { path = "../crates/common" }
-
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 anyhow = { workspace = true }
-thiserror = { workspace = true }
-
 axum = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-
-# Keep tokio-postgres if used elsewhere, but universe.rs needs sqlx
-tokio-postgres = { workspace = true, features = ["with-uuid-1", "with-serde_json-1"] }
-# ADD THESE TWO LINES:
-sqlx = { workspace = true, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
-toml = "0.8"
-
+bytes = { workspace = true }
+common = { path = "../crates/common" }
+futures = { workspace = true }
+log = { workspace = true }
+rdkafka = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
+simd-json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-postgres = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+api_binance = { path = "../crates/api_binance" }
 
+
+# async websocket
+tokio-tungstenite = { version = "0.20", features = ["rustls-tls-webpki-roots"] }

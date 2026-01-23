@@ -1,9 +1,11 @@
+//universe.rs
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio_postgres::NoTls;
+use api_binance::{BinanceRestClient, RateLimiter};
 
 #[derive(Debug, Deserialize)]
 struct UniverseToml {
@@ -70,6 +72,15 @@ pub async fn refresh_pairs(db_url: &str, rest_base: &str, universe_cfg_path: &st
     let exclude_symbols: HashSet<String> = u.exclude_symbols.into_iter().collect();
     let allowlist: HashSet<String> = u.allowlist.into_iter().collect();
     let denylist: HashSet<String> = u.denylist.into_iter().collect();
+
+    // 2) REST calls (через crates/api_binance)
+    let limiter = RateLimiter::new(8, 16); // soft defaults как в config/binance.toml
+    let rest = BinanceRestClient::new(rest_base)?
+        .with_rate_limiter(limiter)
+        .with_retries(5, 250, 5000);
+
+    let ex = rest.exchange_info_futures().await?;
+    let tickers = rest.ticker_24h_futures().await?;
 
     // 2) REST calls
     let client = Client::builder()

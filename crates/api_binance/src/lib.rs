@@ -1,16 +1,9 @@
-//! Binance API integration for the trading bot
-//!
-//! This crate provides interfaces for interacting with Binance Futures API,
-//! including both REST and WebSocket connections for market data and order management.
-
+pub mod rate_limits;
 pub mod rest;
+pub mod sign;
 pub mod ws_market;
 pub mod ws_user;
-pub mod sign;
-pub mod rate_limit;
 
-pub use rest::*;
-pub use ws_market::*;
-pub use ws_user::*;
-pub use sign::*;
-pub use rate_limit::*;
+pub use rate_limits::RateLimiter;
+pub use rest::{BinanceRestClient, ExchangeInfoResp, ExSymbol, Ticker24h, Kline};
+pub use ws_market::{MarketWs, MarketWsConfig, MarketWsEvent};

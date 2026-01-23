@@ -11,54 +11,79 @@ use tracing::{error, info};
 use ingest::health::{healthz, readyz, stagez, StageState};
 use ingest::{universe, AppState};
 
+
+use axum::{routing::get, Router};
+use ingest::{AppState, StageState};
+
+
+
+mod config;
+
 #[tokio::main]
-async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "ingest=info".into()))
-        .init();
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
 
-    let port: u16 = std::env::var("INGEST_PORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(8081);
+    let cfg = Arc::new(config::IngestConfig::load()?);
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
-    let rest_base = std::env::var("BINANCE_REST_BASE")
-        .unwrap_or_else(|_| "https://fapi.binance.com".to_string());
-    let universe_cfg_path = std::env::var("UNIVERSE_CONFIG")
-        .unwrap_or_else(|_| "config/universe.toml".to_string());
+    let stage = StageState::new("INIT");
+    let state = AppState { stage: stage.clone(), cfg: cfg.clone() };
 
-    let stage = StageState::new("BOOT");
-
-    let state = AppState {
-        stage: stage.clone(),
-        db_url: Arc::new(db_url),
-        rest_base: Arc::new(rest_base),
-        universe_cfg_path: Arc::new(universe_cfg_path),
-    };
-
-    // Startup universe refresh
+    // 1) universe refresh (у тебя уже есть)
     {
         let st = state.clone();
         tokio::spawn(async move {
-            if let Err(e) = universe_startup(st).await {
-                error!("universe startup failed: {e:#}");
+            if let Err(e) = ingest::universe::run_universe_loop(st).await {
+                tracing::error!("universe loop crashed: {:?}", e);
             }
         });
     }
 
-    let app = Router::new()
-    .route("/healthz", get(healthz))
-    .route("/readyz", get(readyz))
-    .route("/stagez", get(stagez))
-    .route("/universe/refresh", post(universe_refresh))
-    .with_state(state);
+    // 2) candles pipeline
+    {
+        let st = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = candles_pipeline(st).await {
+                tracing::error!("candles pipeline crashed: {:?}", e);
+            }
+        });
+    }
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    info!("ingest listening on http://{addr}");
+    // http
+    let app = Router::new()
+        .route("/healthz", get(ingest::health::healthz))
+        .route("/readyz", get(ingest::health::readyz))
+        .route("/stagez", get(ingest::health::stagez))
+        .with_state(state);
+
+    let port = 8081u16; // либо вытаскивай из cfg.ports.market_ingest если хочешь
+    let addr: SocketAddr = format!("0.0.0.0:{port}").parse()?;
+    tracing::info!("ingest listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service()).await?;
+    Ok(())
+}
+
+async fn wait_for_stage(stage: &StageState, target: &str) {
+    loop {
+        let s = stage.get().stage; // StageView
+        if s == target {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+}
+
+async fn candles_pipeline(state: AppState) -> anyhow::Result<()> {
+    wait_for_stage(&state.stage, "PAIRS_READY").await;
+
+    state.stage.set("LOADING_CANDLES", "starting backfill");
+
+    let (symbols, last_map) = ingest::backfill::run_backfill(state.cfg.clone()).await?;
+
+    state.stage.set("BACKFILL_CANDLES_READY", "backfill done");
+
+    ingest::ws_manager::run_ws_and_poll(state.cfg.clone(), symbols, last_map).await?;
     Ok(())
 }
 

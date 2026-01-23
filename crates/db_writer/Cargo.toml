@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 common = { path = "../common" }
-
+rmp-serde = { workspace = true }
 futures = "0.3"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "signal"] }
 tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
