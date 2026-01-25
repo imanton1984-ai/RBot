@@ -36,7 +36,7 @@ EOF
 }
 
 SERVICES_DEFAULT=(
-  "db_writer"
+  "data_writer"
   "market_collector"
   "indicator_engine"
   "signal_scorer"

@@ -191,7 +191,7 @@ pub struct PortsConfig {
     pub api_gateway: u16,
     pub market_ingest: u16,
     pub compute_core: u16,
-    pub db_writer: u16,
+    pub data_writer: u16,
     pub order_engine: u16,
     pub position_tracker: u16,
 }

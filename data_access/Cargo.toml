@@ -3,12 +3,11 @@ name = "data_access"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name = "data_access"
-
 [dependencies]
-tokio = { version = "1.0", features = ["full"] }
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+tokio = { workspace = true }
+sqlx = { workspace = true, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
 dashmap = "6.0"
-serde = { version = "1.0", features = ["derive"] }
-tracing = "0.1"
+serde = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+common = { path = "../common" }

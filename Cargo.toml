@@ -2,31 +2,16 @@
 members = [
   "common",
   "compute",
-  "connections/binance_rest",
-  "connections/binance_ws",
-  "connections/db",
-  "connections/db/db_writer",
-  "connections/kafka",
-  "connections/telemetry",
-  "connections/clock",
+  "connections",      # <-- единый модуль подключений
   "database",
   "data_writer",
   "data_access",
   "market_data",
   "ml",
-  "health",
   "data_types",
-  "apps/runner",
-  "apps/svc_backfill",
-  "apps/svc_live",
-  "apps/svc_writer",
-  "apps/svc_compute",
-  "apps/svc_orders",
-  "apps/svc_webgui",
-  "apps/svc_health",
+  "apps",             # <-- единый apps crate со всеми бинари
   "order_engine",
   "position_tracker",
-  "ingest"
 ]
 resolver = "2"
 
@@ -67,6 +52,7 @@ bytes = "1"
 itoa = "1"
 ryu = "1"
 common = { path = "./common" }
+tokio-tungstenite = "0.20"
 
 [workspace.package]
 version = "0.1.0"

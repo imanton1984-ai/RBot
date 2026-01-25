@@ -89,9 +89,9 @@ services:
       - --check=false
       # listeners
       - --kafka-addr
-      - "PLAINTEXT://0.0.0.0:19092"
+      - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:19092
       - --advertise-kafka-addr
-      - "PLAINTEXT://redpanda:19092"     
+      - PLAINTEXT://redpanda:29092,OUTSIDE://localhost:19092
       - --pandaproxy-addr
       - "0.0.0.0:8082"
       - --advertise-pandaproxy-addr

@@ -31,7 +31,7 @@ try_once () {
   check_url "api_gateway"     "http://localhost:8080/readyz"
   check_url "market_ingest"   "http://localhost:8081/readyz"
   check_url "compute_core"    "http://localhost:8082/readyz"
-  check_url "db_writer"       "http://localhost:8083/readyz"
+  check_url "data_writer"       "http://localhost:8083/readyz"
   check_url "order_engine"    "http://localhost:8084/readyz"
   check_url "position_tracker""http://localhost:8085/readyz"
 }

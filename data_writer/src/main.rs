@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use bytes::BytesMut;
 use dashmap::DashMap;
-use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::consumer::{StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::ClientConfig;
 use std::sync::Arc;
@@ -52,7 +52,7 @@ enum WriteMsg {
 async fn main() -> Result<()> {
     let cfg = load_config().context("load_config failed")?;
     let db_url = cfg.database.url();
-    println!("DB_WRITER connecting to: {}", db_url); // для отладки
+    println!("DATA_WRITER connecting to: {}", db_url); // для отладки
 
     // DB connect (single client used for preload; workers will open their own connections)
     let (client, connection) = tokio_postgres::connect(&db_url, tokio_postgres::NoTls)
@@ -88,7 +88,7 @@ async fn main() -> Result<()> {
     // Kafka consumer
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", cfg.rust_bot.redpanda_brokers.join(","))
-        .set("group.id", format!("db_writer-{}", cfg.rust_bot.instance_id))
+        .set("group.id", format!("data_writer-{}", cfg.rust_bot.instance_id))
         .set("enable.auto.commit", "false")
         .set("auto.offset.reset", "latest")
         .create()

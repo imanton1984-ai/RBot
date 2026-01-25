@@ -13,7 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
 thiserror = "1.0"
-rdkafka = { version = "0.36", features = ["cmake-build"] }
+rdkafka = { version = "0.37", features = ["cmake-build"] }
 tokio-postgres = "0.7"
 postgres-types = { version = "0.2", features = ["with-serde_json-1"] }
 futures = "0.3"
@@ -27,4 +27,5 @@ itertools = "0.12"
 itoa = "1.0"
 ryu = "1.0"
 data_types = { path = "../data_types" }
+common = { path = "../common" }
 

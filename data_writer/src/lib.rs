@@ -1,3 +1,5 @@
+pub mod messages;
+
 pub struct DataWriterRouter;
 
 impl DataWriterRouter {
