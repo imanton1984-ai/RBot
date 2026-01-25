@@ -1,0 +1,20 @@
+[package]
+name = "order_engine"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "order_engine"
+path = "src/main.rs"
+
+[lib]
+name = "order_engine_lib"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+data_types = { path = "../data_types" }

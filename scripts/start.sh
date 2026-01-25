@@ -24,6 +24,9 @@ BIN_PATH="./target/$BUILD_MODE"
 DB_INIT_BIN="$BIN_PATH/db_init"
 DB_WRITER_BIN="$BIN_PATH/db_writer"
 INGEST_BIN="$BIN_PATH/ingest"
+TELEMETRY_BIN="$BIN_PATH/telemetry"
+LIVE_BIN="$BIN_PATH/svc_live"
+BACKFILL_BIN="$BIN_PATH/svc_backfill"
 
 PID_DIR="./run"
 LOG_DIR="./logs"
@@ -109,7 +112,7 @@ wait_postgres() {
 
 run_db_init() {
   log "Running db_init migrations..."
-  "$DB_INIT_BIN" --dir infra/database/init
+  "$DB_INIT_BIN" --dir database/ddl
 }
 
 start_service() {
@@ -141,17 +144,25 @@ main() {
   log "[*] Cleaning up old processes..."
   stop_by_pidfile "ingest"
   stop_by_pidfile "db_writer"
+  stop_by_pidfile "telemetry"
   pkill -f "/ingest" 2>/dev/null || true
   pkill -f "/db_writer" 2>/dev/null || true
+  pkill -f "/telemetry" 2>/dev/null || true
   sleep 2
 
   log "Checking/Building binaries..."
   ensure_built "db_init" "$DB_INIT_BIN"
   ensure_built "db_writer" "$DB_WRITER_BIN"
   ensure_built "ingest" "$INGEST_BIN"
+  ensure_built "telemetry" "$TELEMETRY_BIN"
+  ensure_built "svc_live" "$LIVE_BIN"
+  ensure_built "svc_backfill" "$BACKFILL_BIN"
 
   docker_up
   wait_postgres
+  # ADDED: Wait for Redpanda explicitly
+  log "Waiting for Redpanda..."
+  ./scripts/wait_redpanda.sh || die "Redpanda failed to start"
   run_db_init
 
   if [[ -x "./scripts/db_health.sh" ]]; then
@@ -167,13 +178,25 @@ main() {
   log "Waiting for stage PAIRS_READY..."
   ./scripts/wait_stage.sh "http://localhost:8081/stagez" "PAIRS_READY" 120
 
-  # 3. СРАЗУ запускаем db_writer, чтобы он был готов принимать поток данных от backfill
+  # 3. Запускаем backfill service для загрузки исторических данных
+  log "Starting backfill service to load historical data..."
+  start_service "backfill" "$BACKFILL_BIN"
+
+  # 4. СРАЗУ запускаем db_writer, чтобы он был готов принимать поток данных от backfill
   log "Starting db_writer to consume backfill stream..."
   start_service "db_writer" "$DB_WRITER_BIN"
 
-  # 4. Теперь безопасно ждем завершения тяжелого бэкфилла
+  # 5. Start the telemetry service to monitor all connections
+  log "Starting telemetry service to monitor connections..."
+  start_service "telemetry" "$TELEMETRY_BIN"
+
+  # 6. Now wait for backfill to complete
   log "Waiting for stage BACKFILL_CANDLES_READY..."
   ./scripts/wait_stage.sh "http://localhost:8081/stagez" "BACKFILL_CANDLES_READY" 3600
+
+  # 7. Finally start the live service to begin real-time WebSocket data processing
+  log "Starting live service for real-time WebSocket data processing..."
+  start_service "live" "$LIVE_BIN"
 
   log "✅ ALL SYSTEMS GO (Realtime mode active)"
 }

@@ -2,31 +2,19 @@
 name = "ingest"
 version = "0.1.0"
 edition = "2021"
-publish = false
 
 [[bin]]
 name = "ingest"
 path = "src/main.rs"
 
+[lib]
+name = "ingest_lib"
+
 [dependencies]
-anyhow = { workspace = true }
-axum = { workspace = true }
-bytes = { workspace = true }
-common = { path = "../crates/common" }
-futures = { workspace = true }
-log = { workspace = true }
-rdkafka = { workspace = true }
-reqwest = { workspace = true, features = ["json", "rustls-tls"] }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-simd-json = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
-tokio-postgres = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-url = { workspace = true }
-api_binance = { path = "../crates/api_binance" }
-
-
-# async websocket
-tokio-tungstenite = { version = "0.20", features = ["rustls-tls-webpki-roots"] }
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+data_types = { path = "../data_types" }

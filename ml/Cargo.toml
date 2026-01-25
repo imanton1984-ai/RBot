@@ -1,0 +1,15 @@
+[package]
+name = "ml"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "ml"
+
+[dependencies]
+ndarray = "0.15"
+linfa = "0.6"
+pyo3 = { version = "0.20", features = ["auto-initialize"] }
+anyhow = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"

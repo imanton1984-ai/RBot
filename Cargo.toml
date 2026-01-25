@@ -1,9 +1,31 @@
 [workspace]
 members = [
-  "crates/common",
-  "crates/api_binance",
-  "crates/db_init",
-  "crates/db_writer",
+  "common",
+  "compute",
+  "connections/binance_rest",
+  "connections/binance_ws",
+  "connections/db",
+  "connections/db/db_writer",
+  "connections/kafka",
+  "connections/telemetry",
+  "connections/clock",
+  "database",
+  "data_writer",
+  "data_access",
+  "market_data",
+  "ml",
+  "health",
+  "data_types",
+  "apps/runner",
+  "apps/svc_backfill",
+  "apps/svc_live",
+  "apps/svc_writer",
+  "apps/svc_compute",
+  "apps/svc_orders",
+  "apps/svc_webgui",
+  "apps/svc_health",
+  "order_engine",
+  "position_tracker",
   "ingest"
 ]
 resolver = "2"
@@ -17,12 +39,14 @@ thiserror = "1.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-axum = "0.8.8"
+axum = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 config = "0.13"
 rmp-serde = "1.0"
 futures = "0.3"
+futures-util = "0.3"
+log = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
 tungstenite = "0.20"
 url = "2.0"
@@ -42,6 +66,7 @@ rdkafka = { version = "0.37", features = ["tokio"] }
 bytes = "1"
 itoa = "1"
 ryu = "1"
+common = { path = "./common" }
 
 [workspace.package]
 version = "0.1.0"

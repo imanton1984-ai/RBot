@@ -2,23 +2,23 @@
 set -euo pipefail
 
 echo "Waiting for Redpanda to be ready..."
-timeout=300
-start_time=$(date +%s)
+max_attempts=5
+attempt=1
 
-while true; do
-    if docker compose -f infra/docker-compose.yml exec -T redpanda rpk cluster health >/dev/null 2>&1; then
+while [ $attempt -le $max_attempts ]; do
+    # CHANGED: Added --api-urls to match docker-compose healthcheck
+    if docker compose -f infra/docker-compose.yaml exec -T redpanda rpk cluster health --api-urls=http://127.0.0.1:9644 >/dev/null 2>&1; then
         echo "✅ Redpanda is ready"
         exit 0
     fi
     
-    current_time=$(date +%s)
-    elapsed=$((current_time - start_time))
-    
-    if [ $elapsed -ge $timeout ]; then
-        echo "❌ Timeout waiting for Redpanda"
-        exit 1
+    if [ $attempt -lt $max_attempts ]; then
+        echo "⏳ Redpanda not ready yet, waiting... (attempt $attempt/$max_attempts)"
+        sleep 5
     fi
     
-    echo "⏳ Redpanda not ready yet, waiting..."
-    sleep 5
+    attempt=$((attempt + 1))
 done
+
+echo "❌ Failed to wait for Redpanda after $max_attempts attempts"
+exit 1

@@ -1,0 +1,15 @@
+[package]
+name = "svc_compute"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "svc_compute"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+compute = { path = "../../compute" }
+ml = { path = "../../ml" }
+
