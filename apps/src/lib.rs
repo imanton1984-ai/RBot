@@ -2,20 +2,20 @@ use anyhow::{Context, Result};
 use std::env;
 
 use common::config::{load_config, AppConfig};
-use connections::{KafkaManager, DatabaseManager};
+use connections::{DatabaseManager, KafkaManager};
 
 #[derive(Clone)]
 pub struct AppCtx {
     pub cfg: AppConfig,
-    pub db: DatabaseManager,
-    pub kafka: KafkaManager,
+    pub db: std::sync::Arc<DatabaseManager>,
+    pub kafka: std::sync::Arc<KafkaManager>,
 }
 
 /// ЕДИНСТВЕННАЯ точка настройки логов для всех svc_*
 /// (никаких копий в bin-файлах)
 pub fn init_tracing() {
     // безопасно вызывается многократно
-    let _ = if env::var("RUST_LOG").is_err() {
+    let _: Result<(), anyhow::Error> = if env::var("RUST_LOG").is_err() {
         // RUST_LOG не обязателен; но если есть cfg.rust_bot.log_level — пусть будет в конфиге
         Ok(())
     } else {
@@ -68,7 +68,7 @@ pub mod envx {
 /// ВАЖНО: даём env-override поверх toml.
 /// Это критично, чтобы один и тот же билд работал и локально, и в docker/CI.
 fn resolve_database_url(cfg: &AppConfig) -> String {
-    envx::opt("DATABASE_URL").unwrap_or_else(|| cfg.database.url.clone())
+    envx::opt("DATABASE_URL").unwrap_or_else(|| cfg.database.url().clone())
 }
 
 fn resolve_kafka_brokers(cfg: &AppConfig) -> String {
@@ -87,11 +87,15 @@ pub async fn build_ctx() -> Result<AppCtx> {
     let kafka_brokers = resolve_kafka_brokers(&cfg);
 
     // минимум необходимых топиков: close (остальные — сервисы могут брать сами из cfg/env)
-    let topic_candles_close = resolve_topic(&cfg.rust_bot.topic_candles_close, "TOPIC_CANDLES_CLOSE");
+    let topic_candles_close =
+        resolve_topic(&cfg.rust_bot.topic_candles_close, "TOPIC_CANDLES_CLOSE");
 
-    let db = DatabaseManager::connect(&db_url).await.context("db connect")?;
+    let db = DatabaseManager::new(&db_url).await.context("db connect")?;
     let kafka = KafkaManager::new(&kafka_brokers, &topic_candles_close).context("kafka init")?;
 
-    Ok(AppCtx { cfg, db, kafka })
+    Ok(AppCtx {
+        cfg,
+        db: std::sync::Arc::new(db),
+        kafka: std::sync::Arc::new(kafka),
+    })
 }
-

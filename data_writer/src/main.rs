@@ -1,19 +1,20 @@
 use anyhow::{Context, Result};
 use bytes::BytesMut;
 use dashmap::DashMap;
-use rdkafka::consumer::{StreamConsumer};
+use futures::SinkExt;
+use rdkafka::consumer::Consumer;
+use rdkafka::consumer::StreamConsumer;
 use rdkafka::message::Message;
 use rdkafka::ClientConfig;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, Instant};
-use futures::SinkExt;
 
 use common::config::load_config;
 use common::timeframe::Timeframe;
 
-mod messages;
 mod copy_row;
+mod messages;
 use copy_row::CopyRow;
 use messages::{CandleCloseMsg, IndicatorsSnapshotMsg};
 
@@ -26,26 +27,36 @@ struct SymbolCache {
     map: Arc<DashMap<String, i64>>,
 }
 impl SymbolCache {
-    fn new() -> Self { 
-        Self { map: Arc::new(DashMap::new()) } 
+    fn new() -> Self {
+        Self {
+            map: Arc::new(DashMap::new()),
+        }
     }
-    
-    fn get(&self, symbol: &str) -> Option<i64> { 
-        self.map.get(symbol).map(|v| *v) 
+
+    fn get(&self, symbol: &str) -> Option<i64> {
+        self.map.get(symbol).map(|v| *v)
     }
-    
+
     // Меняем id на symbol_id
-    fn insert(&self, symbol: String, symbol_id: i64) { 
-        self.map.insert(symbol, symbol_id); 
+    fn insert(&self, symbol: String, symbol_id: i64) {
+        self.map.insert(symbol, symbol_id);
     }
 }
 
 #[derive(Debug)]
 enum WriteMsg {
-    // Используем подчеркивание, чтобы скрыть варнинг о неиспользуемом поле, 
+    // Используем подчеркивание, чтобы скрыть варнинг о неиспользуемом поле,
     // но сохраняем его в структуре
-    Candle { symbol_id: i64, _tf: Timeframe, evt: CandleCloseMsg },
-    Indicators { symbol_id: i64, _tf: Timeframe, evt: IndicatorsSnapshotMsg },
+    Candle {
+        symbol_id: i64,
+        _tf: Timeframe,
+        evt: CandleCloseMsg,
+    },
+    Indicators {
+        symbol_id: i64,
+        _tf: Timeframe,
+        evt: IndicatorsSnapshotMsg,
+    },
 }
 
 #[tokio::main]
@@ -88,7 +99,10 @@ async fn main() -> Result<()> {
     // Kafka consumer
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", cfg.rust_bot.redpanda_brokers.join(","))
-        .set("group.id", format!("data_writer-{}", cfg.rust_bot.instance_id))
+        .set(
+            "group.id",
+            format!("data_writer-{}", cfg.rust_bot.instance_id),
+        )
         .set("enable.auto.commit", "false")
         .set("auto.offset.reset", "latest")
         .create()
@@ -108,31 +122,47 @@ async fn main() -> Result<()> {
         let payload = match m.payload() {
             Some(p) => p,
             None => {
-                consumer.commit_message(&m, rdkafka::consumer::CommitMode::Async).ok();
+                consumer
+                    .commit_message(&m, rdkafka::consumer::CommitMode::Async)
+                    .ok();
                 continue;
             }
         };
 
         if topic == cfg.rust_bot.topic_candles_close {
             if let Ok(evt) = serde_json::from_slice::<CandleCloseMsg>(payload) {
-                if let (Some(symbol_id), Ok(tf)) = (cache.get(&evt.symbol), Timeframe::parse(&evt.tf)) {
+                if let (Some(symbol_id), Ok(tf)) =
+                    (cache.get(&evt.symbol), Timeframe::parse(&evt.tf))
+                {
                     // Заменяем tf на _tf
-                    let msg = WriteMsg::Candle { symbol_id, _tf: tf.clone(), evt };
+                    let msg = WriteMsg::Candle {
+                        symbol_id,
+                        _tf: tf.clone(),
+                        evt,
+                    };
                     route_tf(&tf, &tx_1m, &tx_5m, &tx_15m, &tx_1h, &tx_4h, &tx_1d, msg).await?;
                 }
             }
         } else if topic == cfg.rust_bot.topic_indicators_close {
             if let Ok(evt) = serde_json::from_slice::<IndicatorsSnapshotMsg>(payload) {
-                if let (Some(symbol_id), Ok(tf)) = (cache.get(&evt.symbol), Timeframe::parse(&evt.tf)) {
+                if let (Some(symbol_id), Ok(tf)) =
+                    (cache.get(&evt.symbol), Timeframe::parse(&evt.tf))
+                {
                     // Заменяем tf на _tf
-                    let msg = WriteMsg::Indicators { symbol_id, _tf: tf.clone(), evt };
+                    let msg = WriteMsg::Indicators {
+                        symbol_id,
+                        _tf: tf.clone(),
+                        evt,
+                    };
                     route_tf(&tf, &tx_1m, &tx_5m, &tx_15m, &tx_1h, &tx_4h, &tx_1d, msg).await?;
                 }
             }
         }
 
         // ✅ v2/simple: commit after enqueue (bounded channel = backpressure)
-        consumer.commit_message(&m, rdkafka::consumer::CommitMode::Async).ok();
+        consumer
+            .commit_message(&m, rdkafka::consumer::CommitMode::Async)
+            .ok();
     }
 }
 
@@ -157,7 +187,12 @@ async fn route_tf(
     Ok(())
 }
 
-fn spawn_tf_worker(name: &'static str, tf: Timeframe, db_url: String, mut rx: mpsc::Receiver<WriteMsg>) {
+fn spawn_tf_worker(
+    name: &'static str,
+    tf: Timeframe,
+    db_url: String,
+    mut rx: mpsc::Receiver<WriteMsg>,
+) {
     tokio::spawn(async move {
         if let Err(e) = tf_worker_loop(name, tf, &db_url, &mut rx).await {
             eprintln!("worker {name} crashed: {e:?}");
@@ -172,7 +207,9 @@ async fn tf_worker_loop(
     rx: &mut mpsc::Receiver<WriteMsg>,
 ) -> Result<()> {
     let (client, connection) = tokio_postgres::connect(db_url, tokio_postgres::NoTls).await?;
-    tokio::spawn(async move { let _ = connection.await; });
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
 
     let candles_table = tf.candles_table();
     let indicators_table = tf.indicators_table();
@@ -192,7 +229,11 @@ async fn tf_worker_loop(
         if let Ok(Some(m)) = msg {
             match m {
                 // ИСПРАВЛЕННЫЕ match pattern (используем _tf вместо tf)
-                WriteMsg::Candle { symbol_id, _tf: _, evt } => {
+                WriteMsg::Candle {
+                    symbol_id,
+                    _tf: _,
+                    evt,
+                } => {
                     let mut row = CopyRow::new(&mut candles_buf);
                     row.begin();
                     row.i64(evt.close_time_ms);
@@ -202,32 +243,53 @@ async fn tf_worker_loop(
                     row.f64(evt.low);
                     row.f64(evt.close);
                     row.f64(evt.volume);
-                    match evt.source_event_time_ms { Some(x) => row.i64(x), None => row.null() }
+                    match evt.source_event_time_ms {
+                        Some(x) => row.i64(x),
+                        None => row.null(),
+                    }
                     row.end();
                     candles_n += 1;
                 }
-                WriteMsg::Indicators { symbol_id, _tf: _, evt } => {
+                WriteMsg::Indicators {
+                    symbol_id,
+                    _tf: _,
+                    evt,
+                } => {
                     let mut row = CopyRow::new(&mut ind_buf);
                     row.begin();
                     row.i64(evt.close_time_ms);
                     row.i64(symbol_id);
 
-                    row.opt_f32(evt.ema20); row.opt_f32(evt.ema50); row.opt_f32(evt.ema200);
+                    row.opt_f32(evt.ema20);
+                    row.opt_f32(evt.ema50);
+                    row.opt_f32(evt.ema200);
                     row.opt_f32(evt.sma);
 
                     row.opt_f32(evt.rsi);
-                    row.opt_f32(evt.macd); row.opt_f32(evt.macd_signal); row.opt_f32(evt.macd_hist);
+                    row.opt_f32(evt.macd);
+                    row.opt_f32(evt.macd_signal);
+                    row.opt_f32(evt.macd_hist);
 
-                    row.opt_f32(evt.atr); row.opt_f32(evt.adx);
+                    row.opt_f32(evt.atr);
+                    row.opt_f32(evt.adx);
 
-                    row.opt_f32(evt.bb_upper); row.opt_f32(evt.bb_mid); row.opt_f32(evt.bb_lower);
-                    row.opt_f32(evt.stoch_k); row.opt_f32(evt.stoch_d);
+                    row.opt_f32(evt.bb_upper);
+                    row.opt_f32(evt.bb_mid);
+                    row.opt_f32(evt.bb_lower);
+                    row.opt_f32(evt.stoch_k);
+                    row.opt_f32(evt.stoch_d);
 
-                    row.opt_f32(evt.vwap); row.opt_f32(evt.obv); row.opt_f32(evt.cci); row.opt_f32(evt.williams);
+                    row.opt_f32(evt.vwap);
+                    row.opt_f32(evt.obv);
+                    row.opt_f32(evt.cci);
+                    row.opt_f32(evt.williams);
 
-                    row.opt_f32(evt.alli_jaw); row.opt_f32(evt.alli_teeth); row.opt_f32(evt.alli_lips);
+                    row.opt_f32(evt.alli_jaw);
+                    row.opt_f32(evt.alli_teeth);
+                    row.opt_f32(evt.alli_lips);
 
-                    row.opt_json(&evt.sr_levels).map_err(|e| anyhow::anyhow!(e))?;
+                    row.opt_json(&evt.sr_levels)
+                        .map_err(|e| anyhow::anyhow!(e))?;
 
                     row.str(evt.features_version.as_deref().unwrap_or("v1"));
                     row.i64(current_time_ms());
@@ -258,17 +320,25 @@ async fn tf_worker_loop(
     }
 }
 
-async fn flush_candles(client: &tokio_postgres::Client, dest_table: &str, buf: &mut BytesMut) -> Result<()> {
+async fn flush_candles(
+    client: &tokio_postgres::Client,
+    dest_table: &str,
+    buf: &mut BytesMut,
+) -> Result<()> {
     // 1) COPY into staging
     let copy_sql = "COPY market.candles_staging (time_ms, symbol_id, open, high, low, close, volume, source_event_time_ms) FROM STDIN WITH (FORMAT text)";
-    
-    let sink = client.copy_in(copy_sql).await?; 
+
+    let sink = client.copy_in(copy_sql).await?;
     let data = buf.split().freeze();
-    
+
     // Используем пиннинг и SinkExt для отправки данных
     tokio::pin!(sink);
-    sink.send(data).await.context("failed to send data to postgres copy")?;
-    sink.close().await.context("failed to close postgres copy sink")?;
+    sink.send(data)
+        .await
+        .context("failed to send data to postgres copy")?;
+    sink.close()
+        .await
+        .context("failed to close postgres copy sink")?;
 
     // 2) merge with dedup
     let merge_sql = format!(
@@ -282,15 +352,23 @@ async fn flush_candles(client: &tokio_postgres::Client, dest_table: &str, buf: &
     Ok(())
 }
 
-async fn flush_indicators(client: &tokio_postgres::Client, dest_table: &str, buf: &mut BytesMut) -> Result<()> {
+async fn flush_indicators(
+    client: &tokio_postgres::Client,
+    dest_table: &str,
+    buf: &mut BytesMut,
+) -> Result<()> {
     let copy_sql = "COPY market.indicators_staging (time_ms, symbol_id, ema20, ema50, ema200, sma, rsi, macd, macd_signal, macd_hist, atr, adx, bb_upper, bb_mid, bb_lower, stoch_k, stoch_d, vwap, obv, cci, williams, alli_jaw, alli_teeth, alli_lips, sr_levels, features_version, updated_at_ms) FROM STDIN WITH (FORMAT text)";
-    
+
     let sink = client.copy_in(copy_sql).await?;
     let data = buf.split().freeze();
-    
+
     tokio::pin!(sink);
-    sink.send(data).await.context("failed to send data to postgres copy")?;
-    sink.close().await.context("failed to close postgres copy sink")?;
+    sink.send(data)
+        .await
+        .context("failed to send data to postgres copy")?;
+    sink.close()
+        .await
+        .context("failed to close postgres copy sink")?;
 
     let merge_sql = format!(
         "INSERT INTO {dest_table} (time_ms, symbol_id, ema20, ema50, ema200, sma, rsi, macd, macd_signal, macd_hist, atr, adx, bb_upper, bb_mid, bb_lower, stoch_k, stoch_d, vwap, obv, cci, williams, alli_jaw, alli_teeth, alli_lips, sr_levels, features_version, updated_at_ms)
@@ -304,12 +382,19 @@ async fn flush_indicators(client: &tokio_postgres::Client, dest_table: &str, buf
 }
 
 async fn preload_symbols(client: &tokio_postgres::Client) -> Result<Vec<(String, i64)>> {
-    let rows = client.query("SELECT symbol, symbol_id FROM market.pairs WHERE is_active = true", &[]).await?;
+    let rows = client
+        .query(
+            "SELECT symbol, symbol_id FROM market.pairs WHERE is_active = true",
+            &[],
+        )
+        .await?;
     Ok(rows.into_iter().map(|r| (r.get(0), r.get(1))).collect())
 }
 
 fn current_time_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let d = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
     (d.as_secs() as i64) * 1000 + (d.subsec_millis() as i64)
 }

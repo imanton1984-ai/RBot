@@ -79,12 +79,14 @@ pub struct UniverseConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
-    pub timeframes: Vec<String>,              // ["1m","5m","..."]
+    pub timeframes: Vec<String>, // ["1m","5m","..."]
     pub backfill_candles: usize,
 
-    pub realtime_ws_timeframes: Vec<String>,  // для WS
-    pub realtime_poll_timeframes: Vec<String>,// для poll/on-close
+    pub realtime_ws_timeframes: Vec<String>,   // для WS
+    pub realtime_poll_timeframes: Vec<String>, // для poll/on-close
     pub poll_on_close_interval_sec: u64,
+
+    pub http_concurrency: Option<usize>,
 
     pub enable_intra_candle_updates: bool,
 

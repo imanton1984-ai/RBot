@@ -26,4 +26,7 @@ common = { path = "../common" }
 connections = { path = "../connections" }
 data_writer = { path = "../data_writer" }
 
+tokio-tungstenite = "0.20"
+futures-util = "0.3"
+
 

@@ -21,14 +21,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::Candle;
+    use crate::Candle;
+    use crate::Timeframe;
 
     #[test]
     fn test_json_serialization() {
         let candle = Candle {
             time: chrono::Utc::now(),
             symbol: "BTCUSDT".to_string(),
-            timeframe: crate::types::Timeframe::Min1,
+            timeframe: Timeframe::M1,
             open: 10000.0,
             high: 10100.0,
             low: 9900.0,

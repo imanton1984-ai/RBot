@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use futures_util::stream::{FuturesUnordered, StreamExt};
-use rdkafka::{producer::{FutureProducer, FutureRecord}, ClientConfig};
+use rdkafka::{
+    producer::{FutureProducer, FutureRecord},
+    ClientConfig,
+};
 use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Semaphore;
@@ -8,6 +11,7 @@ use tokio_postgres::NoTls;
 use tracing::{info, warn};
 
 use apps::{build_ctx, init_tracing};
+use connections::{BinanceRestClient, RestRateLimitCfg};
 
 #[derive(Debug, Serialize)]
 struct CandleCloseMsg {
@@ -37,7 +41,10 @@ async fn load_active_symbols(db_url: &str) -> Result<Vec<String>> {
     });
 
     let rows = client
-        .query("SELECT symbol FROM market.pairs WHERE is_active = true ORDER BY symbol", &[])
+        .query(
+            "SELECT symbol FROM market.pairs WHERE is_active = true ORDER BY symbol",
+            &[],
+        )
         .await
         .context("query market.pairs failed")?;
 
@@ -60,9 +67,17 @@ fn build_producer(brokers: &str) -> Result<FutureProducer> {
 async fn send_mp(producer: &FutureProducer, topic: &str, key: &str, payload: &[u8]) -> Result<()> {
     // простая надежная отправка
     let rec = FutureRecord::to(topic).key(key).payload(payload);
-    let (_partition, delivery) = producer.send(rec, Duration::from_secs(3)).await;
-    delivery.context("kafka delivery error")?;
-    Ok(())
+    let delivery_result = producer.send(rec, Duration::from_secs(3)).await;
+
+    match delivery_result {
+        Ok((_partition, _delivery)) => {
+            // Message successfully delivered
+            Ok(())
+        }
+        Err((kafka_error, _failed_message)) => {
+            Err(anyhow::Error::from(kafka_error).context("kafka delivery error"))
+        }
+    }
 }
 
 #[tokio::main]
@@ -93,7 +108,10 @@ async fn main() -> Result<()> {
     info!("svc_backfill: tfs={:?}", tfs);
 
     let symbols = if let Ok(s) = std::env::var("BACKFILL_SYMBOLS") {
-        s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()
+        s.split(',')
+            .map(|x| x.trim().to_string())
+            .filter(|x| !x.is_empty())
+            .collect()
     } else {
         load_active_symbols(&db_url).await?
     };
@@ -107,39 +125,59 @@ async fn main() -> Result<()> {
     for sym in symbols {
         for tf in &tfs {
             let permit = sem.clone().acquire_owned().await.unwrap();
-            let rest = ctx.rest.clone();
             let producer = producer.clone();
             let topic = topic.clone();
             let sym2 = sym.clone();
             let tf2 = tf.clone();
+            let cfg = ctx.cfg.clone(); // Capture config for the spawned task
 
             futs.push(tokio::spawn(async move {
                 let _p = permit;
 
+                // Create a new BinanceRestClient for this task
+                let rest =
+                    BinanceRestClient::new(&cfg.binance.rest_base_url, RestRateLimitCfg::default())
+                        .with_context(|| {
+                            format!("Failed to create REST client for {sym2} {tf2}")
+                        })?;
+
                 // Binance: берем последние max_candles баров
-                let kl = rest
-                    .futures_klines(&sym2, &tf2, max_candles as i32, None, None)
+                let kl: Vec<Vec<serde_json::Value>> = rest
+                    .futures_klines(&sym2, &tf2, max_candles as u32, None, None)
                     .await
                     .with_context(|| format!("klines failed {sym2} {tf2}"))?;
 
                 // ожидаем формат как Vec<Vec<Value>> (как в большинстве бинанс-оберток)
                 // [open_time, open, high, low, close, volume, close_time, ...]
-                let arr = kl.as_array().context("klines: not array")?;
+                let arr = &kl; // kl is already a Vec<Vec<Value>>, no need to call as_array()
 
                 let mut sent = 0usize;
                 for row in arr {
-                    let row = row.as_array().context("kline row: not array")?;
-                    if row.len() < 7 { continue; }
+                    let row_arr = row;
+                    if row_arr.len() < 7 {
+                        continue;
+                    }
 
-                    let close_time_ms = row[6].as_i64().or_else(|| row[6].as_u64().map(|x| x as i64));
-                    let open = parse_f64(&row[1]);
-                    let high = parse_f64(&row[2]);
-                    let low = parse_f64(&row[3]);
-                    let close = parse_f64(&row[4]);
-                    let volume = parse_f64(&row[5]);
+                    let close_time_ms = row_arr[6]
+                        .as_i64()
+                        .or_else(|| row_arr[6].as_u64().map(|x| x as i64));
+                    let open = parse_f64(&row_arr[1]);
+                    let high = parse_f64(&row_arr[2]);
+                    let low = parse_f64(&row_arr[3]);
+                    let close = parse_f64(&row_arr[4]);
+                    let volume = parse_f64(&row_arr[5]);
 
-                    let (Some(close_time_ms), Some(open), Some(high), Some(low), Some(close), Some(volume)) =
-                        (close_time_ms, open, high, low, close, volume) else { continue; };
+                    let (
+                        Some(close_time_ms),
+                        Some(open),
+                        Some(high),
+                        Some(low),
+                        Some(close),
+                        Some(volume),
+                    ) = (close_time_ms, open, high, low, close, volume)
+                    else {
+                        continue;
+                    };
 
                     let msg = CandleCloseMsg {
                         symbol: sym2.clone(),
@@ -176,4 +214,3 @@ async fn main() -> Result<()> {
     info!("svc_backfill: done, published {total} candle close events");
     Ok(())
 }
-

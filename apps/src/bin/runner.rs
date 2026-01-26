@@ -21,7 +21,6 @@ fn bin_dir() -> Result<PathBuf> {
 }
 
 fn parse_services_env() -> Vec<String> {
-    RUNNER_SERVICES="svc_db_init,svc_backfill,svc_health,svc_live,svc_writer,svc_compute" cargo run -p apps --bin runner
     std::env::var("RUNNER_SERVICES")
         .ok()
         .map(|s| {
@@ -133,7 +132,9 @@ async fn main() -> Result<()> {
     // 2) spawn daemons
     let mut children = Vec::new();
     for svc in services.iter() {
-        let Some(spec) = specs.get(svc.as_str()) else { continue; };
+        let Some(spec) = specs.get(svc.as_str()) else {
+            continue;
+        };
         if spec.oneshot {
             continue;
         }
@@ -156,11 +157,11 @@ async fn main() -> Result<()> {
         _ = async {
             loop {
                 tokio::time::sleep(Duration::from_millis(500)).await;
-                // if any child exits -> fail fast (по умолчанию)
                 for (name, child) in children.iter_mut() {
                     if let Ok(Some(status)) = child.try_wait() {
                         error!("runner: child exited: {name} status={status}");
-                        anyhow::bail!("child exited: {name}");
+                        // Вместо bail! — просто логируем и выходим из select!
+                        return; // ← выходим из async-блока, возвращая ()
                     }
                 }
             }
@@ -170,7 +171,7 @@ async fn main() -> Result<()> {
     // 3) graceful terminate
     for (name, mut child) in children {
         info!("runner: killing {name}...");
-        let _ = child.kill().await;
+        let _ = child.kill().await.ok(); // ← вот так
     }
 
     info!("runner: stopped");

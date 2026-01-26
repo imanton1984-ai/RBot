@@ -1,8 +1,8 @@
 use anyhow::Result;
-use common::health::{HealthConfig, ServiceStatus}; // Берем из common
 use common::config::AppConfig;
-use std::sync::{Arc, RwLock};
+use common::health::ServiceStatus; // Берем из common
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use warp::Filter;
 
 // Локальная структура монитора
@@ -25,11 +25,10 @@ impl HealthMonitor {
     pub async fn run_server(&self, port: u16) {
         let status_map = self.status_map.clone();
 
-        let health_route = warp::path("health")
-            .map(move || {
-                let map = status_map.read().unwrap();
-                warp::reply::json(&*map)
-            });
+        let health_route = warp::path("health").map(move || {
+            let map = status_map.read().unwrap();
+            warp::reply::json(&*map)
+        });
 
         tracing::info!("Health Check Service running on port {}", port);
         warp::serve(health_route).run(([0, 0, 0, 0], port)).await;
@@ -40,9 +39,9 @@ impl HealthMonitor {
 async fn main() -> Result<()> {
     // Инициализация логгера
     tracing_subscriber::fmt().init();
-    
+
     // Загрузка конфига
-    let config = AppConfig::load()?; // Предполагается, что load() существует в common::config
+    let config = common::config::load_config()?; // Предполагается, что load() существует в common::config
     let health_port = std::env::var("SVC_HEALTH_PORT")
         .unwrap_or_else(|_| "9005".to_string())
         .parse::<u16>()?;

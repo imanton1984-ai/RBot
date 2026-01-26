@@ -2,7 +2,6 @@ use std::{net::SocketAddr, time::Duration};
 
 use axum::{
     http::StatusCode,
-    response::IntoResponse,
     routing::get,
     Router,
 };

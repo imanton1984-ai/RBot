@@ -51,6 +51,7 @@ rdkafka = { version = "0.37", features = ["tokio"] }
 bytes = "1"
 itoa = "1"
 ryu = "1"
+tokio-util = { version = "0.7", features = ["compat"] }
 common = { path = "./common" }
 tokio-tungstenite = "0.20"
 

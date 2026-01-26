@@ -11,17 +11,22 @@ use data_writer::messages::CandleCloseMsg;
 
 use crate::candle_builder::fetch_klines;
 use crate::config::IngestConfig;
-use crate::health::now_ms;
-use crate::gap_fill::send_close_mp;
+use crate::producer::send_close_mp;
+use connections::now_ms;
 
 pub type LastCloseMap = HashMap<(String, String), i64>;
 
 async fn load_active_symbols(db_url: &str) -> Result<Vec<String>> {
     let (client, conn) = tokio_postgres::connect(db_url, NoTls).await?;
-    tokio::spawn(async move { let _ = conn.await; });
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
 
     let rows = client
-        .query("SELECT symbol FROM market.pairs WHERE is_active = true ORDER BY symbol", &[])
+        .query(
+            "SELECT symbol FROM market.pairs WHERE is_active = true ORDER BY symbol",
+            &[],
+        )
         .await
         .context("query market.pairs failed")?;
 
@@ -43,7 +48,11 @@ pub async fn run_backfill(
     let mut published = 0usize;
 
     for &tf in cfg.timeframes.iter() {
-        info!("backfill: tf={} candles={}", tf.as_binance_interval(), cfg.backfill_candles);
+        info!(
+            "backfill: tf={} candles={}",
+            tf.as_binance_interval(),
+            cfg.backfill_candles
+        );
 
         let mut futs = FuturesUnordered::new();
 
@@ -59,7 +68,9 @@ pub async fn run_backfill(
                 // последние N (достаточно для warmup)
                 let ks = fetch_klines(&rest, &sym, tf, cfg.backfill_candles, None).await?;
                 if ks.is_empty() {
-                    return Ok::<(usize, Option<((String, String), i64)>), anyhow::Error>((0, None));
+                    return Ok::<(usize, Option<((String, String), i64)>), anyhow::Error>((
+                        0, None,
+                    ));
                 }
 
                 let mut cnt = 0usize;
@@ -82,7 +93,10 @@ pub async fn run_backfill(
                 }
 
                 let last = ks.last().unwrap().close_time_ms;
-                Ok((cnt, Some(((sym, tf.as_binance_interval().to_string()), last))))
+                Ok((
+                    cnt,
+                    Some(((sym, tf.as_binance_interval().to_string()), last)),
+                ))
             });
         }
 
@@ -98,7 +112,10 @@ pub async fn run_backfill(
         }
     }
 
-    info!("backfill: done. published={} last_map={}", published, last_map.len());
+    info!(
+        "backfill: done. published={} last_map={}",
+        published,
+        last_map.len()
+    );
     Ok((published, last_map))
 }
-

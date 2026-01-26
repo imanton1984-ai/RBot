@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use common::timeframe::Timeframe;
 use connections::BinanceRestClient;
-use futures_util::{SinkExt, stream::FuturesUnordered, StreamExt};
+use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
 use rdkafka::producer::FutureProducer;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -16,6 +16,7 @@ use crate::producer::send_close_mp;
 use data_writer::messages::CandleCloseMsg;
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)]
 struct WsCombined<T> {
     stream: String,
     data: T,
@@ -32,6 +33,7 @@ struct KlineEvent {
 }
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)]
 struct KlineData {
     #[serde(rename = "i")]
     interval: String,
@@ -54,7 +56,8 @@ struct KlineData {
 }
 
 fn pf64(s: &str) -> Result<f64> {
-    Ok(s.parse::<f64>().with_context(|| format!("parse f64: {}", s))?)
+    Ok(s.parse::<f64>()
+        .with_context(|| format!("parse f64: {}", s))?)
 }
 
 fn make_close(evt: &KlineEvent) -> Result<CandleCloseMsg> {
@@ -71,7 +74,11 @@ fn make_close(evt: &KlineEvent) -> Result<CandleCloseMsg> {
     })
 }
 
-fn shard_symbols(symbols: &[String], tfs_count: usize, max_streams_per_conn: usize) -> Vec<Vec<String>> {
+fn shard_symbols(
+    symbols: &[String],
+    tfs_count: usize,
+    max_streams_per_conn: usize,
+) -> Vec<Vec<String>> {
     let per_conn = (max_streams_per_conn / tfs_count.max(1)).max(1);
     symbols
         .chunks(per_conn)
@@ -112,7 +119,7 @@ pub async fn run_ws_and_poll(
     // ---- WS realtime (для cfg.ws_timeframes) ----
     let shards = shard_symbols(
         &symbols,
-        cfg.ws_timeframes.len().max(1),
+        cfg.realtime_ws_timeframes.len().max(1),
         cfg.ws_max_streams_per_conn,
     );
 
@@ -127,14 +134,18 @@ pub async fn run_ws_and_poll(
             let mut backoff_ms: u64 = 300;
 
             loop {
-                let streams = build_streams_chunk(&chunk, &cfg.ws_timeframes);
+                let streams = build_streams_chunk(&chunk, &cfg.realtime_ws_timeframes);
                 let url = format!(
                     "{}/stream?streams={}",
                     cfg.ws_base_url.trim_end_matches('/'),
                     streams
                 );
 
-                info!("[ws#{idx}] connecting ({} symbols, {} tfs)", chunk.len(), cfg.ws_timeframes.len());
+                info!(
+                    "[ws#{idx}] connecting ({} symbols, {} tfs)",
+                    chunk.len(),
+                    cfg.realtime_ws_timeframes.len()
+                );
 
                 let conn = tokio_tungstenite::connect_async(url).await;
                 let (mut ws, _) = match conn {
@@ -320,10 +331,14 @@ pub async fn run_ws_and_poll(
 
                             if prev.map(|p| evt.close_time_ms > p).unwrap_or(true) {
                                 let key = format!("{}|{}", evt.symbol, evt.tf);
-                                send_close_mp(&producer2, &cfg2.topic_candles_close, &key, &evt).await?;
+                                send_close_mp(&producer2, &cfg2.topic_candles_close, &key, &evt)
+                                    .await?;
 
                                 let mut guard = last2.write().await;
-                                guard.insert((evt.symbol.clone(), evt.tf.clone()), evt.close_time_ms);
+                                guard.insert(
+                                    (evt.symbol.clone(), evt.tf.clone()),
+                                    evt.close_time_ms,
+                                );
                             }
 
                             Ok::<(), anyhow::Error>(())

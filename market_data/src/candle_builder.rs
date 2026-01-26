@@ -58,7 +58,13 @@ pub async fn fetch_klines(
 ) -> Result<Vec<KlineRow>> {
     // connections::BinanceRestClient возвращает сырые Vec<Vec<Value>>
     let raw: Vec<Vec<Value>> = rest
-        .futures_klines(symbol, tf.as_binance_interval(), limit as u32, start_time_ms)
+        .futures_klines(
+            symbol,
+            tf.as_binance_interval(),
+            limit as u32,
+            start_time_ms,
+            None,
+        )
         .await
         .with_context(|| {
             format!(

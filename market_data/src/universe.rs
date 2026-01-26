@@ -12,14 +12,15 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
     let u = cfg.universe.clone();
 
     // 2) exchangeInfo (futures)
-    let info: Value = rest.futures_exchange_info().await.context("futures_exchange_info failed")?;
-    let symbols = info["symbols"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
+    let info: Value = rest
+        .futures_exchange_info()
+        .await
+        .context("futures_exchange_info failed")?;
+    let symbols = info["symbols"].as_array().cloned().unwrap_or_default();
 
     // 3) ticker24h
-    let tickers: Value = rest.futures_ticker_24h().await.context("futures_ticker_24h failed")?;
+    let tick_arr: Vec<Value> = rest.futures_ticker_24h().await?;
+    let tickers = serde_json::Value::Array(tick_arr);
     let tick_arr = tickers.as_array().cloned().unwrap_or_default();
 
     // map symbol->(quoteVolume,lastPrice)
@@ -27,9 +28,17 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
     let mut tv: HashMap<String, (f64, f64)> = HashMap::new();
     for t in tick_arr {
         let sym = t["symbol"].as_str().unwrap_or("").to_string();
-        if sym.is_empty() { continue; }
-        let qv = t["quoteVolume"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0.0);
-        let lp = t["lastPrice"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+        if sym.is_empty() {
+            continue;
+        }
+        let qv = t["quoteVolume"]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        let lp = t["lastPrice"]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
         tv.insert(sym, (qv, lp));
     }
 
@@ -38,45 +47,67 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
 
     for s in symbols {
         let symbol = s["symbol"].as_str().unwrap_or("").to_string();
-        if symbol.is_empty() { continue; }
+        if symbol.is_empty() {
+            continue;
+        }
 
         let quote = s["quoteAsset"].as_str().unwrap_or("").to_string();
         let base = s["baseAsset"].as_str().unwrap_or("").to_string();
 
         // только нужный quote
-        if quote != u.quote_asset { continue; }
+        if quote != u.quote_asset {
+            continue;
+        }
 
         // только perpetual (если надо)
         if u.perpetual_only {
             let ct = s["contractType"].as_str().unwrap_or("");
-            if ct != "PERPETUAL" { continue; }
+            if ct != "PERPETUAL" {
+                continue;
+            }
         }
 
         // статус
         let status = s["status"].as_str().unwrap_or("");
-        if status != "TRADING" { continue; }
+        if status != "TRADING" {
+            continue;
+        }
 
         // deny/exclude
-        if u.exclude_symbols.iter().any(|x| x == &symbol) { continue; }
-        if u.exclude_base_assets.iter().any(|x| x == &base) { continue; }
-        if !u.denylist.is_empty() && u.denylist.iter().any(|x| x == &symbol) { continue; }
-        if !u.allowlist.is_empty() && !u.allowlist.iter().any(|x| x == &symbol) { continue; }
+        if u.exclude_symbols.iter().any(|x| x == &symbol) {
+            continue;
+        }
+        if u.exclude_base_assets.iter().any(|x| x == &base) {
+            continue;
+        }
+        if !u.denylist.is_empty() && u.denylist.iter().any(|x| x == &symbol) {
+            continue;
+        }
+        if !u.allowlist.is_empty() && !u.allowlist.iter().any(|x| x == &symbol) {
+            continue;
+        }
 
         let (vol, price) = tv.get(&symbol).copied().unwrap_or((0.0, 0.0));
-        if vol < u.min_quote_volume_usdt_24h { continue; }
+        if vol < u.min_quote_volume_usdt_24h {
+            continue;
+        }
 
         picked.push((symbol, base, quote, vol, price));
     }
 
     // 5) пишем в DB (deactivate all, затем upsert выбранных)
     let (client, conn) = tokio_postgres::connect(db_url, NoTls).await?;
-    tokio::spawn(async move { let _ = conn.await; });
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
 
     // выключаем все, но manual_allow не трогаем
-    client.execute(
-        "UPDATE market.pairs SET is_active=false WHERE manual_allow=false",
-        &[]
-    ).await?;
+    client
+        .execute(
+            "UPDATE market.pairs SET is_active=false WHERE manual_allow=false",
+            &[],
+        )
+        .await?;
 
     let stmt = client.prepare(
         "INSERT INTO market.pairs
@@ -94,7 +125,9 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
     ).await?;
 
     for (sym, base, quote, vol, price) in picked.iter() {
-        client.execute(&stmt, &[sym, base, quote, &u.perpetual_only, vol, price]).await?;
+        client
+            .execute(&stmt, &[sym, base, quote, &u.perpetual_only, vol, price])
+            .await?;
     }
 
     Ok(picked.len())

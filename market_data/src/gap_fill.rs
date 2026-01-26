@@ -3,7 +3,7 @@ use common::timeframe::Timeframe;
 use connections::BinanceRestClient;
 use rdkafka::producer::FutureProducer;
 
-use crate::candle_builder::{fetch_klines, tf_ms, KlineRow};
+use crate::candle_builder::{fetch_klines, tf_ms};
 use crate::config::IngestConfig;
 use crate::producer::send_close_mp;
 use data_writer::messages::CandleCloseMsg;

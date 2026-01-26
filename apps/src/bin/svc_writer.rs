@@ -10,6 +10,7 @@ use rdkafka::{
 use tokio::sync::mpsc;
 use tokio_postgres::NoTls;
 use tracing::{error, info, warn};
+use ryu;
 
 const BATCH_SIZE: usize = 8000;
 const BATCH_MAX_WAIT_MS: u64 = 250;
@@ -371,10 +372,13 @@ async fn flush_copy(client: &tokio_postgres::Client, table: &str, buf: &BytesMut
         "COPY {table} (time_ms, symbol_id, open, high, low, close, volume, source_event_time_ms) FROM STDIN WITH (FORMAT csv)"
     );
 
-    let mut sink = client.copy_in(&copy_stmt).await?;
-    use tokio::io::AsyncWriteExt;
-    sink.write_all(buf).await?;
-    sink.finish().await?;
+    let sink = client.copy_in(&copy_stmt).await?;
+    use futures_util::SinkExt;
+    use std::pin::pin;
+    
+    let mut sink = pin!(sink);
+    sink.as_mut().send(buf.clone().freeze()).await?;
+    sink.as_mut().flush().await?;
     Ok(())
 }
 
