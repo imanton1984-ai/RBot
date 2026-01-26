@@ -372,7 +372,7 @@ axum = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-rdkafka = { version = "0.36", features = ["cmake-build"] }
+rdkafka = { version = "0.37", features = ["cmake-build"] }
 tokio-postgres = "0.7"
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -1362,6 +1362,23 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
     }
 
     Ok(picked.len())
+}
+
+/// Получает список активных торговых пар из БД.
+pub async fn fetch_active_symbols(db_url: &str) -> Result<Vec<String>> {
+    let (client, connection) = tokio_postgres::connect(db_url, NoTls).await?;
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            tracing::error!("DB connection error: {}", e);
+        }
+    });
+
+    let rows = client
+        .query("SELECT symbol FROM market.pairs WHERE is_active = true", &[])
+        .await?;
+
+    let symbols: Vec<String> = rows.into_iter().map(|row| row.get(0)).collect();
+    Ok(symbols)
 }
 
 
@@ -2587,6 +2604,10 @@ chrono = { version = "0.4", features = ["clock"] }
 tokio-util = { workspace = true }
 # non-workspace extras (для svc_db_init)
 walkdir = "2.5"
+reqwest = { version = "0.11", features = ["json"] }
+
+
+
 
 # internal crates
 common = { path = "../common" }
@@ -2709,8 +2730,15 @@ pub async fn build_ctx() -> Result<AppCtx> {
 
 # apps/src/bin/runner.rs
 
+// apps/src/bin/runner.rs
+
 use anyhow::{Context, Result};
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{
+    collections::HashMap,
+    env,
+    path::PathBuf,
+    time::Duration,
+};
 use tokio::{process::Command, signal};
 use tracing::{error, info, warn};
 
@@ -2745,13 +2773,15 @@ fn parse_services_env() -> Vec<String> {
             vec![
                 "svc_db_init".into(),
                 "svc_health".into(),
-                "svc_live".into(),
+                "svc_market_ingest".into(), // Moved before writer/backfill
                 "svc_writer".into(),
+                "svc_backfill".into(),      // Moved here to potentially wait for ingest
+                "svc_live".into(),
                 "svc_compute".into(),
                 "svc_orders".into(),
                 "svc_position_tracker".into(),
-                "svc_market_ingest".into(),
                 "svc_webgui".into(),
+                "svc_api_gateway".into(),
             ]
         })
 }
@@ -2804,6 +2834,77 @@ fn default_specs() -> HashMap<&'static str, ProcSpec> {
     m
 }
 
+// --- НОВАЯ ФУНКЦИЯ ---
+async fn wait_for_stage_via_health(
+    health_port: u16,
+    target_stage: &str,
+    timeout_seconds: u64,
+) -> Result<()> {
+    let url = format!("http://127.0.0.1:{}/stagez", health_port);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_seconds);
+
+    info!("runner: waiting for stage '{}' via health service at {} (timeout: {}s)", target_stage, url, timeout_seconds);
+
+    loop {
+        if tokio::time::Instant::now() > deadline {
+            anyhow::bail!("runner: timeout waiting for stage '{}'", target_stage);
+        }
+
+        // Выполняем HTTP GET запрос
+        let response = reqwest::get(&url).await;
+
+        if let Ok(resp) = response {
+            if resp.status().is_success() {
+                if let Ok(json_body) = resp.json::<serde_json::Value>().await {
+                    // Проверяем структуру JSON, возвращаемую svc_health.
+                    // svc_health/src/main.rs: Json(HashMap::from([...]))
+                    // readyz возвращает: Json(HashMap::from([("ok", ok.to_string()), ("stage", s.stage.clone())]))
+                    // stagez возвращает: Json(s.clone()) -> это структура StageState
+                    // StageState (из common/src/health.rs, предполагаемая структура):
+                    // { "stage": "RUN", "details": { "svc_market_ingest": "PAIRS_READY", ... } }
+                    // Или, как в коде svc_health: details.insert("svc_market_ingest", "PAIRS_READY");
+                    // Тогда ожидаем: { "stage": "...", "details": { "svc_market_ingest": "PAIRS_READY", ... } }
+                    // Или: { "current": "PAIRS_READY", "details": {...} }
+                    // Проверим наиболее вероятный вариант: details содержит статусы сервисов.
+                    let stage_ok = json_body.get("details")
+                        .and_then(|d| d.get("svc_market_ingest")) // Проверяем статус svc_market_ingest
+                        .and_then(|v| v.as_str())
+                        .map(|s| s == target_stage)
+                        .unwrap_or(false);
+
+                    // Также проверим, может ли статус быть в поле "current" (как в readyz)
+                    let stage_ok_alt = json_body.get("current")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s == target_stage)
+                        .unwrap_or(false);
+
+                    // Проверим для BACKFILL_CANDLES_READY - возможно, отслеживается svc_backfill
+                    let backfill_stage_ok = json_body.get("details")
+                        .and_then(|d| d.get("svc_backfill")) // Проверяем статус svc_backfill
+                        .and_then(|v| v.as_str())
+                        .map(|s| s == target_stage)
+                        .unwrap_or(false);
+
+                    if stage_ok || stage_ok_alt || backfill_stage_ok {
+                         info!("runner: stage '{}' confirmed via health service.", target_stage);
+                         return Ok(());
+                    }
+                } else {
+                    warn!("runner: failed to parse JSON response from health service at {}", url);
+                }
+            } else {
+                 warn!("runner: health service responded with non-success status: {}", resp.status());
+            }
+        } else {
+             // Возможно, сервис еще не готов отвечать
+             warn!("runner: failed to query health service at {}: {:?}", url, response.err());
+        }
+
+        tokio::time::sleep(Duration::from_secs(2)).await; // Пауза между проверками
+    }
+}
+// --- КОНЕЦ НОВОЙ ФУНКЦИИ ---
+
 #[tokio::main]
 async fn main() -> Result<()> {
     init_tracing();
@@ -2840,27 +2941,107 @@ async fn main() -> Result<()> {
         info!("runner: oneshot done {}", spec.name);
     }
 
-    // 2) spawn daemons
-    let mut children = Vec::new();
-    for svc in services.iter() {
-        let Some(spec) = specs.get(svc.as_str()) else {
-            continue;
-        };
-        if spec.oneshot {
-            continue;
+    // --- НОВАЯ ЛОГИКА ЗАПУСКА DAEMONS С ЗАВИСИМОСТЯМИ ---
+    info!("runner: starting daemons with dependencies...");
+
+    let health_port = env::var("SVC_HEALTH_PORT")
+        .unwrap_or_else(|_| "9005".to_string())
+        .parse::<u16>()
+        .unwrap_or(9005);
+
+    let mut running_daemons = Vec::new();
+
+    // Запускаем svc_health первым
+    let health_spec = specs.get("svc_health").expect("svc_health spec must exist");
+    info!("runner: daemon spawn {}", health_spec.name);
+    let mut health_cmd = Command::new(dir.join(health_spec.name));
+    health_cmd.args(&health_spec.args);
+    let health_child = health_cmd
+        .spawn()
+        .with_context(|| format!("failed to spawn {}", health_spec.name))?;
+    running_daemons.push((health_spec.name.to_string(), health_child));
+
+    // Ждем, пока health станет ready (опционально, но рекомендуется)
+    info!("runner: waiting for svc_health to be ready...");
+    let health_ready_url = format!("http://127.0.0.1:{}/readyz", health_port);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60); // Таймаут для готовности health
+    loop {
+        if tokio::time::Instant::now() > deadline {
+            anyhow::bail!("runner: timeout waiting for svc_health to be ready");
         }
-
-        info!("runner: spawn {}", spec.name);
-        let mut cmd = Command::new(dir.join(spec.name));
-        cmd.args(&spec.args);
-
-        let child = cmd
-            .spawn()
-            .with_context(|| format!("failed to spawn {}", spec.name))?;
-        children.push((spec.name.to_string(), child));
+        let response = reqwest::get(&health_ready_url).await;
+        if let Ok(resp) = response {
+            if resp.status().is_success() {
+                info!("runner: svc_health is ready.");
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
-    info!("runner: all daemons spawned. Ctrl+C to stop.");
+    // Запускаем svc_market_ingest
+    let ingest_spec = specs.get("svc_market_ingest").expect("svc_market_ingest spec must exist");
+    info!("runner: daemon spawn {}", ingest_spec.name);
+    let mut ingest_cmd = Command::new(dir.join(ingest_spec.name));
+    ingest_cmd.args(&ingest_spec.args);
+    let ingest_child = ingest_cmd
+        .spawn()
+        .with_context(|| format!("failed to spawn {}", ingest_spec.name))?;
+    running_daemons.push((ingest_spec.name.to_string(), ingest_child));
+
+    // Ждем стадии PAIRS_READY через svc_health
+    wait_for_stage_via_health(health_port, "PAIRS_READY", 120).await?;
+
+    // Теперь можно запустить svc_writer и svc_backfill
+    let writer_spec = specs.get("svc_writer").expect("svc_writer spec must exist");
+    info!("runner: daemon spawn {}", writer_spec.name);
+    let mut writer_cmd = Command::new(dir.join(writer_spec.name));
+    writer_cmd.args(&writer_spec.args);
+    let writer_child = writer_cmd
+        .spawn()
+        .with_context(|| format!("failed to spawn {}", writer_spec.name))?;
+    running_daemons.push((writer_spec.name.to_string(), writer_child));
+
+    let backfill_spec = specs.get("svc_backfill").expect("svc_backfill spec must exist");
+    info!("runner: daemon spawn {}", backfill_spec.name);
+    let mut backfill_cmd = Command::new(dir.join(backfill_spec.name));
+    backfill_cmd.args(&backfill_spec.args);
+    let backfill_child = backfill_cmd
+        .spawn()
+        .with_context(|| format!("failed to spawn {}", backfill_spec.name))?;
+    running_daemons.push((backfill_spec.name.to_string(), backfill_child));
+
+    // Ждем стадии BACKFILL_CANDLES_READY через svc_health
+    // В svc_health логике (предполагаемой) эта стадия устанавливается для svc_backfill или svc_market_ingest.
+    // Проверим в svc_backfill.
+    wait_for_stage_via_health(health_port, "BACKFILL_CANDLES_READY", 3600).await?;
+
+    // Остальные сервисы, которые могут запускаться параллельно после этих ключевых
+    let other_daemon_services = [
+        "svc_live",           // Может зависеть от backfill?
+        "svc_compute",
+        "svc_orders",
+        "svc_position_tracker",
+        "svc_webgui",
+        "svc_api_gateway",
+    ];
+
+    for svc_name in other_daemon_services.iter() {
+         if let Some(spec) = specs.get(svc_name) {
+             info!("runner: daemon spawn {}", spec.name);
+             let mut cmd = Command::new(dir.join(spec.name));
+             cmd.args(&spec.args);
+             let child = cmd
+                 .spawn()
+                 .with_context(|| format!("failed to spawn {}", spec.name))?;
+             running_daemons.push((spec.name.to_string(), child));
+         }
+    }
+
+    info!("runner: all critical daemons spawned and initial stages verified. Ctrl+C to stop.");
+
+    // --- ОРИГИНАЛЬНАЯ ЛОГИКА МОНИТОРИНГА И ЗАВЕРШЕНИЯ ---
+    // (оставляем как есть, но меняем `children` на `running_daemons`)
     tokio::select! {
         _ = signal::ctrl_c() => {
             warn!("runner: ctrl_c received, stopping...");
@@ -2868,11 +3049,10 @@ async fn main() -> Result<()> {
         _ = async {
             loop {
                 tokio::time::sleep(Duration::from_millis(500)).await;
-                for (name, child) in children.iter_mut() {
+                for (name, child) in running_daemons.iter_mut() {
                     if let Ok(Some(status)) = child.try_wait() {
                         error!("runner: child exited: {name} status={status}");
-                        // Вместо bail! — просто логируем и выходим из select!
-                        return; // ← выходим из async-блока, возвращая ()
+                        return; // <- выходим из async-блока, возвращая ()
                     }
                 }
             }
@@ -2880,9 +3060,9 @@ async fn main() -> Result<()> {
     }
 
     // 3) graceful terminate
-    for (name, mut child) in children {
+    for (name, mut child) in running_daemons {
         info!("runner: killing {name}...");
-        let _ = child.kill().await.ok(); // ← вот так
+        let _ = child.kill().await.ok(); // <- вот так
     }
 
     info!("runner: stopped");
@@ -3328,66 +3508,97 @@ async fn main() -> Result<()> {
 # apps/src/bin/svc_health.rs
 
 use anyhow::Result;
-use common::config::AppConfig;
-use common::health::ServiceStatus; // Берем из common
+use common::health::ServiceStatus;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+// Removed unused AppConfig and Duration
+use tokio_postgres::{Client as PgClient, NoTls};
 use warp::Filter;
 
-// Локальная структура монитора
-pub struct HealthMonitor {
+struct AppState {
+    pg_client: PgClient,
     status_map: Arc<RwLock<HashMap<String, ServiceStatus>>>,
-}
-
-impl HealthMonitor {
-    pub fn new() -> Self {
-        Self {
-            status_map: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
-    pub fn update_service(&self, status: ServiceStatus) {
-        let mut map = self.status_map.write().unwrap();
-        map.insert(status.service_name.clone(), status);
-    }
-
-    pub async fn run_server(&self, port: u16) {
-        let status_map = self.status_map.clone();
-
-        let health_route = warp::path("health").map(move || {
-            let map = status_map.read().unwrap();
-            warp::reply::json(&*map)
-        });
-
-        tracing::info!("Health Check Service running on port {}", port);
-        warp::serve(health_route).run(([0, 0, 0, 0], port)).await;
-    }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Инициализация логгера
     tracing_subscriber::fmt().init();
 
-    // Загрузка конфига
-    let config = common::config::load_config()?; // Предполагается, что load() существует в common::config
+    // Removed unused config load if not used elsewhere
+    // let config = common::config::load_config()?; 
+
     let health_port = std::env::var("SVC_HEALTH_PORT")
         .unwrap_or_else(|_| "9005".to_string())
         .parse::<u16>()?;
 
-    tracing::info!("Starting svc_health on port {}", health_port);
-
-    let monitor = HealthMonitor::new();
-
-    // Пример: добавляем статус самого себя
-    monitor.update_service(ServiceStatus {
-        service_name: "svc_health".to_string(),
-        status: "UP".to_string(),
-        last_seen_ts: chrono::Utc::now().timestamp(),
-        details: None,
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string()
     });
 
-    monitor.run_server(health_port).await;
+    let (pg_client, connection) = tokio_postgres::connect(&db_url, NoTls).await?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            tracing::error!("Database connection error: {}", e);
+        }
+    });
+
+    let status_map = Arc::new(RwLock::new(HashMap::new()));
+    status_map.write().unwrap().insert(
+        "svc_health".to_string(),
+        ServiceStatus {
+            service_name: "svc_health".to_string(),
+            status: "UP".to_string(),
+            last_seen_ts: chrono::Utc::now().timestamp(),
+            details: None,
+        },
+    );
+
+    let app_state = Arc::new(AppState {
+        pg_client,
+        status_map,
+    });
+
+    // --- Route 1: /health ---
+    let state_for_health = app_state.clone();
+    let health_route = warp::path!("health").map(move || {
+        let map = state_for_health.status_map.read().unwrap();
+        // We clone the map to avoid holding the lock during the entire response serialization
+        // and to satisfy the Serialize trait requirements easily.
+        let cloned_map = (*map).clone();
+        warp::reply::json(&cloned_map)
+    });
+
+    // --- Route 2: /health/stage ---
+    let state_for_stage = app_state.clone();
+    let stage_route = warp::path!("health" / "stage")
+        .and_then(move || {
+            let state = state_for_stage.clone();
+            async move {
+                // Use the client directly with .await! No block_on needed.
+                let result = state.pg_client
+                    .query_one("SELECT COUNT(*) FROM market.pairs", &[])
+                    .await;
+
+                let has_pairs = match result {
+                    Ok(row) => row.get::<_, i64>(0) > 0,
+                    Err(e) => {
+                        tracing::warn!("Failed to check pairs: {}", e);
+                        false
+                    }
+                };
+
+                let stage = if has_pairs { "PAIRS_READY" } else { "INITIALIZING" };
+                
+                // and_then expects a Result<Reply, Rejection>
+                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({ "stage": stage })))
+            }
+        });
+
+    let routes = health_route.or(stage_route);
+
+    tracing::info!("Health Check Service running on port {}", health_port);
+    warp::serve(routes).run(([0, 0, 0, 0], health_port)).await;
 
     Ok(())
 }
@@ -3699,114 +3910,124 @@ async fn main() -> Result<()> {
 
 # apps/src/bin/svc_market_ingest.rs
 
+use anyhow::{Context, Result};
+use axum::{routing::get, Router};
 use std::{net::SocketAddr, time::Duration};
-
-use axum::{
-    http::StatusCode,
-    routing::get,
-    Router,
-};
 use tokio::signal;
 use tracing::{info, warn};
 
+use market_data::config::IngestConfig;
+use market_data::{backfill, universe, ws_manager, AppState};
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    init_tracing();
+async fn main() -> Result<()> {
+    apps::init_tracing();
 
-    let cfg = EnvCfg::from_env("SVC_MARKET_INGEST")?;
+    // IngestConfig::load() -> Arc<IngestConfig> (нужно разыменовать и клонировать)
+    let cfg_arc = IngestConfig::load().context("IngestConfig::load failed")?;
+    let state = AppState::new(cfg_arc.as_ref().clone()).context("AppState::new failed")?;
 
-    // Preflight: DB
-    if let Err(e) = preflight_db(&cfg.database_url).await {
-        warn!("DB preflight failed: {e:#}");
-    } else {
-        info!("DB preflight OK");
-    }
+    let addr: SocketAddr = format!("0.0.0.0:{}", state.cfg.health_port)
+        .parse()
+        .context("bad bind addr")?;
 
-    // Preflight: Kafka (Redpanda)
-    if let Err(e) = preflight_kafka(&cfg.kafka_brokers).await {
-        warn!("Kafka preflight failed: {e:#}");
-    } else {
-        info!("Kafka preflight OK");
-    }
+    info!(
+        "svc_market_ingest starting: db={} brokers={} port={}",
+        state.cfg.db_url, state.cfg.redpanda_brokers, state.cfg.health_port
+    );
 
-    // HTTP health
+    // HTTP endpoints берём из market_data::health (они ожидают market_data::AppState)
     let app = Router::new()
-        .route("/healthz", get(|| async { (StatusCode::OK, "OK") }))
-        .route("/readyz", get(|| async { (StatusCode::OK, "READY") }));
+        .route("/healthz", get(market_data::health::healthz))
+        .route("/readyz", get(market_data::health::readyz))
+        .route("/stagez", get(market_data::health::stagez))
+        .with_state(state.clone());
 
-    let addr: SocketAddr = format!("0.0.0.0:{}", cfg.port).parse()?;
-    info!("market_ingest listening on http://{addr}");
+    let listener = tokio::net::TcpListener::bind(addr).await.context("bind failed")?;
 
-    axum::serve(tokio::net::TcpListener::bind(addr).await?, app)
+    // pipeline в фоне
+    let pipeline_state = state.clone();
+    let pipeline_handle = tokio::spawn(async move {
+        if let Err(e) = run_pipeline(pipeline_state).await {
+            warn!("pipeline fatal: {e:#}");
+        }
+    });
+
+    axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
-        .await?;
+        .await
+        .context("http serve failed")?;
+
+    // если HTTP упал/остановился — останавливаем pipeline
+    pipeline_handle.abort();
+    Ok(())
+}
+
+async fn run_pipeline(state: AppState) -> Result<()> {
+    state.stage.set("STARTING", "Initializing pipeline components...");
+
+    // 1) universe → pairs
+    state.stage.set("LOADING_PAIRS", "Refreshing universe...");
+    let active_pairs = universe::refresh_universe_once(&state.cfg.db_url, &state.rest).await?;
+    state.stage
+        .set("PAIRS_READY", format!("Universe ready, active_pairs={active_pairs}"));
+
+    // 2) symbols list (для ws_manager)
+    let symbols = universe::fetch_active_symbols(&state.cfg.db_url).await?;
+    if symbols.is_empty() {
+        warn!("No active symbols found in DB (market.pairs is_active=true)");
+    }
+
+    // 3) backfill (даёт last_close_map)
+    state.stage
+        .set("LOADING_CANDLES", format!("Backfill for {} symbols...", symbols.len()));
+
+    let (published, last_map) = backfill::run_backfill(
+        state.cfg.clone(),
+        state.rest.clone(),
+        state.producer.clone(),
+    )
+    .await?;
+
+    state.stage.set(
+        "BACKFILL_CANDLES_READY",
+        format!("Backfill done. published={published}, last_map={}", last_map.len()),
+    );
+
+    // 4) realtime ws + poll
+    state.stage.set("RUN", "WebSocket streams + poll loop active");
+
+    ws_manager::run_ws_and_poll(
+        state.cfg.clone(),
+        state.rest.clone(),
+        state.producer.clone(),
+        symbols,
+        last_map,
+    )
+    .await?;
 
     Ok(())
 }
 
 async fn shutdown_signal() {
-    let _ = signal::ctrl_c().await;
-    warn!("shutdown signal received");
-    tokio::time::sleep(Duration::from_millis(150)).await;
-}
+    let ctrl_c = async {
+        let _ = signal::ctrl_c().await;
+    };
 
-fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info,rdkafka=warn,sqlx=warn".to_string()),
-        )
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .try_init();
-}
+    #[cfg(unix)]
+    let term = async {
+        let mut sig =
+            signal::unix::signal(signal::unix::SignalKind::terminate()).expect("sigterm handler");
+        let _ = sig.recv().await;
+    };
 
-struct EnvCfg {
-    port: u16,
-    database_url: String,
-    kafka_brokers: String,
-}
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
 
-impl EnvCfg {
-    fn from_env(_svc: &str) -> anyhow::Result<Self> {
-        Ok(Self {
-            port: env_u16("MARKET_INGEST_PORT").unwrap_or(9001),
-            database_url: env_req("DATABASE_URL")?,
-            kafka_brokers: env_req("KAFKA_BROKERS")?,
-        })
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = term => {}
     }
-}
-
-fn env_req(key: &str) -> anyhow::Result<String> {
-    std::env::var(key).map_err(|_| anyhow::anyhow!("{key} is required"))
-}
-
-fn env_u16(key: &str) -> Option<u16> {
-    std::env::var(key).ok().and_then(|v| v.parse().ok())
-}
-
-// --- preflight helpers ---
-
-async fn preflight_db(db_url: &str) -> anyhow::Result<()> {
-    let (client, connection) = tokio_postgres::connect(db_url, tokio_postgres::NoTls).await?;
-    tokio::spawn(async move {
-        let _ = connection.await;
-    });
-    client.simple_query("SELECT 1;").await?;
-    Ok(())
-}
-
-async fn preflight_kafka(brokers: &str) -> anyhow::Result<()> {
-    // lightweight: metadata request via rdkafka producer
-    let producer: rdkafka::producer::FutureProducer = rdkafka::config::ClientConfig::new()
-        .set("bootstrap.servers", brokers)
-        .set("message.timeout.ms", "3000")
-        .create()?;
-
-    // forcing metadata fetch by requesting it explicitly isn't public API in rdkafka,
-    // but creating producer already validates config; keep as "soft" preflight.
-    drop(producer);
-    Ok(())
 }
 
 
@@ -8218,11 +8439,9 @@ main() {
 
   # Ingest (загружает пары)
   start_service "ingest" "$BIN_INGEST"
-  
-  log "Waiting for PAIRS_READY stage..."
-  ./scripts/wait_stage.sh "http://localhost:9001/stagez" "PAIRS_READY" 120
-
-  # Data Writer (нужен для записи данных от backfill и live)
+  log "Waiting for PAIRS_READY stage via health service..."
+  # Используем SVC_HEALTH_PORT из .env, по умолчанию 9005
+  ./scripts/wait_stage.sh "http://localhost:\${SVC_HEALTH_PORT:-9005}/stagez" "PAIRS_READY" 120
   start_service "writer" "$BIN_WRITER"
 
   # Backfill (исторические данные)
@@ -8231,7 +8450,8 @@ main() {
   
   # Ждем окончания загрузки истории перед лайвом (опционально, но надежнее)
   log "Waiting for BACKFILL_CANDLES_READY..."
-  ./scripts/wait_stage.sh "http://localhost:9001/stagez" "BACKFILL_CANDLES_READY" 3600
+  log "Waiting for BACKFILL_CANDLES_READY via health service..."
+  ./scripts/wait_stage.sh "http://localhost:\${SVC_HEALTH_PORT:-9005}/stagez" "BACKFILL_CANDLES_READY" 3600
 
   # Live (Realtime WS)
   start_service "live" "$BIN_LIVE"
@@ -8441,30 +8661,16 @@ main
 
 # scripts/wait_pg.sh
 
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+# scripts/wait_pg.sh
+set -e
 
 echo "Waiting for TimescaleDB to be ready..."
-timeout=300
-start_time=$(date +%s)
-
-while true; do
-    if docker compose -f infra/docker-compose.yml exec -T timescaledb pg_isready -U postgres >/dev/null 2>&1; then
-        echo "✅ TimescaleDB is ready"
-        exit 0
-    fi
-    
-    current_time=$(date +%s)
-    elapsed=$((current_time - start_time))
-    
-    if [ $elapsed -ge $timeout ]; then
-        echo "❌ Timeout waiting for TimescaleDB"
-        exit 1
-    fi
-    
-    echo "⏳ TimescaleDB not ready yet, waiting..."
-    sleep 5
+while ! PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d timescaledb_binance -c "SELECT 1" > /dev/null 2>&1; do
+  echo "⏳ TimescaleDB not ready yet, waiting..."
+  sleep 2
 done
+echo "✅ TimescaleDB is ready!"
 
 
 # scripts/wait_redpanda.sh
@@ -8500,23 +8706,78 @@ exit 1
 #!/usr/bin/env bash
 set -euo pipefail
 
-URL="${1:?stagez url}"
-TARGET="${2:?target stage}"
-TIMEOUT="${3:-600}"
+URL="${1:-}"
+DESIRED="${2:-}"
+TIMEOUT_SEC="${3:-120}"
 
-start_ts="$(date +%s)"
+if [[ -z "$URL" || -z "$DESIRED" ]]; then
+  echo "usage: wait_stage.sh <url> <DESIRED_STAGE> [timeout_sec]"
+  exit 2
+fi
+
+deadline=$(( $(date +%s) + TIMEOUT_SEC ))
+last=""
+
+extract_stage() {
+  python3 - <<'PY' 2>/dev/null || true
+import sys, json
+s = sys.stdin.read().strip()
+if not s:
+    print("")
+    sys.exit(0)
+if s.startswith("{"):
+    try:
+        j = json.loads(s)
+        st = j.get("stage", j)
+        if isinstance(st, dict):
+            print(st.get("stage", ""))
+        else:
+            print(str(st))
+    except Exception:
+        print("")
+else:
+    print(s)
+PY
+}
+
 while true; do
-  stage="$(curl -fsS "$URL" | sed -n 's/.*"stage"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)"
-  if [[ "$stage" == "$TARGET" ]]; then
-    echo "✅ stage reached: $TARGET"
-    exit 0
-  fi
-  now="$(date +%s)"
-  if (( now - start_ts > TIMEOUT )); then
-    echo "❌ stage timeout. expected=$TARGET got=${stage:-unknown}"
+  now=$(date +%s)
+  if (( now > deadline )); then
+    echo "❌ wait_stage timeout. desired=$DESIRED last=$last url=$URL"
     exit 1
   fi
-  sleep 2
+
+  # Берём и body и HTTP code
+  resp="$(curl -sS -w $'\n%{http_code}' "$URL" 2>/dev/null || true)"
+  body="$(printf "%s" "$resp" | sed '$d')"
+  code="$(printf "%s" "$resp" | tail -n 1)"
+
+  if [[ "$code" != "200" ]]; then
+    sleep 1
+    continue
+  fi
+
+  stage="$(printf "%s" "$body" | extract_stage)"
+  if [[ -z "$stage" ]]; then
+    sleep 1
+    continue
+  fi
+
+  last="$stage"
+
+  if [[ "$stage" == "$DESIRED" ]]; then
+    echo "✅ stage reached: $stage"
+    exit 0
+  fi
+
+  if [[ "$stage" == ERROR* ]]; then
+    echo "❌ stage error: $stage"
+    echo "$body"
+    exit 1
+  fi
+
+  sleep 1
 done
+
 
 

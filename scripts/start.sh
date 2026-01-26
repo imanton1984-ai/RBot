@@ -121,11 +121,9 @@ main() {
 
   # Ingest (загружает пары)
   start_service "ingest" "$BIN_INGEST"
-  
-  log "Waiting for PAIRS_READY stage..."
-  ./scripts/wait_stage.sh "http://localhost:9001/stagez" "PAIRS_READY" 120
-
-  # Data Writer (нужен для записи данных от backfill и live)
+  log "Waiting for PAIRS_READY stage via health service..."
+  # ingest публикует stagez сам (MARKET_INGEST_PORT из .env, по умолчанию 9001)
+  ./scripts/wait_stage.sh "http://localhost:\${MARKET_INGEST_PORT:-9001}/stagez" "PAIRS_READY" 120
   start_service "writer" "$BIN_WRITER"
 
   # Backfill (исторические данные)
@@ -133,8 +131,8 @@ main() {
   start_service "backfill" "$BIN_BACKFILL"
   
   # Ждем окончания загрузки истории перед лайвом (опционально, но надежнее)
-  log "Waiting for BACKFILL_CANDLES_READY..."
-  ./scripts/wait_stage.sh "http://localhost:9001/stagez" "BACKFILL_CANDLES_READY" 3600
+  log "Waiting for BACKFILL_CANDLES_READY via ingest service..."
+  ./scripts/wait_stage.sh "http://localhost:\${MARKET_INGEST_PORT:-9001}/stagez" "BACKFILL_CANDLES_READY" 3600
 
   # Live (Realtime WS)
   start_service "live" "$BIN_LIVE"

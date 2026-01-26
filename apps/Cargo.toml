@@ -26,6 +26,8 @@ chrono = { version = "0.4", features = ["clock"] }
 tokio-util = { workspace = true }
 # non-workspace extras (для svc_db_init)
 walkdir = "2.5"
+reqwest = { version = "0.11", features = ["json"] }
+
 
 
 

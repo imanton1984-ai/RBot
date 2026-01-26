@@ -18,7 +18,7 @@ axum = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-rdkafka = { version = "0.36", features = ["cmake-build"] }
+rdkafka = { version = "0.37", features = ["cmake-build"] }
 tokio-postgres = "0.7"
 chrono = { version = "0.4", features = ["serde"] }
 
