@@ -1232,15 +1232,30 @@ pub async fn send_close_mp<T: serde::Serialize>(
 use anyhow::{Context, Result};
 use connections::BinanceRestClient;
 use serde_json::Value;
-use tokio_postgres::NoTls;
+use tokio_postgres::{NoTls, Transaction};
 
 use common::config::load_config;
+
+use std::collections::{HashMap, HashSet};
+
+fn v_f64(v: &Value) -> f64 {
+    match v {
+        Value::Number(n) => n.as_f64().unwrap_or(0.0),
+        Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
+        _ => 0.0,
+    }
+}
 
 /// Возвращает количество активированных пар.
 pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Result<usize> {
     // 1) грузим конфиг (universe фильтры)
     let cfg = load_config().context("load_config failed")?;
     let u = cfg.universe.clone();
+
+    let allow: HashSet<String> = u.allowlist.iter().cloned().collect();
+    let deny: HashSet<String> = u.denylist.iter().cloned().collect();
+    let excl_sym: HashSet<String> = u.exclude_symbols.iter().cloned().collect();
+    let excl_base: HashSet<String> = u.exclude_base_assets.iter().cloned().collect();
 
     // 2) exchangeInfo (futures)
     let info: Value = rest
@@ -1250,26 +1265,22 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
     let symbols = info["symbols"].as_array().cloned().unwrap_or_default();
 
     // 3) ticker24h
-    let tick_arr: Vec<Value> = rest.futures_ticker_24h().await?;
+    let tick_arr: Vec<Value> = rest
+        .futures_ticker_24h()
+        .await
+        .context("futures_ticker_24h failed")?;
     let tickers = serde_json::Value::Array(tick_arr);
     let tick_arr = tickers.as_array().cloned().unwrap_or_default();
 
     // map symbol->(quoteVolume,lastPrice)
-    use std::collections::HashMap;
     let mut tv: HashMap<String, (f64, f64)> = HashMap::new();
     for t in tick_arr {
         let sym = t["symbol"].as_str().unwrap_or("").to_string();
         if sym.is_empty() {
             continue;
         }
-        let qv = t["quoteVolume"]
-            .as_str()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0.0);
-        let lp = t["lastPrice"]
-            .as_str()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0.0);
+        let qv = v_f64(&t["quoteVolume"]);
+        let lp = v_f64(&t["lastPrice"]);
         tv.insert(sym, (qv, lp));
     }
 
@@ -1279,6 +1290,15 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
     for s in symbols {
         let symbol = s["symbol"].as_str().unwrap_or("").to_string();
         if symbol.is_empty() {
+            continue;
+        }
+
+        // deny — всегда выбрасываем
+        if deny.contains(&symbol) {
+            continue;
+        }
+        // exclude_symbols — тоже всегда выбрасываем
+        if excl_sym.contains(&symbol) {
             continue;
         }
 
@@ -1304,22 +1324,17 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
             continue;
         }
 
-        // deny/exclude
-        if u.exclude_symbols.iter().any(|x| x == &symbol) {
-            continue;
-        }
-        if u.exclude_base_assets.iter().any(|x| x == &base) {
-            continue;
-        }
-        if !u.denylist.is_empty() && u.denylist.iter().any(|x| x == &symbol) {
-            continue;
-        }
-        if !u.allowlist.is_empty() && !u.allowlist.iter().any(|x| x == &symbol) {
+        // exclude base assets
+        if excl_base.contains(&base) {
             continue;
         }
 
         let (vol, price) = tv.get(&symbol).copied().unwrap_or((0.0, 0.0));
-        if vol < u.min_quote_volume_usdt_24h {
+
+        // allowlist = форс включение (даже если volume ниже)
+        let forced = allow.contains(&symbol);
+
+        if !forced && vol < u.min_quote_volume_usdt_24h {
             continue;
         }
 
@@ -1327,46 +1342,101 @@ pub async fn refresh_universe_once(db_url: &str, rest: &BinanceRestClient) -> Re
     }
 
     // 5) пишем в DB (deactivate all, затем upsert выбранных)
-    let (client, conn) = tokio_postgres::connect(db_url, NoTls).await?;
+    let (mut client, conn) = tokio_postgres::connect(db_url, NoTls)
+        .await
+        .context("connect db failed")?;
     tokio::spawn(async move {
         let _ = conn.await;
     });
 
-    // выключаем все, но manual_allow не трогаем
-    client
-        .execute(
-            "UPDATE market.pairs SET is_active=false WHERE manual_allow=false",
-            &[],
-        )
-        .await?;
+    // churn-guard: сравнить с текущим количеством активных
+    let prev_active: i64 = client
+        .query_one("SELECT COUNT(*) FROM market.pairs WHERE is_active=true", &[])
+        .await
+        .map(|r| r.get::<_, i64>(0))
+        .unwrap_or(0);
 
-    let stmt = client.prepare(
-        "INSERT INTO market.pairs
-         (symbol, base_asset, quote_asset, is_active, futures_eligible, perpetual_only, volume_24h_usdt, last_price, last_refreshed_at)
-         VALUES ($1,$2,$3,true,true,$4,$5,$6,now())
-         ON CONFLICT(symbol) DO UPDATE SET
-           base_asset=EXCLUDED.base_asset,
-           quote_asset=EXCLUDED.quote_asset,
-           is_active=true,
-           futures_eligible=true,
-           perpetual_only=EXCLUDED.perpetual_only,
-           volume_24h_usdt=EXCLUDED.volume_24h_usdt,
-           last_price=EXCLUDED.last_price,
-           last_refreshed_at=now()"
-    ).await?;
+    let new_active: i64 = picked.len() as i64;
+    if prev_active > 0 && u.max_change_ratio > 0.0 {
+        let diff = (new_active - prev_active).abs() as f64;
+        let ratio = diff / (prev_active as f64);
 
-    for (sym, base, quote, vol, price) in picked.iter() {
-        client
-            .execute(&stmt, &[sym, base, quote, &u.perpetual_only, vol, price])
-            .await?;
+        // background: если слишком резкое изменение — не применяем
+        if ratio > u.max_change_ratio && u.apply_mode == "background" {
+            tracing::warn!(
+                "universe churn-guard: prev_active={}, new_active={}, ratio={:.3} > max_change_ratio={:.3}; SKIP apply (background mode)",
+                prev_active,
+                new_active,
+                ratio,
+                u.max_change_ratio
+            );
+            return Ok(prev_active as usize);
+        }
+
+        if ratio > u.max_change_ratio {
+            tracing::warn!(
+                "universe churn-guard: prev_active={}, new_active={}, ratio={:.3} > max_change_ratio={:.3}; APPLY anyway (apply_mode={})",
+                prev_active,
+                new_active,
+                ratio,
+                u.max_change_ratio,
+                u.apply_mode
+            );
+        }
     }
+
+    let tx = client.transaction().await.context("tx begin failed")?;
+    apply_pairs(&tx, &picked, u.perpetual_only).await?;
+    tx.commit().await.context("tx commit failed")?;
 
     Ok(picked.len())
 }
 
+async fn apply_pairs(
+    tx: &Transaction<'_>,
+    picked: &[(String, String, String, f64, f64)],
+    perpetual_only: bool,
+) -> Result<()> {
+    // выключаем все, но manual_allow не трогаем
+    tx.execute(
+        "UPDATE market.pairs SET is_active=false WHERE manual_allow=false",
+        &[],
+    )
+    .await
+    .context("deactivate pairs failed")?;
+
+    let stmt = tx
+        .prepare(
+            "INSERT INTO market.pairs
+             (symbol, base_asset, quote_asset, is_active, futures_eligible, perpetual_only, volume_24h_usdt, last_price, last_refreshed_at)
+             VALUES ($1,$2,$3,true,true,$4,$5,$6,now())
+             ON CONFLICT(symbol) DO UPDATE SET
+               base_asset=EXCLUDED.base_asset,
+               quote_asset=EXCLUDED.quote_asset,
+               is_active=true,
+               futures_eligible=true,
+               perpetual_only=EXCLUDED.perpetual_only,
+               volume_24h_usdt=EXCLUDED.volume_24h_usdt,
+               last_price=EXCLUDED.last_price,
+               last_refreshed_at=now()",
+        )
+        .await
+        .context("prepare upsert failed")?;
+
+    for (sym, base, quote, vol, price) in picked.iter() {
+        tx.execute(&stmt, &[sym, base, quote, &perpetual_only, vol, price])
+            .await
+            .with_context(|| format!("upsert failed for {sym}"))?;
+    }
+
+    Ok(())
+}
+
 /// Получает список активных торговых пар из БД.
 pub async fn fetch_active_symbols(db_url: &str) -> Result<Vec<String>> {
-    let (client, connection) = tokio_postgres::connect(db_url, NoTls).await?;
+    let (client, connection) = tokio_postgres::connect(db_url, NoTls)
+        .await
+        .context("connect db failed")?;
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             tracing::error!("DB connection error: {}", e);
@@ -1374,12 +1444,16 @@ pub async fn fetch_active_symbols(db_url: &str) -> Result<Vec<String>> {
     });
 
     let rows = client
-        .query("SELECT symbol FROM market.pairs WHERE is_active = true", &[])
-        .await?;
+        .query(
+            "SELECT symbol FROM market.pairs WHERE is_active = true ORDER BY symbol",
+            &[],
+        )
+        .await
+        .context("query active symbols failed")?;
 
-    let symbols: Vec<String> = rows.into_iter().map(|row| row.get(0)).collect();
-    Ok(symbols)
+    Ok(rows.into_iter().map(|r| r.get::<_, String>(0)).collect())
 }
+
 
 
 
@@ -3507,101 +3581,57 @@ async fn main() -> Result<()> {
 
 # apps/src/bin/svc_health.rs
 
-use anyhow::Result;
-use common::health::ServiceStatus;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-// Removed unused AppConfig and Duration
-use tokio_postgres::{Client as PgClient, NoTls};
-use warp::Filter;
+use anyhow::{Context, Result};
+use axum::{http::StatusCode, response::IntoResponse, routing::get, Router};
+use std::net::SocketAddr;
+use tokio::signal;
+use tracing::{info, warn};
 
-struct AppState {
-    pg_client: PgClient,
-    status_map: Arc<RwLock<HashMap<String, ServiceStatus>>>,
+fn env_u16(key: &str) -> Option<u16> {
+    std::env::var(key).ok()?.parse().ok()
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().init();
+    apps::init_tracing();
 
-    // Removed unused config load if not used elsewhere
-    // let config = common::config::load_config()?; 
+    // единый стиль env: SVC_HEALTH_PORT (но поддержим и HEALTH_PORT как запасной)
+    let port = env_u16("SVC_HEALTH_PORT")
+        .or_else(|| env_u16("HEALTH_PORT"))
+        .unwrap_or(9001);
 
-    let health_port = std::env::var("SVC_HEALTH_PORT")
-        .unwrap_or_else(|_| "9005".to_string())
-        .parse::<u16>()?;
+    let addr: SocketAddr = format!("0.0.0.0:{port}")
+        .parse()
+        .context("bad bind addr")?;
 
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string()
-    });
+    let app = Router::new()
+        .route("/healthz", get(healthz))
+        .route("/readyz", get(readyz));
 
-    let (pg_client, connection) = tokio_postgres::connect(&db_url, NoTls).await?;
+    info!("svc_health listening on http://{addr}");
 
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            tracing::error!("Database connection error: {}", e);
-        }
-    });
-
-    let status_map = Arc::new(RwLock::new(HashMap::new()));
-    status_map.write().unwrap().insert(
-        "svc_health".to_string(),
-        ServiceStatus {
-            service_name: "svc_health".to_string(),
-            status: "UP".to_string(),
-            last_seen_ts: chrono::Utc::now().timestamp(),
-            details: None,
-        },
-    );
-
-    let app_state = Arc::new(AppState {
-        pg_client,
-        status_map,
-    });
-
-    // --- Route 1: /health ---
-    let state_for_health = app_state.clone();
-    let health_route = warp::path!("health").map(move || {
-        let map = state_for_health.status_map.read().unwrap();
-        // We clone the map to avoid holding the lock during the entire response serialization
-        // and to satisfy the Serialize trait requirements easily.
-        let cloned_map = (*map).clone();
-        warp::reply::json(&cloned_map)
-    });
-
-    // --- Route 2: /health/stage ---
-    let state_for_stage = app_state.clone();
-    let stage_route = warp::path!("health" / "stage")
-        .and_then(move || {
-            let state = state_for_stage.clone();
-            async move {
-                // Use the client directly with .await! No block_on needed.
-                let result = state.pg_client
-                    .query_one("SELECT COUNT(*) FROM market.pairs", &[])
-                    .await;
-
-                let has_pairs = match result {
-                    Ok(row) => row.get::<_, i64>(0) > 0,
-                    Err(e) => {
-                        tracing::warn!("Failed to check pairs: {}", e);
-                        false
-                    }
-                };
-
-                let stage = if has_pairs { "PAIRS_READY" } else { "INITIALIZING" };
-                
-                // and_then expects a Result<Reply, Rejection>
-                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({ "stage": stage })))
-            }
-        });
-
-    let routes = health_route.or(stage_route);
-
-    tracing::info!("Health Check Service running on port {}", health_port);
-    warp::serve(routes).run(([0, 0, 0, 0], health_port)).await;
+    axum::serve(tokio::net::TcpListener::bind(addr).await?, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .context("http serve failed")?;
 
     Ok(())
 }
+
+async fn healthz() -> impl IntoResponse {
+    (StatusCode::OK, "OK")
+}
+
+async fn readyz() -> impl IntoResponse {
+    // svc_health сам по себе ничего не греет — он “готов” если поднялся.
+    (StatusCode::OK, "READY")
+}
+
+async fn shutdown_signal() {
+    let _ = signal::ctrl_c().await;
+    warn!("shutdown signal received");
+}
+
 
 
 
@@ -3911,8 +3941,14 @@ async fn main() -> Result<()> {
 # apps/src/bin/svc_market_ingest.rs
 
 use anyhow::{Context, Result};
-use axum::{routing::get, Router};
-use std::{net::SocketAddr, time::Duration};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
+use std::net::SocketAddr;
 use tokio::signal;
 use tracing::{info, warn};
 
@@ -3923,7 +3959,7 @@ use market_data::{backfill, universe, ws_manager, AppState};
 async fn main() -> Result<()> {
     apps::init_tracing();
 
-    // IngestConfig::load() -> Arc<IngestConfig> (нужно разыменовать и клонировать)
+    // IngestConfig::load() -> Arc<IngestConfig>
     let cfg_arc = IngestConfig::load().context("IngestConfig::load failed")?;
     let state = AppState::new(cfg_arc.as_ref().clone()).context("AppState::new failed")?;
 
@@ -3936,11 +3972,13 @@ async fn main() -> Result<()> {
         state.cfg.db_url, state.cfg.redpanda_brokers, state.cfg.health_port
     );
 
-    // HTTP endpoints берём из market_data::health (они ожидают market_data::AppState)
+    // ВАЖНО:
+    // НЕ используем market_data::health::{healthz,readyz,stagez}, т.к. market_data тянет axum 0.7,
+    // а apps — axum 0.8. Это и давало ошибку Handler.
     let app = Router::new()
-        .route("/healthz", get(market_data::health::healthz))
-        .route("/readyz", get(market_data::health::readyz))
-        .route("/stagez", get(market_data::health::stagez))
+        .route("/healthz", get(healthz))
+        .route("/readyz", get(readyz))
+        .route("/stagez", get(stagez))
         .with_state(state.clone());
 
     let listener = tokio::net::TcpListener::bind(addr).await.context("bind failed")?;
@@ -3963,13 +4001,36 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+async fn healthz() -> impl IntoResponse {
+    (StatusCode::OK, "OK")
+}
+
+async fn readyz(State(st): State<AppState>) -> impl IntoResponse {
+    let v = st.stage.get();
+    if v.stage == "RUN" || v.stage.ends_with("_READY") {
+        (StatusCode::OK, "READY")
+    } else if v.stage == "ERROR" {
+        (StatusCode::SERVICE_UNAVAILABLE, "ERROR")
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, "NOT_READY")
+    }
+}
+
+async fn stagez(State(st): State<AppState>) -> impl IntoResponse {
+    let v = st.stage.get();
+    Json(v)
+}
+
 async fn run_pipeline(state: AppState) -> Result<()> {
-    state.stage.set("STARTING", "Initializing pipeline components...");
+    state
+        .stage
+        .set("STARTING", "Initializing pipeline components...");
 
     // 1) universe → pairs
     state.stage.set("LOADING_PAIRS", "Refreshing universe...");
     let active_pairs = universe::refresh_universe_once(&state.cfg.db_url, &state.rest).await?;
-    state.stage
+    state
+        .stage
         .set("PAIRS_READY", format!("Universe ready, active_pairs={active_pairs}"));
 
     // 2) symbols list (для ws_manager)
@@ -3979,15 +4040,11 @@ async fn run_pipeline(state: AppState) -> Result<()> {
     }
 
     // 3) backfill (даёт last_close_map)
-    state.stage
+    state
+        .stage
         .set("LOADING_CANDLES", format!("Backfill for {} symbols...", symbols.len()));
 
-    let (published, last_map) = backfill::run_backfill(
-        state.cfg.clone(),
-        state.rest.clone(),
-        state.producer.clone(),
-    )
-    .await?;
+    let (published, last_map) = backfill::run_backfill(state.cfg.clone(), state.rest.clone(), state.producer.clone()).await?;
 
     state.stage.set(
         "BACKFILL_CANDLES_READY",
@@ -8146,6 +8203,130 @@ ok "DB HEALTH OK ✅"
 
 
 
+# scripts/full_stop.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+PID_DIR="./run"
+LOG_DIR="./logs"
+COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
+
+DO_DOCKER_DOWN=1
+DO_DOCKER_VOL=1
+DO_CARGO_CLEAN=0
+DO_LOGS_CLEAN=0
+
+log(){ echo "[$(date +'%H:%M:%S')] $*"; }
+
+usage() {
+  cat <<EOF
+Usage: scripts/full_stop.sh [options]
+
+Options:
+  --no-docker        do not touch docker compose
+  --keep-volumes     docker down without -v
+  --cargo-clean      run cargo clean (workspace)
+  --clean-logs       remove ./logs/*.log
+  -h, --help         show help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-docker) DO_DOCKER_DOWN=0; shift ;;
+    --keep-volumes) DO_DOCKER_VOL=0; shift ;;
+    --cargo-clean) DO_CARGO_CLEAN=1; shift ;;
+    --clean-logs) DO_LOGS_CLEAN=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) log "Unknown arg: $1"; usage; exit 2 ;;
+  esac
+done
+
+mkdir -p "$PID_DIR" "$LOG_DIR"
+
+log "🔪 FULL STOP: killing services, cleaning pidfiles, stopping docker..."
+
+# 1) Try graceful stop for any pidfiles we have
+if compgen -G "$PID_DIR/*.pid" > /dev/null; then
+  for f in "$PID_DIR"/*.pid; do
+    name="$(basename "$f" .pid)"
+    pid="$(cat "$f" 2>/dev/null || true)"
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+      log "🛑 SIGTERM $name pid=$pid"
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+  sleep 1
+fi
+
+# 2) Hard kill known binaries no matter what (this is what you asked for)
+#    (паттерны сделаны так, чтобы прибить и ./target/release/..., и отладочные, и "svc_*" процессы)
+PATTERNS=(
+  "svc_market_ingest"
+  "svc_health"
+  "svc_writer"
+  "svc_live"
+  "svc_backfill"
+  "svc_db_init"
+  "svc_compute"
+  "svc_orders"
+  "svc_position_tracker"
+  "svc_api_gateway"
+)
+
+for p in "${PATTERNS[@]}"; do
+  if pgrep -f "$p" >/dev/null 2>&1; then
+    log "💀 pkill -9 -f $p"
+    pkill -9 -f "$p" || true
+  fi
+done
+
+# 3) Also kill anything still holding our known ports (just in case)
+for port in 9001 9005 19092 9644 8080 5433; do
+  if sudo ss -ltnp 2>/dev/null | grep -q ":$port "; then
+    log "🔌 Port $port still in use. PIDs:"
+    sudo ss -ltnp | grep ":$port " || true
+  fi
+done
+
+# 4) Remove pidfiles (they're now garbage)
+rm -f "$PID_DIR"/*.pid 2>/dev/null || true
+
+# 5) Docker down
+if (( DO_DOCKER_DOWN == 1 )); then
+  if [[ -f "$COMPOSE_FILE" ]]; then
+    if (( DO_DOCKER_VOL == 1 )); then
+      log "🐳 docker compose down -v ($COMPOSE_FILE)"
+      docker compose -f "$COMPOSE_FILE" down -v --remove-orphans || true
+    else
+      log "🐳 docker compose down ($COMPOSE_FILE)"
+      docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+    fi
+  else
+    log "⚠️ compose file not found: $COMPOSE_FILE (skip docker down)"
+  fi
+fi
+
+# 6) Optional: clean logs
+if (( DO_LOGS_CLEAN == 1 )); then
+  log "🧹 cleaning logs..."
+  rm -f "$LOG_DIR"/*.log 2>/dev/null || true
+fi
+
+# 7) Optional: cargo clean
+if (( DO_CARGO_CLEAN == 1 )); then
+  log "🧽 cargo clean..."
+  cargo clean || true
+fi
+
+log "✅ FULL STOP DONE"
+
+
+
 # scripts/healthcheck.sh
 
 #!/usr/bin/env bash
@@ -8439,9 +8620,9 @@ main() {
 
   # Ingest (загружает пары)
   start_service "ingest" "$BIN_INGEST"
-  log "Waiting for PAIRS_READY stage via health service..."
-  # Используем SVC_HEALTH_PORT из .env, по умолчанию 9005
-  ./scripts/wait_stage.sh "http://localhost:\${SVC_HEALTH_PORT:-9005}/stagez" "PAIRS_READY" 120
+  log "Waiting for PAIRS_READY stage via ingest service..."
+  # ingest публикует stagez сам (MARKET_INGEST_PORT из .env, по умолчанию 9001)
+  ./scripts/wait_stage.sh "http://localhost:${MARKET_INGEST_PORT:-9001}/stagez" "PAIRS_READY" 120
   start_service "writer" "$BIN_WRITER"
 
   # Backfill (исторические данные)
@@ -8449,9 +8630,8 @@ main() {
   start_service "backfill" "$BIN_BACKFILL"
   
   # Ждем окончания загрузки истории перед лайвом (опционально, но надежнее)
-  log "Waiting for BACKFILL_CANDLES_READY..."
-  log "Waiting for BACKFILL_CANDLES_READY via health service..."
-  ./scripts/wait_stage.sh "http://localhost:\${SVC_HEALTH_PORT:-9005}/stagez" "BACKFILL_CANDLES_READY" 3600
+  log "Waiting for BACKFILL_CANDLES_READY via ingest service..."
+  ./scripts/wait_stage.sh "http://localhost:${MARKET_INGEST_PORT:-9001}/stagez" "BACKFILL_CANDLES_READY" 3600
 
   # Live (Realtime WS)
   start_service "live" "$BIN_LIVE"
@@ -8706,78 +8886,51 @@ exit 1
 #!/usr/bin/env bash
 set -euo pipefail
 
-URL="${1:-}"
-DESIRED="${2:-}"
-TIMEOUT_SEC="${3:-120}"
+URL="${1:?url required}"
+DESIRED="${2:?desired stage required}"
+TIMEOUT="${3:-120}"
 
-if [[ -z "$URL" || -z "$DESIRED" ]]; then
-  echo "usage: wait_stage.sh <url> <DESIRED_STAGE> [timeout_sec]"
+# порядок стадий (твоя строка из бинарника уже содержит эти имена)
+STAGES=(STARTING LOADING_PAIRS PAIRS_READY LOADING_CANDLES BACKFILL_CANDLES_READY RUN)
+
+idx_of() {
+  local s="$1"
+  local i=0
+  for st in "${STAGES[@]}"; do
+    if [[ "$st" == "$s" ]]; then echo "$i"; return 0; fi
+    ((i++))
+  done
+  echo "-1"
+}
+
+desired_i="$(idx_of "$DESIRED")"
+if [[ "$desired_i" == "-1" ]]; then
+  echo "❌ wait_stage: unknown desired stage=$DESIRED"
   exit 2
 fi
 
-deadline=$(( $(date +%s) + TIMEOUT_SEC ))
+deadline=$(( $(date +%s) + TIMEOUT ))
 last=""
 
-extract_stage() {
-  python3 - <<'PY' 2>/dev/null || true
-import sys, json
-s = sys.stdin.read().strip()
-if not s:
-    print("")
-    sys.exit(0)
-if s.startswith("{"):
-    try:
-        j = json.loads(s)
-        st = j.get("stage", j)
-        if isinstance(st, dict):
-            print(st.get("stage", ""))
-        else:
-            print(str(st))
-    except Exception:
-        print("")
-else:
-    print(s)
-PY
-}
-
-while true; do
-  now=$(date +%s)
-  if (( now > deadline )); then
-    echo "❌ wait_stage timeout. desired=$DESIRED last=$last url=$URL"
-    exit 1
+while [[ $(date +%s) -lt $deadline ]]; do
+  # ожидаем JSON вида {"stage":"..."}
+  resp="$(curl -fsS "$URL" 2>/dev/null || true)"
+  stage="$(printf '%s' "$resp" | sed -n 's/.*"stage"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  if [[ -n "$stage" ]]; then
+    last="$stage"
+    cur_i="$(idx_of "$stage")"
+    # если стадия неизвестна — не валимся, просто продолжаем
+    if [[ "$cur_i" != "-1" && "$cur_i" -ge "$desired_i" ]]; then
+      echo "✅ wait_stage ok. desired=$DESIRED current=$stage url=$URL"
+      exit 0
+    fi
   fi
-
-  # Берём и body и HTTP code
-  resp="$(curl -sS -w $'\n%{http_code}' "$URL" 2>/dev/null || true)"
-  body="$(printf "%s" "$resp" | sed '$d')"
-  code="$(printf "%s" "$resp" | tail -n 1)"
-
-  if [[ "$code" != "200" ]]; then
-    sleep 1
-    continue
-  fi
-
-  stage="$(printf "%s" "$body" | extract_stage)"
-  if [[ -z "$stage" ]]; then
-    sleep 1
-    continue
-  fi
-
-  last="$stage"
-
-  if [[ "$stage" == "$DESIRED" ]]; then
-    echo "✅ stage reached: $stage"
-    exit 0
-  fi
-
-  if [[ "$stage" == ERROR* ]]; then
-    echo "❌ stage error: $stage"
-    echo "$body"
-    exit 1
-  fi
-
   sleep 1
 done
+
+echo "❌ wait_stage timeout. desired=$DESIRED last=$last url=$URL"
+exit 1
+
 
 
 
