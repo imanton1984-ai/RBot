@@ -1,0 +1,14 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+config = { workspace = true }
+# Импортируем типы, чтобы common мог их реэкспортировать или использовать
+# data_types = { path = "../data_types" }  # Removed as directory doesn't exist

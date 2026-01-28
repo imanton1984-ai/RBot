@@ -1,0 +1,26 @@
+[runtime]
+# Таймфреймы которые ДОЛЖНЫ существовать везде (backfill + compute)
+timeframes = ["1m","5m","15m","1h","4h","1d"]
+
+# Сколько свечей на backfill для каждого TF
+backfill_candles = 700
+
+# Реалтайм стратегия:
+# Важно: WS лимит 1024 streams. 250 пар * 6 TF = 1500 стримов — не влезет.
+# Поэтому realtime WS держим на ключевых, старшие TF обновляем poll/on-close.
+realtime_ws_timeframes = ["1m","5m","15m","1h"]
+realtime_poll_timeframes = ["4h","1d"]
+
+poll_on_close_interval_sec = 30     # как часто проверяем "закрылась ли" 4h/1d свеча
+
+# Intra-candle updates (обновлять незакрытую свечу по сообщениям)
+# true = ты получаешь high/low/close внутри свечи тоже
+enable_intra_candle_updates = true
+
+# Persist незакрытой свечи (чтобы рестарт не давал дырки)
+persist_live_candle = true
+persist_live_candle_every_ms = 1500
+
+# Защита от перегруза: sampling внутрисвечных обновлений
+# (close всегда обязателен, sampling касается только intra)
+intra_update_sampling_ms = 200

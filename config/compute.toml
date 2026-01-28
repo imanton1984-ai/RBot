@@ -1,0 +1,40 @@
+[compute]
+gpu_enabled = true
+gpu_preferred = true
+cpu_enabled = true
+realtime_default_backend = "cpu"
+backfill_default_backend = "gpu"
+gpu_catchup_backlog_candles = 2500
+gpu_catchup_max_latency_ms = 900
+gpu_batch_symbols = 48
+gpu_batch_timeframes = 6
+gpu_streams = 2
+hot_window_candles = 1200
+hot_indicator_window = 1200
+
+[compute.indicators]
+rsi = true
+macd = true
+ema20 = true
+ema50 = true
+ema200 = true
+sma = true
+bollinger = true
+stoch = true
+atr = true
+adx = true
+vwap = true
+obv = true
+cci = true
+williams = true
+alligator = true
+trend = true
+volume_spike = true
+sr_levels = true
+
+[compute.raw_signals]
+min_indicator_score = 0.60
+min_publish_score = 0.80
+
+[compute.final_signals]
+min_final_score = 0.97

@@ -1,0 +1,25 @@
+[rust_bot]
+env = "dev"
+run_mode = "paper"
+instance_id = "local-01"
+log_level = "info"
+json_logs = false
+redpanda_brokers = ["localhost:19092"]
+redpanda_client_id = "rust-bot"
+
+topic_candles_close     = "candles.close"
+topic_candles_update    = "candles.update"
+topic_indicators_close  = "indicators.close"
+topic_raw_signals       = "signals.raw"
+topic_final_signals     = "signals.final"
+topic_features_snapshot = "features.snapshot"
+topic_orders_cmd        = "orders.cmd"
+topic_orders_events     = "orders.events"
+topic_positions_events  = "positions.events"
+
+[rust_bot.warmup]
+require_db_schema_ready = true
+require_universe_ready = true
+require_backfill_ready = true
+require_bootstrap_indicators_ready = true
+require_model_ready = false

@@ -1,0 +1,173 @@
+# name: rust_trading_bot
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.15.3-pg16
+    container_name: timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-timescaledb_binance}
+      # speed defaults (ok for home server; tune later)
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    shm_size: "1gb"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-timescaledb_binance} -h 127.0.0.1 -p 5432"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "shared_buffers=6GB"
+      - "-c"
+      - "effective_cache_size=18GB"
+      - "-c"
+      - "work_mem=32MB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "wal_compression=on"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "checkpoint_timeout=15min"
+      - "-c"
+      - "max_wal_size=8GB"
+      - "-c"
+      - "min_wal_size=2GB"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "autovacuum=on"
+      - "-c"
+      - "autovacuum_max_workers=5"
+      - "-c"
+      - "autovacuum_vacuum_cost_limit=2000"
+      - "-c"
+      - "autovacuum_vacuum_cost_delay=2ms"
+      - "-c"
+      - "log_min_duration_statement=250ms"
+      - "-c"
+      - "log_checkpoints=on"
+    networks:
+      - botnet
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.9
+    container_name: redpanda
+    restart: unless-stopped
+    ports:
+      # Kafka API
+      - "${RP_KAFKA_PORT:-19092}:19092"
+      # Admin API
+      - "${RP_ADMIN_PORT:-9644}:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "${RP_SMP:-4}"
+      - --memory
+      - "${RP_MEMORY:-4G}"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      # listeners
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:29092,OUTSIDE://localhost:19092
+      - --pandaproxy-addr
+      - "0.0.0.0:8082"
+      - --advertise-pandaproxy-addr
+      - "redpanda:8082"
+      - --rpc-addr
+      - "0.0.0.0:33145"
+      - --advertise-rpc-addr
+      - "redpanda:33145"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --api-urls=http://127.0.0.1:9644"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - botnet
+
+  redpanda-console:
+    image: redpandadata/console:v2.6.1
+    container_name: redpanda_console
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "${RP_CONSOLE_PORT:-8080}:8080"
+    environment:
+      KAFKA_BROKERS: "redpanda:29092"
+      KAFKA_SCHEMAREGISTRY_ENABLED: "false"
+      SERVER_LISTENPORT: "8080"
+      # Optional: hide dangerous actions
+      # CONSOLE_DISABLETOPICDELETION: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    networks:
+      - botnet
+
+  # Optional: metrics stack (enable via profile)
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: prometheus
+    restart: unless-stopped
+    profiles: ["metrics"]
+    ports:
+      - "${PROM_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    networks:
+      - botnet
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    restart: unless-stopped
+    profiles: ["metrics"]
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    networks:
+      - botnet
+
+volumes:
+  timescale_data:
+  redpanda_data:
+  prom_data:
+  grafana_data:
+
+networks:
+  botnet:
+    driver: bridge
