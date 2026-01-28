@@ -130,6 +130,19 @@ else
   echo "Leaving infra running (use --down to stop docker compose)."
 fi
 
+# stop healthcheck grafana services
+echo "Stopping healthcheck Grafana services..."
+if command -v docker >/dev/null 2>&1 && (command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1); then
+  cd "$ROOT_DIR/healthcheck/grafana"
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose down
+  else
+    docker compose down
+  fi
+else
+  echo "docker-compose not found. Skipping Grafana shutdown."
+fi
+
 echo "==========================================="
 echo "STOP DONE @ $(date)"
 echo "Logs in : $LOG_DIR"

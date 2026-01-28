@@ -390,6 +390,22 @@ if [[ "$TAIL_LOGS" -eq 1 ]]; then
   tail -n 200 -F "$LOG_DIR"/*.out
 fi
 
+# ----------------- 4) start grafana for healthcheck -----------------
+
+section "START GRAFANA HEALTHCHECK"
+
+if command -v docker >/dev/null 2>&1 && (command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1); then
+  log "Starting Grafana for healthcheck monitoring..."
+  cd "$ROOT_DIR/healthcheck/grafana"
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose up -d
+  else
+    docker compose up -d
+  fi
+  ok "Grafana started. Access at http://localhost:3001 (admin/admin)"
+else
+  warn "Docker or docker-compose not found. Skipping Grafana startup."
+fi
 
 
 

@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9091']
+
+  - job_name: 'healthcheck_module'
+    static_configs:
+      - targets: ['host.docker.internal:9100']  # Node exporter or custom metrics endpoint
+        labels:
+          group: 'infrastructure'
+
+  - job_name: 'rust_processes'
+    static_configs:
+      - targets: ['host.docker.internal:9090']  # Main application metrics
+        labels:
+          group: 'application'
+          
+  - job_name: 'docker_containers'
+    static_configs:
+      - targets: ['host.docker.internal:9323']  # cAdvisor for Docker container metrics
+        labels:
+          group: 'containers'
