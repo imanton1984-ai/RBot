@@ -298,11 +298,12 @@ if [[ "$need_build" -eq 1 ]]; then
   log "Targets : ${C_BOLD}$SERVICE_BINS${C_RESET}"
 
   if [[ "$BUILD_PROFILE" == "release" ]]; then
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor}"
   else
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor}"
   fi
 
+  
   # Если хочешь ограничить сборку только нужными бинари (сильно ускоряет),
   # можно выставить: CARGO_BUILD_CMD="cargo build --release --bin svc_a --bin svc_b"
   log "+ ${C_BOLD}$CARGO_BUILD_CMD${C_RESET}"
@@ -315,7 +316,36 @@ else
   ok "Skipping build (auto-mode: binaries are up-to-date)."
 fi
 
+# # ----------------- 2.5) one-shot steps -----------------
+
+run_oneshot() {
+  local name="$1"
+  local outfile="$LOG_DIR/${name}.out"
+
+  local bin_path
+  bin_path="$(find_bin_path "$name" || true)"
+  [[ -n "$bin_path" ]] || die "oneshot binary not found: $name"
+
+  section "ONESHOT: $name"
+  log "Running: ${C_BOLD}$name${C_RESET}"
+  log "  bin: $bin_path"
+  log "  log: $outfile"
+
+  # Пишем лог, но НЕ в nohup — это шаг, который должен завершиться сейчас.
+  "$bin_path" 2>&1 | tee -a "$outfile"
+  ok "Oneshot finished: $name"
+}
+
+# --- PAIRS: refresh universe into DB ---
+# по умолчанию ждём хотя бы 300 активных пар
+export MIN_PAIRS="${MIN_PAIRS:-300}"
+export RUST_LOG="${RUST_LOG:-info}"
+
+run_oneshot "ingestor_pairs"
+
 # ----------------- 3) start services -----------------
+
+
 
 section "START SERVICES"
 

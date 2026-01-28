@@ -1,3 +1,7 @@
+[[bin]]
+name = "svc_db_init"
+path = "src/bin/svc_db_init.rs"
+
 [package]
 name = "database"
 version = "0.1.0"
@@ -17,3 +21,5 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 config = { workspace = true }
 common = { path = "../common" }
+tracing-subscriber = { workspace = true }
+dotenvy = { workspace = true }

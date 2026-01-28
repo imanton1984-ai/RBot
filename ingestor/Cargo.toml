@@ -1,0 +1,22 @@
+[package]
+name = "ingestor"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ingestor_pairs"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+sqlx = { workspace = true }
+
+common = { path = "../common" }
+dotenvy = { workspace = true }
+

@@ -1,0 +1,2 @@
+[2m2026-01-28T19:37:08.648814Z[0m [32m INFO[0m [2mingestor_pairs::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=368, active_cnt=368
+[2m2026-01-28T19:37:08.648952Z[0m [32m INFO[0m [2mingestor_pairs[0m[2m:[0m pairs_ready=true: selected=368, active=368 (MIN_PAIRS=300)

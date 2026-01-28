@@ -42,7 +42,7 @@ impl DatabaseInitializer {
         for (index, ddl_content) in ddl_files.iter().enumerate() {
             info!("Executing DDL file #{}...", index);
             if !ddl_content.trim().is_empty() {
-                match sqlx::query(ddl_content).execute(&self.pool).await {
+                match sqlx::raw_sql(ddl_content).execute(&self.pool).await {
                     Ok(_) => {
                         info!("Successfully executed DDL file #{}", index);
                     },

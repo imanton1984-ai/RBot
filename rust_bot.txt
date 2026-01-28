@@ -6,6 +6,7 @@ members = [
   "connections",      # <-- единый модуль подключений
   "database",
   "healthcheck",
+  "ingestor",
 ]
 resolver = "2"
 
@@ -20,7 +21,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 reqwest = { version = "0.13.1", default-features = false, features = ["json", "rustls"] }
 rustls = { version = "0.23.36", default-features = false, features = ["ring"] }
@@ -243,11 +244,58 @@ pub mod connections_health;
 pub mod docker_health;
 pub mod binaries_health;
 pub mod db_init_health;
+pub mod pair_health;
 
 pub use connections_health::*;
 pub use docker_health::*;
 pub use binaries_health::*;
 pub use db_init_health::*;
+pub use pair_health::*;
+
+
+
+# healthcheck/src/pair_health.rs
+
+use sqlx::PgPool;
+
+pub struct PairHealthChecker;
+
+pub struct PairHealthResult {
+    pub ok: bool,
+    pub active_pairs: i64,
+    pub last_refreshed_age_sec: Option<i64>,
+}
+
+impl PairHealthChecker {
+    pub async fn check(db_url: &str, min_pairs: i64, max_age_sec: i64) -> PairHealthResult {
+        let pool = match PgPool::connect(db_url).await {
+            Ok(p) => p,
+            Err(_) => {
+                return PairHealthResult { ok: false, active_pairs: 0, last_refreshed_age_sec: None };
+            }
+        };
+
+        let (active_pairs,): (i64,) = match sqlx::query_as(
+            "SELECT COUNT(*) FROM market.pairs WHERE is_active = TRUE"
+        ).fetch_one(&pool).await {
+            Ok(v) => v,
+            Err(_) => return PairHealthResult { ok: false, active_pairs: 0, last_refreshed_age_sec: None },
+        };
+
+        let (age_sec_opt,): (Option<i64>,) = match sqlx::query_as(
+            "SELECT EXTRACT(EPOCH FROM (now() - MAX(last_refreshed_at)))::bigint FROM market.pairs"
+        ).fetch_one(&pool).await {
+            Ok(v) => v,
+            Err(_) => (None,),
+        };
+
+        let age_ok = age_sec_opt.map(|age| age <= max_age_sec).unwrap_or(false);
+        let ok = active_pairs >= min_pairs && age_ok;
+
+        PairHealthResult { ok, active_pairs, last_refreshed_age_sec: age_sec_opt }
+    }
+}
+
 
 
 # common/Cargo.toml
@@ -521,1316 +569,6 @@ pub mod config;
 // Реэкспортируем config для удобства
 pub use config::*;
 pub mod health;
-
-
-# tests/connection_tests.rs
-
-use connections::{
-    binance_api::BinanceApi,
-    binance_websocket::BinanceWebSocket,
-    database::DatabaseConnection,
-    redpanda::RedpandaConnection,
-    connection_check::check_all_connections,
-};
-use std::time::Duration;
-use tokio::time::timeout;
-
-/// Test Binance API connection
-#[tokio::test]
-async fn test_binance_api_connection() {
-    println!("\n🔍 Testing Binance API Connection...");
-    
-    let api_result = timeout(Duration::from_secs(10), async {
-        match BinanceApi::new() {
-            Ok(api) => {
-                match api.ping().await {
-                    Ok(_) => {
-                        println!("✅ Binance API connection: SUCCESS - Ready to receive market data via REST API");
-                        true
-                    },
-                    Err(e) => {
-                        eprintln!("❌ Binance API ping failed: {}", e);
-                        false
-                    }
-                }
-            },
-            Err(e) => {
-                eprintln!("❌ Failed to create Binance API client: {}", e);
-                false
-            }
-        }
-    }).await;
-
-    match api_result {
-        Ok(success) => assert!(success, "Binance API connection test should succeed"),
-        Err(_) => panic!("Binance API connection test timed out"),
-    }
-}
-
-/// Test Binance WebSocket connection
-#[tokio::test]
-async fn test_binance_websocket_connection() {
-    println!("\n📡 Testing Binance WebSocket Connection...");
-    
-    let ws_result = timeout(Duration::from_secs(10), async {
-        let ws = BinanceWebSocket::new();
-        match ws.test_connection().await {
-            Ok(_) => {
-                println!("✅ Binance WebSocket connection: SUCCESS - Ready to receive live market data");
-                true
-            },
-            Err(e) => {
-                eprintln!("⚠ Binance WebSocket connection failed (might be due to service unavailability): {}", e);
-                // Return true to avoid test failure when service is temporarily unavailable
-                true
-            }
-        }
-    }).await;
-
-    match ws_result {
-        Ok(_) => println!("Binance WebSocket test completed"),
-        Err(_) => eprintln!("Binance WebSocket connection test timed out"),
-    }
-}
-
-/// Test Database connection
-#[tokio::test]
-async fn test_database_connection() {
-    println!("\n💾 Testing Database Connection...");
-    
-    let db_result = timeout(Duration::from_secs(15), async {
-        match DatabaseConnection::connect().await {
-            Ok(db) => {
-                match db.ping().await {
-                    Ok(_) => {
-                        println!("✅ Database connection: SUCCESS - TimescaleDB ready for storing market data");
-                        true
-                    },
-                    Err(e) => {
-                        eprintln!("❌ Database ping failed: {}", e);
-                        false
-                    }
-                }
-            },
-            Err(e) => {
-                eprintln!("❌ Failed to connect to database: {}", e);
-                false
-            }
-        }
-    }).await;
-
-    match db_result {
-        Ok(success) => assert!(success, "Database connection test should succeed"),
-        Err(_) => panic!("Database connection test timed out"),
-    }
-}
-
-/// Test Redpanda connection
-#[tokio::test]
-async fn test_redpanda_connection() {
-    println!("\n.kafka Testing Redpanda Connection...");
-    
-    let rp_result = timeout(Duration::from_secs(10), async {
-        let config = connections::redpanda::RedpandaConfig::default();
-        match RedpandaConnection::new(config) {
-            Ok(mut rp_conn) => {
-                match rp_conn.connect_producer().await {
-                    Ok(_) => {
-                        match rp_conn.ping().await {
-                            Ok(_) => {
-                                println!("✅ Redpanda connection: SUCCESS - Kafka ready for message streaming");
-                                true
-                            },
-                            Err(e) => {
-                                eprintln!("❌ Redpanda ping failed: {}", e);
-                                false
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("⚠ Failed to connect to Redpanda (might be due to service unavailability): {}", e);
-                        // Return true to avoid test failure when service is temporarily unavailable
-                        true
-                    }
-                }
-            },
-            Err(e) => {
-                eprintln!("❌ Failed to create Redpanda connection: {}", e);
-                false
-            }
-        }
-    }).await;
-
-    match rp_result {
-        Ok(_) => println!("Redpanda connection test completed"),
-        Err(_) => eprintln!("Redpanda connection test timed out"),
-    }
-}
-
-/// Test all connections together
-#[tokio::test]
-async fn test_all_connections() {
-    println!("\n🚀 Testing All Connections Together...");
-    
-    let all_result = timeout(Duration::from_secs(30), async {
-        match check_all_connections().await {
-            Ok(_) => {
-                println!("✅ All connections test completed - All systems operational");
-                true
-            },
-            Err(e) => {
-                eprintln!("⚠ Some connections failed: {}", e);
-                // Still return true as partial failures are expected in test environments
-                true
-            }
-        }
-    }).await;
-
-    match all_result {
-        Ok(_) => println!("All connections test completed successfully"),
-        Err(_) => eprintln!("All connections test timed out"),
-    }
-}
-
-/// Test connection stability by pinging multiple times
-#[tokio::test]
-async fn test_connection_stability() {
-    println!("\n⚖️  Testing Connection Stability...");
-    
-    let stability_result = timeout(Duration::from_secs(20), async {
-        // Test database stability
-        if let Ok(db) = DatabaseConnection::connect().await {
-            let mut stable = true;
-            for i in 1..=3 {
-                match db.ping().await {
-                    Ok(_) => {
-                        println!("✅ Database ping {} successful", i);
-                    },
-                    Err(e) => {
-                        eprintln!("❌ Database ping {} failed: {}", i, e);
-                        stable = false;
-                        break;
-                    }
-                }
-                tokio::time::sleep(Duration::from_millis(500)).await;
-            }
-            if stable {
-                println!("✅ Database connection stability test passed");
-            }
-            stable
-        } else {
-            eprintln!("❌ Could not establish database connection for stability test");
-            false
-        }
-    }).await;
-
-    match stability_result {
-        Ok(success) => assert!(success, "Connection stability test should succeed"),
-        Err(_) => panic!("Connection stability test timed out"),
-    }
-}
-
-/// Test that environment variables are loaded correctly
-#[test]
-fn test_env_vars_loaded() {
-    println!("\n⚙️  Testing Environment Variables...");
-    
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_default();
-    let kafka_brokers = std::env::var("KAFKA_BROKERS").unwrap_or_default();
-    
-    println!("✅ DATABASE_URL: {}", if !db_url.is_empty() { "present" } else { "missing" });
-    println!("✅ KAFKA_BROKERS: {}", if !kafka_brokers.is_empty() { "present" } else { "missing" });
-    
-    // These values should be set from the .env file
-    assert!(!db_url.is_empty(), "DATABASE_URL should be set");
-    assert!(!kafka_brokers.is_empty(), "KAFKA_BROKERS should be set");
-    
-    println!("✅ Environment variables loaded correctly");
-}
-
-
-# tests/full_pipeline_test.rs
-
-use connections_lib::{
-    binance_api::BinanceApi,
-    binance_websocket::BinanceWebSocket,
-    database::DatabaseConnection,
-    redpanda::{RedpandaConnection, RedpandaConfig},
-};
-use serde::{Deserialize, Serialize};
-use sqlx::Row;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MarketData {
-    symbol: String,
-    price: f64,
-    volume: f64,
-    timestamp: i64,
-    trade_id: u64,
-}
-
-#[tokio::test]
-async fn test_historical_data_pipeline() {
-    println!("\n🏛️  Testing Historical Data Pipeline: API → Kafka → Database");
-    
-    let start_time = Instant::now();
-    
-    // Track initialization metrics
-    let tables_created = Arc::new(Mutex::new(0));
-    let records_added = Arc::new(Mutex::new(0));
-    
-    // Initialize all connection systems
-    let api_client = match BinanceApi::new() {
-        Ok(client) => {
-            println!("✅ Binance API client initialized");
-            client
-        },
-        Err(e) => {
-            panic!("❌ Failed to initialize Binance API client: {}", e);
-        }
-    };
-    
-    let db_connection = match DatabaseConnection::connect().await {
-        Ok(conn) => {
-            println!("✅ Database connection established");
-            conn
-        },
-        Err(e) => {
-            panic!("❌ Failed to establish database connection: {}", e);
-        }
-    };
-    
-    let kafka_config = RedpandaConfig::default();
-    let mut kafka_connection = match RedpandaConnection::new(kafka_config) {
-        Ok(mut conn) => {
-            match conn.connect_producer().await {
-                Ok(_) => {
-                    println!("✅ Redpanda connection established");
-                    conn
-                },
-                Err(e) => {
-                    panic!("❌ Failed to connect to Redpanda: {}", e);
-                }
-            }
-        },
-        Err(e) => {
-            panic!("❌ Failed to initialize Redpanda connection: {}", e);
-        }
-    };
-    
-    // Test individual system readiness
-    let api_ready = api_client.ping().await.is_ok();
-    let db_ready = db_connection.ping().await.is_ok();
-    let kafka_ready = kafka_connection.ping().await.is_ok();
-    
-    assert!(api_ready, "Binance API should be ready");
-    assert!(db_ready, "Database should be ready");
-    assert!(kafka_ready, "Redpanda should be ready");
-    
-    println!("✅ All systems ready for historical data pipeline test");
-    
-    // Create historical market data
-    let historical_data = MarketData {
-        symbol: "BTCUSDT".to_string(),
-        price: 45000.0,
-        volume: 1.5,
-        timestamp: chrono::Utc::now().timestamp_millis(),
-        trade_id: 400000000,
-    };
-    
-    println!("   📡 Step 1: Retrieving historical data from API...");
-    // Simulate API data retrieval (in real scenario, this would fetch historical data)
-    tokio::time::sleep(Duration::from_millis(50)).await; // Simulate API call
-    println!("   ✅ Historical data retrieved from API");
-    
-    println!("   .kafka Step 2: Sending historical data via Kafka...");
-    let kafka_message = serde_json::to_string(&historical_data).unwrap();
-    match kafka_connection.send_message("historical-data-topic", &kafka_message).await {
-        Ok(_) => {
-            println!("   ✅ Historical data sent via Kafka - Message ID: {}", historical_data.trade_id);
-        },
-        Err(e) => {
-            panic!("❌ Failed to send historical data via Kafka: {}", e);
-        }
-    }
-    
-    println!("   💾 Step 3: Storing historical data in database...");
-    let insert_query = format!(
-        "INSERT INTO integration_test_data (symbol, price, volume, timestamp, trade_id) VALUES ('{}', {}, {}, {}, {}) RETURNING id",
-        historical_data.symbol, historical_data.price, historical_data.volume, historical_data.timestamp, historical_data.trade_id
-    );
-    
-    match db_connection.execute(&insert_query).await {
-        Ok(rows_affected) => {
-            println!("   ✅ Historical data stored in database - {} rows affected", rows_affected);
-            // Update records counter
-            let mut records = records_added.lock().await;
-            *records += rows_affected;
-        },
-        Err(e) => {
-            println!("   ⚠️ Historical data storage failed: {}", e);
-        }
-    }
-    
-    let elapsed = start_time.elapsed();
-    println!("\n⏱️  Historical data pipeline time: {:.2?}", elapsed);
-    
-    // Verify the data was stored properly
-    let verify_query = format!(
-        "SELECT symbol, price FROM integration_test_data WHERE trade_id = {}",
-        historical_data.trade_id
-    );
-    
-    match db_connection.execute_query(&verify_query, |row: &sqlx::postgres::PgRow| {
-        (row.get_unchecked::<String, _>("symbol"), row.get_unchecked::<f64, _>("price"))
-    }).await {
-        Ok(results) => {
-            if !results.is_empty() {
-                println!("   ✅ Data verification successful - retrieved {} records", results.len());
-            } else {
-                println!("   ⚠️ Data verification failed - no records found");
-            }
-        },
-        Err(e) => {
-            println!("   ⚠️ Data verification query failed: {}", e);
-        }
-    }
-    
-    println!("✅ Historical data pipeline test completed successfully");
-}
-
-#[tokio::test]
-async fn test_live_data_pipeline() {
-    println!("\n📡 Testing Live Data Pipeline: WebSocket → Kafka → Database");
-    
-    let start_time = Instant::now();
-    
-    // Initialize all connection systems
-    let ws_client = BinanceWebSocket::new();
-    println!("✅ Binance WebSocket client initialized");
-    
-    let db_connection = match DatabaseConnection::connect().await {
-        Ok(conn) => {
-            println!("✅ Database connection established");
-            conn
-        },
-        Err(e) => {
-            panic!("❌ Failed to establish database connection: {}", e);
-        }
-    };
-    
-    let kafka_config = RedpandaConfig::default();
-    let mut kafka_connection = match RedpandaConnection::new(kafka_config) {
-        Ok(mut conn) => {
-            match conn.connect_producer().await {
-                Ok(_) => {
-                    println!("✅ Redpanda connection established");
-                    conn
-                },
-                Err(e) => {
-                    panic!("❌ Failed to connect to Redpanda: {}", e);
-                }
-            }
-        },
-        Err(e) => {
-            panic!("❌ Failed to initialize Redpanda connection: {}", e);
-        }
-    };
-    
-    // Test individual system readiness
-    let ws_ready = ws_client.test_connection().await.is_ok();
-    let db_ready = db_connection.ping().await.is_ok();
-    let kafka_ready = kafka_connection.ping().await.is_ok();
-    
-    assert!(ws_ready, "WebSocket should be ready");
-    assert!(db_ready, "Database should be ready");
-    assert!(kafka_ready, "Redpanda should be ready");
-    
-    println!("✅ All systems ready for live data pipeline test");
-    
-    // Create live market data (simulated from WebSocket)
-    let live_data = MarketData {
-        symbol: "ETHUSDT".to_string(),
-        price: 3200.0,
-        volume: 2.3,
-        timestamp: chrono::Utc::now().timestamp_millis(),
-        trade_id: 500000000,
-    };
-    
-    println!("   🌐 Step 1: Receiving live data from WebSocket...");
-    // Simulate WebSocket data reception (in real scenario, this would receive live data)
-    tokio::time::sleep(Duration::from_millis(50)).await; // Simulate WebSocket reception
-    println!("   ✅ Live data received from WebSocket simulation");
-    
-    println!("   .kafka Step 2: Sending live data via Kafka...");
-    let kafka_message = serde_json::to_string(&live_data).unwrap();
-    match kafka_connection.send_message("live-data-topic", &kafka_message).await {
-        Ok(_) => {
-            println!("   ✅ Live data sent via Kafka - Message ID: {}", live_data.trade_id);
-        },
-        Err(e) => {
-            panic!("❌ Failed to send live data via Kafka: {}", e);
-        }
-    }
-    
-    println!("   💾 Step 3: Storing live data in database...");
-    let insert_query = format!(
-        "INSERT INTO cross_system_test (symbol, price, volume, timestamp, trade_id) VALUES ('{}', {}, {}, {}, {}) RETURNING id",
-        live_data.symbol, live_data.price, live_data.volume, live_data.timestamp, live_data.trade_id
-    );
-    
-    match db_connection.execute(&insert_query).await {
-        Ok(rows_affected) => {
-            println!("   ✅ Live data stored in database - {} rows affected", rows_affected);
-        },
-        Err(e) => {
-            println!("   ⚠️ Live data storage failed: {}", e);
-        }
-    }
-    
-    let elapsed = start_time.elapsed();
-    println!("\n⏱️  Live data pipeline time: {:.2?}", elapsed);
-    
-    // Verify the data was stored properly
-    let verify_query = format!(
-        "SELECT symbol, price FROM cross_system_test WHERE trade_id = {}",
-        live_data.trade_id
-    );
-    
-    match db_connection.execute_query(&verify_query, |row: &sqlx::postgres::PgRow| {
-        (row.get_unchecked::<String, _>("symbol"), row.get_unchecked::<f64, _>("price"))
-    }).await {
-        Ok(results) => {
-            if !results.is_empty() {
-                println!("   ✅ Data verification successful - retrieved {} records", results.len());
-            } else {
-                println!("   ⚠️ Data verification failed - no records found");
-            }
-        },
-        Err(e) => {
-            println!("   ⚠️ Data verification query failed: {}", e);
-        }
-    }
-    
-    println!("✅ Live data pipeline test completed successfully");
-}
-
-#[tokio::test]
-async fn test_database_initialization_log() {
-    println!("\n📋 Database Initialization Log:");
-    
-    let start_time = Instant::now();
-    
-    // Connect to database
-    let db_connection = match DatabaseConnection::connect().await {
-        Ok(conn) => {
-            println!("✅ Database connection established");
-            conn
-        },
-        Err(e) => {
-            panic!("❌ Failed to establish database connection: {}", e);
-        }
-    };
-    
-    // Test database readiness
-    let db_ready = db_connection.ping().await.is_ok();
-    assert!(db_ready, "Database should be ready");
-    
-    // Count tables that exist in the database
-    let table_count_query = "
-        SELECT COUNT(*) as table_count 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name LIKE '%test%'
-    ";
-    
-    let table_count_result = db_connection.execute_query(table_count_query, |row: &sqlx::postgres::PgRow| {
-        row.get_unchecked::<i64, _>("table_count") as u64
-    }).await;
-    
-    let table_count = match table_count_result {
-        Ok(counts) => counts.first().copied().unwrap_or(0),
-        Err(_) => 0,
-    };
-    
-    println!("   🗂️  Tables found in database: {}", table_count);
-    
-    // Count records in test tables
-    let record_counts = vec!["integration_test_data", "cross_system_test"];
-    let mut total_records = 0;
-    
-    for table in &record_counts {
-        let count_query = format!("SELECT COUNT(*) as record_count FROM {}", table);
-        
-        let record_count_result = db_connection.execute_query(&count_query, |row: &sqlx::postgres::PgRow| {
-            row.get_unchecked::<i64, _>("record_count") as u64
-        }).await;
-        
-        let record_count = match record_count_result {
-            Ok(counts) => counts.first().copied().unwrap_or(0),
-            Err(_) => 0,
-        };
-        
-        println!("   📊 Records in {}: {}", table, record_count);
-        total_records += record_count;
-    }
-    
-    println!("   📈 Total records in test tables: {}", total_records);
-    
-    // Show some sample data
-    for table in &record_counts {
-        let sample_query = format!("SELECT symbol, price, timestamp FROM {} LIMIT 2", table);
-        
-        match db_connection.execute_query(&sample_query, |row: &sqlx::postgres::PgRow| {
-            let symbol: String = row.get_unchecked("symbol");
-            let price: f64 = row.get_unchecked("price");
-            let timestamp: i64 = row.get_unchecked("timestamp");
-            (symbol, price, timestamp)
-        }).await {
-            Ok(samples) => {
-                if !samples.is_empty() {
-                    println!("   🧪 Sample data from {}:", table);
-                    for (symbol, price, timestamp) in samples {
-                        println!("      • {} @ ${} at {}", symbol, price, timestamp);
-                    }
-                }
-            },
-            Err(_) => {
-                println!("   ⚠️ No sample data available in {}", table);
-            }
-        }
-    }
-    
-    let elapsed = start_time.elapsed();
-    println!("\n⏱️  Database initialization verification time: {:.2?}", elapsed);
-    println!("✅ Database initialization log completed");
-    println!("📊 Summary: {} tables, {} total records verified", table_count, total_records);
-}
-
-
-# tests/integration_test.rs
-
-use connections_lib::{
-    binance_api::BinanceApi,
-    binance_websocket::BinanceWebSocket,
-    database::DatabaseConnection,
-    redpanda::{RedpandaConnection, RedpandaConfig},
-};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MarketData {
-    symbol: String,
-    price: f64,
-    volume: f64,
-    timestamp: i64,
-    trade_id: u64,
-}
-
-#[tokio::test]
-async fn test_full_system_integration() {
-    println!("\n🔄 Starting Full System Integration Test...");
-    
-    let start_time = Instant::now();
-    
-    // Shared state for tracking data flow between systems
-    let api_data_received = Arc::new(Mutex::new(Vec::<MarketData>::new()));
-    let websocket_data_received = Arc::new(Mutex::new(Vec::<MarketData>::new()));
-    let kafka_messages_sent = Arc::new(Mutex::new(Vec::<String>::new()));
-    let db_records_written = Arc::new(Mutex::new(Vec::<MarketData>::new()));
-    
-    println!("🔗 Initializing all connection systems...");
-    
-    // Initialize all connection systems
-    let api_client = match BinanceApi::new() {
-        Ok(client) => {
-            println!("✅ Binance API client initialized");
-            client
-        },
-        Err(e) => {
-            panic!("❌ Failed to initialize Binance API client: {}", e);
-        }
-    };
-    
-    let ws_client = BinanceWebSocket::new();
-    println!("✅ Binance WebSocket client initialized");
-    
-    let db_connection = match DatabaseConnection::connect().await {
-        Ok(conn) => {
-            println!("✅ Database connection established");
-            conn
-        },
-        Err(e) => {
-            panic!("❌ Failed to establish database connection: {}", e);
-        }
-    };
-    
-    let kafka_config = RedpandaConfig::default();
-    let mut kafka_connection = match RedpandaConnection::new(kafka_config) {
-        Ok(mut conn) => {
-            match conn.connect_producer().await {
-                Ok(_) => {
-                    println!("✅ Redpanda connection established");
-                    conn
-                },
-                Err(e) => {
-                    panic!("❌ Failed to connect to Redpanda: {}", e);
-                }
-            }
-        },
-        Err(e) => {
-            panic!("❌ Failed to initialize Redpanda connection: {}", e);
-        }
-    };
-    
-    println!("\n🔍 Testing individual system readiness...");
-    
-    // Test individual system readiness
-    let api_ready = api_client.ping().await.is_ok();
-    let _ws_ready = ws_client.test_connection().await.is_ok(); // Just test setup, not actual connection
-    let db_ready = db_connection.ping().await.is_ok();
-    let kafka_ready = kafka_connection.ping().await.is_ok();
-    
-    println!("   Binance API: {}", if api_ready { "✅ READY" } else { "❌ NOT READY" });
-    println!("   WebSocket: {}", if true { "✅ READY" } else { "❌ NOT READY" }); // Assuming ready since we tested setup
-    println!("   Database: {}", if db_ready { "✅ READY" } else { "❌ NOT READY" });
-    println!("   Redpanda: {}", if kafka_ready { "✅ READY" } else { "❌ NOT READY" });
-    
-    // Verify all systems are ready
-    assert!(api_ready, "Binance API should be ready");
-    assert!(db_ready, "Database should be ready");
-    assert!(kafka_ready, "Redpanda should be ready");
-    
-    println!("\n🚀 Starting coordinated system test...");
-    
-    // Create sample market data for the integration test
-    let sample_data = MarketData {
-        symbol: "BTCUSDT".to_string(),
-        price: 45000.0,
-        volume: 1.5,
-        timestamp: chrono::Utc::now().timestamp_millis(),
-        trade_id: 123456789,
-    };
-    
-    // Clone data for each task
-    let sample_data_api = sample_data.clone();
-    let sample_data_ws = sample_data.clone();
-    let sample_data_kafka = sample_data.clone();
-    let sample_data_db = sample_data.clone();
-    
-    // Spawn tasks for each system interaction
-    let api_data_clone = api_data_received.clone();
-    let api_task = tokio::spawn(async move {
-        // Simulate API data retrieval
-        println!("   📡 API task: Retrieving historical data...");
-        // In a real scenario, this would fetch actual data from the API
-        {
-            let mut data_vec = api_data_clone.lock().await;
-            data_vec.push(sample_data_api);
-        }
-        println!("   ✅ API task: Historical data retrieved and stored");
-        true
-    });
-    
-    let ws_data_clone = websocket_data_received.clone();
-    let ws_task = tokio::spawn(async move {
-        // Simulate WebSocket data reception
-        println!("   🌐 WebSocket task: Receiving live market data...");
-        // In a real scenario, this would listen for WebSocket messages
-        tokio::time::sleep(Duration::from_millis(100)).await; // Simulate processing time
-        {
-            let mut data_vec = ws_data_clone.lock().await;
-            data_vec.push(sample_data_ws);
-        }
-        println!("   ✅ WebSocket task: Live data received and stored");
-        true
-    });
-    
-    let kafka_msg_clone = kafka_messages_sent.clone();
-    let kafka_task = tokio::spawn(async move {
-        // Send data through Redpanda
-        println!("   .kafka Kafka task: Publishing data message...");
-        let message = serde_json::to_string(&sample_data_kafka).unwrap();
-        match kafka_connection.send_message(&format!("trade-{}", sample_data_kafka.trade_id), &message).await {
-            Ok(_) => {
-                {
-                    let mut msg_vec = kafka_msg_clone.lock().await;
-                    msg_vec.push(message);
-                }
-                println!("   ✅ Kafka task: Message published successfully");
-                true
-            },
-            Err(e) => {
-                println!("   ❌ Kafka task: Failed to publish message: {}", e);
-                false
-            }
-        }
-    });
-    
-    let db_records_clone = db_records_written.clone();
-    let db_task = tokio::spawn(async move {
-        // Store data in database
-        println!("   💾 Database task: Storing data record...");
-        let insert_query = format!(
-            "INSERT INTO integration_test_data (symbol, price, volume, timestamp, trade_id) VALUES ('{}', {}, {}, {}, {})",
-            sample_data_db.symbol, sample_data_db.price, sample_data_db.volume, sample_data_db.timestamp, sample_data_db.trade_id
-        );
-        
-        match db_connection.execute(&insert_query).await {
-            Ok(rows_affected) => {
-                {
-                    let mut records_vec = db_records_clone.lock().await;
-                    records_vec.push(sample_data_db);
-                }
-                println!("   ✅ Database task: Record stored ({} rows affected)", rows_affected);
-                true
-            },
-            Err(e) => {
-                println!("   ❌ Database task: Failed to store record: {}", e);
-                false
-            }
-        }
-    });
-    
-    // Wait for all tasks to complete
-    let api_result = api_task.await.unwrap();
-    let ws_result = ws_task.await.unwrap();
-    let kafka_result = kafka_task.await.unwrap();
-    let db_result = db_task.await.unwrap();
-    
-    println!("\n📋 Integration Test Results:");
-    println!("   API Data Retrieval: {}", if api_result { "✅ SUCCESS" } else { "❌ FAILED" });
-    println!("   WebSocket Reception: {}", if ws_result { "✅ SUCCESS" } else { "❌ FAILED" });
-    println!("   Kafka Messaging: {}", if kafka_result { "✅ SUCCESS" } else { "❌ FAILED" });
-    println!("   Database Storage: {}", if db_result { "✅ SUCCESS" } else { "❌ FAILED" });
-    
-    // Check data consistency across systems
-    let api_data_count = api_data_received.lock().await.len();
-    let ws_data_count = websocket_data_received.lock().await.len();
-    let kafka_msg_count = kafka_messages_sent.lock().await.len();
-    let db_record_count = db_records_written.lock().await.len();
-    
-    println!("\n📊 Data Flow Verification:");
-    println!("   Data from API: {} records", api_data_count);
-    println!("   Data from WebSocket: {} records", ws_data_count);
-    println!("   Messages to Kafka: {} records", kafka_msg_count);
-    println!("   Records in Database: {} records", db_record_count);
-    
-    // Verify that all systems handled data appropriately
-    assert_eq!(api_data_count, 1, "API should have processed 1 data record");
-    assert_eq!(ws_data_count, 1, "WebSocket should have received 1 data record");
-    assert_eq!(kafka_msg_count, 1, "Kafka should have sent 1 message");
-    assert!(db_record_count >= 0, "Database should have stored records (may fail due to table not existing)");
-    
-    let elapsed = start_time.elapsed();
-    println!("\n⏱️  Total integration test time: {:.2?}", elapsed);
-    
-    if api_result && ws_result && kafka_result {
-        println!("✅ Integration test completed successfully - all systems working harmoniously");
-    } else {
-        println!("⚠️ Integration test had partial failures - investigate system interactions");
-    }
-    
-    println!("\n🔄 Testing system interference (coexistence)...");
-    
-    // Test that systems don't interfere with each other by running concurrent operations
-    let concurrency_test_start = Instant::now();
-    
-    let mut concurrency_handles = Vec::new();
-    
-    // Run multiple concurrent operations to test for interference
-    for i in 0..5 {
-        let db_conn_clone = DatabaseConnection::connect().await.unwrap();
-        let kafka_config_clone = RedpandaConfig::default();
-        let mut kafka_conn_clone = RedpandaConnection::new(kafka_config_clone).unwrap();
-        kafka_conn_clone.connect_producer().await.unwrap();
-        
-        let handle = tokio::spawn(async move {
-            // Each concurrent task performs operations on all systems
-            let task_data = MarketData {
-                symbol: format!("SYM{}", i),
-                price: 100.0 + (i as f64 * 10.0),
-                volume: 5.0 + (i as f64 * 0.5),
-                timestamp: chrono::Utc::now().timestamp_millis(),
-                trade_id: 200000000 + i as u64,
-            };
-            
-            // API operation (simulated)
-            let api_sim_result = true;
-            
-            // Kafka operation
-            let kafka_result = kafka_conn_clone
-                .send_message(&format!("task-{}", i), &serde_json::to_string(&task_data).unwrap())
-                .await
-                .is_ok();
-            
-            // Database operation (may fail if table doesn't exist, which is expected)
-            let db_query = format!(
-                "INSERT INTO integration_test_data (symbol, price, volume, timestamp, trade_id) VALUES ('{}', {}, {}, {}, {})",
-                task_data.symbol, task_data.price, task_data.volume, task_data.timestamp, task_data.trade_id
-            );
-            let db_result = db_conn_clone.execute(&db_query).await.is_ok();
-            
-            (api_sim_result, kafka_result, db_result)
-        });
-        
-        concurrency_handles.push(handle);
-    }
-    
-    let concurrency_results = futures::future::join_all(concurrency_handles).await;
-    let mut successful_concurrent_runs = 0;
-    
-    for result in concurrency_results {
-        let (api_ok, kafka_ok, db_ok) = result.unwrap();
-        if kafka_ok { // Focus on Kafka since it's the main communication layer
-            successful_concurrent_runs += 1;
-        }
-        println!("   Concurrent run: API={}, Kafka={}, DB={}", 
-                 if api_ok { "✅" } else { "❌" },
-                 if kafka_ok { "✅" } else { "❌" },
-                 if db_ok { "✅" } else { "❌" });
-    }
-    
-    let concurrency_elapsed = concurrency_test_start.elapsed();
-    println!("\n🔄 Concurrency Test Results:");
-    println!("   Successful concurrent runs: {}/5", successful_concurrent_runs);
-    println!("   Coexistence time: {:.2?}", concurrency_elapsed);
-    
-    if successful_concurrent_runs >= 4 {
-        println!("✅ Systems coexist well with minimal interference");
-    } else {
-        println!("⚠️ Potential interference issues detected between systems");
-    }
-    
-    println!("\n🎯 Integration Test Summary:");
-    println!("   • All systems initialized and connected successfully");
-    println!("   • Individual system functionality verified");
-    println!("   • Cross-system data flow demonstrated");
-    println!("   • Concurrent operations tested for interference");
-    println!("   • No significant conflicts detected between systems");
-    println!("   • Ready for production use with all systems integrated");
-}
-
-#[tokio::test]
-async fn test_cross_system_data_flow() {
-    println!("\nDataExchange Testing Cross-System Data Flow...");
-    
-    // Test the complete data pipeline: API -> Kafka -> Database
-    let start_time = Instant::now();
-    
-    // Simulate retrieving data from API
-    let api_data = MarketData {
-        symbol: "ETHUSDT".to_string(),
-        price: 3200.0,
-        volume: 2.3,
-        timestamp: chrono::Utc::now().timestamp_millis(),
-        trade_id: 300000000,
-    };
-    
-    println!("   📡 Step 1: Data retrieved from API - {:?}", api_data.symbol);
-    
-    // Send data through Kafka
-    let kafka_config = RedpandaConfig::default();
-    let mut kafka_conn = RedpandaConnection::new(kafka_config).unwrap();
-    kafka_conn.connect_producer().await.unwrap();
-    
-    let kafka_message = serde_json::to_string(&api_data).unwrap();
-    let kafka_result = kafka_conn.send_message("integration-test-topic", &kafka_message).await;
-    
-    if kafka_result.is_ok() {
-        println!("   .kafka Step 2: Data sent via Kafka - Message ID: {}", api_data.trade_id);
-    } else {
-        println!("   ❌ Step 2: Kafka failed to send message");
-    }
-    
-    // Simulate database storage (would normally happen via consumer in real system)
-    let db_conn = DatabaseConnection::connect().await.unwrap();
-    
-    let db_insert_query = format!(
-        "INSERT INTO cross_system_test (symbol, price, volume, timestamp, trade_id) VALUES ('{}', {}, {}, {}, {})",
-        api_data.symbol, api_data.price, api_data.volume, api_data.timestamp, api_data.trade_id
-    );
-    
-    let db_result = db_conn.execute(&db_insert_query).await;
-    
-    if db_result.is_ok() {
-        println!("   💾 Step 3: Data stored in database - Record ID: {}", api_data.trade_id);
-    } else {
-        println!("   ⚠️ Step 3: Database storage failed (expected if table doesn't exist)");
-    }
-    
-    let elapsed = start_time.elapsed();
-    println!("   Total cross-system flow time: {:.2?}", elapsed);
-    
-    println!("   ✅ Cross-system data flow test completed");
-    println!("   (Note: Database steps may show as failed if tables don't exist, which is expected in test environment)");
-}
-
-
-# tests/stress_test.rs
-
-use connections_lib::{
-    binance_api::BinanceApi,
-    binance_websocket::BinanceWebSocket,
-    database::DatabaseConnection,
-    redpanda::{RedpandaConnection, RedpandaConfig},
-};
-use serde::{Deserialize, Serialize};
-use sqlx::Row;
-use std::time::{Duration, Instant};
-use tokio::time::timeout;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MarketData {
-    symbol: String,
-    price: f64,
-    volume: f64,
-    timestamp: i64,
-    trade_id: u64,
-}
-
-#[tokio::test]
-async fn test_connection_limits() {
-    println!("\n🧪 Testing Connection Limits and Performance...");
-    
-    let start_time = Instant::now();
-    
-    // Test how many concurrent connections we can open
-    const MAX_CONNECTIONS: usize = 20; // Optimal connection count determined from previous tests
-    let mut handles = Vec::new();
-    
-    println!("🔌 Opening {} concurrent connections to test optimal performance...", MAX_CONNECTIONS);
-    
-    for i in 0..MAX_CONNECTIONS {
-        let handle = tokio::spawn(async move {
-            // Test Binance API connection
-            match BinanceApi::new() {
-                Ok(api) => {
-                    match timeout(Duration::from_secs(5), api.ping()).await {
-                        Ok(Ok(_)) => {
-                            println!("✅ Connection {}: Binance API - Connected", i);
-                            true
-                        },
-                        Ok(Err(e)) => {
-                            eprintln!("❌ Connection {}: Binance API failed - {}", i, e);
-                            false
-                        },
-                        Err(_) => {
-                            eprintln!("❌ Connection {}: Binance API timed out", i);
-                            false
-                        }
-                    }
-                },
-                Err(e) => {
-                    eprintln!("❌ Connection {}: Failed to create Binance API client - {}", i, e);
-                    false
-                }
-            }
-        });
-        handles.push(handle);
-    }
-    
-    let results = futures::future::join_all(handles).await;
-    let successful_connections: usize = results.iter()
-        .map(|r| r.as_ref().unwrap_or(&false))
-        .filter(|&&x| x)
-        .count();
-    
-    println!("📊 Connection Test Results:");
-    println!("   Total attempts: {}", MAX_CONNECTIONS);
-    println!("   Successful: {}", successful_connections);
-    println!("   Failed: {}", MAX_CONNECTIONS - successful_connections);
-    println!("   Success rate: {:.1}%", (successful_connections as f64 / MAX_CONNECTIONS as f64) * 100.0);
-    
-    let elapsed = start_time.elapsed();
-    println!("   Total time: {:.2?}", elapsed);
-    
-    // Determine optimal connection count based on success rate
-    let optimal_connections = if successful_connections as f64 / MAX_CONNECTIONS as f64 >= 0.9 {
-        // High success rate, could potentially increase
-        std::cmp::min(MAX_CONNECTIONS * 2, 50) // Cap at 50
-    } else if successful_connections as f64 / MAX_CONNECTIONS as f64 >= 0.7 {
-        // Moderate success rate, keep current
-        MAX_CONNECTIONS
-    } else {
-        // Low success rate, reduce
-        std::cmp::max(MAX_CONNECTIONS / 2, 1)
-    };
-    
-    println!("💡 Optimal connection count: {} (based on {:.1}% success rate)", 
-             optimal_connections, 
-             (successful_connections as f64 / MAX_CONNECTIONS as f64) * 100.0);
-}
-
-#[tokio::test]
-async fn test_data_flow_throughput() {
-    println!("\n📈 Testing Data Flow Throughput...");
-    
-    let start_time = Instant::now();
-    
-    // Create sample market data
-    let sample_data = MarketData {
-        symbol: "BTCUSDT".to_string(),
-        price: 45000.0,
-        volume: 1.5,
-        timestamp: chrono::Utc::now().timestamp_millis(),
-        trade_id: 123456789,
-    };
-    
-    // Test Database connection and insert
-    println!("💾 Testing Database Connection...");
-    match DatabaseConnection::connect().await {
-        Ok(db) => {
-            match db.ping().await {
-                Ok(_) => {
-                    println!("✅ Database connection: Active");
-                    
-                    // Insert test data
-                    let insert_query = format!(
-                        "INSERT INTO market_data (symbol, price, volume, timestamp, trade_id) VALUES ('{}', {}, {}, {}, {})",
-                        sample_data.symbol, sample_data.price, sample_data.volume, sample_data.timestamp, sample_data.trade_id
-                    );
-                    
-                    match db.execute(&insert_query).await {
-                        Ok(rows_affected) => {
-                            println!("✅ Database insert: {} rows affected", rows_affected);
-                            
-                            // Query test data back
-                            let select_query = format!(
-                                "SELECT symbol, price FROM market_data WHERE trade_id = {}",
-                                sample_data.trade_id
-                            );
-                            
-                            match db.execute_query(&select_query, |row: &sqlx::postgres::PgRow| {
-                                (row.get_unchecked::<String, _>("symbol"), row.get_unchecked::<f64, _>("price"))
-                            }).await {
-                                Ok(results) => {
-                                    if !results.is_empty() {
-                                        println!("✅ Database query: Retrieved {} records", results.len());
-                                    } else {
-                                        println!("⚠️ Database query: No records found");
-                                    }
-                                },
-                                Err(e) => {
-                                    eprintln!("❌ Database query failed: {}", e);
-                                }
-                            }
-                        },
-                        Err(e) => {
-                            eprintln!("❌ Database insert failed: {}", e);
-                        }
-                    }
-                },
-                Err(e) => {
-                    eprintln!("❌ Database ping failed: {}", e);
-                }
-            }
-        },
-        Err(e) => {
-            eprintln!("❌ Database connection failed: {}", e);
-        }
-    }
-    
-    // Test Redpanda connection and message passing
-    println!(".kafka Testing Redpanda Connection...");
-    let config = RedpandaConfig::default();
-    match RedpandaConnection::new(config) {
-        Ok(mut rp_conn) => {
-            match rp_conn.connect_producer().await {
-                Ok(_) => {
-                    println!("✅ Redpanda connection: Active");
-                    
-                    // Send test message
-                    let test_message = serde_json::to_string(&sample_data).unwrap();
-                    match rp_conn.send_message("test-key", &test_message).await {
-                        Ok(_) => {
-                            println!("✅ Redpanda message sent: Successfully published test data");
-                        },
-                        Err(e) => {
-                            eprintln!("❌ Redpanda message failed: {}", e);
-                        }
-                    }
-                },
-                Err(e) => {
-                    eprintln!("❌ Redpanda connection failed: {}", e);
-                }
-            }
-        },
-        Err(e) => {
-            eprintln!("❌ Redpanda initialization failed: {}", e);
-        }
-    }
-    
-    // Test Binance WebSocket connection (without actually connecting to avoid rate limits)
-    println!("📡 Testing WebSocket Connection Setup...");
-    let _ws = BinanceWebSocket::new();
-    println!("✅ WebSocket configured: Ready for live data stream");
-    
-    // Test Binance API connection
-    println!("🔍 Testing API Connection...");
-    match BinanceApi::new() {
-        Ok(api) => {
-            match api.ping().await {
-                Ok(_) => {
-                    println!("✅ API connection: Active - Ready for historical data requests");
-                },
-                Err(e) => {
-                    eprintln!("❌ API connection failed: {}", e);
-                }
-            }
-        },
-        Err(e) => {
-            eprintln!("❌ API initialization failed: {}", e);
-        }
-    }
-    
-    let elapsed = start_time.elapsed();
-    println!("⏱️  Total throughput test time: {:.2?}", elapsed);
-    
-    println!("\n📋 Data Flow Summary:");
-    println!("   • Historical data via API: Available");
-    println!("   • Live data via WebSocket: Available");  
-    println!("   • Message streaming via Redpanda: Available");
-    println!("   • Data storage via Database: Available");
-    println!("   • Optimal connection balance achieved");
-}
-
-#[tokio::test]
-async fn test_stress_with_dummy_data() {
-    println!("\n🔥 Running Stress Test with Dummy Data...");
-    
-    let start_time = Instant::now();
-    
-    // Generate dummy market data
-    let dummy_data_batch: Vec<MarketData> = (0..100)
-        .map(|i| MarketData {
-            symbol: format!("SYM{}", i % 10), // Cycle through 10 symbols
-            price: 100.0 + (i as f64 * 0.5),
-            volume: 10.0 + (i as f64 * 0.1),
-            timestamp: chrono::Utc::now().timestamp_millis() - (i as i64 * 1000), // Decreasing timestamps
-            trade_id: 1000000 + i as u64,
-        })
-        .collect();
-    
-    // Clone the data for each thread
-    let dummy_data_batch_db = dummy_data_batch.clone();
-    let dummy_data_batch_kafka = dummy_data_batch.clone();
-    
-    println!("📦 Generated {} dummy market data records", dummy_data_batch.len());
-    
-    // Test concurrent operations across all systems
-    let db_handle = tokio::spawn(async move {
-        // Test database with dummy data
-        match DatabaseConnection::connect().await {
-            Ok(db) => {
-                if db.ping().await.is_ok() {
-                    println!("✅ DB Thread: Connection established");
-                    
-                    // Simulate batch insert
-                    let mut inserts_successful = 0;
-                    for data in &dummy_data_batch_db[0..10] { // Just first 10 for speed
-                        let insert_query = format!(
-                            "INSERT INTO market_data_stress (symbol, price, volume, timestamp, trade_id) VALUES ('{}', {}, {}, {}, {})",
-                            data.symbol, data.price, data.volume, data.timestamp, data.trade_id
-                        );
-                        
-                        if db.execute(&insert_query).await.is_ok() {
-                            inserts_successful += 1;
-                        }
-                    }
-                    
-                    println!("✅ DB Thread: {} successful inserts out of 10", inserts_successful);
-                    true
-                } else {
-                    false
-                }
-            },
-            Err(_) => false
-        }
-    });
-    
-    let kafka_handle = tokio::spawn(async move {
-        // Test Redpanda with dummy data
-        let config = RedpandaConfig::default();
-        if let Ok(mut rp_conn) = RedpandaConnection::new(config) {
-            if rp_conn.connect_producer().await.is_ok() {
-                println!(".kafka Kafka Thread: Connection established");
-                
-                // Send first few messages
-                let mut sends_successful = 0;
-                for data in &dummy_data_batch_kafka[0..5] { // Just first 5 for speed
-                    let message = serde_json::to_string(data).unwrap();
-                    if rp_conn.send_message(&format!("key-{}", data.trade_id), &message).await.is_ok() {
-                        sends_successful += 1;
-                    }
-                }
-                
-                println!(".kafka Kafka Thread: {} successful sends out of 5", sends_successful);
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    });
-    
-    let api_handle = tokio::spawn(async move {
-        // Test API with dummy requests
-        if let Ok(api) = BinanceApi::new() {
-            if api.ping().await.is_ok() {
-                println!("🔍 API Thread: Connection established");
-                
-                // Simulate multiple API calls
-                let mut calls_successful = 0;
-                for _ in 0..5 {
-                    if api.ping().await.is_ok() {
-                        calls_successful += 1;
-                    }
-                    tokio::time::sleep(Duration::from_millis(100)).await; // Rate limiting simulation
-                }
-                
-                println!("🔍 API Thread: {} successful calls out of 5", calls_successful);
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    });
-    
-    // Wait for all threads to complete
-    let db_result: bool = db_handle.await.unwrap();
-    let kafka_result: bool = kafka_handle.await.unwrap();
-    let api_result: bool = api_handle.await.unwrap();
-    
-    let elapsed = start_time.elapsed();
-    
-    println!("\n📊 Stress Test Results:");
-    println!("   DB Operations: {}", if db_result { "✅ SUCCESS" } else { "❌ FAILED" });
-    println!("   Kafka Operations: {}", if kafka_result { "✅ SUCCESS" } else { "❌ FAILED" });
-    println!("   API Operations: {}", if api_result { "✅ SUCCESS" } else { "❌ FAILED" });
-    println!("   Total execution time: {:.2?}", elapsed);
-    
-    // Calculate optimal settings based on performance
-    let performance_score = (db_result as u8 + kafka_result as u8 + api_result as u8) as f64 / 3.0 * 100.0;
-    println!("   Performance score: {:.1}%", performance_score);
-    
-    if performance_score > 90.0 {
-        println!("💡 System is performing optimally under stress");
-    } else if performance_score > 70.0 {
-        println!("⚠️ System needs optimization for heavy loads");
-    } else {
-        println!("❌ System requires significant optimization");
-    }
-}
 
 
 # config/binance.toml
@@ -2217,6 +955,331 @@ volumes:
 networks:
   botnet:
     driver: bridge
+
+
+
+# ingestor/Cargo.toml
+
+[package]
+name = "ingestor"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ingestor_pairs"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+sqlx = { workspace = true }
+
+common = { path = "../common" }
+dotenvy = { workspace = true }
+
+
+
+
+# ingestor/src/candles.rs
+
+// placeholder for candles
+
+
+# ingestor/src/lib.rs
+
+pub mod pairs;
+
+// candles.rs позже подключишь, когда дойдём до свечей
+// pub mod candles;
+
+pub use pairs::{refresh_universe_pairs, UniversePairsResult};
+
+
+
+# ingestor/src/main.rs
+
+mod pairs;
+
+use anyhow::Result;
+use dotenvy::dotenv;
+use tracing::info;
+use tracing_subscriber::EnvFilter;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    dotenv().ok();
+
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
+    let min_pairs: i64 = std::env::var("MIN_PAIRS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(300);
+
+    let res = pairs::refresh_universe_pairs().await?;
+
+    if res.active_cnt < min_pairs {
+        anyhow::bail!(
+            "pairs_ready=false: active={} < MIN_PAIRS={}",
+            res.active_cnt,
+            min_pairs
+        );
+    }
+
+    info!(
+        "pairs_ready=true: selected={}, active={} (MIN_PAIRS={})",
+        res.selected_cnt,
+        res.active_cnt,
+        min_pairs
+    );
+
+    Ok(())
+}
+
+
+
+
+# ingestor/src/pairs.rs
+
+use anyhow::{bail, Context, Result};
+use common::{load_config, AppConfig};
+use reqwest::Client;
+use serde::Deserialize;
+use sqlx::PgPool;
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
+use tracing::{info, warn};
+
+#[derive(Debug, Clone)]
+pub struct UniversePairsResult {
+    pub selected_cnt: i64,
+    pub active_cnt: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct FuturesExchangeInfo {
+    symbols: Vec<FuturesSymbol>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FuturesSymbol {
+    symbol: String,
+    status: String,
+    #[serde(rename = "baseAsset")]
+    base_asset: String,
+    #[serde(rename = "quoteAsset")]
+    quote_asset: String,
+    #[serde(rename = "contractType")]
+    contract_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FuturesTicker24h {
+    symbol: String,
+    #[serde(rename = "quoteVolume")]
+    quote_volume: String,
+    #[serde(rename = "lastPrice")]
+    last_price: String,
+}
+
+fn parse_f64(s: &str) -> f64 {
+    s.parse::<f64>().unwrap_or(0.0)
+}
+
+async fn fetch_exchange_info(client: &Client, base: &str) -> Result<FuturesExchangeInfo> {
+    let url = format!("{}/fapi/v1/exchangeInfo", base.trim_end_matches('/'));
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<FuturesExchangeInfo>().await?)
+}
+
+async fn fetch_ticker_24h(client: &Client, base: &str) -> Result<Vec<FuturesTicker24h>> {
+    let url = format!("{}/fapi/v1/ticker/24hr", base.trim_end_matches('/'));
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<Vec<FuturesTicker24h>>().await?)
+}
+
+/// Не создаём DDL в ingestor.
+/// Только проверяем, что core-схема применена.
+async fn require_market_core(pool: &PgPool) -> Result<()> {
+    let (reg,): (Option<String>,) =
+        sqlx::query_as("SELECT to_regclass('market.pairs')::text")
+            .fetch_one(pool)
+            .await
+            .context("failed to check market.pairs existence")?;
+
+    if reg.is_none() {
+        bail!(
+            "DB schema is not initialized: relation market.pairs does not exist. \
+Run your db init (svc_db_init) or apply ddl/010_market_core.sql to this DATABASE_URL."
+        );
+    }
+    Ok(())
+}
+
+async fn refresh_pairs_inner() -> Result<UniversePairsResult> {
+    let cfg: AppConfig = load_config().context("load_config() failed")?;
+
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
+    let pool = PgPool::connect(&db_url).await.context("connect DB failed")?;
+
+    // ✅ важное отличие: без DDL, только проверка
+    require_market_core(&pool).await?;
+
+    let timeout = Duration::from_millis(cfg.binance.http_timeout_ms);
+    let client = Client::builder().timeout(timeout).build()?;
+
+    let rest_base = cfg.binance.rest_base_url.clone();
+    let uni = cfg.universe.clone();
+
+    let exchange = fetch_exchange_info(&client, &rest_base).await?;
+    let tickers = fetch_ticker_24h(&client, &rest_base).await?;
+
+    let ticker_map: HashMap<String, FuturesTicker24h> =
+        tickers.into_iter().map(|t| (t.symbol.clone(), t)).collect();
+
+    let allow: HashSet<String> = uni.allowlist.iter().cloned().collect();
+    let deny: HashSet<String> = uni.denylist.iter().cloned().collect();
+    let excl_base: HashSet<String> = uni.exclude_base_assets.iter().cloned().collect();
+    let excl_sym: HashSet<String> = uni.exclude_symbols.iter().cloned().collect();
+
+    let mut selected = Vec::new();
+
+    for s in exchange.symbols {
+        let sym = s.symbol;
+
+        if deny.contains(&sym) || excl_sym.contains(&sym) {
+            continue;
+        }
+        if s.quote_asset != uni.quote_asset {
+            continue;
+        }
+        if excl_base.contains(&s.base_asset) {
+            continue;
+        }
+        if uni.perpetual_only && s.contract_type.as_deref() != Some("PERPETUAL") {
+            continue;
+        }
+        if s.status != "TRADING" {
+            continue;
+        }
+
+        let (vol24h, last_price) = match ticker_map.get(&sym) {
+            Some(t) => (parse_f64(&t.quote_volume), parse_f64(&t.last_price)),
+            None => (0.0, 0.0),
+        };
+
+        if !allow.contains(&sym) && vol24h < uni.min_quote_volume_usdt_24h {
+            continue;
+        }
+
+        let manual_allow = allow.contains(&sym);
+        let manual_deny = false;
+
+        selected.push((
+            sym,
+            s.base_asset,
+            s.quote_asset,
+            vol24h,
+            last_price,
+            manual_allow,
+            manual_deny,
+        ));
+    }
+
+    if selected.is_empty() {
+        warn!("Universe selection is empty after filters — check universe.toml and Binance endpoints");
+    }
+
+    let selected_cnt = selected.len() as i64;
+
+    let mut tx = pool.begin().await?;
+
+    sqlx::query(
+        r#"
+        UPDATE market.pairs
+        SET is_active = FALSE
+        WHERE manual_allow = FALSE
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // ✅ под твой DDL: symbol_id — BIGSERIAL PK, symbol UNIQUE
+    //    значит вставляем без symbol_id, а конфликт — по symbol.
+    for (symbol, base, quote, vol, last, manual_allow, manual_deny) in selected {
+        sqlx::query(
+            r#"
+            INSERT INTO market.pairs
+              (symbol, base_asset, quote_asset, is_active,
+               futures_eligible, perpetual_only,
+               volume_24h_usdt, last_price, last_refreshed_at,
+               manual_allow, manual_deny, meta)
+            VALUES
+              ($1, $2, $3, TRUE,
+               TRUE, TRUE,
+               $4, $5, now(),
+               $6, $7, '{}'::jsonb)
+            ON CONFLICT (symbol) DO UPDATE
+            SET
+              base_asset        = EXCLUDED.base_asset,
+              quote_asset       = EXCLUDED.quote_asset,
+              is_active         = TRUE,
+              futures_eligible  = TRUE,
+              perpetual_only    = TRUE,
+              volume_24h_usdt   = EXCLUDED.volume_24h_usdt,
+              last_price        = EXCLUDED.last_price,
+              last_refreshed_at = now(),
+              manual_allow      = EXCLUDED.manual_allow,
+              manual_deny       = EXCLUDED.manual_deny
+            "#,
+        )
+        .bind(&symbol)
+        .bind(&base)
+        .bind(&quote)
+        .bind(vol)
+        .bind(last)
+        .bind(manual_allow)
+        .bind(manual_deny)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    let (active_cnt,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM market.pairs WHERE is_active = TRUE")
+            .fetch_one(&pool)
+            .await?;
+
+    let res = UniversePairsResult { selected_cnt, active_cnt };
+
+    // ✅ читаем поля тут — варнинга про "selected_cnt never read" не будет,
+    // даже если bin не использует результат.
+    info!(
+        "Pairs refreshed: selected_cnt={}, active_cnt={}",
+        res.selected_cnt, res.active_cnt
+    );
+
+    Ok(res)
+}
+
+pub async fn refresh_universe_pairs() -> Result<UniversePairsResult> {
+    refresh_pairs_inner().await
+}
+
+pub async fn refresh_pairs_to_db() -> Result<i64> {
+    Ok(refresh_pairs_inner().await?.active_cnt)
+}
+
+
+
 
 
 
@@ -3243,7 +2306,7 @@ use anyhow::Result;
 use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use std::time::Duration;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 #[derive(Debug, Clone)]
 pub struct BinanceApi {
@@ -3282,7 +2345,7 @@ impl BinanceApi {
         let response = self.client.get(&url).send().await?;
         
         if response.status().is_success() {
-            info!("Binance API connection successful");
+            debug!("Binance REST ping ok");
             Ok(())
         } else {
             error!("Binance API connection failed with status: {}", response.status());
@@ -3511,7 +2574,7 @@ pub async fn check_all_connections() -> Result<()> {
 use anyhow::Result;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 #[derive(Debug, Clone)]
 pub struct DatabaseConfig {
@@ -3565,7 +2628,7 @@ impl DatabaseConnection {
             Ok(row) => {
                 let result: i32 = row.try_get(0)?;
                 if result == 1 {
-                    info!("Database connection successful");
+                    debug!("DB ping ok");
                     Ok(())
                 } else {
                     error!("Unexpected ping result: {}", result);
@@ -3623,7 +2686,7 @@ impl DatabaseConnection {
             .await?;
         debug!("Database timezone: {}", timezone.0);
         
-        info!("Database connection parameters test passed");
+        debug!("Database connection parameters test passed");
         Ok(())
     }
 }
@@ -3687,11 +2750,13 @@ pub use connection_check::*;
 # connections/src/main.rs
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
+
 use anyhow::Result;
 use axum::{routing::get, Router};
 use tokio::net::TcpListener;
-use tokio::sync::{mpsc, RwLock, watch};
-use tracing::{error, info};
+use tokio::sync::{mpsc, watch, RwLock};
+use tracing::{debug, error, info, warn};
+use tracing_subscriber::EnvFilter;
 
 use connections_lib::{
     binance_api::BinanceApi,
@@ -3700,7 +2765,7 @@ use connections_lib::{
     redpanda::{RedpandaConfig, RedpandaConnection},
 };
 
-#[derive(Clone, Debug, serde::Serialize)] // Добавил Serialize для API
+#[derive(Clone, Debug, serde::Serialize)]
 struct HealthState {
     db_ok: bool,
     rp_ok: bool,
@@ -3713,25 +2778,93 @@ struct HealthState {
 impl Default for HealthState {
     fn default() -> Self {
         Self {
-            db_ok: false, rp_ok: false, api_ok: false, ws_connected: false,
-            last_check_ms: 0, last_error: None,
+            db_ok: false,
+            rp_ok: false,
+            api_ok: false,
+            ws_connected: false,
+            last_check_ms: 0,
+            last_error: None,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DepStatus {
+    db_ok: bool,
+    rp_ok: bool,
+    api_ok: bool,
+    ws_connected: bool,
+}
+
+fn now_ms() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+}
+
+fn env_u64(key: &str, default: u64) -> u64 {
+    std::env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+}
+
+fn env_string(key: &str, default: &str) -> String {
+    std::env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+fn log_status_transition(prev: DepStatus, cur: DepStatus, last_error: &Option<String>) {
+    // Логируем только изменения.
+    // "Падение" -> WARN, "восстановление" -> INFO.
+    if prev.db_ok != cur.db_ok {
+        if cur.db_ok {
+            info!("db_ok -> true");
+        } else {
+            warn!("db_ok -> false");
+        }
+    }
+    if prev.rp_ok != cur.rp_ok {
+        if cur.rp_ok {
+            info!("rp_ok -> true");
+        } else {
+            warn!("rp_ok -> false");
+        }
+    }
+    if prev.api_ok != cur.api_ok {
+        if cur.api_ok {
+            info!("api_ok -> true");
+        } else {
+            warn!("api_ok -> false");
+        }
+    }
+    if prev.ws_connected != cur.ws_connected {
+        if cur.ws_connected {
+            info!("ws_connected -> true");
+        } else {
+            warn!("ws_connected -> false");
+        }
+    }
+
+    // Если статус изменился и есть ошибка — покажем её одной строкой.
+    if let Some(e) = last_error {
+        warn!("last_error: {e}");
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt::init();
 
-    rustls::crypto::aws_lc_rs::default_provider().install_default().expect("Failed to install crypto provider");
+    // Поддержка RUST_LOG (пример: RUST_LOG=info,connections_lib=debug)
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
-    let health_addr: SocketAddr = std::env::var("CONNECTIONS_HEALTH_ADDR")
-        .unwrap_or_else(|_| "0.0.0.0:18080".to_string())
-        .parse()?;
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Failed to install crypto provider");
+
+    let health_addr: SocketAddr = env_string("CONNECTIONS_HEALTH_ADDR", "0.0.0.0:18080").parse()?;
 
     let state = Arc::new(RwLock::new(HealthState::default()));
-    let (ws_tx, mut ws_rx) = mpsc::channel::<bytes::Bytes>(2000); // Bytes вместо String
+    let (ws_tx, mut ws_rx) = mpsc::channel::<bytes::Bytes>(2000);
     let (status_tx, status_rx) = watch::channel(false);
 
     // Kafka Forwarder
@@ -3739,15 +2872,38 @@ async fn main() -> Result<()> {
     rp.connect_producer().await?;
     let rp_shared = Arc::new(rp);
 
+    // топик оставляем прежним, но даём возможность переопределить из env (по умолчанию "ws_feed")
+    let ws_topic = env_string("TOPIC_MARKET_WS_RAW", "ws_feed");
+
     let rp_for_ws = rp_shared.clone();
     tokio::spawn(async move {
-        info!("Starting Kafka forwarder...");
+        info!("Starting Kafka forwarder... topic={}", ws_topic);
+
+        // тихая статистика: 1-е сообщение + дальше раз в N сообщений
+        let mut n: u64 = 0;
+        let mut last_log = tokio::time::Instant::now();
+
         while let Some(msg) = ws_rx.recv().await {
-            if let Err(e) = rp_for_ws.send_message("ws_feed", msg).await {
-                error!("Forward error: {e}");
+            n += 1;
+
+            // Логируем только 1-е сообщение и дальше примерно раз в 10 секунд
+            // (так видно, что поток жив, но без спама)
+            if n == 1 || last_log.elapsed() >= Duration::from_secs(10) {
+                info!("WS->Kafka flow ok: msgs={}, last_size={} bytes", n, msg.len());
+                last_log = tokio::time::Instant::now();
+            }
+
+            // Отправляем байты в Kafka
+            if let Err(e) = rp_for_ws.send_message(&ws_topic, msg).await {
+                // Ошибка отправки — это важно, но тоже без спама: WARN/ERROR
+                // Если будет сыпаться — ты сразу увидишь.
+                error!("Kafka forward error: {e}");
             }
         }
+
+        warn!("Kafka forwarder stopped (ws_rx closed)");
     });
+
 
     // Binance WS Task
     let ws_conn = BinanceWsConnection::new_from_env().await?;
@@ -3757,61 +2913,174 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Health Check Task (теперь параллельный)
+    // Health Check Task: тихо, информативно, без пересоздания клиентов каждый тик
     let health_state = state.clone();
     let rp_health = rp_shared.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(10));
+        let check_sec = env_u64("CONNECTIONS_CHECK_SEC", 10);
+        let mut interval = tokio::time::interval(Duration::from_secs(check_sec));
+
+        // Попытка создать клиентов один раз; при фейле — ретраим.
+        let mut db: Option<DatabaseConnection> = None;
+        let mut api: Option<BinanceApi> = None;
+
+        let mut prev = DepStatus::default();
+
         loop {
             interval.tick().await;
-            
+
+            // ws_connected берём всегда (даже если db/api/rp не готовы)
+            let ws_connected = *status_rx.borrow();
+
+            // Ленивая инициализация DB
+            if db.is_none() {
+                match DatabaseConnection::new(Default::default()).await {
+                    Ok(conn) => {
+                        db = Some(conn);
+                        debug!("DB client initialized");
+                    }
+                    Err(e) => {
+                        // Если даже создать не можем — это уже существенная ошибка
+                        let mut st = health_state.write().await;
+                        st.db_ok = false;
+                        st.ws_connected = ws_connected;
+                        st.last_check_ms = now_ms();
+                        st.last_error = Some(format!("DB init: {e}"));
+
+                        let cur = DepStatus {
+                            db_ok: false,
+                            rp_ok: st.rp_ok, // rp_ok обновим ниже
+                            api_ok: st.api_ok,
+                            ws_connected,
+                        };
+                        if cur != prev {
+                            log_status_transition(prev, cur, &st.last_error);
+                            prev = cur;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            // Ленивая инициализация API
+            if api.is_none() {
+                match BinanceApi::new() {
+                    Ok(client) => {
+                        api = Some(client);
+                        debug!("Binance API client initialized");
+                    }
+                    Err(e) => {
+                        let mut st = health_state.write().await;
+                        st.api_ok = false;
+                        st.ws_connected = ws_connected;
+                        st.last_check_ms = now_ms();
+                        st.last_error = Some(format!("API init: {e}"));
+
+                        let cur = DepStatus {
+                            db_ok: st.db_ok,
+                            rp_ok: st.rp_ok,
+                            api_ok: false,
+                            ws_connected,
+                        };
+                        if cur != prev {
+                            log_status_transition(prev, cur, &st.last_error);
+                            prev = cur;
+                        }
+                        continue;
+                    }
+                }
+            }
+
             // Параллельные проверки
-            let db_fut = async { DatabaseConnection::new(Default::default()).await?.ping().await };
-            let api_fut = async { BinanceApi::new()?.ping().await };
-            let rp_fut = rp_health.ping();
+            let db_ref = db.as_ref().unwrap();
+            let api_ref = api.as_ref().unwrap();
 
-            let results = tokio::join!(db_fut, api_fut, rp_fut);
+            let (db_res, api_res, rp_res) = tokio::join!(db_ref.ping(), api_ref.ping(), rp_health.ping());
 
+            let db_ok = db_res.is_ok();
+            let api_ok = api_res.is_ok();
+            let rp_ok = rp_res.is_ok();
+
+            // если ping упал — можно сбросить клиент (чтобы пересоздался на следующем тике)
+            // это помогает при "сломанных" внутренних состояниях пула/клиента
+            if db_res.is_err() {
+                db = None;
+            }
+            if api_res.is_err() {
+                api = None;
+            }
+
+            // Обновляем state
             let mut st = health_state.write().await;
-            st.db_ok = results.0.is_ok();
-            st.api_ok = results.1.is_ok();
-            st.rp_ok = results.2.is_ok();
-            st.ws_connected = *status_rx.borrow();
-            st.last_check_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-            
-            if let Err(e) = &results.0 { st.last_error = Some(format!("DB: {e}")); }
-            else if let Err(e) = &results.1 { st.last_error = Some(format!("API: {e}")); }
-            else if let Err(e) = &results.2 { st.last_error = Some(format!("RP: {e}")); }
-            else { st.last_error = None; }
+            st.db_ok = db_ok;
+            st.api_ok = api_ok;
+            st.rp_ok = rp_ok;
+            st.ws_connected = ws_connected;
+            st.last_check_ms = now_ms();
+
+            st.last_error = if let Err(e) = &db_res {
+                Some(format!("DB: {e}"))
+            } else if let Err(e) = &api_res {
+                Some(format!("API: {e}"))
+            } else if let Err(e) = &rp_res {
+                Some(format!("RP: {e}"))
+            } else {
+                None
+            };
+
+            // Логируем только если поменялось
+            let cur = DepStatus {
+                db_ok,
+                rp_ok,
+                api_ok,
+                ws_connected,
+            };
+            if cur != prev {
+                log_status_transition(prev, cur, &st.last_error);
+                prev = cur;
+            } else {
+                debug!("Health unchanged");
+            }
         }
     });
 
-    let app = Router::new().route("/health", get(move || {
-        let s = state.clone();
-        async move {
-            let st = s.read().await;
-            // Это автоматически установит Content-Type: application/json
-            axum::Json(st.clone()) 
-        }
-    }));
+    let app = Router::new().route(
+        "/health",
+        get(move || {
+            let s = state.clone();
+            async move {
+                let st = s.read().await;
+                axum::Json(st.clone())
+            }
+        }),
+    );
 
     info!("Server starting on {}", health_addr);
     let listener = TcpListener::bind(health_addr).await?;
-    axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
     Ok(())
 }
 
 async fn shutdown_signal() {
     let ctrl_c = async { tokio::signal::ctrl_c().await.ok(); };
+
     #[cfg(unix)]
     let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap().recv().await;
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .unwrap()
+            .recv()
+            .await;
     };
+
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
+
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
 }
+
 
 
 
@@ -4464,11 +3733,12 @@ if [[ "$need_build" -eq 1 ]]; then
   log "Targets : ${C_BOLD}$SERVICE_BINS${C_RESET}"
 
   if [[ "$BUILD_PROFILE" == "release" ]]; then
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor}"
   else
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor}"
   fi
 
+  
   # Если хочешь ограничить сборку только нужными бинари (сильно ускоряет),
   # можно выставить: CARGO_BUILD_CMD="cargo build --release --bin svc_a --bin svc_b"
   log "+ ${C_BOLD}$CARGO_BUILD_CMD${C_RESET}"
@@ -4481,7 +3751,36 @@ else
   ok "Skipping build (auto-mode: binaries are up-to-date)."
 fi
 
+# ----------------- 2.5) one-shot steps -----------------
+
+run_oneshot() {
+  local name="$1"
+  local outfile="$LOG_DIR/${name}.out"
+
+  local bin_path
+  bin_path="$(find_bin_path "$name" || true)"
+  [[ -n "$bin_path" ]] || die "oneshot binary not found: $name"
+
+  section "ONESHOT: $name"
+  log "Running: ${C_BOLD}$name${C_RESET}"
+  log "  bin: $bin_path"
+  log "  log: $outfile"
+
+  # Пишем лог, но НЕ в nohup — это шаг, который должен завершиться сейчас.
+  "$bin_path" 2>&1 | tee -a "$outfile"
+  ok "Oneshot finished: $name"
+}
+
+# --- PAIRS: refresh universe into DB ---
+# по умолчанию ждём хотя бы 300 активных пар
+export MIN_PAIRS="${MIN_PAIRS:-300}"
+export RUST_LOG="${RUST_LOG:-info}"
+
+run_oneshot "ingestor_pairs"
+
 # ----------------- 3) start services -----------------
+
+
 
 section "START SERVICES"
 

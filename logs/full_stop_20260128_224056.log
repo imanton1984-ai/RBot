@@ -1,10 +1,10 @@
 ===========================================
-FULL STOP @ Wed 28 Jan 2026 01:50:34 PM MSK
+FULL STOP @ Wed 28 Jan 2026 10:40:56 PM MSK
 ROOT: /home/anton/Desktop/Whitelist
-LOG : /home/anton/Desktop/Whitelist/logs/full_stop_20260128_135034.log
+LOG : /home/anton/Desktop/Whitelist/logs/full_stop_20260128_224056.log
 ===========================================
 Loading env: /home/anton/Desktop/Whitelist/.env
-Stopping connections (pid 1091092)...
+Stopping connections (pid 1781588)...
 --- Stopping by pidfiles in /home/anton/Desktop/Whitelist/run ---
 No pidfiles found.
 --- Killing leftover processes that belong to this repo only (cmdline contains ROOT_DIR) ---

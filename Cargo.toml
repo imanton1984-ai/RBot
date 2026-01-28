@@ -4,6 +4,7 @@ members = [
   "connections",      # <-- единый модуль подключений
   "database",
   "healthcheck",
+  "ingestor",
 ]
 resolver = "2"
 
