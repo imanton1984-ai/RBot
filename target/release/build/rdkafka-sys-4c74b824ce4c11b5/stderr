@@ -1,4 +1,0 @@
-Building and linking librdkafka statically
-Running command: "cp -a librdkafka/. /home/anton/Desktop/Whitelist/target/release/build/rdkafka-sys-4c74b824ce4c11b5/out" in dir: .
-Running command: "/home/anton/Desktop/Whitelist/target/release/build/rdkafka-sys-4c74b824ce4c11b5/out/configure --enable-ssl --enable-gssapi --disable-zlib --disable-curl --disable-zstd --disable-lz4-ext" in dir: /home/anton/Desktop/Whitelist/target/release/build/rdkafka-sys-4c74b824ce4c11b5/out
-Running command: "make libs" in dir: /home/anton/Desktop/Whitelist/target/release/build/rdkafka-sys-4c74b824ce4c11b5/out
