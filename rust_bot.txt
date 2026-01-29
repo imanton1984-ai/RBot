@@ -127,6 +127,331 @@ sqlx = { version = "0.8.6", default-features = false, features = [
 ] }
 
 
+# healthcheck/grafana/docker-compose.yaml
+
+services:
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: healthcheck_grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    networks:
+      - healthcheck_net
+    depends_on:
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus
+    container_name: healthcheck_prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - healthcheck_net
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+networks:
+  healthcheck_net:
+    driver: bridge
+
+volumes:
+  grafana_data:
+  prometheus_data:
+
+
+# healthcheck/grafana/stop.sh
+
+#!/usr/bin/env bash
+# Script to stop healthcheck grafana services
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+log() { echo "[$(date +%H:%M:%S)] $*"; }
+
+log "Stopping healthcheck Grafana services..."
+
+if command -v docker >/dev/null 2>&1 && (command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1); then
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose down
+  else
+    docker compose down
+  fi
+  log "Healthcheck Grafana services stopped."
+else
+  log "docker-compose not found. Skipping Grafana shutdown."
+fi
+
+
+# healthcheck/grafana/provisioning/datasources/prometheus.yml
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+
+
+# healthcheck/grafana/provisioning/dashboards/dashboards.yml
+
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+
+
+
+# healthcheck/grafana/prometheus/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9091']
+
+  - job_name: 'healthcheck_module'
+    static_configs:
+      - targets: ['host.docker.internal:9100']  # Node exporter or custom metrics endpoint
+        labels:
+          group: 'infrastructure'
+
+  - job_name: 'rust_processes'
+    static_configs:
+      - targets: ['host.docker.internal:9090']  # Main application metrics
+        labels:
+          group: 'application'
+          
+  - job_name: 'docker_containers'
+    static_configs:
+      - targets: ['host.docker.internal:9323']  # cAdvisor for Docker container metrics
+        labels:
+          group: 'containers'
+
+
+# healthcheck/grafana/dashboards/main_dashboard.json
+
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "7.5.5"
+    },
+    {
+      "type": "panel",
+      "id": "graph",
+      "name": "Graph",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 2,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "hiddenSeries": false,
+      "id": 2,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.5",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "up",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Processes",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "System Health",
+  "uid": "eYVYdKZGz",
+  "version": 1
+}
+
+
+
 # healthcheck/src/binaries_health.rs
 
 use std::path::Path;
@@ -513,7 +838,7 @@ pub struct PortsConfig {
     pub api_gateway: u16,
     pub market_ingest: u16,
     pub compute_core: u16,
-    pub data_writer: u16,
+    pub writer: u16,
     pub order_engine: u16,
     pub position_tracker: u16,
 }
@@ -670,7 +995,7 @@ ssl_mode = "disable"
 api_gateway = 8080
 market_ingest = 8081
 compute_core = 8082
-data_writer = 8083
+writer = 8083
 order_engine = 8084
 position_tracker = 8085
 
@@ -1272,11 +1597,11 @@ async fn refresh_pairs_inner() -> Result<UniversePairsResult> {
 
 pub async fn refresh_universe_pairs() -> Result<UniversePairsResult> {
     refresh_pairs_inner().await
-}
+// }
 
-pub async fn refresh_pairs_to_db() -> Result<i64> {
-    Ok(refresh_pairs_inner().await?.active_cnt)
-}
+// pub async fn refresh_pairs_to_db() -> Result<i64> {
+//     Ok(refresh_pairs_inner().await?.active_cnt)
+ }
 
 
 
@@ -1284,6 +1609,10 @@ pub async fn refresh_pairs_to_db() -> Result<i64> {
 
 
 # database/Cargo.toml
+
+[[bin]]
+name = "svc_db_init"
+path = "src/bin/svc_db_init.rs"
 
 [package]
 name = "database"
@@ -1304,6 +1633,8 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 config = { workspace = true }
 common = { path = "../common" }
+tracing-subscriber = { workspace = true }
+dotenvy = { workspace = true }
 
 
 # database/ddl/000_test_data.sql
@@ -2114,7 +2445,7 @@ impl DatabaseInitializer {
         for (index, ddl_content) in ddl_files.iter().enumerate() {
             info!("Executing DDL file #{}...", index);
             if !ddl_content.trim().is_empty() {
-                match sqlx::query(ddl_content).execute(&self.pool).await {
+                match sqlx::raw_sql(ddl_content).execute(&self.pool).await {
                     Ok(_) => {
                         info!("Successfully executed DDL file #{}", index);
                     },
@@ -2249,6 +2580,30 @@ mod tests {
 pub mod init_db;
 
 pub use init_db::*;
+
+
+# database/src/bin/svc_db_init.rs
+
+use anyhow::Result;
+use dotenvy::dotenv;
+use tracing_subscriber::EnvFilter;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
+    dotenv().ok();
+
+    // такой же дефолт, как у тебя в тесте
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+
+    database_lib::initialize_database(&database_url).await?;
+    Ok(())
+}
+
 
 
 # connections/Cargo.toml
@@ -3379,6 +3734,19 @@ else
   echo "Docker untouched (--no-docker)."
 fi
 
+# stop healthcheck grafana services
+echo "--- Stopping healthcheck Grafana services ---"
+if command -v docker >/dev/null 2>&1 && (command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1); then
+  cd "$ROOT_DIR/healthcheck/grafana"
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose down
+  else
+    docker compose down
+  fi
+else
+  echo "docker-compose not found. Skipping Grafana shutdown."
+fi
+
 echo "==========================================="
 echo "FULL STOP DONE @ $(date)"
 echo "==========================================="
@@ -3751,7 +4119,7 @@ else
   ok "Skipping build (auto-mode: binaries are up-to-date)."
 fi
 
-# ----------------- 2.5) one-shot steps -----------------
+# # ----------------- 2.5) one-shot steps -----------------
 
 run_oneshot() {
   local name="$1"
@@ -3825,6 +4193,22 @@ if [[ "$TAIL_LOGS" -eq 1 ]]; then
   tail -n 200 -F "$LOG_DIR"/*.out
 fi
 
+# ----------------- 4) start grafana for healthcheck -----------------
+
+section "START GRAFANA HEALTHCHECK"
+
+if command -v docker >/dev/null 2>&1 && (command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1); then
+  log "Starting Grafana for healthcheck monitoring..."
+  cd "$ROOT_DIR/healthcheck/grafana"
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose up -d
+  else
+    docker compose up -d
+  fi
+  ok "Grafana started. Access at http://localhost:3001 (admin/admin)"
+else
+  warn "Docker or docker-compose not found. Skipping Grafana startup."
+fi
 
 
 
@@ -3963,6 +4347,19 @@ if [[ "$WITH_INFRA_DOWN" -eq 1 ]]; then
   fi
 else
   echo "Leaving infra running (use --down to stop docker compose)."
+fi
+
+# stop healthcheck grafana services
+echo "Stopping healthcheck Grafana services..."
+if command -v docker >/dev/null 2>&1 && (command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1); then
+  cd "$ROOT_DIR/healthcheck/grafana"
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose down
+  else
+    docker compose down
+  fi
+else
+  echo "docker-compose not found. Skipping Grafana shutdown."
 fi
 
 echo "==========================================="

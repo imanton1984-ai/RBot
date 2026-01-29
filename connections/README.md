@@ -82,7 +82,7 @@ TOPIC_PAIRS=market.pairs
 TOPIC_RAW_SIGNALS=trade.raw_signals
 
 # Consumer Group
-WRITER_GROUP=data_writer
+WRITER_GROUP=writer
 ```
 
 ## Usage

@@ -13,6 +13,6 @@ ssl_mode = "disable"
 api_gateway = 8080
 market_ingest = 8081
 compute_core = 8082
-data_writer = 8083
+writer = 8083
 order_engine = 8084
 position_tracker = 8085
