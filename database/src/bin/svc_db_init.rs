@@ -14,6 +14,9 @@ async fn main() -> Result<()> {
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
 
-    database_lib::initialize_database(&database_url).await?;
-    Ok(())
+    // Convert the error type to be compatible with anyhow::Result
+    match database_lib::initialize_database(&database_url).await {
+        Ok(()) => Ok(()),
+        Err(e) => Err(anyhow::anyhow!("Database initialization failed: {}", e)),
+    }
 }

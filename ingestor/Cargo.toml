@@ -7,6 +7,10 @@ edition = "2021"
 name = "ingestor_pairs"
 path = "src/main.rs"
 
+[[bin]]
+name = "load_candles"
+path = "src/bin/load_candles.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 tokio = { workspace = true }
@@ -16,7 +20,13 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 sqlx = { workspace = true }
+futures = { workspace = true }
+tokio-stream = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
 
 common = { path = "../common" }
+connections = { path = "../connections" }
 dotenvy = { workspace = true }
 

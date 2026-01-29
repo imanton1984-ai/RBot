@@ -131,25 +131,25 @@ impl DatabaseInitializer {
 
 pub async fn initialize_database(database_url: &str) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting database initialization process...");
-    
+
     let initializer = DatabaseInitializer::new(database_url).await?;
-    
+
     // Test connection first
     initializer.test_connection().await?;
-    
+
     // Initialize schema
     initializer.initialize_schema().await?;
-    
+
     // Verify tables exist
     let tables_exist = initializer.verify_tables_exist().await?;
-    
+
     if tables_exist {
         // Insert test data
         initializer.insert_test_data().await?;
     } else {
         warn!("Skipping test data insertion as tables don't exist");
     }
-    
+
     info!("Database initialization process completed successfully");
     Ok(())
 }

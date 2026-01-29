@@ -165,7 +165,7 @@ log "cargo: $(cargo -V 2>/dev/null || echo 'not found')"
 
 COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
 BUILD_PROFILE="${BUILD_PROFILE:-release}" # release|debug
-SERVICE_BINS="${SERVICE_BINS:-connections}"
+SERVICE_BINS="${SERVICE_BINS:-connections ingestor writer}"
 
 if [[ -n "$SERVICES_OVERRIDE" ]]; then
   SERVICE_BINS="$SERVICES_OVERRIDE"
@@ -298,9 +298,9 @@ if [[ "$need_build" -eq 1 ]]; then
   log "Targets : ${C_BOLD}$SERVICE_BINS${C_RESET}"
 
   if [[ "$BUILD_PROFILE" == "release" ]]; then
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor -p writer}"
   else
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor -p writer}"
   fi
 
   
@@ -343,9 +343,16 @@ export RUST_LOG="${RUST_LOG:-info}"
 
 run_oneshot "ingestor_pairs"
 
-# ----------------- 3) start services -----------------
+# --- CANDLES: load historical candles and start real-time ingestion ---
+section "ONESHOT: load_candles"
+log "Loading historical candles and starting real-time ingestion..."
+log "This may take a few minutes depending on the number of pairs..."
 
-
+# Run candle loading (this will load historical and start real-time)
+# Only run after pairs are confirmed ready
+run_oneshot "load_candles" || {
+  warn "Candle loading failed, but continuing startup..."
+}
 
 section "START SERVICES"
 

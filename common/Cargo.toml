@@ -10,5 +10,6 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 config = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
 # Импортируем типы, чтобы common мог их реэкспортировать или использовать
 # data_types = { path = "../data_types" }  # Removed as directory doesn't exist
