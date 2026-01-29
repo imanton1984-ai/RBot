@@ -10,9 +10,9 @@ pool_size = 10
 ssl_mode = "disable"
 
 [ports]
-api_gateway = 8080
-market_ingest = 8081
-compute_core = 8082
-writer = 8083
-order_engine = 8084
-position_tracker = 8085
+api_gateway      = 9080
+market_ingest    = 9001
+compute_core     = 9010
+writer           = 9002
+order_engine     = 9020
+position_tracker = 9030

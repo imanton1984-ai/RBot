@@ -6,13 +6,14 @@ members = [
   "connections",      # <-- единый модуль подключений
   "database",
   "healthcheck",
-  "ingestor",
-  "writer",
+  "ingestor",         # <-- единый модуль получения и записи данных
+  
 ]
 resolver = "2"
 
 [workspace.dependencies]
 tokio = { version = "1.49.0", features = ["full"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
 
 anyhow = "1"
 thiserror = "2"
@@ -26,6 +27,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 reqwest = { version = "0.13.1", default-features = false, features = ["json", "rustls"] }
 rustls = { version = "0.23.36", default-features = false, features = ["ring"] }
+
 
 url = "2"
 bytes = "1.0"
@@ -639,77 +641,7 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 config = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
-# Импортируем типы, чтобы common мог их реэкспортировать или использовать
-# data_types = { path = "../data_types" }  # Removed as directory doesn't exist
 
-
-# common/src/candles.rs
-
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use crate::timeframe::TimeFrame;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Candle {
-    pub time_ms: i64,           // Close time in milliseconds (for database)
-    pub symbol_id: i64,         // Pair ID from database
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CandleWithTime {
-    pub timestamp: DateTime<Utc>,  // Open time (derived from time_ms)
-    pub symbol_id: i64,
-    pub timeframe: TimeFrame,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RawCandleData {
-    pub open_time: i64,
-    pub open: String,
-    pub high: String,
-    pub low: String,
-    pub close: String,
-    pub volume: String,
-    pub close_time: i64,
-    pub quote_asset_volume: String,
-    pub number_of_trades: i64,
-    pub taker_buy_base_asset_volume: String,
-    pub taker_buy_quote_asset_volume: String,
-}
-
-impl From<RawCandleData> for Candle {
-    fn from(raw: RawCandleData) -> Self {
-        Candle {
-            time_ms: raw.close_time,
-            symbol_id: 0, // Will be set later when we know the symbol_id
-            open: raw.open.parse().unwrap_or(0.0),
-            high: raw.high.parse().unwrap_or(0.0),
-            low: raw.low.parse().unwrap_or(0.0),
-            close: raw.close.parse().unwrap_or(0.0),
-            volume: raw.volume.parse().unwrap_or(0.0),
-        }
-    }
-}
-
-impl Candle {
-    pub fn get_table_name(&self, timeframe: &TimeFrame) -> String {
-        format!("market.candles_{}", timeframe.as_str().replace("m", "").replace("h", "").replace("d", "").replace("w", ""))
-    }
-
-    pub fn get_table_name_by_tf(timeframe: &TimeFrame) -> String {
-        format!("market.candles_{}", timeframe.as_str().replace("m", "").replace("h", "").replace("d", "").replace("w", ""))
-    }
-}
 
 
 
@@ -910,7 +842,7 @@ pub struct PortsConfig {
     pub api_gateway: u16,
     pub market_ingest: u16,
     pub compute_core: u16,
-    pub writer: u16,
+    // pub writer: u16,
     pub order_engine: u16,
     pub position_tracker: u16,
 }
@@ -962,12 +894,10 @@ pub struct HealthConfig {
 # common/src/lib.rs
 
 pub mod config;
-pub mod candles;
 pub mod timeframe;
 
 // Реэкспортируем config для удобства
 pub use config::*;
-pub use candles::*;
 pub use timeframe::*;
 pub mod health;
 
@@ -1030,318 +960,12 @@ impl fmt::Display for TimeFrame {
 
 
 
-# writer/Cargo.toml
-
-[package]
-name = "writer"
-version = "0.1.0"
-edition = "2021"
-
-[[bin]]
-name = "candle_writer"
-path = "src/main.rs"
-
-[dependencies]
-anyhow = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-sqlx = { workspace = true }
-rdkafka = { workspace = true }
-futures = { workspace = true }
-tokio-stream = { workspace = true }
-bytes = { workspace = true }
-
-common = { path = "../common" }
-connections = { path = "../connections" }
-dotenvy = { workspace = true }
-
-
-# writer/src/candle_writer.rs
-
-use anyhow::{Context, Result};
-use common::{load_config, AppConfig, Candle, TimeFrame};
-use connections_lib::redpanda::RedpandaConfig;
-use futures::StreamExt;
-use rdkafka::{
-    config::ClientConfig,
-    consumer::{Consumer, StreamConsumer},
-    message::Message,
-};
-use serde_json;
-use sqlx::PgPool;
-use std::sync::Arc;
-use tokio::sync::Notify;
-use tracing::{error, info};
-
-pub struct CandleWriter {
-    pool: PgPool,
-    consumer: StreamConsumer,
-    shutdown_notify: Arc<Notify>,
-}
-
-impl CandleWriter {
-    pub async fn new() -> Result<Self> {
-        let cfg: AppConfig = load_config().context("load_config() failed")?;
-        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
-        let pool = PgPool::connect(&db_url).await.context("connect DB failed")?;
-
-        // Setup Redpanda consumer
-        let redpanda_cfg = RedpandaConfig {
-            brokers: cfg.rust_bot.redpanda_brokers.join(","),
-            topic: cfg.rust_bot.topic_candles_close.clone(),
-            group_id: "candle_writer_group".to_string(),
-        };
-
-        let consumer: StreamConsumer = ClientConfig::new()
-            .set("bootstrap.servers", &redpanda_cfg.brokers)
-            .set("group.id", &redpanda_cfg.group_id)
-            .set("enable.partition.eof", "false")
-            .set("session.timeout.ms", "6000")
-            .set("auto.offset.reset", "earliest")
-            .create()
-            .context("Consumer creation failed")?;
-
-        consumer.subscribe(&[&redpanda_cfg.topic]).context("Can't subscribe to topic")?;
-
-        let shutdown_notify = Arc::new(Notify::new());
-
-        Ok(CandleWriter {
-            pool,
-            consumer,
-            shutdown_notify,
-        })
-    }
-
-    pub async fn run(&self) -> Result<()> {
-        info!("Starting candle writer...");
-
-        let mut message_stream = self.consumer.stream();
-
-        while let Some(message_result) = message_stream.next().await {
-            match message_result {
-                Ok(borrowed_message) => {
-                    let payload: &[u8] = borrowed_message.payload().unwrap_or(b"");
-
-                    match serde_json::from_slice::<Candle>(payload) {
-                        Ok(candle) => {
-                            // Determine the appropriate table based on the timeframe
-                            // For now, we'll need to determine the timeframe from the time_ms
-                            // A more robust solution would include the timeframe in the message
-
-                            // Calculate the timeframe based on the time difference between candles
-                            // For now, we'll just try to insert into the appropriate table based on common timeframes
-                            if let Err(e) = self.write_candle_to_correct_table(&candle).await {
-                                error!("Failed to write candle to database: {}", e);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to deserialize candle from message: {}", e);
-                        }
-                    }
-
-                    // Commit message offset after processing
-                    self.consumer.store_offset(
-                        borrowed_message.topic(),
-                        borrowed_message.partition(),
-                        borrowed_message.offset()
-                    ).context("Failed to store offset")?;
-                }
-                Err(e) => {
-                    error!("Kafka error: {}", e);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn write_candle_to_correct_table(&self, candle: &Candle) -> Result<()> {
-        // For now, we'll need to determine the timeframe from the time_ms
-        // A better approach would be to include the timeframe in the message
-        // For this implementation, we'll try to determine the most likely timeframe
-        // based on the time interval of the candle
-
-        // Since we don't have previous candle data here to calculate the interval,
-        // we'll use a heuristic approach or assume it comes from the right topic
-
-        // For now, let's just insert into the 1m table as a default
-        // In a real implementation, we'd have the timeframe in the message or topic
-        self.insert_single_candle(candle).await
-    }
-
-    async fn insert_single_candle(&self, candle: &Candle) -> Result<()> {
-        // Default to 1m timeframe table - this should be determined from the message
-        sqlx::query(
-            "INSERT INTO market.candles_1m (time_ms, symbol_id, open, high, low, close, volume)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (symbol_id, time) DO NOTHING"
-        )
-        .bind(candle.time_ms)
-        .bind(candle.symbol_id)
-        .bind(candle.open)
-        .bind(candle.high)
-        .bind(candle.low)
-        .bind(candle.close)
-        .bind(candle.volume)
-        .execute(&self.pool)
-        .await
-        .context("Failed to insert candle")?;
-
-        Ok(())
-    }
-
-    pub async fn start_listening_by_timeframe(&self) -> Result<()> {
-        info!("Starting candle writer with timeframe-specific topics...");
-
-        // Get configuration to determine which timeframes to listen to
-        let cfg: AppConfig = load_config().context("load_config() failed")?;
-
-        // Subscribe to multiple topics based on timeframes
-        let mut topics = Vec::new();
-        for timeframe in TimeFrame::all_timeframes() {
-            let topic = match timeframe {
-                TimeFrame::M1 => std::env::var("TOPIC_CANDLES_M1").unwrap_or_else(|_| format!("candles_{}", timeframe.as_str())),
-                TimeFrame::M5 => std::env::var("TOPIC_CANDLES_M5").unwrap_or_else(|_| format!("candles_{}", timeframe.as_str())),
-                TimeFrame::M15 => std::env::var("TOPIC_CANDLES_M15").unwrap_or_else(|_| format!("candles_{}", timeframe.as_str())),
-                TimeFrame::H1 => std::env::var("TOPIC_CANDLES_H1").unwrap_or_else(|_| format!("candles_{}", timeframe.as_str())),
-                TimeFrame::H4 => std::env::var("TOPIC_CANDLES_H4").unwrap_or_else(|_| format!("candles_{}", timeframe.as_str())),
-                TimeFrame::D1 => std::env::var("TOPIC_CANDLES_D1").unwrap_or_else(|_| format!("candles_{}", timeframe.as_str())),
-                _ => format!("candles_{}", timeframe.as_str()),
-            };
-            topics.push(topic);
-        }
-
-        // Subscribe to all timeframe-specific topics
-        let topic_refs: Vec<&str> = topics.iter().map(|s| s.as_str()).collect();
-        self.consumer.subscribe(&topic_refs).context("Can't subscribe to topics")?;
-
-        info!("Subscribed to topics: {:?}", topic_refs);
-
-        let mut message_stream = self.consumer.stream();
-
-        while let Some(message_result) = message_stream.next().await {
-            match message_result {
-                Ok(borrowed_message) => {
-                    let payload: &[u8] = borrowed_message.payload().unwrap_or(b"");
-                    let topic = borrowed_message.topic();
-
-                    match serde_json::from_slice::<Candle>(payload) {
-                        Ok(candle) => {
-                            // Determine the table based on the topic name
-                            let table_name = self.get_table_name_from_topic(topic);
-                            if let Err(e) = self.insert_candle_with_timeframe(&candle, &table_name).await {
-                                error!("Failed to write candle to table {}: {}", table_name, e);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to deserialize candle from message: {}", e);
-                        }
-                    }
-
-                    // Commit message offset after processing
-                    self.consumer.store_offset(
-                        borrowed_message.topic(),
-                        borrowed_message.partition(),
-                        borrowed_message.offset()
-                    ).context("Failed to store offset")?;
-                }
-                Err(e) => {
-                    error!("Kafka error: {}", e);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn get_table_name_from_topic(&self, topic: &str) -> String {
-        // Map topic names to table names
-        if topic.contains("1m") {
-            "market.candles_1m".to_string()
-        } else if topic.contains("5m") {
-            "market.candles_5m".to_string()
-        } else if topic.contains("15m") {
-            "market.candles_15m".to_string()
-        } else if topic.contains("1h") {
-            "market.candles_1h".to_string()
-        } else if topic.contains("4h") {
-            "market.candles_4h".to_string()
-        } else if topic.contains("1d") {
-            "market.candles_1d".to_string()
-        } else {
-            // Default to 1m if we can't determine the timeframe
-            "market.candles_1m".to_string()
-        }
-    }
-
-    async fn insert_candle_with_timeframe(&self, candle: &Candle, table_name: &str) -> Result<()> {
-        let query = format!(
-            "INSERT INTO {} (time_ms, symbol_id, open, high, low, close, volume)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (symbol_id, time) DO NOTHING",
-            table_name
-        );
-
-        sqlx::query(&query)
-            .bind(candle.time_ms)
-            .bind(candle.symbol_id)
-            .bind(candle.open)
-            .bind(candle.high)
-            .bind(candle.low)
-            .bind(candle.close)
-            .bind(candle.volume)
-            .execute(&self.pool)
-            .await
-            .context("Failed to insert candle")?;
-
-        Ok(())
-    }
-}
-
-
-# writer/src/lib.rs
-
-
-
-
-# writer/src/main.rs
-
-mod candle_writer;
-
-use anyhow::Result;
-use candle_writer::CandleWriter;
-use dotenvy::dotenv;
-use tracing::info;
-use tracing_subscriber::EnvFilter;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    dotenv().ok();
-
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-
-    info!("Starting candle writer service...");
-
-    let writer = CandleWriter::new().await?;
-
-    // Run the candle writer with timeframe-specific listening
-    writer.start_listening_by_timeframe().await?;
-
-    Ok(())
-}
-
-
 # config/binance.toml
 
 [binance]
 # USDⓈ-M Futures
 rest_base_url = "https://fapi.binance.com"
-ws_base_url   = "wss://fstream.binance.com"
+ws_base_url   = "wss://fstream.binance.com/stream"
 
 # Таймауты/ретраи
 http_timeout_ms = 8000
@@ -1432,12 +1056,12 @@ pool_size = 10
 ssl_mode = "disable"
 
 [ports]
-api_gateway = 8080
-market_ingest = 8081
-compute_core = 8082
-writer = 8083
-order_engine = 8084
-position_tracker = 8085
+api_gateway      = 9080
+market_ingest    = 9001
+compute_core     = 9010
+writer           = 9002
+order_engine     = 9020
+position_tracker = 9030
 
 
 
@@ -1731,12 +1355,8 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "ingestor_pairs"
+name = "ingestor"
 path = "src/main.rs"
-
-[[bin]]
-name = "load_candles"
-path = "src/bin/load_candles.rs"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -1752,6 +1372,9 @@ tokio-stream = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
+tokio-postgres = { workspace = true }
+tokio-tungstenite = { workspace = true }
+rustls = { workspace = true } 
 
 common = { path = "../common" }
 connections = { path = "../connections" }
@@ -1760,452 +1383,784 @@ dotenvy = { workspace = true }
 
 
 
-# ingestor/src/candles.rs
-
-use anyhow::{Context, Result};
-use chrono::{TimeZone, Utc};
-use common::{load_config, AppConfig, Candle, RawCandleData, TimeFrame};
-use connections_lib::{binance_websocket::BinanceWsConnection, redpanda::RedpandaConnection};
-use serde_json::Value;
-use sqlx::{PgPool, Row};
-use std::time::Duration;
-use tokio::sync::mpsc;
-use tracing::{info, warn, error};
-
-#[derive(Debug, Clone)]
-struct PairInfo {
-    symbol_id: i64,
-    symbol: String,
-}
-
-pub async fn load_historical_candles() -> Result<()> {
-    let cfg: AppConfig = load_config().context("load_config() failed")?;
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
-    let pool = PgPool::connect(&db_url).await.context("connect DB failed")?;
-
-    let timeout = Duration::from_millis(cfg.binance.http_timeout_ms);
-    let client = reqwest::Client::builder().timeout(timeout).build()?;
-
-    let rest_base = cfg.binance.rest_base_url.clone();
-
-    // Get all active pairs from the database
-    let pairs = get_active_pairs(&pool).await?;
-    info!("Found {} active pairs to load candles for", pairs.len());
-
-    // Define the timeframes we want to load
-    let timeframes = TimeFrame::all_timeframes();
-    info!("Loading candles for timeframes: {:?}", timeframes.iter().map(|tf| tf.as_str()).collect::<Vec<_>>());
-
-    // Use a semaphore to control concurrency - use a very conservative value for historical data loading
-    let max_concurrent = std::env::var("MAX_API_CONCURRENCY")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(2); // Very conservative for historical loading to avoid rate limits
-    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrent.max(1))); // Minimum of 1 to avoid deadlock
-
-    // Process all pairs and timeframes with controlled concurrency
-    let mut tasks = Vec::new();
-
-    // Convert to owned values to avoid borrowing issues
-    let pairs_owned: Vec<_> = pairs.into_iter().collect();
-    let timeframes_owned: Vec<_> = timeframes.into_iter().collect();
-
-    // Create all tasks with cloned values
-    for pair in &pairs_owned {
-        for timeframe in &timeframes_owned {
-            let client = client.clone();
-            let rest_base = rest_base.clone();
-            let semaphore = semaphore.clone();
-            let db_url = db_url.clone();
-            let pair = pair.clone(); // Clone the pair for each task
-            let timeframe = *timeframe; // Copy the timeframe
-
-            let task = tokio::spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap();
-
-                // Create a new connection for this task
-                let pool = PgPool::connect(&db_url).await.context("connect DB failed in task")?;
-
-                info!("Loading {} timeframe for {}", timeframe.as_str(), pair.symbol);
-
-                // Get the last closed candle time for this pair/timeframe combination
-                let last_candle_time = get_last_candle_time(&pool, pair.symbol_id, timeframe).await?;
-
-                // Load 700 candles for this pair/timeframe
-                let candles_data = fetch_candles_via_api(
-                    &client,
-                    &rest_base,
-                    &pair.symbol,
-                    timeframe.as_str(),
-                    700,
-                    last_candle_time
-                ).await?;
-
-                // Convert raw data to Candle structs
-                let candles = parse_candle_data(candles_data, pair.symbol_id);
-
-                // Insert candles into the appropriate table
-                insert_candles(&pool, &candles, timeframe).await?;
-
-                info!("Inserted {} {} candles for {}", candles.len(), timeframe.as_str(), pair.symbol);
-
-                Ok::<(), anyhow::Error>(())
-            });
-
-            tasks.push(task);
-        }
-    }
-
-    // Wait for all tasks to complete
-    for task in tasks {
-        match task.await {
-            Ok(Ok(())) => {}, // Success
-            Ok(Err(e)) => error!("Task error: {}", e),
-            Err(e) => error!("Task join error: {}", e),
-        }
-    }
-
-    info!("Historical candle loading completed");
-    Ok(())
-}
-
-async fn get_active_pairs(pool: &PgPool) -> Result<Vec<PairInfo>> {
-    let rows = sqlx::query(
-        "SELECT symbol_id, symbol FROM market.pairs WHERE is_active = TRUE"
-    )
-    .fetch_all(pool)
-    .await?;
-
-    let pairs = rows
-        .into_iter()
-        .map(|row| PairInfo {
-            symbol_id: row.get("symbol_id"),
-            symbol: row.get("symbol"),
-        })
-        .collect();
-
-    Ok(pairs)
-}
-
-async fn get_last_candle_time(pool: &PgPool, symbol_id: i64, timeframe: TimeFrame) -> Result<Option<i64>> {
-    let table_name = format!("market.candles_{}", timeframe.as_str());
-    let query = format!(
-        "SELECT MAX(time_ms) as last_time FROM {} WHERE symbol_id = $1",
-        table_name
-    );
-
-    let row = sqlx::query(&query)
-        .bind(symbol_id)
-        .fetch_optional(pool)
-        .await?;
-
-    if let Some(row) = row {
-        let last_time: Option<i64> = row.get("last_time");
-        Ok(last_time)
-    } else {
-        Ok(None)
-    }
-}
-
-async fn fetch_candles_via_api(
-    client: &reqwest::Client,
-    base_url: &str,
-    symbol: &str,
-    interval: &str,
-    limit: u32,
-    start_time: Option<i64>,
-) -> Result<Vec<RawCandleData>> {
-    let mut url = format!(
-        "{}/fapi/v1/klines?symbol={}&interval={}&limit={}",
-        base_url.trim_end_matches('/'),
-        symbol.to_uppercase(),
-        interval,
-        limit
-    );
-
-    // Add start time if provided
-    if let Some(start) = start_time {
-        url.push_str(&format!("&startTime={}", start));
-    }
-
-    let response = client.get(&url).send().await?.error_for_status()?;
-    let text = response.text().await?;
-
-    // Parse the JSON response
-    let json_value: Value = serde_json::from_str(&text)?;
-
-    if let Some(array) = json_value.as_array() {
-        let mut candles = Vec::new();
-
-        for item in array {
-            if let Some(arr) = item.as_array() {
-                if arr.len() >= 11 {
-                    let candle = RawCandleData {
-                        open_time: arr[0].as_i64().unwrap_or(0),
-                        open: arr[1].as_str().unwrap_or("0").to_string(),
-                        high: arr[2].as_str().unwrap_or("0").to_string(),
-                        low: arr[3].as_str().unwrap_or("0").to_string(),
-                        close: arr[4].as_str().unwrap_or("0").to_string(),
-                        volume: arr[5].as_str().unwrap_or("0").to_string(),
-                        close_time: arr[6].as_i64().unwrap_or(0),
-                        quote_asset_volume: arr[7].as_str().unwrap_or("0").to_string(),
-                        number_of_trades: arr[8].as_i64().unwrap_or(0),
-                        taker_buy_base_asset_volume: arr[9].as_str().unwrap_or("0").to_string(),
-                        taker_buy_quote_asset_volume: arr[10].as_str().unwrap_or("0").to_string(),
-                    };
-                    candles.push(candle);
-                }
-            }
-        }
-
-        Ok(candles)
-    } else {
-        Ok(Vec::new())
-    }
-}
-
-fn parse_candle_data(raw_candles: Vec<RawCandleData>, symbol_id: i64) -> Vec<Candle> {
-    raw_candles
-        .into_iter()
-        .map(|raw| {
-            let mut candle: Candle = raw.into();
-            candle.symbol_id = symbol_id;
-            candle
-        })
-        .collect()
-}
-
-async fn insert_candles(pool: &PgPool, candles: &[Candle], timeframe: TimeFrame) -> Result<()> {
-    if candles.is_empty() {
-        return Ok(());
-    }
-
-    let table_name = format!("market.candles_{}", timeframe.as_str());
-
-    // Use bulk insert with a single query for maximum efficiency
-    let mut tx = pool.begin().await?;
-
-    // Process in chunks to avoid query size limits
-    for chunk in candles.chunks(1000) {
-        let mut query_builder: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
-            format!("INSERT INTO {} (time_ms, time, symbol_id, open, high, low, close, volume) ", table_name)
-        );
-
-        query_builder.push_values(chunk, |mut b, candle| {
-            let time = Utc.timestamp_opt((candle.time_ms / 1000) as i64, 0)
-                .single()
-                .unwrap_or_else(|| Utc.timestamp_opt(0, 0).single().unwrap());
-
-            b.push_bind(candle.time_ms)
-             .push_bind(time)
-             .push_bind(candle.symbol_id)
-             .push_bind(candle.open)
-             .push_bind(candle.high)
-             .push_bind(candle.low)
-             .push_bind(candle.close)
-             .push_bind(candle.volume);
-        });
-
-        // Use ON CONFLICT to handle duplicates efficiently
-        query_builder.push(" ON CONFLICT (symbol_id, time) DO NOTHING");
-
-        query_builder.build().execute(&mut *tx).await?;
-    }
-
-    tx.commit().await?;
-
-    Ok(())
-}
-
-pub async fn start_realtime_candle_ingestion() -> Result<()> {
-    info!("Starting realtime candle ingestion via WebSocket...");
-
-    // Get configuration
-    let cfg: AppConfig = load_config().context("load_config() failed")?;
-
-    // Get active pairs
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
-    let pool = PgPool::connect(&db_url).await.context("connect DB failed")?;
-    let pairs = get_active_pairs(&pool).await?;
-
-    // Create Redpanda connection
-    let mut redpanda_conn: RedpandaConnection = RedpandaConnection::new_from_env().await?;
-    redpanda_conn.connect_producer().await?;
-
-    // Create WebSocket connection for Kline/Candlestick Streams
-    let mut ws_streams = Vec::new();
-    for pair in &pairs {
-        for timeframe in &TimeFrame::all_timeframes() {
-            let stream_name = format!("{}@kline_{}", pair.symbol.to_lowercase(), timeframe.as_str());
-            ws_streams.push(stream_name);
-        }
-    }
-
-    // Limit the number of streams due to Binance limits
-    // Binance allows up to 200 streams per connection
-    if ws_streams.len() > 200 {
-        warn!("Too many streams ({}), limiting to 200", ws_streams.len());
-        ws_streams.truncate(200);
-    }
-
-    info!("Connecting to WebSocket with {} streams", ws_streams.len());
-
-    // Set up the WebSocket connection
-    let ws_conn: BinanceWsConnection = BinanceWsConnection::new_from_env().await?;
-
-    // Create channel for receiving WebSocket messages
-    let (tx, rx) = mpsc::channel::<bytes::Bytes>(1000);
-    let (status_tx, _status_rx) = tokio::sync::watch::channel(false);
-
-    // Spawn WebSocket connection task
-    let handle = tokio::spawn({
-        let ws_conn = ws_conn;
-        let tx = tx.clone();
-        let status_tx = status_tx.clone();
-        async move {
-            if let Err(e) = ws_conn.run_forever(tx, status_tx).await {
-                error!("WebSocket connection error: {}", e);
-            }
-        }
-    });
-
-    // Process received WebSocket messages
-    let mut rx = rx;
-    while let Some(msg_bytes) = rx.recv().await {
-        if let Ok(msg_str) = std::str::from_utf8(&msg_bytes) {
-            if let Ok(json_value) = serde_json::from_str::<Value>(msg_str) {
-                // Check if this is a kline event
-                if let Some(event_type) = json_value.get("stream") {
-                    if event_type.as_str().unwrap_or("").contains("@kline_") {
-                        if let Some(data) = json_value.get("data") {
-                            if let Some(kline_data) = data.get("k") {
-                                // Parse kline data
-                                if let Some(parsed_candle) = parse_kline_data(kline_data, &pairs) {
-                                    // Send candle to Redpanda
-                                    if let Ok(candle_json) = serde_json::to_string(&parsed_candle) {
-                                        if let Err(e) = redpanda_conn.send_message(&parsed_candle.symbol_id.to_string(), candle_json.as_bytes()).await {
-                                            error!("Failed to send candle to Redpanda: {}", e);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Wait for the WebSocket task to complete
-    let _ = handle.await;
-
-    Ok(())
-}
-
-fn parse_kline_data(kline_data: &Value, pairs: &[PairInfo]) -> Option<Candle> {
-    // Extract kline data from JSON
-    let symbol = kline_data.get("s")?.as_str()?.to_uppercase();
-    let close_time = kline_data.get("T")?.as_i64()?;
-    let open = kline_data.get("o")?.as_str()?.parse::<f64>().unwrap_or(0.0);
-    let high = kline_data.get("h")?.as_str()?.parse::<f64>().unwrap_or(0.0);
-    let low = kline_data.get("l")?.as_str()?.parse::<f64>().unwrap_or(0.0);
-    let close = kline_data.get("c")?.as_str()?.parse::<f64>().unwrap_or(0.0);
-    let volume = kline_data.get("v")?.as_str()?.parse::<f64>().unwrap_or(0.0);
-
-    // Find the corresponding symbol_id
-    let symbol_id = pairs.iter()
-        .find(|p| p.symbol == symbol)
-        .map(|p| p.symbol_id)?;
-
-    Some(Candle {
-        time_ms: close_time,
-        symbol_id,
-        open,
-        high,
-        low,
-        close,
-        volume,
-    })
-}
-
-
 # ingestor/src/lib.rs
 
-pub mod pairs;
-pub mod candles;
+pub mod market;
 
-pub use pairs::{refresh_universe_pairs, UniversePairsResult};
-pub use candles::{load_historical_candles, start_realtime_candle_ingestion};
-
+pub use market::candles::run_candles_ingest;
+pub use market::pairs::refresh_universe_pairs;
 
 
 # ingestor/src/main.rs
-
-mod pairs;
-mod candles;
 
 use anyhow::Result;
 use dotenvy::dotenv;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+use ingestor::run_candles_ingest;
+
+fn install_rustls_provider() {
+    // Выбираем провайдера явно. Иначе при включенных ring+aws-lc-rs будет panic.
+    rustls::crypto::ring::default_provider()
+         .install_default()
+         .expect("install_default failed");
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    install_rustls_provider();
+
     dotenv().ok();
 
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info,ingestor=info,connections=info")),
+        )
         .init();
 
-    let min_pairs: i64 = std::env::var("MIN_PAIRS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(300);
+    info!("Starting ingest (candles monolith)...");
+    run_candles_ingest().await
+}
 
-    // Refresh pairs first
-    let res = pairs::refresh_universe_pairs().await?;
 
-    if res.active_cnt < min_pairs {
-        anyhow::bail!(
-            "pairs_ready=false: active={} < MIN_PAIRS={}",
-            res.active_cnt,
-            min_pairs
-        );
+
+
+# ingestor/src/trade/raw_signal.rs
+
+
+
+
+# ingestor/src/trade/trade_signal.rs
+
+
+
+
+# ingestor/src/market/candles.rs
+
+use anyhow::{anyhow, Context, Result};
+use chrono::{TimeZone, Utc};
+use common::timeframe::TimeFrame;
+use common::{load_config, AppConfig};
+use futures::{stream, StreamExt};
+use futures::SinkExt;
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{mpsc, watch};
+use tokio::time::{Duration, Instant};
+use tokio_postgres::binary_copy::BinaryCopyInWriter;
+use tokio_postgres::types::{ToSql, Type};
+use tokio_postgres::NoTls;
+use tokio_tungstenite::tungstenite::Message;
+use tracing::{error, info, warn};
+
+#[derive(Debug, Clone)]
+pub struct PairInfo {
+    pub symbol_id: i64,
+    pub symbol: String, // "BTCUSDT"
+}
+
+#[derive(Debug, Clone)]
+pub struct CandleRow {
+    pub time_ms: i64, // close time ms
+    pub symbol_id: i64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+}
+
+#[derive(Debug, Clone)]
+struct WriterMsg {
+    rows: Vec<CandleRow>,
+}
+
+// ---------- REST (zero-copy-ish) ----------
+#[allow(dead_code)]
+#[derive(serde::Deserialize)]
+struct RestKline<'a>(
+    i64,                       // open_time
+    #[serde(borrow)] Cow<'a, str>, // open
+    #[serde(borrow)] Cow<'a, str>, // high
+    #[serde(borrow)] Cow<'a, str>, // low
+    #[serde(borrow)] Cow<'a, str>, // close
+    #[serde(borrow)] Cow<'a, str>, // volume
+    i64,                       // close_time
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+);
+
+// ---------- WS (zero-copy-ish) ----------
+#[derive(serde::Deserialize)]
+struct WsEnvelope<'a> {
+    #[serde(borrow)]
+    data: WsData<'a>,
+}
+
+#[derive(serde::Deserialize)]
+struct WsData<'a> {
+    #[serde(rename = "k", borrow)]
+    k: WsKline<'a>,
+}
+
+#[derive(serde::Deserialize)]
+struct WsKline<'a> {
+    #[serde(rename = "s", borrow)]
+    symbol: Cow<'a, str>, // "BTCUSDT"
+    #[serde(rename = "i", borrow)]
+    interval: Cow<'a, str>, // "1m"
+    #[serde(rename = "T")]
+    close_time: i64,
+    #[serde(rename = "o", borrow)]
+    open: Cow<'a, str>,
+    #[serde(rename = "h", borrow)]
+    high: Cow<'a, str>,
+    #[serde(rename = "l", borrow)]
+    low: Cow<'a, str>,
+    #[serde(rename = "c", borrow)]
+    close: Cow<'a, str>,
+    #[serde(rename = "v", borrow)]
+    volume: Cow<'a, str>,
+    #[serde(rename = "x")]
+    is_closed: bool,
+}
+
+fn parse_tf(s: &str) -> Option<TimeFrame> {
+    match s {
+        "1m" => Some(TimeFrame::M1),
+        "5m" => Some(TimeFrame::M5),
+        "15m" => Some(TimeFrame::M15),
+        "1h" => Some(TimeFrame::H1),
+        "4h" => Some(TimeFrame::H4),
+        "1d" => Some(TimeFrame::D1),
+        _ => None,
     }
+}
 
-    info!(
-        "pairs_ready=true: selected={}, active={} (MIN_PAIRS={})",
-        res.selected_cnt,
-        res.active_cnt,
-        min_pairs
-    );
+fn build_table_name(tf: TimeFrame) -> String {
+    format!("market.candles_{}", tf.as_str())
+}
 
-    // Load historical candles
-    info!("Starting historical candle loading...");
-    candles::load_historical_candles().await?;
-    info!("Historical candle loading completed");
+fn build_ws_base(ws_base: &str) -> String {
+    let b = ws_base.trim_end_matches('/');
+    if b.ends_with("/stream") {
+        b.to_string()
+    } else {
+        format!("{}/stream", b)
+    }
+}
 
-    // Start realtime candle ingestion
-    info!("Starting realtime candle ingestion...");
-    // Note: In a production setup, this would run continuously
-    // For now, we'll just start it and let it run in the background
-    tokio::spawn(async {
-        if let Err(e) = candles::start_realtime_candle_ingestion().await {
-            tracing::error!("Realtime candle ingestion error: {}", e);
+fn build_combined_ws_url(ws_base: &str, streams: &[String]) -> String {
+    let base = build_ws_base(ws_base);
+    let joined = streams.join("/");
+    format!("{}?streams={}", base, joined)
+}
+
+fn str_f64(s: &str) -> f64 {
+    s.parse::<f64>().unwrap_or(0.0)
+}
+
+async fn pg_connect(db_url: &str) -> Result<tokio_postgres::Client> {
+    let (client, connection) = tokio_postgres::connect(db_url, NoTls)
+        .await
+        .context("tokio_postgres::connect failed")?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            error!("postgres connection error: {e}");
         }
     });
 
-    // Keep the program running
-    tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
-    info!("Received shutdown signal");
+    Ok(client)
+}
+
+async fn fetch_active_pairs(client: &tokio_postgres::Client) -> Result<Vec<PairInfo>> {
+    let row = client
+        .query_one("SELECT to_regclass('market.pairs')::text", &[])
+        .await
+        .context("failed to check market.pairs existence")?;
+    let reg: Option<String> = row.get(0);
+    if reg.is_none() {
+        return Err(anyhow!(
+            "DB schema is not initialized: relation market.pairs does not exist"
+        ));
+    }
+
+    let rows = client
+        .query(
+            "SELECT symbol_id, symbol
+             FROM market.pairs
+             WHERE is_active = TRUE
+             ORDER BY symbol_id",
+            &[],
+        )
+        .await
+        .context("fetch_active_pairs query failed")?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(PairInfo {
+            symbol_id: r.get::<_, i64>(0),
+            symbol: r.get::<_, String>(1),
+        });
+    }
+    Ok(out)
+}
+
+async fn fetch_last_time_per_symbol(
+    client: &tokio_postgres::Client,
+    tf: TimeFrame,
+) -> Result<HashMap<i64, i64>> {
+    let table = build_table_name(tf);
+    let q = format!(
+        "SELECT symbol_id, COALESCE(MAX(time_ms),0)::bigint AS last_ms
+         FROM {}
+         GROUP BY symbol_id",
+        table
+    );
+
+    let rows = client
+        .query(&q, &[])
+        .await
+        .with_context(|| format!("fetch_last_time_per_symbol failed for {}", table))?;
+
+    let mut map = HashMap::with_capacity(rows.len().max(1024));
+    for r in rows {
+        let sid: i64 = r.get(0);
+        let last_ms: i64 = r.get(1);
+        map.insert(sid, last_ms);
+    }
+    Ok(map)
+}
+
+/// Подготовка буфера перед COPY:
+/// - отбрасываем всё, что <= last_seen[symbol]
+/// - сортируем и dedup по (symbol_id, time_ms)
+fn prepare_copy_batch(buf: &mut Vec<CandleRow>, last_seen: &HashMap<i64, i64>) {
+    buf.retain(|c| c.time_ms > *last_seen.get(&c.symbol_id).unwrap_or(&0));
+
+    if buf.len() <= 1 {
+        return;
+    }
+
+    buf.sort_unstable_by(|a, b| {
+        match a.symbol_id.cmp(&b.symbol_id) {
+            std::cmp::Ordering::Equal => a.time_ms.cmp(&b.time_ms),
+            other => other,
+        }
+    });
+
+    buf.dedup_by(|a, b| a.symbol_id == b.symbol_id && a.time_ms == b.time_ms);
+}
+
+/// BINARY COPY flush.
+/// Важно: буфер очищаем ТОЛЬКО после успешного finish(),
+/// чтобы при ошибке можно было повторить.
+async fn flush_copy(client: &tokio_postgres::Client, tf: Tf, buf: &mut Vec<Row>) -> anyhow::Result<()> {
+    // Важно: columns явные и в том же порядке, в каком ты пишешь значения
+    let stmt = format!(
+        "COPY market_candles_{tf} (symbol, ts, open, high, low, close, volume) FROM STDIN BINARY"
+    );
+
+    let sink = client.copy_in(&stmt).await?;
+    let mut w = tokio_postgres::binary_copy::BinaryCopyInWriter::new(
+        sink,
+        &[tokio_postgres::types::Type::TEXT,
+          tokio_postgres::types::Type::TIMESTAMPTZ,
+          tokio_postgres::types::Type::FLOAT8,
+          tokio_postgres::types::Type::FLOAT8,
+          tokio_postgres::types::Type::FLOAT8,
+          tokio_postgres::types::Type::FLOAT8,
+          tokio_postgres::types::Type::FLOAT8],
+    );
+
+    for r in buf.iter() {
+        w.write(&[
+            &r.symbol,
+            &r.ts,
+            &r.open,
+            &r.high,
+            &r.low,
+            &r.close,
+            &r.volume,
+        ]).await?;
+    }
+
+    // КРИТИЧНО: finish() обязан быть await'нут
+    w.finish().await?;
+    buf.clear();
+    Ok(())
+}
+
+async fn writer_task_copy(tf: Tf, rx: tokio::sync::mpsc::Receiver<Row>, pg_dsn: String) -> anyhow::Result<()> {
+    writer_loop(tf, rx, pg_dsn).await
+}
+
+async fn writer_loop(tf: Tf, mut rx: tokio::sync::mpsc::Receiver<Row>, pg_dsn: String) -> anyhow::Result<()> {
+    loop {
+        let (client, connection) = tokio_postgres::connect(&pg_dsn, tokio_postgres::NoTls).await?;
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                tracing::error!(?e, "pg connection task failed");
+            }
+        });
+
+        client.batch_execute("SET synchronous_commit=off").await?;
+
+        let mut buf: Vec<Row> = Vec::with_capacity(50_000);
+        let mut tick = tokio::time::interval(std::time::Duration::from_millis(250));
+
+        let res: anyhow::Result<()> = loop {
+            tokio::select! {
+                _ = tick.tick() => {
+                    if !buf.is_empty() {
+                        if let Err(e) = flush_copy(&client, tf, &mut buf).await {
+                            tracing::error!(tf=?tf, error=?e, "copy flush failed");
+                            break Err(e);
+                        }
+                    }
+                }
+                msg = rx.recv() => {
+                    match msg {
+                        Some(row) => {
+                            buf.push(row);
+                            if buf.len() >= 50_000 {
+                                if let Err(e) = flush_copy(&client, tf, &mut buf).await {
+                                    tracing::error!(tf=?tf, error=?e, "copy flush failed");
+                                    break Err(e);
+                                }
+                            }
+                        }
+                        None => {
+                            if !buf.is_empty() { flush_copy(&client, tf, &mut buf).await?; }
+                            break Ok(());
+                        }
+                    }
+                }
+            }
+        };
+
+        if res.is_ok() { return Ok(()); }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+
+
+    info!("writer({}) stopped. inserted_total={}", tf.as_str(), inserted_total);
+    Ok(())
+}
+
+async fn rest_fetch_klines_bytes(
+    http: &reqwest::Client,
+    cfg: &AppConfig,
+    symbol: &str,
+    interval: &str,
+    start_time_ms: Option<i64>,
+    limit: usize,
+) -> Result<bytes::Bytes> {
+    let mut url = format!(
+        "{}/fapi/v1/klines?symbol={}&interval={}&limit={}",
+        cfg.binance.rest_base_url, symbol, interval, limit
+    );
+    if let Some(st) = start_time_ms {
+        url.push_str(&format!("&startTime={}", st));
+    }
+
+    let mut backoff = cfg.binance.http_retry_backoff_ms.max(50);
+    for attempt in 1..=cfg.binance.http_retries.max(1) {
+        let resp = http.get(&url).send().await;
+
+        match resp {
+            Ok(r) => {
+                let status = r.status();
+                if status.as_u16() == 429 || status.as_u16() == 418 {
+                    warn!(
+                        "REST rate-limited {} {} attempt={} status={}",
+                        symbol, interval, attempt, status
+                    );
+                    tokio::time::sleep(Duration::from_millis(backoff)).await;
+                    backoff = (backoff * 2).min(cfg.binance.http_retry_backoff_max_ms);
+                    continue;
+                }
+
+                match r.error_for_status() {
+                    Ok(ok) => return Ok(ok.bytes().await.context("read bytes failed")?),
+                    Err(e) => {
+                        warn!(
+                            "REST klines {} {} attempt={} status_err={}",
+                            symbol, interval, attempt, e
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "REST klines {} {} attempt={} req_err={}",
+                    symbol, interval, attempt, e
+                );
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(backoff)).await;
+        backoff = (backoff * 2).min(cfg.binance.http_retry_backoff_max_ms);
+    }
+
+    Err(anyhow!("REST klines failed after retries: {} {}", symbol, interval))
+}
+
+async fn rest_backfill_one(
+    http: &reqwest::Client,
+    cfg: &AppConfig,
+    pair: &PairInfo,
+    tf: TimeFrame,
+    last_ms: i64,
+    tx: mpsc::Sender<WriterMsg>,
+) -> Result<()> {
+    let interval = tf.as_str();
+    let limit = cfg.runtime.backfill_candles.min(1000) as usize;
+
+    let max_loops: usize = std::env::var("INGEST_BACKFILL_MAX_LOOPS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10_000);
+
+    let mut start = if last_ms > 0 { Some(last_ms + 1) } else { None };
+    let mut loops = 0usize;
+    let mut max_close = last_ms;
+
+    while loops < max_loops {
+        loops += 1;
+
+        let bytes = rest_fetch_klines_bytes(http, cfg, &pair.symbol, interval, start, limit).await?;
+        let klines: Vec<RestKline> =
+            serde_json::from_slice(&bytes).context("parse REST klines failed")?;
+        if klines.is_empty() {
+            break;
+        }
+
+        let mut out: Vec<CandleRow> = Vec::with_capacity(klines.len());
+
+        for k in &klines {
+            let close_time = k.6;
+            if close_time <= last_ms {
+                continue;
+            }
+            if close_time > max_close {
+                max_close = close_time;
+            }
+
+            out.push(CandleRow {
+                time_ms: close_time,
+                symbol_id: pair.symbol_id,
+                open: str_f64(k.1.as_ref()),
+                high: str_f64(k.2.as_ref()),
+                low: str_f64(k.3.as_ref()),
+                close: str_f64(k.4.as_ref()),
+                volume: str_f64(k.5.as_ref()),
+            });
+        }
+
+        if !out.is_empty() {
+            let _ = tx.send(WriterMsg { rows: out }).await;
+        }
+
+        if klines.len() < limit {
+            break;
+        }
+        start = Some(max_close + 1);
+    }
+
+    Ok(())
+}
+
+async fn ws_worker(
+    cfg: Arc<AppConfig>,
+    url: String,
+    symbol_to_id: Arc<HashMap<String, i64>>,
+    writers: Arc<HashMap<TimeFrame, mpsc::Sender<WriterMsg>>>,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<()> {
+    let mut backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
+    let ping_every = Duration::from_secs(cfg.binance.ws_ping_interval_sec.max(5) as u64);
+
+    loop {
+        if *shutdown.borrow() {
+            return Ok(());
+        }
+
+        info!("WS connect: {}", url);
+        let conn = tokio_tungstenite::connect_async(&url).await;
+        let (mut ws, _) = match conn {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("WS connect failed: {} err={}", url, e);
+                tokio::time::sleep(Duration::from_millis(backoff)).await;
+                backoff = (backoff * 2).min(cfg.binance.ws_reconnect_backoff_max_ms);
+                continue;
+            }
+        };
+
+        backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
+        let mut ping = tokio::time::interval(ping_every);
+
+        loop {
+            tokio::select! {
+                _ = shutdown.changed() => {
+                    if *shutdown.borrow() {
+                        let _ = ws.send(Message::Close(None)).await;
+                        return Ok(());
+                    }
+                }
+
+                _ = ping.tick() => {
+                    // tungstenite 0.28: Ping(Bytes)
+                    let _ = ws.send(Message::Ping(bytes::Bytes::new())).await;
+                }
+
+                msg = ws.next() => {
+                    let msg = match msg {
+                        None => { warn!("WS closed by server: {}", url); break; }
+                        Some(Err(e)) => { warn!("WS read error: {} err={}", url, e); break; }
+                        Some(Ok(m)) => m,
+                    };
+
+                    let data_slice: &[u8] = match &msg {
+                        Message::Text(t) => t.as_bytes(),   // Utf8Bytes
+                        Message::Binary(b) => b.as_ref(),   // Bytes
+                        Message::Ping(_) | Message::Pong(_) => continue,
+                        Message::Close(_) => { warn!("WS close frame: {}", url); break; }
+                        _ => continue,
+                    };
+
+                    let env: WsEnvelope = match serde_json::from_slice(data_slice) {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+
+                    let k = env.data.k;
+                    if !k.is_closed {
+                        continue;
+                    }
+
+                    let tf = match parse_tf(k.interval.as_ref()) {
+                        Some(t) => t,
+                        None => continue,
+                    };
+
+                    let sid = match symbol_to_id.get(k.symbol.as_ref()) {
+                        Some(v) => *v,
+                        None => continue,
+                    };
+
+                    let row = CandleRow {
+                        time_ms: k.close_time,
+                        symbol_id: sid,
+                        open: str_f64(k.open.as_ref()),
+                        high: str_f64(k.high.as_ref()),
+                        low: str_f64(k.low.as_ref()),
+                        close: str_f64(k.close.as_ref()),
+                        volume: str_f64(k.volume.as_ref()),
+                    };
+
+                    if let Some(tx) = writers.get(&tf) {
+                        let _ = tx.send(WriterMsg { rows: vec![row] }).await;
+                    }
+                }
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(backoff)).await;
+        backoff = (backoff * 2).min(cfg.binance.ws_reconnect_backoff_max_ms);
+    }
+}
+
+/// Главная точка запуска свечей (REST backfill + WS realtime + BINARY COPY writers)
+pub async fn run_candles_ingest() -> Result<()> {
+    let cfg: AppConfig = load_config().context("load_config() failed")?;
+    let cfg = Arc::new(cfg);
+
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
+
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_millis(cfg.binance.http_timeout_ms.max(1_000)))
+        .build()
+        .context("reqwest build failed")?;
+
+    let meta = pg_connect(&db_url).await?;
+    let pairs = fetch_active_pairs(&meta).await?;
+    if pairs.is_empty() {
+        anyhow::bail!("No active pairs in market.pairs");
+    }
+    info!("Active pairs: {}", pairs.len());
+
+    let mut map = HashMap::with_capacity(pairs.len() * 2);
+    for p in &pairs {
+        map.insert(p.symbol.clone(), p.symbol_id);
+    }
+    let symbol_to_id = Arc::new(map);
+
+    let mut tfs: Vec<TimeFrame> = Vec::new();
+    for s in &cfg.runtime.timeframes {
+        if let Some(tf) = parse_tf(s) {
+            tfs.push(tf);
+        } else {
+            warn!("Unknown timeframe in runtime.timeframes: {}", s);
+        }
+    }
+    if tfs.is_empty() {
+        anyhow::bail!("runtime.timeframes is empty or invalid");
+    }
+
+    let mut ws_tfs: Vec<TimeFrame> = Vec::new();
+    for s in &cfg.runtime.realtime_ws_timeframes {
+        if let Some(tf) = parse_tf(s) {
+            ws_tfs.push(tf);
+        } else {
+            warn!("Unknown timeframe in runtime.realtime_ws_timeframes: {}", s);
+        }
+    }
+    if ws_tfs.is_empty() {
+        ws_tfs = tfs.clone();
+    }
+
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+
+    // writers (binary copy)
+    let mut writers: HashMap<TimeFrame, mpsc::Sender<WriterMsg>> = HashMap::new();
+    for tf in tfs.iter().copied() {
+        let chan_size: usize = std::env::var("INGEST_WRITER_CHAN")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(50_000);
+
+        let (tx, rx) = mpsc::channel::<WriterMsg>(chan_size);
+
+        let last_seen = fetch_last_time_per_symbol(&meta, tf).await.unwrap_or_default();
+        info!("last_seen loaded for {}: {}", tf.as_str(), last_seen.len());
+
+        let db_url2 = db_url.clone();
+        let shutdown_rx2 = shutdown_rx.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = writer_task_copy(db_url2, tf, rx, last_seen, shutdown_rx2).await {
+                error!("writer({}) failed: {}", tf.as_str(), e);
+            }
+        });
+
+        writers.insert(tf, tx);
+    }
+    let writers = Arc::new(writers);
+
+    // WS combined streams, chunked
+    let max_streams_per_ws: usize = std::env::var("INGEST_WS_MAX_STREAMS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(200);
+
+    let mut streams: Vec<String> = Vec::with_capacity(pairs.len() * ws_tfs.len());
+    for p in &pairs {
+        let sym = p.symbol.to_lowercase();
+        for tf in &ws_tfs {
+            streams.push(format!("{}@kline_{}", sym, tf.as_str()));
+        }
+    }
+
+    let ws_base = cfg.binance.ws_base_url.clone();
+    let chunks: Vec<Vec<String>> = streams.chunks(max_streams_per_ws).map(|c| c.to_vec()).collect();
+    info!("WS streams total={}, connections={}", streams.len(), chunks.len());
+
+    for (i, chunk) in chunks.into_iter().enumerate() {
+        let url = build_combined_ws_url(&ws_base, &chunk);
+        let cfg2 = cfg.clone();
+        let writers2 = writers.clone();
+        let symbol_to_id2 = symbol_to_id.clone();
+        let shutdown_rx2 = shutdown_rx.clone();
+
+        tokio::spawn(async move {
+            info!("WS worker #{} streams={}", i, chunk.len());
+            if let Err(e) = ws_worker(cfg2, url, symbol_to_id2, writers2, shutdown_rx2).await {
+                error!("WS worker #{} failed: {}", i, e);
+            }
+        });
+    }
+
+    // REST backfill concurrent
+    let http_conc = cfg.runtime.http_concurrency.unwrap_or(1).max(1) as usize;
+    info!(
+        "REST backfill: tfs={}, pairs={}, http_concurrency={}",
+        tfs.len(),
+        pairs.len(),
+        http_conc
+    );
+
+    let mut jobs = Vec::new();
+    for tf in tfs.iter().copied() {
+        let tx = writers.get(&tf).cloned().unwrap();
+        let last = fetch_last_time_per_symbol(&meta, tf).await.unwrap_or_default();
+
+        for p in &pairs {
+            let last_ms = last.get(&p.symbol_id).copied().unwrap_or(0);
+            let cfg2 = cfg.clone();
+            let http2 = http.clone();
+            let p2 = p.clone();
+            let tx2 = tx.clone();
+
+            jobs.push(async move {
+                let r = rest_backfill_one(&http2, &cfg2, &p2, tf, last_ms, tx2).await;
+                if let Err(e) = &r {
+                    warn!("backfill {} {} failed: {}", p2.symbol, tf.as_str(), e);
+                }
+                r
+            });
+        }
+    }
+
+    let backfill_started = Instant::now();
+
+    let (ok_cnt, err_cnt) = stream::iter(jobs)
+        .buffer_unordered(http_conc)
+        .fold((0u64, 0u64), |(ok, err), res| async move {
+            match res {
+                Ok(_) => (ok + 1, err),
+                Err(_) => (ok, err + 1),
+            }
+        })
+        .await;
+
+    info!(
+        "REST backfill done: ok={}, err={}, elapsed_ms={}",
+        ok_cnt,
+        err_cnt,
+        backfill_started.elapsed().as_millis()
+    );
+
+    info!("Candles ingest running (WS realtime + BINARY COPY writers). Press Ctrl+C to stop.");
+    tokio::signal::ctrl_c().await.context("ctrl_c failed")?;
+    info!("Shutdown signal received.");
+
+    let _ = shutdown_tx.send(true);
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     Ok(())
 }
 
 
 
+# ingestor/src/market/mod.rs
 
-# ingestor/src/pairs.rs
+pub mod pairs;
+pub mod candles;
+
+
+
+
+# ingestor/src/market/pairs.rs
 
 use anyhow::{bail, Context, Result};
 use common::{load_config, AppConfig};
@@ -2431,54 +2386,12 @@ async fn refresh_pairs_inner() -> Result<UniversePairsResult> {
 
 pub async fn refresh_universe_pairs() -> Result<UniversePairsResult> {
     refresh_pairs_inner().await
-// }
 
-// pub async fn refresh_pairs_to_db() -> Result<i64> {
-//     Ok(refresh_pairs_inner().await?.active_cnt)
  }
 
 
 
 
-
-
-# ingestor/src/bin/load_candles.rs
-
-use anyhow::Result;
-use dotenvy::dotenv;
-use tracing::info;
-use tracing_subscriber::EnvFilter;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    dotenv().ok();
-
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-
-    info!("Starting historical candle loading...");
-
-    // Load historical candles
-    ingestor::candles::load_historical_candles().await?;
-    info!("Historical candle loading completed");
-
-    // Start realtime candle ingestion
-    info!("Starting realtime candle ingestion...");
-    // Note: In a production setup, this would run continuously
-    // For now, we'll just start it and let it run in the background
-    tokio::spawn(async {
-        if let Err(e) = ingestor::candles::start_realtime_candle_ingestion().await {
-            tracing::error!("Realtime candle ingestion error: {}", e);
-        }
-    });
-
-    // Keep the program running
-    tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
-    info!("Received shutdown signal");
-
-    Ok(())
-}
 
 
 # database/Cargo.toml
@@ -4844,7 +4757,7 @@ log "cargo: $(cargo -V 2>/dev/null || echo 'not found')"
 
 COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
 BUILD_PROFILE="${BUILD_PROFILE:-release}" # release|debug
-SERVICE_BINS="${SERVICE_BINS:-connections ingestor writer}"
+SERVICE_BINS="${SERVICE_BINS:-connections ingestor}"
 
 if [[ -n "$SERVICES_OVERRIDE" ]]; then
   SERVICE_BINS="$SERVICES_OVERRIDE"
@@ -4977,9 +4890,9 @@ if [[ "$need_build" -eq 1 ]]; then
   log "Targets : ${C_BOLD}$SERVICE_BINS${C_RESET}"
 
   if [[ "$BUILD_PROFILE" == "release" ]]; then
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor -p writer}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor}"
   else
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor -p writer}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor}"
   fi
 
   
@@ -5018,9 +4931,9 @@ run_oneshot() {
 # --- PAIRS: refresh universe into DB ---
 # по умолчанию ждём хотя бы 300 активных пар
 export MIN_PAIRS="${MIN_PAIRS:-300}"
-export RUST_LOG="${RUST_LOG:-info}"
+export RUST_LOG="${RUST_LOG:-info,ingestor=info,connections=info}"
 
-run_oneshot "ingestor_pairs"
+# run_oneshot "ingestor_pairs"
 
 # --- CANDLES: load historical candles and start real-time ingestion ---
 section "ONESHOT: load_candles"
@@ -5029,9 +4942,10 @@ log "This may take a few minutes depending on the number of pairs..."
 
 # Run candle loading (this will load historical and start real-time)
 # Only run after pairs are confirmed ready
-run_oneshot "load_candles" || {
-  warn "Candle loading failed, but continuing startup..."
-}
+# run_oneshot "load_candles"
+  warn "Skipping oneshot binaries (ingestor_pairs/load_candles) - not used in current architecture."
+
+
 
 section "START SERVICES"
 

@@ -4,12 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "ingestor_pairs"
+name = "ingestor"
 path = "src/main.rs"
-
-[[bin]]
-name = "load_candles"
-path = "src/bin/load_candles.rs"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -25,6 +21,9 @@ tokio-stream = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
+tokio-postgres = { workspace = true }
+tokio-tungstenite = { workspace = true }
+rustls = { workspace = true } 
 
 common = { path = "../common" }
 connections = { path = "../connections" }

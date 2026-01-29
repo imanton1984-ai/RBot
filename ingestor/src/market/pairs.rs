@@ -222,10 +222,7 @@ async fn refresh_pairs_inner() -> Result<UniversePairsResult> {
 
 pub async fn refresh_universe_pairs() -> Result<UniversePairsResult> {
     refresh_pairs_inner().await
-// }
 
-// pub async fn refresh_pairs_to_db() -> Result<i64> {
-//     Ok(refresh_pairs_inner().await?.active_cnt)
  }
 
 

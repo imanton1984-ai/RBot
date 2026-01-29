@@ -1,7 +1,7 @@
 [binance]
 # USDⓈ-M Futures
 rest_base_url = "https://fapi.binance.com"
-ws_base_url   = "wss://fstream.binance.com"
+ws_base_url   = "wss://fstream.binance.com/stream"
 
 # Таймауты/ретраи
 http_timeout_ms = 8000
