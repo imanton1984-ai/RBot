@@ -336,12 +336,64 @@ run_oneshot() {
   ok "Oneshot finished: $name"
 }
 
-# --- PAIRS: refresh universe into DB ---
-# по умолчанию ждём хотя бы 300 активных пар
+# --- DB INITIALIZATION: check if DB is initialized and initialize if needed ---
+check_db_initialized() {
+  local db_url="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance}"
+
+  # Check if market schema exists by looking for a key table
+  if PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'market' LIMIT 1);" 2>/dev/null | grep -q 't'; then
+    return 0  # Database is initialized
+  else
+    return 1  # Database is not initialized
+  fi
+}
+
+initialize_database() {
+  log "Database not initialized. Initializing database schema..."
+
+  # Build the database initialization service if it doesn't exist
+  local db_init_bin="$TARGET_DIR/svc_db_init"
+  if [[ ! -x "$db_init_bin" ]]; then
+    log "Building database initialization service..."
+    if [[ "$BUILD_PROFILE" == "release" ]]; then
+      run_with_pty "cargo build --release -p database --bin svc_db_init"
+    else
+      run_with_pty "cargo build -p database --bin svc_db_init"
+    fi
+  fi
+
+  # Run the database initialization
+  local db_init_bin_path
+  db_init_bin_path="$(find_bin_path "svc_db_init" || true)"
+  if [[ -n "$db_init_bin_path" ]]; then
+    log "Running database initialization..."
+    "$db_init_bin_path" 2>&1 | tee -a "$LOG_DIR/db_init.out"
+    if [[ $? -eq 0 ]]; then
+      ok "Database initialization completed successfully."
+    else
+      err "Database initialization failed."
+      return 1
+    fi
+  else
+    err "Database initialization binary not found: svc_db_init"
+    return 1
+  fi
+}
+
 export MIN_PAIRS="${MIN_PAIRS:-300}"
 export RUST_LOG="${RUST_LOG:-info,ingestor=info,connections=info}"
 
-# run_oneshot "ingestor_pairs"
+# Check if database is initialized, and initialize if needed
+section "DATABASE INITIALIZATION CHECK"
+if check_db_initialized; then
+  ok "Database is already initialized."
+else
+  warn "Database not initialized. Starting initialization..."
+  initialize_database
+  if [[ $? -ne 0 ]]; then
+    die "Database initialization failed. Cannot proceed."
+  fi
+fi
 
 # --- CANDLES: load historical candles and start real-time ingestion ---
 section "ONESHOT: load_candles"

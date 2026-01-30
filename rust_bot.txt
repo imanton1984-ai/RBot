@@ -1094,6 +1094,8 @@ persist_live_candle_every_ms = 1500
 # (close всегда обязателен, sampling касается только intra)
 intra_update_sampling_ms = 200
 
+http_concurrency = 8
+
 
 
 # config/rust_bot.toml
@@ -1398,7 +1400,7 @@ use dotenvy::dotenv;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use ingestor::run_candles_ingest;
+use ingestor::{run_candles_ingest, refresh_universe_pairs};
 
 fn install_rustls_provider() {
     // Выбираем провайдера явно. Иначе при включенных ring+aws-lc-rs будет panic.
@@ -1419,6 +1421,9 @@ async fn main() -> Result<()> {
                 .unwrap_or_else(|_| EnvFilter::new("info,ingestor=info,connections=info")),
         )
         .init();
+
+    info!("Refreshing universe pairs...");
+    refresh_universe_pairs().await?;
 
     info!("Starting ingest (candles monolith)...");
     run_candles_ingest().await
@@ -1451,7 +1456,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{Duration, Instant};
 use tokio_postgres::binary_copy::BinaryCopyInWriter;
-use tokio_postgres::types::{ToSql, Type};
+use tokio_postgres::types::{Type};
 use tokio_postgres::NoTls;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info, warn};
@@ -1461,7 +1466,6 @@ pub struct PairInfo {
     pub symbol_id: i64,
     pub symbol: String, // "BTCUSDT"
 }
-
 #[derive(Debug, Clone)]
 pub struct CandleRow {
     pub time_ms: i64, // close time ms
@@ -1660,102 +1664,199 @@ fn prepare_copy_batch(buf: &mut Vec<CandleRow>, last_seen: &HashMap<i64, i64>) {
 }
 
 /// BINARY COPY flush.
-/// Важно: буфер очищаем ТОЛЬКО после успешного finish(),
-/// чтобы при ошибке можно было повторить.
-async fn flush_copy(client: &tokio_postgres::Client, tf: Tf, buf: &mut Vec<Row>) -> anyhow::Result<()> {
-    // Важно: columns явные и в том же порядке, в каком ты пишешь значения
-    let stmt = format!(
-        "COPY market_candles_{tf} (symbol, ts, open, high, low, close, volume) FROM STDIN BINARY"
-    );
-
-    let sink = client.copy_in(&stmt).await?;
-    let mut w = tokio_postgres::binary_copy::BinaryCopyInWriter::new(
-        sink,
-        &[tokio_postgres::types::Type::TEXT,
-          tokio_postgres::types::Type::TIMESTAMPTZ,
-          tokio_postgres::types::Type::FLOAT8,
-          tokio_postgres::types::Type::FLOAT8,
-          tokio_postgres::types::Type::FLOAT8,
-          tokio_postgres::types::Type::FLOAT8,
-          tokio_postgres::types::Type::FLOAT8],
-    );
-
-    for r in buf.iter() {
-        w.write(&[
-            &r.symbol,
-            &r.ts,
-            &r.open,
-            &r.high,
-            &r.low,
-            &r.close,
-            &r.volume,
-        ]).await?;
+async fn flush_copy(
+    client: &tokio_postgres::Client,
+    tf: TimeFrame,
+    buf: &mut Vec<CandleRow>,
+    last_seen: &mut HashMap<i64, i64>,
+) -> Result<u64> {
+    if buf.is_empty() {
+        return Ok(0);
     }
 
-    // КРИТИЧНО: finish() обязан быть await'нут
-    w.finish().await?;
+    prepare_copy_batch(buf, last_seen);
+    if buf.is_empty() {
+        return Ok(0);
+    }
+
+    let mut max_per_symbol: HashMap<i64, i64> = HashMap::new();
+    for c in buf.iter() {
+        let e = max_per_symbol.entry(c.symbol_id).or_insert(0);
+        if c.time_ms > *e {
+            *e = c.time_ms;
+        }
+    }
+
+    let table_name = build_table_name(tf);
+    let stmt = format!(
+        "COPY {} (time_ms, time, symbol_id, open, high, low, close, volume) FROM STDIN BINARY",
+        table_name
+    );
+
+    let sink = client.copy_in(&stmt).await.context("copy_in failed")?;
+    let writer = BinaryCopyInWriter::new(
+        sink,
+        &[
+            Type::INT8,   // time_ms
+            Type::TIMESTAMPTZ, // time
+            Type::INT8,   // symbol_id
+            Type::FLOAT8, // open
+            Type::FLOAT8, // high
+            Type::FLOAT8, // low
+            Type::FLOAT8, // close
+            Type::FLOAT8, // volume
+        ],
+    );
+    let mut writer = std::pin::pin!(writer);
+
+    for r in buf.iter() {
+        let ts = Utc.timestamp_millis_opt(r.time_ms).single().unwrap();
+        writer
+            .as_mut()
+            .write(&[
+                &r.time_ms,
+                &ts,
+                &r.symbol_id,
+                &r.open,
+                &r.high,
+                &r.low,
+                &r.close,
+                &r.volume,
+            ])
+            .await?;
+    }
+
+    let rows = writer.as_mut().finish().await?;
+
+    for (sid, mx) in max_per_symbol {
+        let e = last_seen.entry(sid).or_insert(0);
+        if mx > *e {
+            *e = mx;
+        }
+    }
+
     buf.clear();
-    Ok(())
+    Ok(rows)
 }
 
-async fn writer_task_copy(tf: Tf, rx: tokio::sync::mpsc::Receiver<Row>, pg_dsn: String) -> anyhow::Result<()> {
-    writer_loop(tf, rx, pg_dsn).await
-}
+async fn writer_task_copy(
+    db_url: String,
+    tf: TimeFrame,
+    mut rx: mpsc::Receiver<WriterMsg>,
+    mut last_seen: HashMap<i64, i64>,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<()> {
+    let flush_rows: usize = std::env::var("INGEST_COPY_FLUSH_ROWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30_000);
 
-async fn writer_loop(tf: Tf, mut rx: tokio::sync::mpsc::Receiver<Row>, pg_dsn: String) -> anyhow::Result<()> {
+    let flush_every_ms: u64 = std::env::var("INGEST_COPY_FLUSH_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(250);
+
+    let mut inserted_total: u64 = 0;
+    let mut last_log = Instant::now();
+
     loop {
-        let (client, connection) = tokio_postgres::connect(&pg_dsn, tokio_postgres::NoTls).await?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                tracing::error!(?e, "pg connection task failed");
+        // Reconnect loop
+        if *shutdown.borrow() {
+            return Ok(());
+        }
+
+        let client = match pg_connect(&db_url).await {
+            Ok(c) => c,
+            Err(e) => {
+                error!(?e, "pg_connect failed in writer task");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
             }
-        });
+        };
 
-        client.batch_execute("SET synchronous_commit=off").await?;
+        if std::env::var("INGEST_SYNC_COMMIT_OFF").ok().as_deref() == Some("1") {
+            if let Err(e) = client.batch_execute("SET synchronous_commit = OFF;").await {
+                error!(?e, "Failed to set synchronous_commit=OFF");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue; // reconnect
+            }
+            warn!("writer({}): synchronous_commit=OFF", tf.as_str());
+        }
 
-        let mut buf: Vec<Row> = Vec::with_capacity(50_000);
-        let mut tick = tokio::time::interval(std::time::Duration::from_millis(250));
+        let mut buf: Vec<CandleRow> = Vec::with_capacity(flush_rows * 2);
+        let mut tick = tokio::time::interval(Duration::from_millis(flush_every_ms));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-        let res: anyhow::Result<()> = loop {
+        let res: Result<()> = loop {
             tokio::select! {
+                _ = shutdown.changed() => {
+                    if *shutdown.borrow() {
+                        break Ok(());
+                    }
+                }
+
                 _ = tick.tick() => {
                     if !buf.is_empty() {
-                        if let Err(e) = flush_copy(&client, tf, &mut buf).await {
-                            tracing::error!(tf=?tf, error=?e, "copy flush failed");
-                            break Err(e);
+                        match flush_copy(&client, tf, &mut buf, &mut last_seen).await {
+                            Ok(n) => {
+                                inserted_total += n;
+                                if last_log.elapsed() >= Duration::from_secs(2) {
+                                    info!("writer({}): inserted {} rows, total {}", tf.as_str(), n, inserted_total);
+                                    last_log = Instant::now();
+                                }
+                            }
+                            Err(e) => {
+                                error!(tf=?tf, error=format!("{:#}", e), "writer periodic flush failed");
+                                break Err(e); // Break inner loop to reconnect
+                            }
                         }
                     }
                 }
+
                 msg = rx.recv() => {
                     match msg {
-                        Some(row) => {
-                            buf.push(row);
-                            if buf.len() >= 50_000 {
-                                if let Err(e) = flush_copy(&client, tf, &mut buf).await {
-                                    tracing::error!(tf=?tf, error=?e, "copy flush failed");
-                                    break Err(e);
+                        Some(m) => {
+                            buf.extend(m.rows);
+                            if buf.len() >= flush_rows {
+                                match flush_copy(&client, tf, &mut buf, &mut last_seen).await {
+                                    Ok(n) => inserted_total += n,
+                                    Err(e) => {
+                                        error!(tf=?tf, error=format!("{:#}", e), "writer flush failed");
+                                        break Err(e); // Break inner loop to reconnect
+                                    }
                                 }
                             }
                         }
                         None => {
-                            if !buf.is_empty() { flush_copy(&client, tf, &mut buf).await?; }
-                            break Ok(());
+                            // Channel closed, probably shutdown
+                             break Ok(());
                         }
                     }
                 }
             }
         };
 
-        if res.is_ok() { return Ok(()); }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // Final flush before breaking outer loop or reconnecting
+        if !buf.is_empty() {
+             match flush_copy(&client, tf, &mut buf, &mut last_seen).await {
+                Ok(n) => inserted_total += n,
+                Err(e) => {
+                    error!(tf=?tf, error=format!("{:#}", e), "writer final flush failed");
+                }
+            }
+        }
+
+        if res.is_ok() {
+            // Channel closed, so exit.
+            info!("writer({}) channel closed. inserted_total={}", tf.as_str(), inserted_total);
+            return Ok(());
+        }
+
+        // Error happened, sleep before reconnect
+        warn!("writer({}) reconnecting after error...", tf.as_str());
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
-
-
-
-    info!("writer({}) stopped. inserted_total={}", tf.as_str(), inserted_total);
-    Ok(())
 }
-
 async fn rest_fetch_klines_bytes(
     http: &reqwest::Client,
     cfg: &AppConfig,

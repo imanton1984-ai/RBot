@@ -19,8 +19,8 @@ time_sync_interval_sec = 300
 time_sync_max_skew_ms = 250
 
 # Веса запросов / лимиты (мягкие лимиты на клиентской стороне)
-rate_limit_soft_rps = 8
-rate_limit_soft_burst = 16
+rate_limit_soft_rps = 30
+rate_limit_soft_burst = 120
 
 # Ордерный режим (позже)
 futures_default_leverage = 10

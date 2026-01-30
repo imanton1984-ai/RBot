@@ -24,3 +24,5 @@ persist_live_candle_every_ms = 1500
 # Защита от перегруза: sampling внутрисвечных обновлений
 # (close всегда обязателен, sampling касается только intra)
 intra_update_sampling_ms = 200
+
+http_concurrency = 48

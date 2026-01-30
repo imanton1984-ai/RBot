@@ -1,0 +1,249 @@
+PYTHON CANDLE SYSTEM IMPLEMENTATION
+===============================
+
+WORKFLOW:
+1. run_candles_collector() - Main entry point
+2. _collect_all() - Processes all symbols and timeframes
+3. fetch_candles() - Fetches klines from Binance API
+4. _proc() - Processes individual symbol/timeframe
+5. bulk_insert_copy_candles() - Bulk inserts data to DB
+6. Data flows: Binance API -> fetch_candles -> _proc -> buffers -> bulk_insert_copy_candles -> DB
+
+KEY FUNCTIONS:
+
+# Main entry point for candle collection
+async def run_candles_collector(symbols: List[str], now: datetime | None = None):
+    now = now or datetime.now(timezone.utc)
+    log.info("⚙️  Collecting all TFs in one job...")
+    await _collect_all(symbols, now)
+    log.info("✅ Candles collection done")
+
+# Fetches klines from Binance API
+async def fetch_candles(session: aiohttp.ClientSession,
+                        symbol: str, tf: str,
+                        start_ms: int | None,
+                        limit: int) -> list[dict]:
+    params = {"symbol":symbol, "interval":tf, "limit":limit}
+    if start_ms is not None:
+        params["startTime"] = start_ms
+
+    for attempt in range(1, RETRIES+1):
+        try:
+            async with session.get(BINANCE_KLINES, params=params, timeout=15) as r:
+                r.raise_for_status(); data = await r.json(); break
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            if attempt == RETRIES:
+                log.error("❌ %s %s – fail 3/3: %s", symbol, tf, e); return []
+            await asyncio.sleep(1.5*attempt)
+
+    return [
+        dict(symbol=symbol,
+             time=datetime.fromtimestamp(k[0]/1000,tz=timezone.utc),
+             open=float(k[1]),high=float(k[2]),
+             low=float(k[3]),close=float(k[4]),volume=float(k[5]))
+        for k in data
+    ]
+
+# Main collection function
+async def _collect_all(symbols: List[str], now: datetime):
+    last_map = await _last_map()
+    sem = asyncio.Semaphore(MAX_API_CONCURRENCY)  # Controls concurrency
+    conn = aiohttp.TCPConnector(limit=MAX_API_CONCURRENCY * 2)
+    buffers: Dict[str, Dict[str, List[dict]]] = {tf: {} for tf in TIMEFRAMES}
+
+    async with aiohttp.ClientSession(connector=conn) as session:
+        async def _proc(sym: str):
+            int_sec_map = _TF_SEC
+            step_map = {tf: int_sec_map[tf] * 1000 for tf in TIMEFRAMES}
+            try:
+                for tf in TIMEFRAMES:
+                    int_sec = int_sec_map[tf]
+                    step_ms = step_map[tf]
+                    cap = min(BARS_PER_TIMEFRAME[tf], TEST_BARS)
+
+                    ldt = last_map.get((sym, tf))
+
+                    # сверка с реальной max time
+                    if ldt is not None:
+                        stmt = text(f"SELECT MAX(time) FROM market.candles_{tf} WHERE symbol = :s")
+                        async with engine.begin() as checker:
+                            real_dt = (await checker.execute(stmt, {"s": sym})).scalar_one()
+                        if real_dt is None:
+                            ldt = None
+                        elif real_dt != ldt:
+                            ldt = real_dt
+                            await _set_last(sym, tf, real_dt)
+
+                    rows = []
+                    if ldt is None:
+                        rows = await fetch_candles(session, sym, tf, None, cap)
+                    else:
+                        miss = int((now - ldt).total_seconds() // int_sec)
+                        if miss <= 0:
+                            continue
+                        start = _ms(ldt) - BACKWARD_BARS * step_ms
+                        loops = ceil(miss / 1000)
+                        async with sem:
+                            for _ in range(loops):
+                                chunk = await fetch_candles(session, sym, tf, start, 1000)
+                                if not chunk:
+                                    await asyncio.sleep(BACKOFF)
+                                    break
+                                rows.extend(chunk)
+                                if len(chunk) < 1000:
+                                    break
+                                start = _ms(chunk[-1]["time"]) + step_ms
+
+                    if rows:
+                        buffers[tf].setdefault(sym, []).extend(rows)
+                        await _set_last(sym, tf, rows[-1]["time"])
+            except Exception as e:
+                log.error("❌ Candle fail: %s: %s", sym, e)
+
+        await tqdm_asyncio.gather(
+            *[_proc(s) for s in symbols],
+            total=len(symbols), desc="candles"
+        )
+
+    # Вставка по каждому TF
+    for tf in TIMEFRAMES:
+        buffer = buffers[tf]
+        if buffer:
+            flat = [r for v in buffer.values() for r in v]
+            await bulk_insert_copy_candles(f"candles_{tf}", flat)
+            log.info("📊 %s: +%d", tf, len(flat))
+        else:
+            log.info("📊 %s: nothing new", tf)
+
+# Bulk insert with upsert functionality
+async def bulk_insert_copy_candles(table: str, rows: List[dict]) -> None:
+    """
+    Specialized COPY insert for candle data with UPSERT on (symbol, time)
+
+    Args:
+        table: Candle table name (e.g., 'candles_1h')
+        rows: List of candle dictionaries
+    """
+    if not rows:
+        return
+
+    try:
+        cols = list(rows[0].keys())
+        data = [tuple(r[c] for c in cols) for r in rows]
+
+        async with engine.connect() as conn:
+            raw = await conn.get_raw_connection()
+            pg_conn: asyncpg.Connection = raw.driver_connection
+
+            # Parse table name
+            if "." in table:
+                schema, tbl = table.split(".", 1)
+            else:
+                schema, tbl = "market", table
+
+            tmp = f"tmp_{tbl}"
+
+            # Create temporary table
+            await pg_conn.execute(f"""
+                DROP TABLE IF EXISTS {tmp};
+                CREATE TEMP TABLE {tmp}
+                (LIKE {schema}.{tbl} INCLUDING DEFAULTS);
+            """)
+
+            # COPY data into temp table
+            await pg_conn.copy_records_to_table(
+                tmp, records=data, columns=cols
+            )
+
+            # UPSERT from temp table to main table
+            conflict_keys = "symbol, time"
+            update_expr = ", ".join(
+                f"{col} = EXCLUDED.{col}"
+                for col in cols if col not in ("symbol", "time")
+            )
+
+            await pg_conn.execute(f"""
+                INSERT INTO {schema}.{tbl} ({", ".join(cols)})
+                SELECT {", ".join(cols)} FROM {tmp}
+                ON CONFLICT ({conflict_keys})
+                DO UPDATE SET {update_expr};
+            """)
+
+        log.debug(f"Bulk UPSERT inserted/updated {len(rows)} candles in {table}")
+
+    except (SQLAlchemyError, asyncpg.PostgresError) as e:
+        log.error(f"Bulk candle UPSERT failed for table {table}: {e}")
+        log.error(f"Row count: {len(rows)}")
+        raise
+    except Exception as e:
+        log.error(f"Unexpected error during candle UPSERT to {table}: {e}")
+
+CONFIGURATIONS:
+
+# API Connection Settings
+BINANCE_KLINES = "https://api.binance.com/api/v3/klines"
+MAX_API_CONCURRENCY = config.trading.max_api_concurrency  # Typically 16
+
+# Timeframe Definitions
+TIMEFRAMES: dict[str, dict] = {
+    "5m":  {"bar_seconds": 300,  "retention_days": 30},
+    "15m": {"bar_seconds": 900,  "retention_days": 60},
+    "1h":  {"bar_seconds": 3600, "retention_days": 120},
+    "4h":  {"bar_seconds": 14400,"retention_days": 180},
+    "1d":  {"bar_seconds": 86400,"retention_days": 365},
+}
+
+# Bars per timeframe
+BARS_PER_TIMEFRAME = {
+    "5m": 1200,
+    "15m": 1200,
+    "1h": 1200,
+    "4h": 1200,
+    "1d": 1200,
+}
+
+# Timeframe seconds mapping
+_TF_SEC: Dict[str, int] = {"5m":300,"15m":900,"1h":3600,"4h":14400,"1d":86400}
+
+# Constants
+TEST_BARS = 500
+RETRIES   = 3
+BACKOFF   = 2.0
+BACKWARD_BARS = 5
+
+# Database Schema
+CANDLE_TEMPLATE = """
+CREATE TABLE IF NOT EXISTS market.{{table}} (
+    symbol text,
+    time   timestamptz,
+    open   double precision,
+    high   double precision,
+    low    double precision,
+    close  double precision,
+    volume double precision,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(symbol,time)
+);
+SELECT create_hypertable('market.{{table}}','time', if_not_exists=>TRUE, migrate_data=>TRUE);
+SELECT add_retention_policy('market.{{table}}',
+                             INTERVAL '{{retain}}',
+                             if_not_exists=>TRUE);
+"""
+
+# Helper functions
+def _ms(dt: datetime)->int: return int(dt.timestamp()*1000)
+
+async def _last_map():
+    async with engine.begin() as c:
+        res = await c.exec_driver_sql(
+            "SELECT symbol,timeframe,last_updated FROM market.collected_candles")
+        return {(r.symbol,r.timeframe):r.last_updated for r in res}
+
+async def _set_last(sym,tf,dt_):
+    async with engine.begin() as c:
+        await c.execute(text("""
+            INSERT INTO market.collected_candles(symbol,timeframe,last_updated)
+            VALUES(:s,:tf,:dt)
+            ON CONFLICT(symbol,timeframe)
+            DO UPDATE SET last_updated=EXCLUDED.last_updated"""),
+            {"s":sym,"tf":tf,"dt":dt_})
