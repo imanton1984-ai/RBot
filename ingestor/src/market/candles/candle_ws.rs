@@ -102,6 +102,8 @@ pub async fn ws_worker(
                         continue;
                     }
 
+                    tracing::debug!("Received closed candle: symbol={}, tf={}, time={}", k.symbol, k.interval, k.close_time);
+
                     let tf = match parse_tf(k.interval.as_ref()) {
                         Some(t) => t,
                         None => continue,

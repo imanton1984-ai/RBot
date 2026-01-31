@@ -9,7 +9,7 @@ http_retries = 5
 http_retry_backoff_ms = 250
 http_retry_backoff_max_ms = 5000
 
-ws_ping_interval_sec = 15
+ws_ping_interval_sec = 5
 ws_reconnect_backoff_ms = 500
 ws_reconnect_backoff_max_ms = 15000
 
@@ -19,8 +19,12 @@ time_sync_interval_sec = 300
 time_sync_max_skew_ms = 250
 
 # Веса запросов / лимиты (мягкие лимиты на клиентской стороне)
-rate_limit_soft_rps = 30
-rate_limit_soft_burst = 120
+# NOTE: This parameter name is misleading as it represents weight units per second, not requests per second
+rate_limit_soft_rps = 39
+rate_limit_soft_burst = 160
+
+# Weight units per second - clearer parameter name for rate limiting
+soft_weight_per_sec = 39
 
 # Ордерный режим (позже)
 futures_default_leverage = 10

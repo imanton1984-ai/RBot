@@ -4,6 +4,14 @@ use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
+use tokio_postgres;
+use tokio_postgres::NoTls;
+
+#[derive(Clone, Debug)]
+pub struct PairInfo {
+    pub symbol_id: i64,
+    pub symbol: String,
+}
 
 #[derive(Clone, Debug)]
 pub struct BinanceWsConfig {
@@ -14,24 +22,84 @@ pub struct BinanceWsConfig {
     pub reconnect_max: Duration,
 }
 
-impl Default for BinanceWsConfig {
-    fn default() -> Self {
+impl BinanceWsConfig {
+    pub async fn new_from_env_with_db_fallback() -> Result<Self> {
         let base_url = std::env::var("BINANCE_WS_BASE_URL")
             .unwrap_or_else(|_| "wss://fstream.binance.com/stream".to_string());
+
+        // Try to get streams from environment variable first
         let streams_raw = std::env::var("BINANCE_WS_STREAMS").unwrap_or_else(|_| "".to_string());
-        let streams = streams_raw
+        let mut streams = streams_raw
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>();
 
-        BinanceWsConfig {
+        // If no streams are specified via environment variable, fetch active pairs from database
+        if streams.is_empty() {
+            info!("No streams specified via BINANCE_WS_STREAMS, fetching active pairs from database...");
+            match Self::fetch_active_pairs_from_db().await {
+                Ok(active_pairs) => {
+                    // Create streams for kline_1m and trade for each active pair
+                    for pair in active_pairs {
+                        let lower_symbol = pair.symbol.to_lowercase();
+                        streams.push(format!("{}@kline_1m", lower_symbol));
+                        streams.push(format!("{}@trade", lower_symbol));
+                    }
+                    info!("Loaded {} streams from database", streams.len());
+                }
+                Err(e) => {
+                    warn!("Failed to fetch active pairs from database: {}. Using default BTCUSDT streams.", e);
+                    // Fallback to default streams
+                    streams.push("btcusdt@trade".to_string());
+                    streams.push("btcusdt@kline_1m".to_string());
+                }
+            }
+        }
+
+        Ok(BinanceWsConfig {
             base_url,
             streams,
             ping_interval: Duration::from_secs(30),
             reconnect_base: Duration::from_secs(1),
             reconnect_max: Duration::from_secs(60),
+        })
+    }
+
+    async fn fetch_active_pairs_from_db() -> Result<Vec<PairInfo>> {
+        let db_url = std::env::var("DATABASE_URL")
+            .or_else(|_| std::env::var("POSTGRES_CONNECTION_STRING"))
+            .or_else(|_| std::env::var("POSTGRES_URL"))
+            .unwrap_or_else(|_| "postgresql://postgres:@localhost:5433/timescaledb_binance".to_string());
+
+        let (client, connection) = tokio_postgres::connect(&db_url, NoTls).await?;
+
+        // Spawn the connection handling
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("PostgreSQL connection error: {}", e);
+            }
+        });
+
+        let rows = client
+            .query(
+                "SELECT symbol_id, symbol
+                 FROM market.pairs
+                 WHERE is_active = TRUE
+                 ORDER BY symbol_id",
+                &[],
+            )
+            .await?;
+
+        let mut pairs = Vec::with_capacity(rows.len());
+        for row in rows {
+            pairs.push(PairInfo {
+                symbol_id: row.get(0),
+                symbol: row.get(1),
+            });
         }
+
+        Ok(pairs)
     }
 }
 
@@ -41,7 +109,8 @@ pub struct BinanceWsConnection {
 
 impl BinanceWsConnection {
     pub async fn new_from_env() -> Result<Self> {
-        Ok(Self { cfg: BinanceWsConfig::default() })
+        let cfg = BinanceWsConfig::new_from_env_with_db_fallback().await?;
+        Ok(Self { cfg })
     }
 
     pub async fn check(&self) -> Result<()> {
@@ -62,7 +131,7 @@ impl BinanceWsConnection {
                     info!("Binance WS connected");
                     let _ = status_tx.send(true);
                     backoff = self.cfg.reconnect_base;
-                    
+
                     let (mut _ws_write, mut ws_read) = ws_stream.split();
 
                     while let Some(msg) = ws_read.next().await {

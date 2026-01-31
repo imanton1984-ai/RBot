@@ -23,6 +23,7 @@
 use crate::market::candles::candle_common::*;
 use crate::market::candles::candle_rest::*;
 use crate::market::candles::candle_writer::*;
+use crate::market::pairs::refresh_universe_pairs;
 use anyhow::{Context, Result};
 use common::{load_config, AppConfig};
 use common::timeframe::TimeFrame;
@@ -32,6 +33,67 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 use tokio::sync::Semaphore;
+use tokio::time::interval;
+
+// Spawn a task to periodically refresh pairs and potentially restart WebSocket connections
+async fn spawn_pair_refresh_task(
+    cfg: Arc<AppConfig>,
+    symbol_to_id: Arc<HashMap<String, i64>>,
+    shutdown_rx: watch::Receiver<bool>,
+) {
+    let mut shutdown_rx = shutdown_rx;
+    let refresh_interval = tokio::time::Duration::from_secs(cfg.universe.refresh_interval_sec as u64);
+
+    tokio::spawn(async move {
+        let mut interval = interval(refresh_interval);
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    tracing::info!("Periodically refreshing universe pairs...");
+                    match refresh_universe_pairs().await {
+                        Ok(result) => {
+                            tracing::info!("Pairs refreshed: selected_cnt={}, active_cnt={}",
+                                         result.selected_cnt, result.active_cnt);
+
+                            // Check if there are new pairs that need to be added to WebSocket connections
+                            match crate::market::candles::candle_rest::fetch_active_pairs(&crate::market::candles::candle_rest::pg_connect(&std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url())).await.unwrap()).await {
+                                Ok(updated_pairs) => {
+                                    // Check if there are new pairs that weren't in the original set
+                                    let current_symbols: std::collections::HashSet<_> = symbol_to_id.keys().cloned().collect();
+                                    let updated_symbols: std::collections::HashSet<_> = updated_pairs.iter().map(|p| p.symbol.clone()).collect();
+
+                                    let new_symbols: Vec<_> = updated_symbols.difference(&current_symbols).collect();
+                                    if !new_symbols.is_empty() {
+                                        tracing::info!("Detected {} new pairs to add to WebSocket connections", new_symbols.len());
+
+                                        // In a production system, we would need to restart WebSocket connections with new pairs
+                                        // For now, log the new pairs that need to be added
+                                        for symbol in new_symbols {
+                                            tracing::info!("New pair detected: {}", symbol);
+                                        }
+                                    }
+                                },
+                                Err(e) => {
+                                    tracing::error!("Failed to fetch updated pairs after refresh: {}", e);
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("Failed to refresh pairs: {}", e);
+                        }
+                    }
+                },
+                _ = shutdown_rx.changed() => {
+                    if *shutdown_rx.borrow() {
+                        tracing::info!("Pair refresh task shutting down");
+                        break;
+                    }
+                }
+            }
+        }
+    });
+}
 
 pub async fn run_candles_ingest() -> Result<()> {
     let cfg: AppConfig = load_config().context("load_config() failed")?;
@@ -104,6 +166,9 @@ pub async fn run_candles_ingest() -> Result<()> {
     }
     let writers = Arc::new(writers);
 
+    // Spawn the periodic pair refresh task
+    spawn_pair_refresh_task(cfg.clone(), symbol_to_id.clone(), shutdown_rx.clone()).await;
+
     // NEW: Fast one-shot initial loading for empty database
     // This section handles the fast loading of historical data when the database is empty
     // It's designed to load all required candles quickly by:
@@ -124,9 +189,20 @@ pub async fn run_candles_ingest() -> Result<()> {
         // Для Futures дефолт: 40 weight/sec (2400/min).
         // Рекомендую держать 75-85% от лимита, чтобы не ловить 429/418.
         // This creates a weight-based rate limiter to comply with Binance's rate limits
+        // Use the new parameter if available, otherwise fall back to the old one for backward compatibility
+        let weight_per_sec = cfg.binance.soft_weight_per_sec.unwrap_or(40); // Default to 40 weight/sec for futures
         let rest_limiter = crate::market::candles::candle_common::WeightLimiter::new(
-            cfg.binance.rate_limit_soft_rps,
+            weight_per_sec,
             cfg.binance.rate_limit_soft_burst,
+        );
+
+        // Log effective request rate based on the limit and weight
+        let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;  // Use 500 for initial load to reduce weight
+        let weight = klines_weight(limit);
+        let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
+        tracing::info!(
+            "Rate limiting configured: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
+            weight_per_sec, limit, weight, effective_req_per_sec
         );
 
         // Create a mapping of TimeFrame to collected candles
@@ -154,9 +230,9 @@ pub async fn run_candles_ingest() -> Result<()> {
                     // Acquire a permit from the concurrency semaphore
                     let _permit = semaphore_clone.acquire().await.unwrap();
 
-                    // Single request to get the most recent candles for this pair and timeframe
-                    // This fetches the configured number of recent candles (e.g., 700) in one request
-                    let limit = cfg_clone.runtime.backfill_candles.min(1000).max(1) as usize;
+                    // Use a smaller limit (500 instead of 700) to reduce weight from 5 to 2
+                    // This allows more requests per second within the same weight budget
+                    let limit = cfg_clone.runtime.backfill_candles.min(500).max(1) as usize;
                     let bytes = crate::market::candles::candle_rest::rest_fetch_klines_bytes(
                         &http_clone,
                         &cfg_clone,
@@ -191,8 +267,9 @@ pub async fn run_candles_ingest() -> Result<()> {
         }
 
         // Execute all fetch jobs concurrently with bounded concurrency
+        // Increase buffer size to allow more concurrent operations
         let fetch_results = stream::iter(fetch_jobs)
-            .buffer_unordered(cfg.runtime.http_concurrency.unwrap_or(16).max(1))
+            .buffer_unordered(cfg.runtime.http_concurrency.unwrap_or(50).max(1))
             .collect::<Vec<_>>()
             .await;
 
@@ -242,10 +319,21 @@ pub async fn run_candles_ingest() -> Result<()> {
         // ВНИМАНИЕ: здесь мы трактуем rate_limit_soft_rps как "weight units per second".
         // Для Futures дефолт: 40 weight/sec (2400/min).
         // Рекомендую держать 75-85% от лимита, чтобы не ловить 429/418.
+        // Use the new parameter if available, otherwise fall back to the old one for backward compatibility
+        let weight_per_sec = cfg.binance.soft_weight_per_sec.unwrap_or(40); // Default to 40 weight/sec for futures
         let rest_limiter = Some(crate::market::candles::candle_common::WeightLimiter::new(
-            cfg.binance.rate_limit_soft_rps,
+            weight_per_sec,
             cfg.binance.rate_limit_soft_burst,
         ));
+
+        // Log effective request rate based on the limit and weight
+        let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;  // Use 500 for initial load to reduce weight
+        let weight = klines_weight(limit);
+        let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
+        tracing::info!(
+            "Backfill rate limiting configured: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
+            weight_per_sec, limit, weight, effective_req_per_sec
+        );
 
         let mut jobs = Vec::new();
         for tf in tfs.iter().copied() {

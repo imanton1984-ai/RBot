@@ -42,3 +42,4 @@ rdkafka = { workspace = true }
 
 tokio-tungstenite = { workspace = true }
 tokio-stream = { workspace = true }
+tokio-postgres = { workspace = true }

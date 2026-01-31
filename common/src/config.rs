@@ -50,8 +50,10 @@ pub struct BinanceConfig {
     pub time_sync_interval_sec: u64,
     pub time_sync_max_skew_ms: u64,
 
+    #[deprecated(note = "Use soft_weight_per_sec instead. This parameter was misleading as it represented weight per second, not requests per second.")]
     pub rate_limit_soft_rps: u32,
     pub rate_limit_soft_burst: u32,
+    pub soft_weight_per_sec: Option<u32>,
 
     pub futures_default_leverage: u16,
     pub futures_margin_type: String,

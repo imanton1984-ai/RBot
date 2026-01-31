@@ -25,4 +25,6 @@ persist_live_candle_every_ms = 1500
 # (close всегда обязателен, sampling касается только intra)
 intra_update_sampling_ms = 200
 
-http_concurrency = 48
+# HTTP concurrency for API requests (higher = more parallel requests)
+# Note: Binance has limits, so don't set too high (recommended: 50-100)
+http_concurrency = 80

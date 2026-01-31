@@ -1,0 +1,25 @@
+===========================================
+STOP @ Fri 30 Jan 2026 08:22:24 PM MSK
+ROOT: /home/anton/Desktop/Whitelist
+LOG : /home/anton/Desktop/Whitelist/logs/stop_20260130_202224.log
+===========================================
+Loading env: /home/anton/Desktop/Whitelist/.env
+Stopping connections pid=1048487 (TERM)...
+Stopped: connections
+Not running: ingestor (stale pidfile /home/anton/Desktop/Whitelist/run/ingestor.pid)
+Leaving infra running (use --down to stop docker compose).
+Stopping healthcheck Grafana services...
+ Container healthcheck_grafana Stopping 
+ Container healthcheck_grafana Stopped 
+ Container healthcheck_grafana Removing 
+ Container healthcheck_grafana Removed 
+ Container healthcheck_prometheus Stopping 
+ Container healthcheck_prometheus Stopped 
+ Container healthcheck_prometheus Removing 
+ Container healthcheck_prometheus Removed 
+ Network grafana_healthcheck_net Removing 
+ Network grafana_healthcheck_net Removed 
+===========================================
+STOP DONE @ Fri 30 Jan 2026 08:22:25 PM MSK
+Logs in : /home/anton/Desktop/Whitelist/logs
+===========================================
