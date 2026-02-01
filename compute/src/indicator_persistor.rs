@@ -2,7 +2,8 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use common::{Symbol, Timeframe};
 use sqlx::PgPool;
-use serde_json::{json, Value};
+use chrono::{DateTime, Utc, TimeZone};
+use std::collections::HashMap; // Explicitly add this import
 
 #[derive(Debug, Clone)]
 pub struct IndicatorRecord {
@@ -16,7 +17,6 @@ pub struct IndicatorRecord {
 pub struct IndicatorPersistor {
     db_pool: PgPool,
     persist_queue: Arc<RwLock<Vec<IndicatorRecord>>>,
-    // persist_receiver: Arc<RwLock<mpsc::UnboundedReceiver<IndicatorRecord>>>,
     batch_size: usize,
     flush_interval_ms: u64,
 }
@@ -28,7 +28,6 @@ impl IndicatorPersistor {
         flush_interval_ms: u64,
     ) -> (Self, mpsc::UnboundedSender<IndicatorRecord>) {
         let (sender, _) = mpsc::unbounded_channel();
-
         (
             Self {
                 db_pool,
@@ -41,62 +40,90 @@ impl IndicatorPersistor {
     }
 
     pub async fn start_persistence_loop(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut last_flush = tokio::time::Instant::now();
+        let interval = tokio::time::Duration::from_millis(self.flush_interval_ms);
+
         loop {
-            // Check if we have enough records to batch write
+            let should_flush_size;
             {
                 let queue = self.persist_queue.read().await;
-                if queue.len() >= self.batch_size {
-                    drop(queue); // Release the read lock before acquiring write lock
-                    self.flush_batch().await?;
-                }
+                should_flush_size = queue.len() >= self.batch_size;
             }
 
-            // Also flush periodically even if we don't have a full batch
-            tokio::time::sleep(tokio::time::Duration::from_millis(self.flush_interval_ms)).await;
+            let should_flush_time = last_flush.elapsed() >= interval;
+
+            if should_flush_size || should_flush_time {
+                // Проверяем, есть ли что сбрасывать, внутри flush_batch, но блокировку на чтение сняли
+                if let Err(e) = self.flush_batch().await {
+                    eprintln!("Error flushing indicators batch: {}", e);
+                }
+                last_flush = tokio::time::Instant::now();
+            }
+
+            // Короткий сон, чтобы не грузить CPU в цикле
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     }
 
     async fn flush_batch(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let records_to_flush = {
             let mut queue = self.persist_queue.write().await;
-            let records_to_flush = queue.drain(..).collect::<Vec<_>>();
-            records_to_flush
+            if queue.is_empty() {
+                return Ok(());
+            }
+            queue.drain(..).collect::<Vec<_>>()
         };
 
-        if records_to_flush.is_empty() {
-            return Ok(());
-        }
-
         // Group records by symbol, timeframe, and timestamp for aggregation
-        use std::collections::HashMap;
-        let mut grouped_records: HashMap<(Symbol, Timeframe, i64), std::collections::HashMap<String, f64>> = HashMap::new();
-
+        // Key: (Symbol, Timeframe, timestamp) -> Value: Map<IndicatorName, Value>
+        let mut grouped_records: HashMap<(Symbol, Timeframe, i64), HashMap<String, f64>> = HashMap::new();
+        
         for record in records_to_flush {
             let key = (record.symbol.clone(), record.timeframe, record.timestamp);
-            grouped_records.entry(key).or_insert_with(std::collections::HashMap::new)
+            grouped_records.entry(key).or_insert_with(HashMap::new)
                 .insert(record.indicator_name, record.value);
         }
 
         // Process each unique (symbol, timeframe, timestamp) combination
         for ((symbol, timeframe, timestamp), indicators_map) in grouped_records {
             // Get the symbol_id from the pairs table
+            // OPTIMIZATION: In prod, cache symbol_ids in memory to avoid SELECT on every flush
             let symbol_row = sqlx::query!("SELECT symbol_id FROM market.pairs WHERE symbol = $1", symbol.as_str())
-                .fetch_one(&self.db_pool)
+                .fetch_optional(&self.db_pool)
                 .await?;
-            let symbol_id = symbol_row.symbol_id;
+            
+            let symbol_id = match symbol_row {
+                Some(r) => r.symbol_id,
+                None => {
+                    eprintln!("Unknown symbol for indicator persist: {}", symbol);
+                    continue; 
+                }
+            };
 
             // Determine the correct table based on timeframe
             let table_name = format!("market.indicators_{}", timeframe.as_str());
+            
+            // Convert timestamp to DateTime<Utc> for the 'time' column (Required for Timescale PK)
+            let time_utc = Utc.timestamp_millis_opt(timestamp).single().unwrap_or(Utc::now());
 
-            // Build the query with all indicator columns that we have values for
-            let mut query_builder = sqlx::QueryBuilder::new(format!("INSERT INTO {} (time_ms, symbol_id", table_name));
+            // Build the query
+            // We use 'time' column for ON CONFLICT because it's part of the Hypertable PK
+            let mut query_builder = sqlx::QueryBuilder::new(format!("INSERT INTO {} (time_ms, time, symbol_id", table_name));
 
-            // Add indicator columns based on what's available
             let mut indicator_names = Vec::new();
             let mut indicator_values = Vec::new();
+            
             for (indicator_name, value) in &indicators_map {
+                // Basic protection against SQL injection via column names (although they come from internal enums usually)
+                if !indicator_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    continue;
+                }
                 indicator_names.push(indicator_name.as_str());
                 indicator_values.push(*value);
+            }
+
+            if indicator_names.is_empty() {
+                continue;
             }
 
             for indicator_name in &indicator_names {
@@ -105,16 +132,16 @@ impl IndicatorPersistor {
 
             query_builder.push(") VALUES (");
             query_builder.push_bind(timestamp);
+            query_builder.push_bind(time_utc); // Explicitly bind the timestamptz
             query_builder.push_bind(symbol_id);
 
-            // Add the indicator values to the VALUES clause
             for value in &indicator_values {
                 query_builder.push_bind(*value);
             }
 
-            query_builder.push(") ON CONFLICT (time_ms, symbol_id) DO UPDATE SET ");
-
-            // Update each indicator column that we have
+            // TimescaleDB PK is (symbol_id, time)
+            query_builder.push(") ON CONFLICT (symbol_id, time) DO UPDATE SET ");
+            
             let mut first_set_item = true;
             for indicator_name in &indicator_names {
                 if !first_set_item {
@@ -124,9 +151,11 @@ impl IndicatorPersistor {
                 first_set_item = false;
             }
 
-            query_builder.push(", updated_at_ms = EXCLUDED.updated_at_ms, updated_at = NOW()");
-
-            query_builder.build().execute(&self.db_pool).await?;
+            query_builder.push(", updated_at_ms = EXCLUDED.time_ms, updated_at = NOW()");
+            
+            if let Err(e) = query_builder.build().execute(&self.db_pool).await {
+                eprintln!("Failed to insert indicators for {}: {}", symbol, e);
+            }
         }
 
         Ok(())

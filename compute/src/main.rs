@@ -61,12 +61,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Trigger bootstrap computation for historical data
     let bootstrap_coordinator_clone = bootstrap_coordinator.clone();
     let db_pool_clone = db_pool.clone();
+    
     tokio::spawn(async move {
-        // Small delay to let other initialization complete
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        // IMPROVED: Wait loop logic
+        println!("Waiting for historical data to be ingested...");
+        let max_retries = 30; // Try for ~60 seconds
+        let mut data_found = false;
+        
+        for i in 0..max_retries {
+            // Check if we have any candles in M1 table
+            let row = sqlx::query("SELECT 1 FROM market.candles_1m LIMIT 1")
+                .fetch_optional(&db_pool_clone)
+                .await;
+                
+            if let Ok(Some(_)) = row {
+                println!("Data detected in DB. Starting historical compute...");
+                data_found = true;
+                // Give a little more grace time for bulk copy to fully commit/index
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                break;
+            }
+            
+            if i % 5 == 0 {
+                println!("Waiting for ingestor... (attempt {}/{})", i+1, max_retries);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
 
-        if let Err(e) = trigger_historical_compute(&bootstrap_coordinator_clone, &db_pool_clone).await {
-            eprintln!("Error triggering historical compute: {}", e);
+        if data_found {
+            if let Err(e) = trigger_historical_compute(&bootstrap_coordinator_clone, &db_pool_clone).await {
+                eprintln!("Error triggering historical compute: {}", e);
+            }
+        } else {
+            eprintln!("TIMEOUT: No historical data found after waiting. Historical compute skipped.");
         }
     });
 

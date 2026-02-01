@@ -1,0 +1,66 @@
+===========================================
+STOP @ Mon 02 Feb 2026 12:28:08 AM MSK
+ROOT: /home/anton/Desktop/Whitelist
+LOG : /home/anton/Desktop/Whitelist/logs/stop_20260202_002808.log
+===========================================
+Loading env: /home/anton/Desktop/Whitelist/.env
+Stopping compute pid=2675146 (TERM)...
+Stopped: compute
+Stopping connections pid=2675108 (TERM)...
+Stopped: connections
+Stopping ingestor pid=2675129 (TERM)...
+Stopped: ingestor
+Leaving infra running (use --down to stop docker compose).
+Stopping healthcheck Grafana services...
+ Container healthcheck_grafana Stopping 
+ Container healthcheck_grafana Stopped 
+ Container healthcheck_grafana Removing 
+ Container healthcheck_grafana Removed 
+ Container healthcheck_prometheus Stopping 
+ Container healthcheck_prometheus Stopped 
+ Container healthcheck_prometheus Removing 
+ Container healthcheck_prometheus Removed 
+ Network grafana_healthcheck_net Removing 
+ Network grafana_healthcheck_net Removed 
+Stopping sccache server...
+Stopping sccache server...
+Compile requests                   1781
+Compile requests executed          1387
+Cache hits                         1199
+Cache hits (C/C++)                  594
+Cache hits (Rust)                   605
+Cache misses                        177
+Cache misses (Rust)                 177
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Compilation failures                 10
+Cache errors                          1
+Cache errors (Rust)                   1
+Non-cacheable compilations            0
+Non-cacheable calls                 381
+Non-compilation calls                13
+Unsupported compiler calls            0
+Average cache write               0.001 s
+Average compiler                  1.003 s
+Average cache read hit            0.001 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+unknown source language             248
+crate-type                          114
+-                                    10
+missing input                         5
+-E                                    4
+
+Cache location                  Local disk: "/home/anton/.cache/sccache"
+Use direct/preprocessor mode?   yes
+Version (client)                0.7.7
+Cache size                            2 GiB
+Max cache size                       10 GiB
+sccache server stopped
+===========================================
+STOP DONE @ Mon 02 Feb 2026 12:28:11 AM MSK
+Logs in : /home/anton/Desktop/Whitelist/logs
+===========================================
