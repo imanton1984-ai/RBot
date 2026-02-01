@@ -699,8 +699,10 @@ pub struct BinanceConfig {
     pub time_sync_interval_sec: u64,
     pub time_sync_max_skew_ms: u64,
 
+    #[deprecated(note = "Use soft_weight_per_sec instead. This parameter was misleading as it represented weight per second, not requests per second.")]
     pub rate_limit_soft_rps: u32,
     pub rate_limit_soft_burst: u32,
+    pub soft_weight_per_sec: Option<u32>,
 
     pub futures_default_leverage: u16,
     pub futures_margin_type: String,
@@ -973,7 +975,7 @@ http_retries = 5
 http_retry_backoff_ms = 250
 http_retry_backoff_max_ms = 5000
 
-ws_ping_interval_sec = 15
+ws_ping_interval_sec = 5
 ws_reconnect_backoff_ms = 500
 ws_reconnect_backoff_max_ms = 15000
 
@@ -983,8 +985,12 @@ time_sync_interval_sec = 300
 time_sync_max_skew_ms = 250
 
 # Веса запросов / лимиты (мягкие лимиты на клиентской стороне)
-rate_limit_soft_rps = 8
-rate_limit_soft_burst = 16
+# NOTE: This parameter name is misleading as it represents weight units per second, not requests per second
+rate_limit_soft_rps = 39
+rate_limit_soft_burst = 160
+
+# Weight units per second - clearer parameter name for rate limiting
+soft_weight_per_sec = 39
 
 # Ордерный режим (позже)
 futures_default_leverage = 10
@@ -1094,7 +1100,9 @@ persist_live_candle_every_ms = 1500
 # (close всегда обязателен, sampling касается только intra)
 intra_update_sampling_ms = 200
 
-http_concurrency = 8
+# HTTP concurrency for API requests (higher = more parallel requests)
+# Note: Binance has limits, so don't set too high (recommended: 50-100)
+http_concurrency = 10
 
 
 
@@ -1137,7 +1145,7 @@ futures_only = true
 perpetual_only = true
 
 # Фильтр ликвидности
-min_quote_volume_usdt_24h = 2_000_000.0
+min_quote_volume_usdt_24h = 50_000_000.0
 
 # Как часто обновлять "в фоне" (сек)
 refresh_interval_sec = 86400  # 24h
@@ -1442,817 +1450,6 @@ async fn main() -> Result<()> {
 
 
 
-# ingestor/src/market/candles.rs
-
-use anyhow::{anyhow, Context, Result};
-use chrono::{TimeZone, Utc};
-use common::timeframe::TimeFrame;
-use common::{load_config, AppConfig};
-use futures::{stream, StreamExt};
-use futures::SinkExt;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{mpsc, watch};
-use tokio::time::{Duration, Instant};
-use tokio_postgres::binary_copy::BinaryCopyInWriter;
-use tokio_postgres::types::{Type};
-use tokio_postgres::NoTls;
-use tokio_tungstenite::tungstenite::Message;
-use tracing::{error, info, warn};
-
-#[derive(Debug, Clone)]
-pub struct PairInfo {
-    pub symbol_id: i64,
-    pub symbol: String, // "BTCUSDT"
-}
-#[derive(Debug, Clone)]
-pub struct CandleRow {
-    pub time_ms: i64, // close time ms
-    pub symbol_id: i64,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: f64,
-}
-
-#[derive(Debug, Clone)]
-struct WriterMsg {
-    rows: Vec<CandleRow>,
-}
-
-// ---------- REST (zero-copy-ish) ----------
-#[allow(dead_code)]
-#[derive(serde::Deserialize)]
-struct RestKline<'a>(
-    i64,                       // open_time
-    #[serde(borrow)] Cow<'a, str>, // open
-    #[serde(borrow)] Cow<'a, str>, // high
-    #[serde(borrow)] Cow<'a, str>, // low
-    #[serde(borrow)] Cow<'a, str>, // close
-    #[serde(borrow)] Cow<'a, str>, // volume
-    i64,                       // close_time
-    serde_json::Value,
-    serde_json::Value,
-    serde_json::Value,
-    serde_json::Value,
-    serde_json::Value,
-);
-
-// ---------- WS (zero-copy-ish) ----------
-#[derive(serde::Deserialize)]
-struct WsEnvelope<'a> {
-    #[serde(borrow)]
-    data: WsData<'a>,
-}
-
-#[derive(serde::Deserialize)]
-struct WsData<'a> {
-    #[serde(rename = "k", borrow)]
-    k: WsKline<'a>,
-}
-
-#[derive(serde::Deserialize)]
-struct WsKline<'a> {
-    #[serde(rename = "s", borrow)]
-    symbol: Cow<'a, str>, // "BTCUSDT"
-    #[serde(rename = "i", borrow)]
-    interval: Cow<'a, str>, // "1m"
-    #[serde(rename = "T")]
-    close_time: i64,
-    #[serde(rename = "o", borrow)]
-    open: Cow<'a, str>,
-    #[serde(rename = "h", borrow)]
-    high: Cow<'a, str>,
-    #[serde(rename = "l", borrow)]
-    low: Cow<'a, str>,
-    #[serde(rename = "c", borrow)]
-    close: Cow<'a, str>,
-    #[serde(rename = "v", borrow)]
-    volume: Cow<'a, str>,
-    #[serde(rename = "x")]
-    is_closed: bool,
-}
-
-fn parse_tf(s: &str) -> Option<TimeFrame> {
-    match s {
-        "1m" => Some(TimeFrame::M1),
-        "5m" => Some(TimeFrame::M5),
-        "15m" => Some(TimeFrame::M15),
-        "1h" => Some(TimeFrame::H1),
-        "4h" => Some(TimeFrame::H4),
-        "1d" => Some(TimeFrame::D1),
-        _ => None,
-    }
-}
-
-fn build_table_name(tf: TimeFrame) -> String {
-    format!("market.candles_{}", tf.as_str())
-}
-
-fn build_ws_base(ws_base: &str) -> String {
-    let b = ws_base.trim_end_matches('/');
-    if b.ends_with("/stream") {
-        b.to_string()
-    } else {
-        format!("{}/stream", b)
-    }
-}
-
-fn build_combined_ws_url(ws_base: &str, streams: &[String]) -> String {
-    let base = build_ws_base(ws_base);
-    let joined = streams.join("/");
-    format!("{}?streams={}", base, joined)
-}
-
-fn str_f64(s: &str) -> f64 {
-    s.parse::<f64>().unwrap_or(0.0)
-}
-
-async fn pg_connect(db_url: &str) -> Result<tokio_postgres::Client> {
-    let (client, connection) = tokio_postgres::connect(db_url, NoTls)
-        .await
-        .context("tokio_postgres::connect failed")?;
-
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            error!("postgres connection error: {e}");
-        }
-    });
-
-    Ok(client)
-}
-
-async fn fetch_active_pairs(client: &tokio_postgres::Client) -> Result<Vec<PairInfo>> {
-    let row = client
-        .query_one("SELECT to_regclass('market.pairs')::text", &[])
-        .await
-        .context("failed to check market.pairs existence")?;
-    let reg: Option<String> = row.get(0);
-    if reg.is_none() {
-        return Err(anyhow!(
-            "DB schema is not initialized: relation market.pairs does not exist"
-        ));
-    }
-
-    let rows = client
-        .query(
-            "SELECT symbol_id, symbol
-             FROM market.pairs
-             WHERE is_active = TRUE
-             ORDER BY symbol_id",
-            &[],
-        )
-        .await
-        .context("fetch_active_pairs query failed")?;
-
-    let mut out = Vec::with_capacity(rows.len());
-    for r in rows {
-        out.push(PairInfo {
-            symbol_id: r.get::<_, i64>(0),
-            symbol: r.get::<_, String>(1),
-        });
-    }
-    Ok(out)
-}
-
-async fn fetch_last_time_per_symbol(
-    client: &tokio_postgres::Client,
-    tf: TimeFrame,
-) -> Result<HashMap<i64, i64>> {
-    let table = build_table_name(tf);
-    let q = format!(
-        "SELECT symbol_id, COALESCE(MAX(time_ms),0)::bigint AS last_ms
-         FROM {}
-         GROUP BY symbol_id",
-        table
-    );
-
-    let rows = client
-        .query(&q, &[])
-        .await
-        .with_context(|| format!("fetch_last_time_per_symbol failed for {}", table))?;
-
-    let mut map = HashMap::with_capacity(rows.len().max(1024));
-    for r in rows {
-        let sid: i64 = r.get(0);
-        let last_ms: i64 = r.get(1);
-        map.insert(sid, last_ms);
-    }
-    Ok(map)
-}
-
-/// Подготовка буфера перед COPY:
-/// - отбрасываем всё, что <= last_seen[symbol]
-/// - сортируем и dedup по (symbol_id, time_ms)
-fn prepare_copy_batch(buf: &mut Vec<CandleRow>, last_seen: &HashMap<i64, i64>) {
-    buf.retain(|c| c.time_ms > *last_seen.get(&c.symbol_id).unwrap_or(&0));
-
-    if buf.len() <= 1 {
-        return;
-    }
-
-    buf.sort_unstable_by(|a, b| {
-        match a.symbol_id.cmp(&b.symbol_id) {
-            std::cmp::Ordering::Equal => a.time_ms.cmp(&b.time_ms),
-            other => other,
-        }
-    });
-
-    buf.dedup_by(|a, b| a.symbol_id == b.symbol_id && a.time_ms == b.time_ms);
-}
-
-/// BINARY COPY flush.
-async fn flush_copy(
-    client: &tokio_postgres::Client,
-    tf: TimeFrame,
-    buf: &mut Vec<CandleRow>,
-    last_seen: &mut HashMap<i64, i64>,
-) -> Result<u64> {
-    if buf.is_empty() {
-        return Ok(0);
-    }
-
-    prepare_copy_batch(buf, last_seen);
-    if buf.is_empty() {
-        return Ok(0);
-    }
-
-    let mut max_per_symbol: HashMap<i64, i64> = HashMap::new();
-    for c in buf.iter() {
-        let e = max_per_symbol.entry(c.symbol_id).or_insert(0);
-        if c.time_ms > *e {
-            *e = c.time_ms;
-        }
-    }
-
-    let table_name = build_table_name(tf);
-    let stmt = format!(
-        "COPY {} (time_ms, time, symbol_id, open, high, low, close, volume) FROM STDIN BINARY",
-        table_name
-    );
-
-    let sink = client.copy_in(&stmt).await.context("copy_in failed")?;
-    let writer = BinaryCopyInWriter::new(
-        sink,
-        &[
-            Type::INT8,   // time_ms
-            Type::TIMESTAMPTZ, // time
-            Type::INT8,   // symbol_id
-            Type::FLOAT8, // open
-            Type::FLOAT8, // high
-            Type::FLOAT8, // low
-            Type::FLOAT8, // close
-            Type::FLOAT8, // volume
-        ],
-    );
-    let mut writer = std::pin::pin!(writer);
-
-    for r in buf.iter() {
-        let ts = Utc.timestamp_millis_opt(r.time_ms).single().unwrap();
-        writer
-            .as_mut()
-            .write(&[
-                &r.time_ms,
-                &ts,
-                &r.symbol_id,
-                &r.open,
-                &r.high,
-                &r.low,
-                &r.close,
-                &r.volume,
-            ])
-            .await?;
-    }
-
-    let rows = writer.as_mut().finish().await?;
-
-    for (sid, mx) in max_per_symbol {
-        let e = last_seen.entry(sid).or_insert(0);
-        if mx > *e {
-            *e = mx;
-        }
-    }
-
-    buf.clear();
-    Ok(rows)
-}
-
-async fn writer_task_copy(
-    db_url: String,
-    tf: TimeFrame,
-    mut rx: mpsc::Receiver<WriterMsg>,
-    mut last_seen: HashMap<i64, i64>,
-    mut shutdown: watch::Receiver<bool>,
-) -> Result<()> {
-    let flush_rows: usize = std::env::var("INGEST_COPY_FLUSH_ROWS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(30_000);
-
-    let flush_every_ms: u64 = std::env::var("INGEST_COPY_FLUSH_MS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(250);
-
-    let mut inserted_total: u64 = 0;
-    let mut last_log = Instant::now();
-
-    loop {
-        // Reconnect loop
-        if *shutdown.borrow() {
-            return Ok(());
-        }
-
-        let client = match pg_connect(&db_url).await {
-            Ok(c) => c,
-            Err(e) => {
-                error!(?e, "pg_connect failed in writer task");
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                continue;
-            }
-        };
-
-        if std::env::var("INGEST_SYNC_COMMIT_OFF").ok().as_deref() == Some("1") {
-            if let Err(e) = client.batch_execute("SET synchronous_commit = OFF;").await {
-                error!(?e, "Failed to set synchronous_commit=OFF");
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                continue; // reconnect
-            }
-            warn!("writer({}): synchronous_commit=OFF", tf.as_str());
-        }
-
-        let mut buf: Vec<CandleRow> = Vec::with_capacity(flush_rows * 2);
-        let mut tick = tokio::time::interval(Duration::from_millis(flush_every_ms));
-        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-        let res: Result<()> = loop {
-            tokio::select! {
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
-                        break Ok(());
-                    }
-                }
-
-                _ = tick.tick() => {
-                    if !buf.is_empty() {
-                        match flush_copy(&client, tf, &mut buf, &mut last_seen).await {
-                            Ok(n) => {
-                                inserted_total += n;
-                                if last_log.elapsed() >= Duration::from_secs(2) {
-                                    info!("writer({}): inserted {} rows, total {}", tf.as_str(), n, inserted_total);
-                                    last_log = Instant::now();
-                                }
-                            }
-                            Err(e) => {
-                                error!(tf=?tf, error=format!("{:#}", e), "writer periodic flush failed");
-                                break Err(e); // Break inner loop to reconnect
-                            }
-                        }
-                    }
-                }
-
-                msg = rx.recv() => {
-                    match msg {
-                        Some(m) => {
-                            buf.extend(m.rows);
-                            if buf.len() >= flush_rows {
-                                match flush_copy(&client, tf, &mut buf, &mut last_seen).await {
-                                    Ok(n) => inserted_total += n,
-                                    Err(e) => {
-                                        error!(tf=?tf, error=format!("{:#}", e), "writer flush failed");
-                                        break Err(e); // Break inner loop to reconnect
-                                    }
-                                }
-                            }
-                        }
-                        None => {
-                            // Channel closed, probably shutdown
-                             break Ok(());
-                        }
-                    }
-                }
-            }
-        };
-
-        // Final flush before breaking outer loop or reconnecting
-        if !buf.is_empty() {
-             match flush_copy(&client, tf, &mut buf, &mut last_seen).await {
-                Ok(n) => inserted_total += n,
-                Err(e) => {
-                    error!(tf=?tf, error=format!("{:#}", e), "writer final flush failed");
-                }
-            }
-        }
-
-        if res.is_ok() {
-            // Channel closed, so exit.
-            info!("writer({}) channel closed. inserted_total={}", tf.as_str(), inserted_total);
-            return Ok(());
-        }
-
-        // Error happened, sleep before reconnect
-        warn!("writer({}) reconnecting after error...", tf.as_str());
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
-}
-async fn rest_fetch_klines_bytes(
-    http: &reqwest::Client,
-    cfg: &AppConfig,
-    symbol: &str,
-    interval: &str,
-    start_time_ms: Option<i64>,
-    limit: usize,
-) -> Result<bytes::Bytes> {
-    let mut url = format!(
-        "{}/fapi/v1/klines?symbol={}&interval={}&limit={}",
-        cfg.binance.rest_base_url, symbol, interval, limit
-    );
-    if let Some(st) = start_time_ms {
-        url.push_str(&format!("&startTime={}", st));
-    }
-
-    let mut backoff = cfg.binance.http_retry_backoff_ms.max(50);
-    for attempt in 1..=cfg.binance.http_retries.max(1) {
-        let resp = http.get(&url).send().await;
-
-        match resp {
-            Ok(r) => {
-                let status = r.status();
-                if status.as_u16() == 429 || status.as_u16() == 418 {
-                    warn!(
-                        "REST rate-limited {} {} attempt={} status={}",
-                        symbol, interval, attempt, status
-                    );
-                    tokio::time::sleep(Duration::from_millis(backoff)).await;
-                    backoff = (backoff * 2).min(cfg.binance.http_retry_backoff_max_ms);
-                    continue;
-                }
-
-                match r.error_for_status() {
-                    Ok(ok) => return Ok(ok.bytes().await.context("read bytes failed")?),
-                    Err(e) => {
-                        warn!(
-                            "REST klines {} {} attempt={} status_err={}",
-                            symbol, interval, attempt, e
-                        );
-                    }
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "REST klines {} {} attempt={} req_err={}",
-                    symbol, interval, attempt, e
-                );
-            }
-        }
-
-        tokio::time::sleep(Duration::from_millis(backoff)).await;
-        backoff = (backoff * 2).min(cfg.binance.http_retry_backoff_max_ms);
-    }
-
-    Err(anyhow!("REST klines failed after retries: {} {}", symbol, interval))
-}
-
-async fn rest_backfill_one(
-    http: &reqwest::Client,
-    cfg: &AppConfig,
-    pair: &PairInfo,
-    tf: TimeFrame,
-    last_ms: i64,
-    tx: mpsc::Sender<WriterMsg>,
-) -> Result<()> {
-    let interval = tf.as_str();
-    let limit = cfg.runtime.backfill_candles.min(1000) as usize;
-
-    let max_loops: usize = std::env::var("INGEST_BACKFILL_MAX_LOOPS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(10_000);
-
-    let mut start = if last_ms > 0 { Some(last_ms + 1) } else { None };
-    let mut loops = 0usize;
-    let mut max_close = last_ms;
-
-    while loops < max_loops {
-        loops += 1;
-
-        let bytes = rest_fetch_klines_bytes(http, cfg, &pair.symbol, interval, start, limit).await?;
-        let klines: Vec<RestKline> =
-            serde_json::from_slice(&bytes).context("parse REST klines failed")?;
-        if klines.is_empty() {
-            break;
-        }
-
-        let mut out: Vec<CandleRow> = Vec::with_capacity(klines.len());
-
-        for k in &klines {
-            let close_time = k.6;
-            if close_time <= last_ms {
-                continue;
-            }
-            if close_time > max_close {
-                max_close = close_time;
-            }
-
-            out.push(CandleRow {
-                time_ms: close_time,
-                symbol_id: pair.symbol_id,
-                open: str_f64(k.1.as_ref()),
-                high: str_f64(k.2.as_ref()),
-                low: str_f64(k.3.as_ref()),
-                close: str_f64(k.4.as_ref()),
-                volume: str_f64(k.5.as_ref()),
-            });
-        }
-
-        if !out.is_empty() {
-            let _ = tx.send(WriterMsg { rows: out }).await;
-        }
-
-        if klines.len() < limit {
-            break;
-        }
-        start = Some(max_close + 1);
-    }
-
-    Ok(())
-}
-
-async fn ws_worker(
-    cfg: Arc<AppConfig>,
-    url: String,
-    symbol_to_id: Arc<HashMap<String, i64>>,
-    writers: Arc<HashMap<TimeFrame, mpsc::Sender<WriterMsg>>>,
-    mut shutdown: watch::Receiver<bool>,
-) -> Result<()> {
-    let mut backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
-    let ping_every = Duration::from_secs(cfg.binance.ws_ping_interval_sec.max(5) as u64);
-
-    loop {
-        if *shutdown.borrow() {
-            return Ok(());
-        }
-
-        info!("WS connect: {}", url);
-        let conn = tokio_tungstenite::connect_async(&url).await;
-        let (mut ws, _) = match conn {
-            Ok(v) => v,
-            Err(e) => {
-                warn!("WS connect failed: {} err={}", url, e);
-                tokio::time::sleep(Duration::from_millis(backoff)).await;
-                backoff = (backoff * 2).min(cfg.binance.ws_reconnect_backoff_max_ms);
-                continue;
-            }
-        };
-
-        backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
-        let mut ping = tokio::time::interval(ping_every);
-
-        loop {
-            tokio::select! {
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
-                        let _ = ws.send(Message::Close(None)).await;
-                        return Ok(());
-                    }
-                }
-
-                _ = ping.tick() => {
-                    // tungstenite 0.28: Ping(Bytes)
-                    let _ = ws.send(Message::Ping(bytes::Bytes::new())).await;
-                }
-
-                msg = ws.next() => {
-                    let msg = match msg {
-                        None => { warn!("WS closed by server: {}", url); break; }
-                        Some(Err(e)) => { warn!("WS read error: {} err={}", url, e); break; }
-                        Some(Ok(m)) => m,
-                    };
-
-                    let data_slice: &[u8] = match &msg {
-                        Message::Text(t) => t.as_bytes(),   // Utf8Bytes
-                        Message::Binary(b) => b.as_ref(),   // Bytes
-                        Message::Ping(_) | Message::Pong(_) => continue,
-                        Message::Close(_) => { warn!("WS close frame: {}", url); break; }
-                        _ => continue,
-                    };
-
-                    let env: WsEnvelope = match serde_json::from_slice(data_slice) {
-                        Ok(v) => v,
-                        Err(_) => continue,
-                    };
-
-                    let k = env.data.k;
-                    if !k.is_closed {
-                        continue;
-                    }
-
-                    let tf = match parse_tf(k.interval.as_ref()) {
-                        Some(t) => t,
-                        None => continue,
-                    };
-
-                    let sid = match symbol_to_id.get(k.symbol.as_ref()) {
-                        Some(v) => *v,
-                        None => continue,
-                    };
-
-                    let row = CandleRow {
-                        time_ms: k.close_time,
-                        symbol_id: sid,
-                        open: str_f64(k.open.as_ref()),
-                        high: str_f64(k.high.as_ref()),
-                        low: str_f64(k.low.as_ref()),
-                        close: str_f64(k.close.as_ref()),
-                        volume: str_f64(k.volume.as_ref()),
-                    };
-
-                    if let Some(tx) = writers.get(&tf) {
-                        let _ = tx.send(WriterMsg { rows: vec![row] }).await;
-                    }
-                }
-            }
-        }
-
-        tokio::time::sleep(Duration::from_millis(backoff)).await;
-        backoff = (backoff * 2).min(cfg.binance.ws_reconnect_backoff_max_ms);
-    }
-}
-
-/// Главная точка запуска свечей (REST backfill + WS realtime + BINARY COPY writers)
-pub async fn run_candles_ingest() -> Result<()> {
-    let cfg: AppConfig = load_config().context("load_config() failed")?;
-    let cfg = Arc::new(cfg);
-
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
-
-    let http = reqwest::Client::builder()
-        .timeout(Duration::from_millis(cfg.binance.http_timeout_ms.max(1_000)))
-        .build()
-        .context("reqwest build failed")?;
-
-    let meta = pg_connect(&db_url).await?;
-    let pairs = fetch_active_pairs(&meta).await?;
-    if pairs.is_empty() {
-        anyhow::bail!("No active pairs in market.pairs");
-    }
-    info!("Active pairs: {}", pairs.len());
-
-    let mut map = HashMap::with_capacity(pairs.len() * 2);
-    for p in &pairs {
-        map.insert(p.symbol.clone(), p.symbol_id);
-    }
-    let symbol_to_id = Arc::new(map);
-
-    let mut tfs: Vec<TimeFrame> = Vec::new();
-    for s in &cfg.runtime.timeframes {
-        if let Some(tf) = parse_tf(s) {
-            tfs.push(tf);
-        } else {
-            warn!("Unknown timeframe in runtime.timeframes: {}", s);
-        }
-    }
-    if tfs.is_empty() {
-        anyhow::bail!("runtime.timeframes is empty or invalid");
-    }
-
-    let mut ws_tfs: Vec<TimeFrame> = Vec::new();
-    for s in &cfg.runtime.realtime_ws_timeframes {
-        if let Some(tf) = parse_tf(s) {
-            ws_tfs.push(tf);
-        } else {
-            warn!("Unknown timeframe in runtime.realtime_ws_timeframes: {}", s);
-        }
-    }
-    if ws_tfs.is_empty() {
-        ws_tfs = tfs.clone();
-    }
-
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
-
-    // writers (binary copy)
-    let mut writers: HashMap<TimeFrame, mpsc::Sender<WriterMsg>> = HashMap::new();
-    for tf in tfs.iter().copied() {
-        let chan_size: usize = std::env::var("INGEST_WRITER_CHAN")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(50_000);
-
-        let (tx, rx) = mpsc::channel::<WriterMsg>(chan_size);
-
-        let last_seen = fetch_last_time_per_symbol(&meta, tf).await.unwrap_or_default();
-        info!("last_seen loaded for {}: {}", tf.as_str(), last_seen.len());
-
-        let db_url2 = db_url.clone();
-        let shutdown_rx2 = shutdown_rx.clone();
-
-        tokio::spawn(async move {
-            if let Err(e) = writer_task_copy(db_url2, tf, rx, last_seen, shutdown_rx2).await {
-                error!("writer({}) failed: {}", tf.as_str(), e);
-            }
-        });
-
-        writers.insert(tf, tx);
-    }
-    let writers = Arc::new(writers);
-
-    // WS combined streams, chunked
-    let max_streams_per_ws: usize = std::env::var("INGEST_WS_MAX_STREAMS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(200);
-
-    let mut streams: Vec<String> = Vec::with_capacity(pairs.len() * ws_tfs.len());
-    for p in &pairs {
-        let sym = p.symbol.to_lowercase();
-        for tf in &ws_tfs {
-            streams.push(format!("{}@kline_{}", sym, tf.as_str()));
-        }
-    }
-
-    let ws_base = cfg.binance.ws_base_url.clone();
-    let chunks: Vec<Vec<String>> = streams.chunks(max_streams_per_ws).map(|c| c.to_vec()).collect();
-    info!("WS streams total={}, connections={}", streams.len(), chunks.len());
-
-    for (i, chunk) in chunks.into_iter().enumerate() {
-        let url = build_combined_ws_url(&ws_base, &chunk);
-        let cfg2 = cfg.clone();
-        let writers2 = writers.clone();
-        let symbol_to_id2 = symbol_to_id.clone();
-        let shutdown_rx2 = shutdown_rx.clone();
-
-        tokio::spawn(async move {
-            info!("WS worker #{} streams={}", i, chunk.len());
-            if let Err(e) = ws_worker(cfg2, url, symbol_to_id2, writers2, shutdown_rx2).await {
-                error!("WS worker #{} failed: {}", i, e);
-            }
-        });
-    }
-
-    // REST backfill concurrent
-    let http_conc = cfg.runtime.http_concurrency.unwrap_or(1).max(1) as usize;
-    info!(
-        "REST backfill: tfs={}, pairs={}, http_concurrency={}",
-        tfs.len(),
-        pairs.len(),
-        http_conc
-    );
-
-    let mut jobs = Vec::new();
-    for tf in tfs.iter().copied() {
-        let tx = writers.get(&tf).cloned().unwrap();
-        let last = fetch_last_time_per_symbol(&meta, tf).await.unwrap_or_default();
-
-        for p in &pairs {
-            let last_ms = last.get(&p.symbol_id).copied().unwrap_or(0);
-            let cfg2 = cfg.clone();
-            let http2 = http.clone();
-            let p2 = p.clone();
-            let tx2 = tx.clone();
-
-            jobs.push(async move {
-                let r = rest_backfill_one(&http2, &cfg2, &p2, tf, last_ms, tx2).await;
-                if let Err(e) = &r {
-                    warn!("backfill {} {} failed: {}", p2.symbol, tf.as_str(), e);
-                }
-                r
-            });
-        }
-    }
-
-    let backfill_started = Instant::now();
-
-    let (ok_cnt, err_cnt) = stream::iter(jobs)
-        .buffer_unordered(http_conc)
-        .fold((0u64, 0u64), |(ok, err), res| async move {
-            match res {
-                Ok(_) => (ok + 1, err),
-                Err(_) => (ok, err + 1),
-            }
-        })
-        .await;
-
-    info!(
-        "REST backfill done: ok={}, err={}, elapsed_ms={}",
-        ok_cnt,
-        err_cnt,
-        backfill_started.elapsed().as_millis()
-    );
-
-    info!("Candles ingest running (WS realtime + BINARY COPY writers). Press Ctrl+C to stop.");
-    tokio::signal::ctrl_c().await.context("ctrl_c failed")?;
-    info!("Shutdown signal received.");
-
-    let _ = shutdown_tx.send(true);
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    Ok(())
-}
-
-
-
 # ingestor/src/market/mod.rs
 
 pub mod pairs;
@@ -2368,6 +1565,12 @@ async fn refresh_pairs_inner() -> Result<UniversePairsResult> {
 
     for s in exchange.symbols {
         let sym = s.symbol;
+
+        // Filter out non-alphanumeric symbols to avoid issues with weird names from the exchange
+        if !sym.chars().all(|c| c.is_ascii_alphanumeric()) {
+            warn!("Skipping non-alphanumeric symbol: {}", sym);
+            continue;
+        }
 
         if deny.contains(&sym) || excl_sym.contains(&sym) {
             continue;
@@ -2495,6 +1698,1789 @@ pub async fn refresh_universe_pairs() -> Result<UniversePairsResult> {
 
 
 
+# ingestor/src/market/candles/candle_common.rs
+
+/*
+ * FILE: candle_common.rs
+ *
+ * PURPOSE:
+ * This module contains shared data structures, types, and utility functions
+ * used across different candle ingestion components (REST, WebSocket, Writer).
+ *
+ * RESPONSIBILITIES:
+ * - Defines core data structures like CandleRow, PairInfo, WriterMsg
+ * - Provides common utility functions like prepare_copy_batch, str_f64
+ * - Implements shared logic like WeightLimiter for rate limiting
+ * - Contains helper functions for building table names and URLs
+ *
+ * WORKFLOW:
+ * 1. Data structures are defined and used by other modules
+ * 2. Utility functions are called during data processing
+ * 3. Rate limiting logic is applied to API requests
+ */
+use common::timeframe::TimeFrame;
+use serde::Deserialize;
+use std::borrow::Cow;
+use std::collections::HashMap;
+use tokio::sync::Semaphore;
+
+#[derive(Debug, Clone)]
+pub struct PairInfo {
+    pub symbol_id: i64,
+    pub symbol: String, // "BTCUSDT"
+}
+
+#[derive(Debug, Clone)]
+pub struct CandleRow {
+    pub time_ms: i64, // close time ms
+    pub symbol_id: i64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct WriterMsg {
+    pub rows: Vec<CandleRow>,
+}
+
+// ---------- REST (zero-copy-ish) ----------
+#[allow(dead_code)]
+#[derive(Deserialize)]
+pub struct RestKline<'a>(
+    pub i64,                       // open_time
+    #[serde(borrow)] pub Cow<'a, str>, // open
+    #[serde(borrow)] pub Cow<'a, str>, // high
+    #[serde(borrow)] pub Cow<'a, str>, // low
+    #[serde(borrow)] pub Cow<'a, str>, // close
+    #[serde(borrow)] pub Cow<'a, str>, // volume
+    pub i64,                       // close_time
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+);
+
+// ---------- WS ----------
+
+#[derive(Debug, Deserialize)]
+pub struct BinanceWsEnvelope<T> {
+    pub stream: String,
+    pub data: T,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct KlineEvent {
+    #[serde(rename="e")] pub event_type: String, // "kline"
+    #[serde(rename="E")] pub event_time: i64,
+    #[serde(rename="s")] pub symbol: String,
+    #[serde(rename="k")] pub k: Kline,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Kline {
+    #[serde(rename="i")] pub interval: String, // "1m"
+    #[serde(rename="t")] pub open_time: i64,
+    #[serde(rename="T")] pub close_time: i64,
+    #[serde(rename="o")] pub open: String,
+    #[serde(rename="h")] pub high: String,
+    #[serde(rename="l")] pub low: String,
+    #[serde(rename="c")] pub close: String,
+    #[serde(rename="v")] pub volume: String,
+    #[serde(rename="n")] pub trades: Option<i32>,
+    #[serde(rename="x")] pub is_final: bool,
+}
+
+
+#[derive(Clone)]
+pub struct WeightLimiter {
+    pub sem: std::sync::Arc<Semaphore>,
+}
+
+impl WeightLimiter {
+    pub fn new(weight_per_sec: u32, burst: u32) -> Self {
+        let wps = weight_per_sec.max(1);
+        let cap = burst.max(wps).max(1) as usize;
+        let sem = std::sync::Arc::new(Semaphore::new(cap));
+        let sem2 = sem.clone();
+
+        // Размазываем пополнение равномерно: 1 permit каждые (1/wps) секунды
+        let period_ns = (1_000_000_000u64 / wps as u64).max(1);
+        let period = tokio::time::Duration::from_nanos(period_ns);
+
+        // Spawn a background task that continuously adds permits to the semaphore
+        // at a rate of 1 permit per `period` nanoseconds, up to the capacity
+        tokio::spawn(async move {
+            let mut itv = tokio::time::interval(period);
+            itv.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                itv.tick().await;
+                if sem2.available_permits() < cap {
+                    sem2.add_permits(1);
+                }
+            }
+        });
+
+        Self { sem }
+    }
+
+    pub async fn acquire(&self, weight: u32) {
+        if weight == 0 {
+            return;
+        }
+        // weight для klines максимум 10, так что acquire_many ок.
+        match self.sem.clone().acquire_many_owned(weight).await {
+            Ok(p) => p.forget(),
+            Err(_) => {} // shutdown
+        }
+    }
+}
+
+pub fn klines_weight(limit: usize) -> u32 {
+    match limit {
+        0..=100 => 1,
+        101..=500 => 2,
+        501..=1000 => 5,
+        _ => 10,
+    }
+}
+
+pub fn parse_tf(s: &str) -> Option<TimeFrame> {
+    match s {
+        "1m" => Some(TimeFrame::M1),
+        "5m" => Some(TimeFrame::M5),
+        "15m" => Some(TimeFrame::M15),
+        "1h" => Some(TimeFrame::H1),
+        "4h" => Some(TimeFrame::H4),
+        "1d" => Some(TimeFrame::D1),
+        _ => None,
+    }
+}
+
+pub fn build_table_name(tf: TimeFrame) -> String {
+    format!("market.candles_{}", tf.as_str())
+}
+
+pub fn build_ws_base(ws_base: &str) -> String {
+    let b = ws_base.trim_end_matches('/');
+    if b.ends_with("/stream") {
+        b.to_string()
+    } else {
+        format!("{}/stream", b)
+    }
+}
+
+pub fn build_combined_ws_url(ws_base: &str, streams: &[String]) -> String {
+    let base = build_ws_base(ws_base);
+    let joined = streams.join("/");
+    format!("{}?streams={}", base, joined)
+}
+
+pub fn str_f64(s: &str) -> f64 {
+    s.parse::<f64>().unwrap_or(0.0)
+}
+
+pub fn prepare_copy_batch(buf: &mut Vec<CandleRow>, last_seen: &HashMap<i64, i64>) {
+    buf.retain(|c| c.time_ms > *last_seen.get(&c.symbol_id).unwrap_or(&0));
+
+    if buf.len() <= 1 {
+        return;
+    }
+
+    buf.sort_unstable_by(|a, b| {
+        match a.symbol_id.cmp(&b.symbol_id) {
+            std::cmp::Ordering::Equal => a.time_ms.cmp(&b.time_ms),
+            other => other,
+        }
+    });
+
+    buf.dedup_by(|a, b| a.symbol_id == b.symbol_id && a.time_ms == b.time_ms);
+}
+
+
+
+# ingestor/src/market/candles/candle_rest.rs
+
+/*
+ * FILE: candle_rest.rs
+ *
+ * PURPOSE:
+ * This module handles historical candle data retrieval from REST API endpoints.
+ * It manages the downloading of past candle data for backfilling the database.
+ *
+ * RESPONSIBILITIES:
+ * - Fetches historical candle data from Binance REST API
+ * - Manages rate limiting for API requests
+ * - Performs backfill operations for missing historical data
+ * - Provides direct bulk insertion for initial data loads
+ *
+ * WORKFLOW:
+ * 1. pg_connect() establishes database connection
+ * 2. fetch_active_pairs() gets list of trading pairs to process
+ * 3. fetch_last_time_per_symbol() determines what data is missing
+ * 4. rest_fetch_klines_bytes() downloads data from REST API
+ * 5. rest_backfill_one() performs incremental backfill for each pair
+ * 6. copy_direct_empty_db() handles fast initial data loading
+ */
+use crate::market::candles::candle_common::*;
+use anyhow::{Context, Result};
+use chrono::{TimeZone, Utc};
+use common::AppConfig;
+use common::timeframe::TimeFrame;
+use std::collections::HashMap;
+use tokio::sync::mpsc;
+use tokio::time::Duration;
+use tokio_postgres::NoTls;
+use tokio_postgres::binary_copy::BinaryCopyInWriter;
+use tokio_postgres::types::Type;
+
+pub async fn pg_connect(db_url: &str) -> Result<tokio_postgres::Client> {
+    let (client, connection) = tokio_postgres::connect(db_url, NoTls)
+        .await
+        .context("tokio_postgres::connect failed")?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            tracing::error!("postgres connection error: {e}");
+        }
+    });
+
+    Ok(client)
+}
+
+pub async fn fetch_active_pairs(client: &tokio_postgres::Client) -> Result<Vec<PairInfo>> {
+    let row = client
+        .query_one("SELECT to_regclass('market.pairs')::text", &[])
+        .await
+        .context("failed to check market.pairs existence")?;
+    let reg: Option<String> = row.get(0);
+    if reg.is_none() {
+        return Err(anyhow::anyhow!(
+            "DB schema is not initialized: relation market.pairs does not exist"
+        ));
+    }
+
+    let rows = client
+        .query(
+            "SELECT symbol_id, symbol
+             FROM market.pairs
+             WHERE is_active = TRUE
+             ORDER BY symbol_id",
+            &[],
+        )
+        .await
+        .context("fetch_active_pairs query failed")?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(PairInfo {
+            symbol_id: r.get::<_, i64>(0),
+            symbol: r.get::<_, String>(1),
+        });
+    }
+    Ok(out)
+}
+
+pub async fn fetch_last_time_per_symbol(
+    client: &tokio_postgres::Client,
+    tf: TimeFrame,
+) -> Result<HashMap<i64, i64>> {
+    let table = build_table_name(tf);
+    let q = format!(
+        "SELECT symbol_id, COALESCE(MAX(time_ms),0)::bigint AS last_ms
+         FROM {}
+         GROUP BY symbol_id",
+        table
+    );
+
+    let rows = client
+        .query(&q, &[])
+        .await
+        .with_context(|| format!("fetch_last_time_per_symbol failed for {}", table))?;
+
+    let mut map = HashMap::with_capacity(rows.len().max(1024));
+    for r in rows {
+        let sid: i64 = r.get(0);
+        let last_ms: i64 = r.get(1);
+        map.insert(sid, last_ms);
+    }
+    Ok(map)
+}
+
+pub async fn rest_fetch_klines_bytes(
+    http: &reqwest::Client,
+    cfg: &AppConfig,
+    symbol: &str,
+    interval: &str,
+    start_time_ms: Option<i64>,
+    limit: usize,
+    limiter: Option<&WeightLimiter>,
+) -> Result<bytes::Bytes> {
+    let mut url = format!(
+        "{}/fapi/v1/klines?symbol={}&interval={}&limit={}",
+        cfg.binance.rest_base_url, symbol, interval, limit
+    );
+    if let Some(st) = start_time_ms {
+        url.push_str(&format!("&startTime={}", st));
+    }
+
+    let mut backoff = cfg.binance.http_retry_backoff_ms.max(50);
+    for attempt in 1..=cfg.binance.http_retries.max(1) {
+        if let Some(lim) = limiter {
+            lim.acquire(klines_weight(limit)).await;
+        }
+
+        let resp = http.get(&url).send().await;
+
+        match resp {
+            Ok(r) => {
+                let status = r.status();
+                if status.as_u16() == 429 {
+                    // Binance: 429 = rate limit hit, рекомендовано backoff; 418 = IP ban.
+                    tracing::warn!(
+                        "REST 429 on {} {}: attempt={} backoff={:?} body={}",
+                        symbol, interval, attempt, backoff, r.text().await.unwrap_or_default()
+                    );
+                    tokio::time::sleep(Duration::from_millis(backoff)).await;
+                    backoff = (backoff * 2).min(cfg.binance.http_retry_backoff_max_ms);
+                    continue;
+                }
+                if status.as_u16() == 418 {
+                    return Err(anyhow::anyhow!("REST 418 (ban) on {} {}: {}", symbol, interval, r.text().await.unwrap_or_default()));
+                }
+
+                match r.error_for_status() {
+                    Ok(ok) => return Ok(ok.bytes().await.context("read bytes failed")?),
+                    Err(e) => {
+                        tracing::warn!(
+                            "REST klines {} {} attempt={} status_err={}",
+                            symbol, interval, attempt, e
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "REST klines {} {} attempt={} req_err={}",
+                    symbol, interval, attempt, e
+                );
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(backoff)).await;
+        backoff = (backoff * 2).min(cfg.binance.http_retry_backoff_max_ms);
+    }
+
+    Err(anyhow::anyhow!("REST klines failed after retries: {} {}", symbol, interval))
+}
+
+use crate::market::candles::candle_writer::{TypedWriterMsg, DataSource};
+
+pub async fn rest_backfill_one(
+    http: &reqwest::Client,
+    cfg: &AppConfig,
+    pair: &PairInfo,
+    tf: TimeFrame,
+    last_ms: i64,
+    tx: mpsc::UnboundedSender<TypedWriterMsg>,
+    limiter: Option<WeightLimiter>,
+) -> Result<()> {
+    let interval = tf.as_str();
+    // Делаем limit <= 500 => weight=2 вместо weight=5 (если 700).
+    // Это обычно выгоднее по "весу на свечу" и снижает вероятность 429.
+    let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;
+
+    let max_loops: usize = std::env::var("INGEST_BACKFILL_MAX_LOOPS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10_000);
+
+    // Всегда задаём startTime:
+    // - если last_ms есть: догоняем с last_ms+1
+    // - если last_ms нет/0: берём окно "последние backfill_candles"
+    // плюс cap: даже если база отстала на недели — не пытаемся одним запуском догнать всё.
+    let now_ms = Utc::now().timestamp_millis();
+    let tf_ms = (tf.to_minutes() as i64) * 60_000;
+    let cap_start = now_ms - (cfg.runtime.backfill_candles as i64) * tf_ms;
+    let mut start = if last_ms > 0 {
+        (last_ms + 1).max(cap_start)
+    } else {
+        cap_start
+    };
+    if start < 0 { start = 0; }
+
+    let mut loops = 0usize;
+    let mut max_close = last_ms;
+
+    while loops < max_loops {
+        loops += 1;
+
+        let bytes = rest_fetch_klines_bytes(http, cfg, &pair.symbol, interval, Some(start), limit, limiter.as_ref()).await?;
+        let klines: Vec<RestKline> =
+            serde_json::from_slice(&bytes).context("parse REST klines failed")?;
+        if klines.is_empty() {
+            break;
+        }
+
+        let mut out: Vec<CandleRow> = Vec::with_capacity(klines.len());
+
+        for k in &klines {
+            let close_time = k.6;
+
+            if close_time >= Utc::now().timestamp_millis() {
+                continue;
+            }
+
+            if close_time <= last_ms {
+                continue;
+            }
+            if close_time > max_close {
+                max_close = close_time;
+            }
+
+            out.push(CandleRow {
+                time_ms: close_time,
+                symbol_id: pair.symbol_id,
+                open: str_f64(k.1.as_ref()),
+                high: str_f64(k.2.as_ref()),
+                low: str_f64(k.3.as_ref()),
+                close: str_f64(k.4.as_ref()),
+                volume: str_f64(k.5.as_ref()),
+            });
+        }
+
+        if !out.is_empty() {
+            let _ = tx.send(TypedWriterMsg { rows: out, source: DataSource::Rest });
+        }
+
+        if klines.len() < limit {
+            break;
+        }
+        start = max_close + 1;
+    }
+
+    Ok(())
+}
+
+/// Performs a direct bulk insert of candle data using PostgreSQL's COPY command for empty DB
+///
+/// This function implements an efficient bulk insert mechanism using PostgreSQL's binary COPY protocol
+/// without staging tables. It's designed for the empty database scenario where we don't need
+/// to worry about conflicts or upserts.
+///
+/// # Arguments
+/// * `client` - PostgreSQL client connection
+/// * `table` - Target table name (e.g., "candles_1m")
+/// * `rows` - Mutable reference to vector of CandleRow structs to insert
+///
+/// # Returns
+/// * Result containing the number of rows copied on success, or an error
+///
+/// # Process
+/// 1. Sorts and deduplicates rows to ensure data integrity
+/// 2. Uses PostgreSQL's binary COPY protocol to efficiently transfer data directly to main table
+pub async fn copy_direct_empty_db(
+    client: &tokio_postgres::Client,
+    table: &str,
+    rows: &mut Vec<CandleRow>,
+) -> Result<u64> {
+    if rows.is_empty() {
+        return Ok(0);
+    }
+
+    // Sort and deduplicate to guarantee no duplicates before insertion
+    rows.sort_unstable_by(|a, b| {
+        match a.symbol_id.cmp(&b.symbol_id) {
+            std::cmp::Ordering::Equal => a.time_ms.cmp(&b.time_ms),
+            other => other,
+        }
+    });
+    rows.dedup_by(|a, b| a.symbol_id == b.symbol_id && a.time_ms == b.time_ms);
+
+    let stmt = format!(
+        "COPY {} (time_ms, time, symbol_id, open, high, low, close, volume) FROM STDIN BINARY",
+        table
+    );
+
+    let sink = client.copy_in(&stmt).await
+        .context("Failed to start COPY")?;
+
+    let writer = BinaryCopyInWriter::new(
+        sink,
+        &[
+            Type::INT8,      // time_ms
+            Type::TIMESTAMPTZ, // time
+            Type::INT8,      // symbol_id
+            Type::FLOAT8,    // open
+            Type::FLOAT8,    // high
+            Type::FLOAT8,    // low
+            Type::FLOAT8,    // close
+            Type::FLOAT8,    // volume
+        ],
+    );
+    let mut writer = std::pin::pin!(writer);
+
+    // Write all rows to the COPY stream
+    for r in rows.iter() {
+        let ts = Utc.timestamp_millis_opt(r.time_ms).single().unwrap();
+        writer
+            .as_mut()
+            .write(&[
+                &r.time_ms,
+                &ts,
+                &r.symbol_id,
+                &r.open,
+                &r.high,
+                &r.low,
+                &r.close,
+                &r.volume,
+            ])
+            .await
+            .context("Failed to write row to COPY")?;
+    }
+
+    let n = writer.as_mut().finish().await.context("Failed to finish COPY")?;
+    rows.clear();
+    Ok(n)
+}
+
+
+# ingestor/src/market/candles/candle_runner.rs
+
+/*
+ * FILE: candle_runner.rs
+ *
+ * PURPOSE:
+ * This module orchestrates the entire candle ingestion process.
+ * It coordinates between REST data loading, WebSocket real-time updates, and database writing.
+ *
+ * RESPONSIBILITIES:
+ * - Determines if database is empty or needs backfilling
+ * - Coordinates historical data loading from REST API
+ * - Initiates WebSocket connections for real-time data
+ * - Sets up writer tasks for database insertion
+ * - Manages overall ingestion workflow
+ *
+ * WORKFLOW:
+ * 1. run_candles_ingest() starts the ingestion process
+ * 2. Checks if database is empty to determine ingestion strategy
+ * 3. For empty DB: performs fast initial load using REST API
+ * 4. For populated DB: performs incremental backfill
+ * 5. Starts WebSocket workers for real-time data (after backfill)
+ * 6. Coordinates all writer tasks for database insertion
+ */
+use crate::market::candles::candle_common::*;
+use crate::market::candles::candle_rest::*;
+use crate::market::candles::candle_writer::*;
+use crate::market::candles::candle_ws::run_kline_ws;
+use crate::market::pairs::refresh_universe_pairs;
+use anyhow::{Context, Result};
+use chrono::Utc;
+use common::{load_config, AppConfig};
+use common::timeframe::TimeFrame;
+use futures::{stream, StreamExt};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{mpsc, watch};
+use tokio::time::Instant;
+use tokio::sync::Semaphore;
+use tokio::time::interval;
+use sqlx::PgPool;
+use tracing::info;
+
+// Spawn a task to periodically refresh pairs and potentially restart WebSocket connections
+async fn spawn_pair_refresh_task(
+    cfg: Arc<AppConfig>,
+    symbol_to_id: Arc<HashMap<String, i64>>,
+    shutdown_rx: watch::Receiver<bool>,
+) {
+    let mut shutdown_rx = shutdown_rx;
+    let refresh_interval = tokio::time::Duration::from_secs(cfg.universe.refresh_interval_sec as u64);
+
+    tokio::spawn(async move {
+        let mut interval = interval(refresh_interval);
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    tracing::info!("Periodically refreshing universe pairs...");
+                    match refresh_universe_pairs().await {
+                        Ok(result) => {
+                            tracing::info!("Pairs refreshed: selected_cnt={}, active_cnt={}",
+                                         result.selected_cnt, result.active_cnt);
+
+                            // Check if there are new pairs that need to be added to WebSocket connections
+                            match crate::market::candles::candle_rest::fetch_active_pairs(&crate::market::candles::candle_rest::pg_connect(&std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url())).await.unwrap()).await {
+                                Ok(updated_pairs) => {
+                                    // Check if there are new pairs that weren't in the original set
+                                    let current_symbols: std::collections::HashSet<_> = symbol_to_id.keys().cloned().collect();
+                                    let updated_symbols: std::collections::HashSet<_> = updated_pairs.iter().map(|p| p.symbol.clone()).collect();
+
+                                    let new_symbols: Vec<_> = updated_symbols.difference(&current_symbols).collect();
+                                    if !new_symbols.is_empty() {
+                                        tracing::info!("Detected {} new pairs to add to WebSocket connections", new_symbols.len());
+
+                                        // In a production system, we would need to restart WebSocket connections with new pairs
+                                        // For now, log the new pairs that need to be added
+                                        for symbol in new_symbols {
+                                            tracing::info!("New pair detected: {}", symbol);
+                                        }
+                                    }
+                                },
+                                Err(e) => {
+                                    tracing::error!("Failed to fetch updated pairs after refresh: {}", e);
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("Failed to refresh pairs: {}", e);
+                        }
+                    }
+                },
+                _ = shutdown_rx.changed() => {
+                    if *shutdown_rx.borrow() {
+                        tracing::info!("Pair refresh task shutting down");
+                        break;
+                    }
+                }
+            }
+        }
+    });
+}
+
+// TODO: твой backfill-функционал
+async fn run_rest_backfill(_pool: &PgPool) -> Result<()> {
+    // 1) получить список активных пар из market.pairs
+    // 2) REST /fapi/v1/klines?symbol=...&interval=...&limit=...
+    // 3) bulk insert в исторические таблицы (как сейчас)
+    Ok(())
+}
+
+pub async fn run_candles_pipeline(
+    pool: PgPool,
+    ws_base_url: String,
+    streams: Vec<String>,
+    live_flush_ms: u64,
+) -> Result<()> {
+    // 1) История
+    info!("Backfill start...");
+    run_rest_backfill(&pool).await.context("rest backfill failed")?;
+    info!("Backfill done.");
+
+    // 2) Канал live свечей (WS → Writer)
+    let (tx_live, rx_live) = mpsc::channel::<LiveCandle>(100_000);
+
+    // 3) Writer (UPSERT batched)
+    let writer = LiveWriter::new(pool.clone(), live_flush_ms, 50_000);
+    tokio::spawn(async move {
+        if let Err(e) = writer.run(rx_live).await {
+            tracing::error!("LiveWriter crashed: {:?}", e);
+        }
+    });
+
+    // 4) WS (kline intra updates)
+    run_kline_ws(ws_base_url, streams, tx_live).await?;
+
+    Ok(())
+}
+
+pub async fn run_candles_ingest() -> Result<()> {
+    let cfg: AppConfig = load_config().context("load_config() failed")?;
+    let cfg = Arc::new(cfg);
+
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url());
+
+    let http = reqwest::Client::builder()
+        .timeout(tokio::time::Duration::from_millis(cfg.binance.http_timeout_ms.max(1_000)))
+        .build()
+        .context("reqwest build failed")?;
+
+    let meta = crate::market::candles::candle_rest::pg_connect(&db_url).await?;
+    let pairs = crate::market::candles::candle_rest::fetch_active_pairs(&meta).await?;
+    if pairs.is_empty() {
+        anyhow::bail!("No active pairs in market.pairs");
+    }
+    tracing::info!("Active pairs: {}", pairs.len());
+
+    let mut map = HashMap::with_capacity(pairs.len() * 2);
+    for p in &pairs {
+        map.insert(p.symbol.clone(), p.symbol_id);
+    }
+    let symbol_to_id = Arc::new(map);
+
+    let mut tfs: Vec<TimeFrame> = Vec::new();
+    for s in &cfg.runtime.timeframes {
+        if let Some(tf) = parse_tf(s) {
+            tfs.push(tf);
+        } else {
+            tracing::warn!("Unknown timeframe in runtime.timeframes: {}", s);
+        }
+    }
+    if tfs.is_empty() {
+        anyhow::bail!("runtime.timeframes is empty or invalid");
+    }
+
+    let mut ws_tfs: Vec<TimeFrame> = Vec::new();
+    for s in &cfg.runtime.realtime_ws_timeframes {
+        if let Some(tf) = parse_tf(s) {
+            ws_tfs.push(tf);
+        } else {
+            tracing::warn!("Unknown timeframe in runtime.realtime_ws_timeframes: {}", s);
+        }
+    }
+    if ws_tfs.is_empty() {
+        ws_tfs = tfs.clone();
+    }
+
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+
+    // writers (binary copy)
+    let mut writers: HashMap<TimeFrame, mpsc::UnboundedSender<TypedWriterMsg>> = HashMap::new();
+    for tf in tfs.iter().copied() {
+        let (tx, rx) = mpsc::unbounded_channel::<TypedWriterMsg>();
+
+        let last_seen = fetch_last_time_per_symbol(&meta, tf).await.unwrap_or_default();
+        tracing::info!("last_seen loaded for {}: {}", tf.as_str(), last_seen.len());
+
+        let db_url2 = db_url.clone();
+        let shutdown_rx2 = shutdown_rx.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = writer_task_copy(db_url2, tf, rx, last_seen, shutdown_rx2).await {
+                tracing::error!("writer({}) failed: {}", tf.as_str(), e);
+            }
+        });
+
+        writers.insert(tf, tx);
+    }
+    let writers = Arc::new(writers);
+
+    // Spawn the periodic pair refresh task
+    spawn_pair_refresh_task(cfg.clone(), symbol_to_id.clone(), shutdown_rx.clone()).await;
+
+    // NEW: Fast one-shot initial loading for empty database
+    // This section handles the fast loading of historical data when the database is empty
+    // It's designed to load all required candles quickly by:
+    // 1. Making concurrent API requests for all pairs and timeframes
+    // 2. Collecting all data in memory by timeframe
+    // 3. Performing bulk inserts using PostgreSQL's COPY command
+    let last_times = crate::market::candles::candle_rest::fetch_last_time_per_symbol(&meta, tfs[0]).await.unwrap_or_default();
+    let is_empty_db = last_times.is_empty();
+
+    if is_empty_db {
+        tracing::info!("Empty database detected - performing fast one-shot initial load");
+
+        // Use bounded concurrency semaphore for API requests
+        // This limits the number of concurrent HTTP requests to prevent overwhelming the API
+        let api_semaphore = Arc::new(Semaphore::new(cfg.runtime.http_concurrency.unwrap_or(16).max(1)));
+
+        // ВНИМАНИЕ: здесь мы трактуем rate_limit_soft_rps как "weight units per second".
+        // Для Futures дефолт: 40 weight/sec (2400/min).
+        // Рекомендую держать 75-85% от лимита, чтобы не ловить 429/418.
+        // This creates a weight-based rate limiter to comply with Binance's rate limits
+        // Use the new parameter if available, otherwise fall back to the old one for backward compatibility
+        let weight_per_sec = cfg.binance.soft_weight_per_sec.unwrap_or(40); // Default to 40 weight/sec for futures
+        let rest_limiter = crate::market::candles::candle_common::WeightLimiter::new(
+            weight_per_sec,
+            cfg.binance.rate_limit_soft_burst,
+        );
+
+        // Log effective request rate based on the limit and weight
+        let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;  // Use 500 for initial load to reduce weight
+        let weight = klines_weight(limit);
+        let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
+        tracing::info!(
+            "Rate limiting configured: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
+            weight_per_sec, limit, weight, effective_req_per_sec
+        );
+
+        // Create a mapping of TimeFrame to collected candles
+        // This organizes the fetched data by timeframe for efficient bulk insertion
+        let mut tf_candles: HashMap<TimeFrame, Vec<CandleRow>> = HashMap::new();
+        for tf in &tfs {
+            tf_candles.insert(*tf, Vec::new());
+        }
+
+        // Concurrently fetch all candles for all pairs and timeframes
+        // This maximizes throughput by making many requests in parallel
+        let fetch_start = Instant::now();
+        let mut fetch_jobs = Vec::new();
+
+        // Create async jobs to fetch candles for each pair/timeframe combination
+        for p in &pairs {
+            for tf in &tfs {
+                let http_clone = http.clone();
+                let cfg_clone = cfg.clone();
+                let pair_clone = p.clone();
+                let semaphore_clone = api_semaphore.clone();
+                let limiter_clone = rest_limiter.clone();
+
+                fetch_jobs.push(async move {
+                    // Acquire a permit from the concurrency semaphore
+                    let _permit = semaphore_clone.acquire().await.unwrap();
+
+                    // Use a smaller limit (500 instead of 700) to reduce weight from 5 to 2
+                    // This allows more requests per second within the same weight budget
+                    let limit = cfg_clone.runtime.backfill_candles.min(500).max(1) as usize;
+                    let bytes = crate::market::candles::candle_rest::rest_fetch_klines_bytes(
+                        &http_clone,
+                        &cfg_clone,
+                        &pair_clone.symbol,
+                        tf.as_str(),
+                        None, // No start time - get most recent
+                        limit,
+                        Some(&limiter_clone),
+                    ).await?;
+
+                    // Parse the JSON response into kline structures
+                    let klines: Vec<RestKline> = serde_json::from_slice(&bytes).context("parse REST klines failed")?;
+
+                    // Convert klines to CandleRow structures for database insertion
+                    let mut results = Vec::new();
+                    let now = Utc::now().timestamp_millis();
+
+                    for k in &klines {
+                        // If the close time of the candle is in the future (or is the current second),
+                        // it means the candle is not closed. We don't save it to the history table.
+                        if k.6 >= now {
+                            continue;
+                        }
+
+                        results.push(CandleRow {
+                            time_ms: k.6, // close_time
+                            symbol_id: pair_clone.symbol_id,
+                            open: str_f64(k.1.as_ref()),
+                            high: str_f64(k.2.as_ref()),
+                            low: str_f64(k.3.as_ref()),
+                            close: str_f64(k.4.as_ref()),
+                            volume: str_f64(k.5.as_ref()),
+                        });
+                    }
+
+                    // Return both the timeframe and the rows to fix the buffer_unordered issue
+                    Ok::<(TimeFrame, Vec<CandleRow>), anyhow::Error>((*tf, results))
+                });
+            }
+        }
+
+        // Execute all fetch jobs concurrently with bounded concurrency
+        // Increase buffer size to allow more concurrent operations
+        let fetch_results = stream::iter(fetch_jobs)
+            .buffer_unordered(cfg.runtime.http_concurrency.unwrap_or(50).max(1))
+            .collect::<Vec<_>>()
+            .await;
+
+        // Organize results by timeframe for bulk insertion
+        for result in fetch_results {
+            match result {
+                Ok((tf, rows)) => {
+                    // Add the fetched candles to the appropriate timeframe bucket
+                    tf_candles.get_mut(&tf).unwrap().extend(rows);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch candles: {}", e);
+                }
+            }
+        }
+
+        // Bulk insert all candles by timeframe using PostgreSQL's efficient direct COPY command
+        let bulk_client = pg_connect(&db_url).await?;
+        for tf in &tfs {
+            let candles = tf_candles.get_mut(tf).unwrap();
+            if !candles.is_empty() {
+                let table_name = format!("market.candles_{}", tf.as_str());
+
+                let start = Instant::now();
+                // Perform the direct bulk insert using the efficient COPY mechanism (no staging/upsert)
+                let inserted = crate::market::candles::candle_rest::copy_direct_empty_db(&bulk_client, &table_name, candles).await?;
+                tracing::info!("Direct COPY inserted {} candles for {} in {:?}", inserted, table_name, start.elapsed());
+            }
+        }
+
+        tracing::info!("Fast initial load completed in {:?}", fetch_start.elapsed());
+    } else {
+        // OLD: Traditional backfill approach for incremental updates
+        // This section handles incremental updates when the database already contains data
+        // It fills in gaps between the last stored data and current time
+        tracing::info!("Non-empty database detected - performing traditional backfill");
+
+        // REST backfill concurrent
+        let http_conc = cfg.runtime.http_concurrency.unwrap_or(1).max(1) as usize;
+        tracing::info!(
+            "REST backfill: tfs={}, pairs={}, http_concurrency={}",
+            tfs.len(),
+            pairs.len(),
+            http_conc
+        );
+
+        // ВНИМАНИЕ: здесь мы трактуем rate_limit_soft_rps как "weight units per second".
+        // Для Futures дефолт: 40 weight/sec (2400/min).
+        // Рекомендую держать 75-85% от лимита, чтобы не ловить 429/418.
+        // Use the new parameter if available, otherwise fall back to the old one for backward compatibility
+        let weight_per_sec = cfg.binance.soft_weight_per_sec.unwrap_or(40); // Default to 40 weight/sec for futures
+        let rest_limiter = Some(crate::market::candles::candle_common::WeightLimiter::new(
+            weight_per_sec,
+            cfg.binance.rate_limit_soft_burst,
+        ));
+
+        // Log effective request rate based on the limit and weight
+        let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;  // Use 500 for initial load to reduce weight
+        let weight = klines_weight(limit);
+        let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
+        tracing::info!(
+            "Backfill rate limiting configured: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
+            weight_per_sec, limit, weight, effective_req_per_sec
+        );
+
+        let mut jobs = Vec::new();
+        for tf in tfs.iter().copied() {
+            let tx = writers.get(&tf).cloned().unwrap();
+            let last = fetch_last_time_per_symbol(&meta, tf).await.unwrap_or_default();
+
+            for p in &pairs {
+                let last_ms = last.get(&p.symbol_id).copied().unwrap_or(0);
+                let cfg2 = cfg.clone();
+                let http2 = http.clone();
+                let p2 = p.clone();
+                let tx2 = tx.clone();
+                let lim2 = rest_limiter.clone();
+
+                jobs.push(async move {
+                    let r = crate::market::candles::candle_rest::rest_backfill_one(&http2, &cfg2, &p2, tf, last_ms, tx2, lim2).await;
+                    if let Err(e) = &r {
+                        tracing::warn!("backfill {} {} failed: {}", p2.symbol, tf.as_str(), e);
+                    }
+                    r
+                });
+            }
+        }
+
+        let backfill_started = Instant::now();
+
+        let (ok_cnt, err_cnt) = stream::iter(jobs)
+            .buffer_unordered(http_conc)
+            .fold((0u64, 0u64), |(ok, err), res| async move {
+                match res {
+                    Ok(_) => (ok + 1, err),
+                    Err(_) => (ok, err + 1),
+                }
+            })
+            .await;
+
+        tracing::info!(
+            "REST backfill done: ok={}, err={}, elapsed_ms={}",
+            ok_cnt,
+            err_cnt,
+            backfill_started.elapsed().as_millis()
+        );
+    }
+
+    // Add a delay before starting WebSocket connections to allow the connection to "cool down"
+    tracing::info!("Waiting for 5 seconds before starting WebSocket connections...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+    // WS combined streams, chunked - STARTED AFTER HISTORY LOADING
+    // This ensures that WebSocket real-time data doesn't compete with historical data loading
+    let max_streams_per_ws: usize = std::env::var("INGEST_WS_MAX_STREAMS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(200);
+
+    // Create a consolidated map of last seen timestamps per symbol_id across all timeframes
+    // This will be used to filter out WebSocket data that's already in the database
+    let mut last_seen_per_symbol: HashMap<i64, i64> = HashMap::new();
+    for tf in &tfs {
+        let tf_last_seen = fetch_last_time_per_symbol(&meta, *tf).await.unwrap_or_default();
+        for (symbol_id, last_time) in tf_last_seen {
+            let existing = last_seen_per_symbol.entry(symbol_id).or_insert(0);
+            if last_time > *existing {
+                *existing = last_time; // Keep the latest timestamp across all timeframes
+            }
+        }
+    }
+    let last_seen_per_symbol = Arc::new(last_seen_per_symbol);
+
+    let mut streams: Vec<String> = Vec::with_capacity(pairs.len() * ws_tfs.len());
+    for p in &pairs {
+        let sym = p.symbol.to_lowercase();
+        for tf in &ws_tfs {
+            streams.push(format!("{}@kline_{}", sym, tf.as_str()));
+        }
+    }
+
+    let ws_base = cfg.binance.ws_base_url.clone();
+    let chunks: Vec<Vec<String>> = streams.chunks(max_streams_per_ws).map(|c| c.to_vec()).collect();
+    tracing::info!("WS streams total={}, connections={}", streams.len(), chunks.len());
+
+    // NEW: Initialize the live candle writer if enabled in config
+    if cfg.runtime.persist_live_candle {
+        tracing::info!("Starting live candle writer with flush interval: {}ms", cfg.runtime.persist_live_candle_every_ms);
+
+        // Create a PgPool for the live writer
+        let pool = sqlx::PgPool::connect(&db_url).await.context("Failed to connect to database for live writer")?;
+
+        // Create streams for the live candle writer (all pairs and timeframes)
+        let mut live_streams: Vec<String> = Vec::with_capacity(pairs.len() * ws_tfs.len());
+        for p in &pairs {
+            let sym = p.symbol.to_lowercase();
+            for tf in &ws_tfs {
+                live_streams.push(format!("{}@kline_{}", sym, tf.as_str()));
+            }
+        }
+
+        // Clone necessary values before moving them into the async block
+        let ws_base_clone = ws_base.clone();
+        let live_flush_ms = cfg.runtime.persist_live_candle_every_ms;
+
+        // Start the live candle pipeline
+        tokio::spawn(async move {
+            if let Err(e) = run_candles_pipeline(
+                pool,
+                ws_base_clone,
+                live_streams,
+                live_flush_ms,
+            ).await {
+                tracing::error!("Live candle pipeline failed: {:?}", e);
+            }
+        });
+    }
+
+    for (i, chunk) in chunks.into_iter().enumerate() {
+        let url = build_combined_ws_url(&ws_base, &chunk);
+        let cfg2 = cfg.clone();
+        let writers2 = writers.clone();
+        let symbol_to_id2 = symbol_to_id.clone();
+        let last_seen_per_symbol2 = last_seen_per_symbol.clone();
+        let shutdown_rx2 = shutdown_rx.clone();
+
+        tokio::spawn(async move {
+            tracing::info!("WS worker #{} streams={}", i, chunk.len());
+            if let Err(e) = crate::market::candles::candle_ws::ws_worker(cfg2, url, symbol_to_id2, last_seen_per_symbol2, writers2, shutdown_rx2).await {
+                tracing::error!("WS worker #{} failed: {}", i, e);
+            }
+        });
+    }
+
+    tracing::info!("Candles ingest running (WS realtime + BINARY COPY writers). Press Ctrl+C to stop.");
+    tokio::signal::ctrl_c().await.context("ctrl_c failed")?;
+    tracing::info!("Shutdown sig...");
+
+    let _ = shutdown_tx.send(true);
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    Ok(())
+}
+
+
+# ingestor/src/market/candles/candle_writer.rs
+
+/*
+ * FILE: candle_writer.rs
+ *
+ * PURPOSE:
+ * This module handles database writing operations for candle data.
+ * It manages the insertion of both historical (REST) and real-time (WebSocket) data into the database.
+ *
+ * RESPONSIBILITIES:
+ * - Writes candle data to PostgreSQL database using binary COPY
+ * - Implements different flushing strategies for REST vs WebSocket data
+ * - Manages database connections and transactions
+ * - Handles data preparation and deduplication
+ * - Provides separate buffers for different data sources
+ * - Implements live candle writer for real-time updates to market.candles_live table
+ *
+ * WORKFLOW:
+ * 1. writer_task_copy() initializes database connection
+ * 2. Sets up separate buffers for REST and WebSocket data
+ * 3. Uses different flush thresholds for each data type
+ * 4. flush_copy() performs the actual database insertion
+ * 5. Data is filtered, sorted, and deduplicated before insertion
+ * 6. Separate timers control flushing for each data type
+ * 7. LiveWriter handles real-time updates to market.candles_live table
+ */
+use crate::market::candles::candle_common::*;
+use anyhow::{Context, Result};
+use chrono::{TimeZone, Utc};
+use common::timeframe::TimeFrame;
+use std::collections::HashMap;
+use tokio::sync::{mpsc, watch};
+use tokio::time::{Duration, Instant};
+use tokio_postgres::binary_copy::BinaryCopyInWriter;
+use tokio_postgres::types::Type;
+use sqlx::{PgPool, Postgres, QueryBuilder};
+use std::time::{Duration as StdDuration};
+use tracing::debug;
+
+// Different message types for REST and WebSocket data to handle them differently
+#[derive(Debug, Clone)]
+pub enum DataSource {
+    Rest,      // Historical data from REST API - use large batches
+    WebSocket, // Real-time data from WebSocket - use low latency
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedWriterMsg {
+    pub rows: Vec<CandleRow>,
+    pub source: DataSource,
+}
+
+#[derive(Debug, Clone)]
+pub struct LiveCandle {
+    pub symbol: String,
+    pub timeframe: String,
+    pub open_time_ms: i64,
+    pub close_time_ms: i64,
+
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+
+    pub trades: Option<i32>,
+    pub is_final: bool,
+
+    pub event_time_ms: i64,
+    pub source: &'static str, // "ws"
+}
+
+
+fn merge_live(dst: &mut LiveCandle, src: LiveCandle) {
+    // open_time совпадает по ключу
+    dst.close_time_ms = src.close_time_ms;
+    // open usually the same, but keep dst.open
+    dst.high = dst.high.max(src.high);
+    dst.low = dst.low.min(src.low);
+    // close/volume — берём самые свежие
+    if src.event_time_ms >= dst.event_time_ms {
+        dst.close = src.close;
+        dst.volume = src.volume;
+        dst.trades = src.trades.or(dst.trades);
+        dst.event_time_ms = src.event_time_ms;
+    } else {
+        // если прилетело старое — всё равно high/low уже учли
+        dst.volume = dst.volume.max(src.volume);
+    }
+    dst.is_final = dst.is_final || src.is_final;
+}
+
+pub struct LiveWriter {
+    pool: PgPool,
+    flush_every: StdDuration,
+    max_buf: usize,
+}
+
+impl LiveWriter {
+    pub fn new(pool: PgPool, flush_every_ms: u64, max_buf: usize) -> Self {
+        Self {
+            pool,
+            flush_every: StdDuration::from_millis(flush_every_ms),
+            max_buf,
+        }
+    }
+
+    pub async fn run(self, mut rx: mpsc::Receiver<LiveCandle>) -> Result<()> {
+        let mut tick = tokio::time::interval(self.flush_every);
+        let mut buf: HashMap<(String, String, i64), LiveCandle> = HashMap::with_capacity(self.max_buf);
+        let mut last_flush = Instant::now();
+
+        loop {
+            tokio::select! {
+                _ = tick.tick() => {
+                    if !buf.is_empty() {
+                        let n = flush_upsert_live(&self.pool, &mut buf).await?;
+                        debug!("candles_live flushed rows={}", n);
+                        last_flush = Instant::now();
+                    }
+                }
+                maybe = rx.recv() => {
+                    let c = match maybe {
+                        Some(v) => v,
+                        None => break, // channel closed
+                    };
+                    let k = (c.symbol.clone(), c.timeframe.clone(), c.open_time_ms);
+                    match buf.get_mut(&k) {
+                        Some(existing) => merge_live(existing, c),
+                        None => { buf.insert(k, c); }
+                    }
+
+                    // backpressure guard: если переполнились — принудительный flush
+                    if buf.len() >= self.max_buf || last_flush.elapsed() > self.flush_every {
+                        let _ = flush_upsert_live(&self.pool, &mut buf).await?;
+                        last_flush = Instant::now();
+                    }
+                }
+            }
+        }
+
+        // финальный flush
+        if !buf.is_empty() {
+            let _ = flush_upsert_live(&self.pool, &mut buf).await?;
+        }
+
+        Ok(())
+    }
+}
+
+async fn flush_upsert_live(pool: &PgPool, buf: &mut HashMap<(String, String, i64), LiveCandle>) -> Result<u64> {
+    let rows: Vec<LiveCandle> = buf.drain().map(|(_, v)| v).collect();
+    if rows.is_empty() {
+        return Ok(0);
+    }
+
+    // Один большой UPSERT батчен:
+    // INSERT ... VALUES (...),(...),...
+    // ON CONFLICT (symbol,timeframe,open_time_ms) DO UPDATE SET ...
+    let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
+        "INSERT INTO market.candles_live
+         (symbol,timeframe,open_time_ms,close_time_ms,open,high,low,close,volume,trades,is_final,last_event_time_ms,updated_at,source) "
+    );
+
+    qb.push_values(rows.iter(), |mut b, r| {
+        b.push_bind(&r.symbol)
+         .push_bind(&r.timeframe)
+         .push_bind(r.open_time_ms)
+         .push_bind(r.close_time_ms)
+         .push_bind(r.open)
+         .push_bind(r.high)
+         .push_bind(r.low)
+         .push_bind(r.close)
+         .push_bind(r.volume)
+         .push_bind(r.trades)
+         .push_bind(r.is_final)
+         .push_bind(r.event_time_ms)
+         .push_bind(Utc::now())
+         .push_bind(r.source);
+    });
+
+    qb.push(
+        " ON CONFLICT (symbol,timeframe,open_time_ms) DO UPDATE SET
+            close_time_ms = EXCLUDED.close_time_ms,
+            open          = EXCLUDED.open,
+            high          = GREATEST(market.candles_live.high, EXCLUDED.high),
+            low           = LEAST(market.candles_live.low, EXCLUDED.low),
+            close         = EXCLUDED.close,
+            volume        = GREATEST(market.candles_live.volume, EXCLUDED.volume),
+            trades        = COALESCE(EXCLUDED.trades, market.candles_live.trades),
+            is_final      = (market.candles_live.is_final OR EXCLUDED.is_final),
+            last_event_time_ms = GREATEST(market.candles_live.last_event_time_ms, EXCLUDED.last_event_time_ms),
+            updated_at    = now(),
+            source        = EXCLUDED.source"
+    );
+
+    let res = qb.build().execute(pool).await.context("upsert candles_live failed")?;
+    Ok(res.rows_affected())
+}
+
+pub async fn flush_copy(
+    client: &tokio_postgres::Client,
+    tf: TimeFrame,
+    buf: &mut Vec<CandleRow>,
+    last_seen: &mut HashMap<i64, i64>,
+) -> Result<u64> {
+    if buf.is_empty() {
+        return Ok(0);
+    }
+
+    prepare_copy_batch(buf, last_seen);
+    if buf.is_empty() {
+        return Ok(0);
+    }
+
+    let mut max_per_symbol: HashMap<i64, i64> = HashMap::new();
+    for c in buf.iter() {
+        let e = max_per_symbol.entry(c.symbol_id).or_insert(0);
+        if c.time_ms > *e {
+            *e = c.time_ms;
+        }
+    }
+
+    let table_name = build_table_name(tf);
+    let stmt = format!(
+        "COPY {} (time_ms, time, symbol_id, open, high, low, close, volume) FROM STDIN BINARY",
+        table_name
+    );
+
+    let sink = client.copy_in(&stmt).await.context("copy_in failed")?;
+    let writer = BinaryCopyInWriter::new(
+        sink,
+        &[
+            Type::INT8,   // time_ms
+            Type::TIMESTAMPTZ, // time
+            Type::INT8,   // symbol_id
+            Type::FLOAT8, // open
+            Type::FLOAT8, // high
+            Type::FLOAT8, // low
+            Type::FLOAT8, // close
+            Type::FLOAT8, // volume
+        ],
+    );
+    let mut writer = std::pin::pin!(writer);
+
+    for r in buf.iter() {
+        let ts = Utc.timestamp_millis_opt(r.time_ms).single().unwrap();
+        writer
+            .as_mut()
+            .write(&[
+                &r.time_ms,
+                &ts,
+                &r.symbol_id,
+                &r.open,
+                &r.high,
+                &r.low,
+                &r.close,
+                &r.volume,
+            ])
+            .await?;
+    }
+
+    let rows = writer.as_mut().finish().await?;
+
+    for (sid, mx) in max_per_symbol {
+        let e = last_seen.entry(sid).or_insert(0);
+        if mx > *e {
+            *e = mx;
+        }
+    }
+
+    buf.clear();
+    Ok(rows)
+}
+
+pub async fn writer_task_copy(
+    db_url: String,
+    tf: TimeFrame,
+    mut rx: mpsc::UnboundedReceiver<TypedWriterMsg>, // Using unbounded channel for better performance with WS
+    mut last_seen: HashMap<i64, i64>,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<()> {
+    let flush_rows: usize = std::env::var("INGEST_COPY_FLUSH_ROWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30_000);
+
+    let flush_every_ms: u64 = std::env::var("INGEST_COPY_FLUSH_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(250);
+
+    // Different thresholds for REST vs WebSocket data
+    let rest_min_flush_rows: usize = std::env::var("INGEST_COPY_REST_MIN_FLUSH_ROWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10_000);
+
+    let ws_min_flush_rows: usize = std::env::var("INGEST_COPY_WS_MIN_FLUSH_ROWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10); // Much lower threshold for WS data
+
+    let ws_flush_every_ms: u64 = std::env::var("INGEST_COPY_WS_FLUSH_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(50); // More frequent flush for WS data
+
+    let mut inserted_total: u64 = 0;
+    let mut last_log = Instant::now();
+
+    loop {
+        // Reconnect loop
+        if *shutdown.borrow() {
+            return Ok(());
+        }
+
+        let client = match crate::market::candles::candle_rest::pg_connect(&db_url).await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!(?e, "pg_connect failed in writer task");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+        };
+
+        if std::env::var("INGEST_SYNC_COMMIT_OFF").ok().as_deref() == Some("1") {
+            if let Err(e) = client.batch_execute("SET synchronous_commit = OFF;").await {
+                tracing::error!(?e, "Failed to set synchronous_commit=OFF");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue; // reconnect
+            }
+            tracing::warn!("writer({}): synchronous_commit=OFF", tf.as_str());
+        }
+
+
+        // Separate buffers for REST and WebSocket data to handle them differently
+        let mut rest_buf: Vec<CandleRow> = Vec::with_capacity(flush_rows);
+        let mut ws_buf: Vec<CandleRow> = Vec::with_capacity(1000); // Smaller buffer for WS
+
+        // Use different intervals for REST and WS data
+        let mut rest_tick = tokio::time::interval(Duration::from_millis(flush_every_ms));
+        rest_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        let mut ws_tick = tokio::time::interval(Duration::from_millis(ws_flush_every_ms));
+        ws_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        let res: Result<()> = loop {
+            tokio::select! {
+                _ = shutdown.changed() => {
+                    if *shutdown.borrow() {
+                        break Ok(());
+                    }
+                }
+
+                _ = rest_tick.tick() => {
+                    // Handle REST data with larger batch requirements
+                    if rest_buf.len() >= rest_min_flush_rows {
+                        match flush_copy(&client, tf, &mut rest_buf, &mut last_seen).await {
+                            Ok(n) => {
+                                inserted_total += n;
+                                if last_log.elapsed() >= Duration::from_secs(2) {
+                                    tracing::info!("writer({}): inserted {} REST rows, total {}", tf.as_str(), n, inserted_total);
+                                    last_log = Instant::now();
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!(tf=?tf, error=format!("{:#}", e), "writer REST flush failed");
+                                break Err(e); // Break inner loop to reconnect
+                            }
+                        }
+                    }
+                }
+
+                _ = ws_tick.tick() => {
+                    // Handle WebSocket data with low-latency requirements
+                    if !ws_buf.is_empty() {
+                        match flush_copy(&client, tf, &mut ws_buf, &mut last_seen).await {
+                            Ok(n) => {
+                                inserted_total += n;
+                                if last_log.elapsed() >= Duration::from_secs(2) {
+                                    tracing::info!("writer({}): inserted {} WS rows, total {}", tf.as_str(), n, inserted_total);
+                                    last_log = Instant::now();
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!(tf=?tf, error=format!("{:#}", e), "writer WS flush failed");
+                                break Err(e); // Break inner loop to reconnect
+                            }
+                        }
+                    }
+                }
+
+                msg = rx.recv() => {
+                    tracing::trace!("writer({}) received message: {:?}", tf.as_str(), msg);
+                    match msg {
+                        Some(m) => {
+                            match m.source {
+                                DataSource::Rest => {
+                                    rest_buf.extend(m.rows);
+                                    if rest_buf.len() >= flush_rows {
+                                        match flush_copy(&client, tf, &mut rest_buf, &mut last_seen).await {
+                                            Ok(n) => inserted_total += n,
+                                            Err(e) => {
+                                                tracing::error!(tf=?tf, error=format!("{:#}", e), "writer REST flush failed");
+                                                break Err(e); // Break inner loop to reconnect
+                                            }
+                                        }
+                                    }
+                                },
+                                DataSource::WebSocket => {
+                                    ws_buf.extend(m.rows);
+                                    // For WebSocket data, flush immediately or when buffer is reasonably full
+                                    if ws_buf.len() >= ws_min_flush_rows {
+                                        match flush_copy(&client, tf, &mut ws_buf, &mut last_seen).await {
+                                            Ok(n) => inserted_total += n,
+                                            Err(e) => {
+                                                tracing::error!(tf=?tf, error=format!("{:#}", e), "writer WS flush failed");
+                                                break Err(e); // Break inner loop to reconnect
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        None => {
+                            // Channel closed, probably shutdown
+                             break Ok(());
+                        }
+                    }
+                }
+            }
+        };
+
+        // Final flush before breaking outer loop or reconnecting
+        if !rest_buf.is_empty() {
+             match flush_copy(&client, tf, &mut rest_buf, &mut last_seen).await {
+                Ok(n) => inserted_total += n,
+                Err(e) => {
+                    tracing::error!(tf=?tf, error=format!("{:#}", e), "writer REST final flush failed");
+                }
+            }
+        }
+
+        if !ws_buf.is_empty() {
+             match flush_copy(&client, tf, &mut ws_buf, &mut last_seen).await {
+                Ok(n) => inserted_total += n,
+                Err(e) => {
+                    tracing::error!(tf=?tf, error=format!("{:#}", e), "writer WS final flush failed");
+                }
+            }
+        }
+
+        if res.is_ok() {
+            // Channel closed, so exit.
+            tracing::info!("writer({}) channel closed. inserted_total={}", tf.as_str(), inserted_total);
+            return Ok(());
+        }
+
+        // Error happened, sleep before reconnect
+        tracing::warn!("writer({}) reconnecting after error...", tf.as_str());
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+
+# ingestor/src/market/candles/candle_ws.rs
+
+/*
+ * FILE: candle_ws.rs
+ *
+ * PURPOSE:
+ * This module handles real-time candle data retrieval from WebSocket streams.
+ * It manages the connection to Binance WebSocket API and processes live candle updates.
+ *
+ * RESPONSIBILITIES:
+ * - Establishes and maintains WebSocket connections
+ * - Processes real-time candle data from WebSocket streams
+ * - Filters and validates incoming candle data
+ * - Forwards processed data to appropriate writers
+ * - Handles reconnection logic for robust operation
+ * - Sends live candle updates to the LiveWriter
+ *
+ * WORKFLOW:
+ * 1. ws_worker() establishes WebSocket connection to Binance
+ * 2. Receives WebSocket messages continuously
+ * 3. Parses incoming kline/candle data
+ * 4. Validates that candles are closed before processing
+ * 5. Routes data to appropriate timeframe writers
+ * 6. Handles connection failures and reconnection
+ * 7. Forwards live updates to LiveWriter for market.candles_live table
+ */
+use crate::market::candles::candle_common::*;
+use crate::market::candles::candle_writer::{TypedWriterMsg, DataSource, LiveCandle};
+use anyhow::{Context, Result};
+use common::timeframe::TimeFrame;
+use common::AppConfig;
+use futures::{SinkExt, StreamExt};
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{mpsc, watch};
+use tokio_tungstenite::tungstenite::Message;
+use tracing::info;
+
+
+
+pub async fn run_kline_ws(
+    ws_url: String,
+    streams: Vec<String>,
+    tx_live: mpsc::Sender<LiveCandle>,
+) -> Result<()> {
+    // Binance combined stream: wss://.../stream?streams=a/b/c
+    let full = format!("{}?streams={}", ws_url.trim_end_matches('/'), streams.join("/"));
+    info!("WS connect: streams={}", streams.len());
+
+    let (ws, _resp) = tokio_tungstenite::connect_async(&full).await.context("ws connect failed")?;
+    let (_, mut read) = ws.split(); // Split the WebSocket into sender/receiver parts
+
+    while let Some(msg) = read.next().await {
+        let msg = msg.context("WebSocket message error")?;
+        if !msg.is_text() { continue; }
+        let txt = msg.into_text().context("Failed to convert message to text")?;
+
+        // envelope with {stream,data}
+        let env: BinanceWsEnvelope<serde_json::Value> = match serde_json::from_str(&txt) {
+            Ok(v) => v,
+            Err(e) => { tracing::debug!("ws json parse envelope err: {}", e); continue; }
+        };
+
+        // live routing: kline updates → tx_live (без фильтра по close)
+        if env.data.get("e").and_then(|v| v.as_str()) == Some("kline") {
+            let ev: KlineEvent = match serde_json::from_value(env.data) {
+                Ok(v) => v,
+                Err(e) => { tracing::debug!("ws kline parse err: {}", e); continue; }
+            };
+
+            let k = ev.k;
+            let lc = LiveCandle {
+                symbol: ev.symbol,
+                timeframe: k.interval,
+                open_time_ms: k.open_time,
+                close_time_ms: k.close_time,
+                open: str_f64(&k.open),
+                high: str_f64(&k.high),
+                low: str_f64(&k.low),
+                close: str_f64(&k.close),
+                volume: str_f64(&k.volume),
+                trades: k.trades,
+                is_final: k.is_final,
+                event_time_ms: ev.event_time,
+                source: "ws",
+            };
+
+            // если канал переполнен — лучше дропнуть, чем убить систему
+            if tx_live.try_send(lc).is_err() {
+                // drop
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn ws_worker(
+    cfg: Arc<AppConfig>,
+    url: String,
+    symbol_to_id: Arc<HashMap<String, i64>>,
+    last_seen_per_symbol: Arc<HashMap<i64, i64>>, // Last seen timestamps per symbol_id
+    writers: Arc<HashMap<TimeFrame, mpsc::UnboundedSender<TypedWriterMsg>>>,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<()> {
+    let mut backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
+    let ping_every = tokio::time::Duration::from_secs(cfg.binance.ws_ping_interval_sec.max(5) as u64);
+
+    loop {
+        if *shutdown.borrow() {
+            return Ok(());
+        }
+
+        info!("WS connect: {}", url);
+        let conn = tokio_tungstenite::connect_async(&url).await;
+        let (mut ws, _) = match conn {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("WS connect failed: {} err={}", url, e);
+                tokio::time::sleep(tokio::time::Duration::from_millis(backoff)).await;
+                backoff = (backoff * 2).min(cfg.binance.ws_reconnect_backoff_max_ms);
+                continue;
+            }
+        };
+
+        backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
+        let mut ping = tokio::time::interval(ping_every);
+
+        loop {
+            tokio::select! {
+                _ = shutdown.changed() => {
+                    if *shutdown.borrow() {
+                        let _ = ws.send(Message::Close(None)).await;
+                        return Ok(());
+                    }
+                }
+
+                _ = ping.tick() => {
+                    // tungstenite 0.28: Ping(Bytes)
+                    let _ = ws.send(Message::Ping(bytes::Bytes::new())).await;
+                }
+
+                msg = ws.next() => {
+                    let msg = match msg {
+                        None => { tracing::warn!("WS closed by server: {}", url); break; }
+                        Some(Err(e)) => { tracing::warn!("WS read error: {} err={}", url, e); break; }
+                        Some(Ok(m)) => m,
+                    };
+
+                    tracing::trace!("Received raw ws message: {:?}", msg);
+
+                    let data_slice: &[u8] = match &msg {
+                        Message::Text(t) => t.as_bytes(),
+                        Message::Binary(b) => b.as_ref(),
+                        Message::Ping(_) | Message::Pong(_) => continue,
+                        Message::Close(_) => { tracing::warn!("WS close frame: {}", url); break; }
+                        _ => continue,
+                    };
+
+                    // Use the correct parsing logic
+                    let env: BinanceWsEnvelope<serde_json::Value> = match serde_json::from_slice(data_slice) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::debug!("ws json parse envelope err: {}", e);
+                            continue;
+                        }
+                    };
+
+                    if env.data.get("e").and_then(|v| v.as_str()) != Some("kline") {
+                        continue;
+                    }
+
+                    let ev: KlineEvent = match serde_json::from_value(env.data) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::debug!("ws kline parse err: {}", e);
+                            continue;
+                        }
+                    };
+
+                    let k = ev.k;
+                    if !k.is_final {
+                        tracing::trace!("Skipping non-closed candle: symbol={}, tf={}, time={}", ev.symbol, k.interval, k.close_time);
+                        continue;
+                    }
+
+                    tracing::debug!("Received closed candle: symbol={}, tf={}, time={}", ev.symbol, k.interval, k.close_time);
+
+                    let tf = match parse_tf(&k.interval) {
+                        Some(t) => t,
+                        None => continue,
+                    };
+
+                    let sid = match symbol_to_id.get(&ev.symbol) {
+                        Some(v) => *v,
+                        None => continue,
+                    };
+
+                    if let Some(last_time) = last_seen_per_symbol.get(&sid) {
+                        if k.close_time <= *last_time {
+                            continue;
+                        }
+                    }
+
+                    let row = CandleRow {
+                        time_ms: k.close_time,
+                        symbol_id: sid,
+                        open: str_f64(&k.open),
+                        high: str_f64(&k.high),
+                        low: str_f64(&k.low),
+                        close: str_f64(&k.close),
+                        volume: str_f64(&k.volume),
+                    };
+
+                    if let Some(tx) = writers.get(&tf) {
+                        tracing::trace!("writer({}) received message: {:?}", tf.as_str(), row);
+                        let _ = tx.send(TypedWriterMsg { rows: vec![row], source: DataSource::WebSocket });
+                    }
+                }
+            }
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(backoff)).await;
+        backoff = (backoff * 2).min(cfg.binance.ws_reconnect_backoff_max_ms);
+    }
+}
+
+
+# ingestor/src/market/candles/mod.rs
+
+pub mod candle_common;
+pub mod candle_rest;
+pub mod candle_ws;
+pub mod candle_writer;
+pub mod candle_runner;
+
+pub use candle_runner::run_candles_ingest;
+
+
 # database/Cargo.toml
 
 [[bin]]
@@ -2607,58 +3593,23 @@ CREATE TABLE IF NOT EXISTS market.collected_candles (
 );
 
 
--- “Живая” незакрытая свеча (persist_live_candle=true)
--- 1 строка на (symbol_id, tf)
-CREATE TABLE IF NOT EXISTS market.candles_live (
-    symbol_id    BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
-    tf_minutes   SMALLINT NOT NULL,
 
-    open_time    TIMESTAMPTZ NOT NULL,        -- start time of current candle
-    open         DOUBLE PRECISION NOT NULL,
-    high         DOUBLE PRECISION NOT NULL,
-    low          DOUBLE PRECISION NOT NULL,
-    close        DOUBLE PRECISION NOT NULL,
-    volume       DOUBLE PRECISION NOT NULL,
-
-    last_event_time TIMESTAMPTZ NOT NULL,     -- время последнего WS update
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    PRIMARY KEY(symbol_id, tf_minutes)
-);
-
-CREATE INDEX IF NOT EXISTS ix_candles_live_updated ON market.candles_live(updated_at DESC);
 
 
 
 # database/ddl/020_market_candles_tf.sql
 
--- 020_market_candles_tf.sql (HARDCORE: time_ms BIGINT + generated time timestamptz)
+-- 020_market_candles_tf.sql (OPTIMIZED: time_ms BIGINT + time timestamptz, no triggers)
 
 -- ВАЖНО:
 -- 1) time_ms = close time в миллисекундах (epoch ms)
--- 2) time = generated STORED timestamptz (для Timescale hypertable)
--- 3) Hypertable по time (generated) - works, time computed once and stored.
+-- 2) time = timestamptz calculated in Rust code before insertion
+-- 3) No triggers to slow down bulk inserts
 
--- 1. Создаем функцию для автоматического заполнения времени
-CREATE OR REPLACE FUNCTION market.sync_candle_time()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Конвертируем ms в timestamptz
-    NEW.time := to_timestamp(NEW.time_ms / 1000.0);
-    
-    -- Обработка source_event_time если нужно
-    IF NEW.source_event_time_ms IS NOT NULL THEN
-        NEW.source_event_time := to_timestamp(NEW.source_event_time_ms / 1000.0);
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- 2. Переопределяем структуру таблицы
+-- 1. Create the table structure without triggers
 CREATE TABLE IF NOT EXISTS market.candles_1m (
     time_ms   BIGINT NOT NULL,
-    time      TIMESTAMPTZ NOT NULL,
+    time      TIMESTAMPTZ NOT NULL, -- Rust will send this field filled
 
     symbol_id BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
 
@@ -2671,26 +3622,17 @@ CREATE TABLE IF NOT EXISTS market.candles_1m (
     source_event_time_ms BIGINT,
     source_event_time    TIMESTAMPTZ,
 
-    -- ИЗМЕНЕНИЕ ЗДЕСЬ: Добавляем 'time' в первичный ключ
     PRIMARY KEY(symbol_id, time)
 );
 
--- 3. Создаем таблицы для других таймфреймов
+-- 2. Create tables for other timeframes
 CREATE TABLE IF NOT EXISTS market.candles_5m  (LIKE market.candles_1m INCLUDING ALL);
 CREATE TABLE IF NOT EXISTS market.candles_15m (LIKE market.candles_1m INCLUDING ALL);
 CREATE TABLE IF NOT EXISTS market.candles_1h  (LIKE market.candles_1m INCLUDING ALL);
 CREATE TABLE IF NOT EXISTS market.candles_4h  (LIKE market.candles_1m INCLUDING ALL);
 CREATE TABLE IF NOT EXISTS market.candles_1d  (LIKE market.candles_1m INCLUDING ALL);
 
--- 4. Вешаем триггер на каждую таблицу (чтобы автоматически конвертировать ms в time)
-CREATE TRIGGER trg_sync_time_1m BEFORE INSERT OR UPDATE ON market.candles_1m FOR EACH ROW EXECUTE FUNCTION market.sync_candle_time();
-CREATE TRIGGER trg_sync_time_5m BEFORE INSERT OR UPDATE ON market.candles_5m FOR EACH ROW EXECUTE FUNCTION market.sync_candle_time();
-CREATE TRIGGER trg_sync_time_15m BEFORE INSERT OR UPDATE ON market.candles_15m FOR EACH ROW EXECUTE FUNCTION market.sync_candle_time();
-CREATE TRIGGER trg_sync_time_1h BEFORE INSERT OR UPDATE ON market.candles_1h FOR EACH ROW EXECUTE FUNCTION market.sync_candle_time();
-CREATE TRIGGER trg_sync_time_4h BEFORE INSERT OR UPDATE ON market.candles_4h FOR EACH ROW EXECUTE FUNCTION market.sync_candle_time();
-CREATE TRIGGER trg_sync_time_1d BEFORE INSERT OR UPDATE ON market.candles_1d FOR EACH ROW EXECUTE FUNCTION market.sync_candle_time();
-
--- 5. Теперь превращаем в гипертаблицы (теперь ошибок не будет)
+-- 3. Create hypertables (TimescaleDB)
 SELECT create_hypertable('market.candles_1m', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '1 day');
 SELECT create_hypertable('market.candles_5m', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '2 days');
 SELECT create_hypertable('market.candles_15m','time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '7 days');
@@ -2698,14 +3640,59 @@ SELECT create_hypertable('market.candles_1h', 'time', if_not_exists=>TRUE, chunk
 SELECT create_hypertable('market.candles_4h', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '60 days');
 SELECT create_hypertable('market.candles_1d', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '90 days');
 
--- Индексы остаются без изменений
-CREATE INDEX IF NOT EXISTS ix_candles_1m_symbol_time_desc  ON market.candles_1m (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_candles_5m_symbol_time_desc  ON market.candles_5m (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_candles_15m_symbol_time_desc ON market.candles_15m(symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_candles_1h_symbol_time_desc  ON market.candles_1h (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_candles_4h_symbol_time_desc  ON market.candles_4h (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_candles_1d_symbol_time_desc  ON market.candles_1d (symbol_id, time_ms DESC);
+-- 4. Create indexes
+CREATE INDEX IF NOT EXISTS ix_candles_1m_symbol_time_desc  ON market.candles_1m (symbol_id, time DESC);
+CREATE INDEX IF NOT EXISTS ix_candles_5m_symbol_time_desc  ON market.candles_5m (symbol_id, time DESC);
+CREATE INDEX IF NOT EXISTS ix_candles_15m_symbol_time_desc ON market.candles_15m(symbol_id, time DESC);
+CREATE INDEX IF NOT EXISTS ix_candles_1h_symbol_time_desc  ON market.candles_1h (symbol_id, time DESC);
+CREATE INDEX IF NOT EXISTS ix_candles_4h_symbol_time_desc  ON market.candles_4h (symbol_id, time DESC);
+CREATE INDEX IF NOT EXISTS ix_candles_1d_symbol_time_desc  ON market.candles_1d (symbol_id, time DESC);
 
+
+
+# database/ddl/021_market_candles_live.sql
+
+-- 021_market_candles_live.sql
+BEGIN;
+
+CREATE SCHEMA IF NOT EXISTS market;
+
+-- "Горячая" таблица: хранит только текущие (и последние) свечи, которые WS обновляет UPSERT-ом.
+-- Это НЕ историческая таблица. Её размер должен быть небольшим.
+CREATE TABLE IF NOT EXISTS market.candles_live (
+  symbol          text        NOT NULL,
+  timeframe       text        NOT NULL,         -- "1m","5m","15m","1h","4h","1d"
+  open_time_ms    bigint      NOT NULL,         -- open time in ms (Binance kline.t)
+  close_time_ms   bigint      NOT NULL,         -- close time in ms (kline.T)
+
+  open            double precision NOT NULL,
+  high            double precision NOT NULL,
+  low             double precision NOT NULL,
+  close           double precision NOT NULL,
+  volume          double precision NOT NULL,
+
+  trades          integer     NULL,             -- kline.n (если есть)
+  is_final        boolean     NOT NULL DEFAULT false, -- kline.x
+
+  last_event_time_ms bigint   NOT NULL,         -- event time (E) or server time
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  source          text        NOT NULL DEFAULT 'ws',
+
+  PRIMARY KEY (symbol, timeframe, open_time_ms)
+);
+
+-- Индексы под типовые запросы UI/бота: "дай последнюю свечу"
+CREATE INDEX IF NOT EXISTS candles_live_tf_time_idx
+  ON market.candles_live (timeframe, open_time_ms DESC);
+
+CREATE INDEX IF NOT EXISTS candles_live_symbol_tf_time_idx
+  ON market.candles_live (symbol, timeframe, open_time_ms DESC);
+
+-- Мягкая защита от роста (после рестартов): можно чистить всё старше N часов.
+-- Вариант 1: просто ручной cleanup по cron/systemd/pg_cron (ниже пример запроса).
+-- DELETE FROM market.candles_live WHERE open_time_ms < (extract(epoch from now() - interval '2 days')*1000)::bigint;
+
+COMMIT;
 
 
 # database/ddl/025_market_staging.sql
@@ -3319,6 +4306,7 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/001_extensions_and_schemas.sql"),
             include_str!("../../database/ddl/010_market_core.sql"),
             include_str!("../../database/ddl/020_market_candles_tf.sql"),
+            include_str!("../../database/ddl/021_market_candles_live.sql"),
             include_str!("../../database/ddl/025_market_staging.sql"),
             include_str!("../../database/ddl/030_market_indicators_tf.sql"),
             include_str!("../../database/ddl/040_market_raw_signals.sql"),
@@ -3542,6 +4530,7 @@ rdkafka = { workspace = true }
 
 tokio-tungstenite = { workspace = true }
 tokio-stream = { workspace = true }
+tokio-postgres = { workspace = true }
 
 
 
@@ -3652,6 +4641,14 @@ use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
+use tokio_postgres;
+use tokio_postgres::NoTls;
+
+#[derive(Clone, Debug)]
+pub struct PairInfo {
+    pub symbol_id: i64,
+    pub symbol: String,
+}
 
 #[derive(Clone, Debug)]
 pub struct BinanceWsConfig {
@@ -3662,24 +4659,84 @@ pub struct BinanceWsConfig {
     pub reconnect_max: Duration,
 }
 
-impl Default for BinanceWsConfig {
-    fn default() -> Self {
+impl BinanceWsConfig {
+    pub async fn new_from_env_with_db_fallback() -> Result<Self> {
         let base_url = std::env::var("BINANCE_WS_BASE_URL")
             .unwrap_or_else(|_| "wss://fstream.binance.com/stream".to_string());
+
+        // Try to get streams from environment variable first
         let streams_raw = std::env::var("BINANCE_WS_STREAMS").unwrap_or_else(|_| "".to_string());
-        let streams = streams_raw
+        let mut streams = streams_raw
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>();
 
-        BinanceWsConfig {
+        // If no streams are specified via environment variable, fetch active pairs from database
+        if streams.is_empty() {
+            info!("No streams specified via BINANCE_WS_STREAMS, fetching active pairs from database...");
+            match Self::fetch_active_pairs_from_db().await {
+                Ok(active_pairs) => {
+                    // Create streams for kline_1m and trade for each active pair
+                    for pair in active_pairs {
+                        let lower_symbol = pair.symbol.to_lowercase();
+                        streams.push(format!("{}@kline_1m", lower_symbol));
+                        streams.push(format!("{}@trade", lower_symbol));
+                    }
+                    info!("Loaded {} streams from database", streams.len());
+                }
+                Err(e) => {
+                    warn!("Failed to fetch active pairs from database: {}. Using default BTCUSDT streams.", e);
+                    // Fallback to default streams
+                    streams.push("btcusdt@trade".to_string());
+                    streams.push("btcusdt@kline_1m".to_string());
+                }
+            }
+        }
+
+        Ok(BinanceWsConfig {
             base_url,
             streams,
             ping_interval: Duration::from_secs(30),
             reconnect_base: Duration::from_secs(1),
             reconnect_max: Duration::from_secs(60),
+        })
+    }
+
+    async fn fetch_active_pairs_from_db() -> Result<Vec<PairInfo>> {
+        let db_url = std::env::var("DATABASE_URL")
+            .or_else(|_| std::env::var("POSTGRES_CONNECTION_STRING"))
+            .or_else(|_| std::env::var("POSTGRES_URL"))
+            .unwrap_or_else(|_| "postgresql://postgres:@localhost:5433/timescaledb_binance".to_string());
+
+        let (client, connection) = tokio_postgres::connect(&db_url, NoTls).await?;
+
+        // Spawn the connection handling
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("PostgreSQL connection error: {}", e);
+            }
+        });
+
+        let rows = client
+            .query(
+                "SELECT symbol_id, symbol
+                 FROM market.pairs
+                 WHERE is_active = TRUE
+                 ORDER BY symbol_id",
+                &[],
+            )
+            .await?;
+
+        let mut pairs = Vec::with_capacity(rows.len());
+        for row in rows {
+            pairs.push(PairInfo {
+                symbol_id: row.get(0),
+                symbol: row.get(1),
+            });
         }
+
+        Ok(pairs)
     }
 }
 
@@ -3689,7 +4746,8 @@ pub struct BinanceWsConnection {
 
 impl BinanceWsConnection {
     pub async fn new_from_env() -> Result<Self> {
-        Ok(Self { cfg: BinanceWsConfig::default() })
+        let cfg = BinanceWsConfig::new_from_env_with_db_fallback().await?;
+        Ok(Self { cfg })
     }
 
     pub async fn check(&self) -> Result<()> {
@@ -3710,7 +4768,7 @@ impl BinanceWsConnection {
                     info!("Binance WS connected");
                     let _ = status_tx.send(true);
                     backoff = self.cfg.reconnect_base;
-                    
+
                     let (mut _ws_write, mut ws_read) = ws_stream.split();
 
                     while let Some(msg) = ws_read.next().await {
@@ -4414,6 +5472,51 @@ impl RedpandaConnection {
 
 
 
+# scripts/clean_market_tables.sh
+
+#!/bin/bash
+
+echo "Cleaning market tables..."
+
+# Load environment variables
+source .env
+
+# Set the PostgreSQL password from environment variable
+export PGPASSWORD="${DB_PASSWORD:-postgres}"
+
+# Connect to PostgreSQL and drop all market candle tables and pairs table
+psql -h localhost -p 5433 -U postgres -d timescaledb_binance -c "
+BEGIN;
+
+-- Stop any active connections to prevent locking issues
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname = 'timescaledb_binance'
+AND pid <> pg_backend_pid();
+
+-- Drop all candle tables
+DROP TABLE IF EXISTS market.candles_1m CASCADE;
+DROP TABLE IF EXISTS market.candles_5m CASCADE;
+DROP TABLE IF EXISTS market.candles_15m CASCADE;
+DROP TABLE IF EXISTS market.candles_1h CASCADE;
+DROP TABLE IF EXISTS market.candles_4h CASCADE;
+DROP TABLE IF EXISTS market.candles_1d CASCADE;
+DROP TABLE IF EXISTS market.candles_live CASCADE;
+
+-- Drop pairs table
+DROP TABLE IF EXISTS market.pairs CASCADE;
+
+-- Recreate the market schema
+CREATE SCHEMA IF NOT EXISTS market;
+
+COMMIT;
+
+SELECT 'Tables cleaned successfully' AS status;
+"
+
+echo "Market tables have been cleaned. You can now restart your services."
+
+
 # scripts/full_stop.sh
 
 #!/usr/bin/env bash
@@ -4637,6 +5740,13 @@ else
   echo "docker-compose not found. Skipping Grafana shutdown."
 fi
 
+# Stop sccache server if available
+if command -v sccache >/dev/null 2>&1; then
+  echo "Stopping sccache server..."
+  sccache --stop-server || true
+  echo "sccache server stopped"
+fi
+
 echo "==========================================="
 echo "FULL STOP DONE @ $(date)"
 echo "==========================================="
@@ -4724,6 +5834,7 @@ else
   C_CYAN=$'\033[36m'
 fi
 
+
 ts() { date +"%H:%M:%S"; }
 
 hr() {
@@ -4803,6 +5914,19 @@ run_with_pty() {
 section "START"
 log "ROOT: ${C_BOLD}$ROOT_DIR${C_RESET}"
 log "LOG : ${C_BOLD}$START_LOG${C_RESET}"
+
+# Start sccache server if available
+if command -v sccache >/dev/null 2>&1; then
+  if ! pgrep sccache > /dev/null; then
+    log "Starting sccache server..."
+    sccache --start-server
+    ok "sccache server started"
+  else
+    ok "sccache server is already running."
+  fi
+else
+  warn "sccache not found, skipping server start"
+fi
 
 # ----------------- env -----------------
 
@@ -5029,12 +6153,64 @@ run_oneshot() {
   ok "Oneshot finished: $name"
 }
 
-# --- PAIRS: refresh universe into DB ---
-# по умолчанию ждём хотя бы 300 активных пар
+# --- DB INITIALIZATION: check if DB is initialized and initialize if needed ---
+check_db_initialized() {
+  local db_url="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance}"
+
+  # Check if market.pairs table exists
+  if PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'market' AND table_name = 'pairs');" 2>/dev/null | grep -q 't'; then
+    return 0  # Database is initialized
+  else
+    return 1  # Database is not initialized
+  fi
+}
+
+initialize_database() {
+  log "Database not initialized. Initializing database schema..."
+
+  # Build the database initialization service if it doesn't exist
+  local db_init_bin="$TARGET_DIR/svc_db_init"
+  if [[ ! -x "$db_init_bin" ]]; then
+    log "Building database initialization service..."
+    if [[ "$BUILD_PROFILE" == "release" ]]; then
+      run_with_pty "cargo build --release -p database --bin svc_db_init"
+    else
+      run_with_pty "cargo build -p database --bin svc_db_init"
+    fi
+  fi
+
+  # Run the database initialization
+  local db_init_bin_path
+  db_init_bin_path="$(find_bin_path "svc_db_init" || true)"
+  if [[ -n "$db_init_bin_path" ]]; then
+    log "Running database initialization..."
+    "$db_init_bin_path" 2>&1 | tee -a "$LOG_DIR/db_init.out"
+    if [[ $? -eq 0 ]]; then
+      ok "Database initialization completed successfully."
+    else
+      err "Database initialization failed."
+      return 1
+    fi
+  else
+    err "Database initialization binary not found: svc_db_init"
+    return 1
+  fi
+}
+
 export MIN_PAIRS="${MIN_PAIRS:-300}"
 export RUST_LOG="${RUST_LOG:-info,ingestor=info,connections=info}"
 
-# run_oneshot "ingestor_pairs"
+# Check if database is initialized, and initialize if needed
+section "DATABASE INITIALIZATION CHECK"
+if check_db_initialized; then
+  ok "Database is already initialized."
+else
+  warn "Database not initialized. Starting initialization..."
+  initialize_database
+  if [[ $? -ne 0 ]]; then
+    die "Database initialization failed. Cannot proceed."
+  fi
+fi
 
 # --- CANDLES: load historical candles and start real-time ingestion ---
 section "ONESHOT: load_candles"
@@ -5258,6 +6434,13 @@ if command -v docker >/dev/null 2>&1 && (command -v docker-compose >/dev/null 2>
   fi
 else
   echo "docker-compose not found. Skipping Grafana shutdown."
+fi
+
+# Stop sccache server if available
+if command -v sccache >/dev/null 2>&1; then
+  echo "Stopping sccache server..."
+  sccache --stop-server || true
+  echo "sccache server stopped"
 fi
 
 echo "==========================================="

@@ -62,40 +62,36 @@ pub struct RestKline<'a>(
     serde_json::Value,
 );
 
-// ---------- WS (zero-copy-ish) ----------
-#[derive(Deserialize)]
-pub struct WsEnvelope<'a> {
-    #[serde(borrow)]
-    pub data: WsData<'a>,
+// ---------- WS ----------
+
+#[derive(Debug, Deserialize)]
+pub struct BinanceWsEnvelope<T> {
+    pub stream: String,
+    pub data: T,
 }
 
-#[derive(Deserialize)]
-pub struct WsData<'a> {
-    #[serde(rename = "k", borrow)]
-    pub k: WsKline<'a>,
+#[derive(Debug, Deserialize)]
+pub struct KlineEvent {
+    #[serde(rename="e")] pub event_type: String, // "kline"
+    #[serde(rename="E")] pub event_time: i64,
+    #[serde(rename="s")] pub symbol: String,
+    #[serde(rename="k")] pub k: Kline,
 }
 
-#[derive(Deserialize)]
-pub struct WsKline<'a> {
-    #[serde(rename = "s", borrow)]
-    pub symbol: Cow<'a, str>, // "BTCUSDT"
-    #[serde(rename = "i", borrow)]
-    pub interval: Cow<'a, str>, // "1m"
-    #[serde(rename = "T")]
-    pub close_time: i64,
-    #[serde(rename = "o", borrow)]
-    pub open: Cow<'a, str>,
-    #[serde(rename = "h", borrow)]
-    pub high: Cow<'a, str>,
-    #[serde(rename = "l", borrow)]
-    pub low: Cow<'a, str>,
-    #[serde(rename = "c", borrow)]
-    pub close: Cow<'a, str>,
-    #[serde(rename = "v", borrow)]
-    pub volume: Cow<'a, str>,
-    #[serde(rename = "x")]
-    pub is_closed: bool,
+#[derive(Debug, Deserialize)]
+pub struct Kline {
+    #[serde(rename="i")] pub interval: String, // "1m"
+    #[serde(rename="t")] pub open_time: i64,
+    #[serde(rename="T")] pub close_time: i64,
+    #[serde(rename="o")] pub open: String,
+    #[serde(rename="h")] pub high: String,
+    #[serde(rename="l")] pub low: String,
+    #[serde(rename="c")] pub close: String,
+    #[serde(rename="v")] pub volume: String,
+    #[serde(rename="n")] pub trades: Option<i32>,
+    #[serde(rename="x")] pub is_final: bool,
 }
+
 
 #[derive(Clone)]
 pub struct WeightLimiter {

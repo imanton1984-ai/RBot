@@ -23,8 +23,10 @@
 use crate::market::candles::candle_common::*;
 use crate::market::candles::candle_rest::*;
 use crate::market::candles::candle_writer::*;
+use crate::market::candles::candle_ws::run_kline_ws;
 use crate::market::pairs::refresh_universe_pairs;
 use anyhow::{Context, Result};
+use chrono::Utc;
 use common::{load_config, AppConfig};
 use common::timeframe::TimeFrame;
 use futures::{stream, StreamExt};
@@ -34,6 +36,8 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 use tokio::sync::Semaphore;
 use tokio::time::interval;
+use sqlx::PgPool;
+use tracing::info;
 
 // Spawn a task to periodically refresh pairs and potentially restart WebSocket connections
 async fn spawn_pair_refresh_task(
@@ -93,6 +97,42 @@ async fn spawn_pair_refresh_task(
             }
         }
     });
+}
+
+// TODO: твой backfill-функционал
+async fn run_rest_backfill(_pool: &PgPool) -> Result<()> {
+    // 1) получить список активных пар из market.pairs
+    // 2) REST /fapi/v1/klines?symbol=...&interval=...&limit=...
+    // 3) bulk insert в исторические таблицы (как сейчас)
+    Ok(())
+}
+
+pub async fn run_candles_pipeline(
+    pool: PgPool,
+    ws_base_url: String,
+    streams: Vec<String>,
+    live_flush_ms: u64,
+) -> Result<()> {
+    // 1) История
+    info!("Backfill start...");
+    run_rest_backfill(&pool).await.context("rest backfill failed")?;
+    info!("Backfill done.");
+
+    // 2) Канал live свечей (WS → Writer)
+    let (tx_live, rx_live) = mpsc::channel::<LiveCandle>(100_000);
+
+    // 3) Writer (UPSERT batched)
+    let writer = LiveWriter::new(pool.clone(), live_flush_ms, 50_000);
+    tokio::spawn(async move {
+        if let Err(e) = writer.run(rx_live).await {
+            tracing::error!("LiveWriter crashed: {:?}", e);
+        }
+    });
+
+    // 4) WS (kline intra updates)
+    run_kline_ws(ws_base_url, streams, tx_live).await?;
+
+    Ok(())
 }
 
 pub async fn run_candles_ingest() -> Result<()> {
@@ -248,7 +288,15 @@ pub async fn run_candles_ingest() -> Result<()> {
 
                     // Convert klines to CandleRow structures for database insertion
                     let mut results = Vec::new();
+                    let now = Utc::now().timestamp_millis();
+
                     for k in &klines {
+                        // If the close time of the candle is in the future (or is the current second),
+                        // it means the candle is not closed. We don't save it to the history table.
+                        if k.6 >= now {
+                            continue;
+                        }
+
                         results.push(CandleRow {
                             time_ms: k.6, // close_time
                             symbol_id: pair_clone.symbol_id,
@@ -378,6 +426,10 @@ pub async fn run_candles_ingest() -> Result<()> {
         );
     }
 
+    // Add a delay before starting WebSocket connections to allow the connection to "cool down"
+    tracing::info!("Waiting for 5 seconds before starting WebSocket connections...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
     // WS combined streams, chunked - STARTED AFTER HISTORY LOADING
     // This ensures that WebSocket real-time data doesn't compete with historical data loading
     let max_streams_per_ws: usize = std::env::var("INGEST_WS_MAX_STREAMS")
@@ -410,6 +462,39 @@ pub async fn run_candles_ingest() -> Result<()> {
     let ws_base = cfg.binance.ws_base_url.clone();
     let chunks: Vec<Vec<String>> = streams.chunks(max_streams_per_ws).map(|c| c.to_vec()).collect();
     tracing::info!("WS streams total={}, connections={}", streams.len(), chunks.len());
+
+    // NEW: Initialize the live candle writer if enabled in config
+    if cfg.runtime.persist_live_candle {
+        tracing::info!("Starting live candle writer with flush interval: {}ms", cfg.runtime.persist_live_candle_every_ms);
+
+        // Create a PgPool for the live writer
+        let pool = sqlx::PgPool::connect(&db_url).await.context("Failed to connect to database for live writer")?;
+
+        // Create streams for the live candle writer (all pairs and timeframes)
+        let mut live_streams: Vec<String> = Vec::with_capacity(pairs.len() * ws_tfs.len());
+        for p in &pairs {
+            let sym = p.symbol.to_lowercase();
+            for tf in &ws_tfs {
+                live_streams.push(format!("{}@kline_{}", sym, tf.as_str()));
+            }
+        }
+
+        // Clone necessary values before moving them into the async block
+        let ws_base_clone = ws_base.clone();
+        let live_flush_ms = cfg.runtime.persist_live_candle_every_ms;
+
+        // Start the live candle pipeline
+        tokio::spawn(async move {
+            if let Err(e) = run_candles_pipeline(
+                pool,
+                ws_base_clone,
+                live_streams,
+                live_flush_ms,
+            ).await {
+                tracing::error!("Live candle pipeline failed: {:?}", e);
+            }
+        });
+    }
 
     for (i, chunk) in chunks.into_iter().enumerate() {
         let url = build_combined_ws_url(&ws_base, &chunk);

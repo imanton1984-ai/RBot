@@ -223,6 +223,11 @@ pub async fn rest_backfill_one(
 
         for k in &klines {
             let close_time = k.6;
+
+            if close_time >= Utc::now().timestamp_millis() {
+                continue;
+            }
+
             if close_time <= last_ms {
                 continue;
             }

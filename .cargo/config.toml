@@ -1,0 +1,21 @@
+# Настройки для ускорения линковки (самый тяжелый этап)
+[target.x86_64-unknown-linux-gnu]
+# mold — абсолютный чемпион скорости на Linux
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[build]
+# Включает кэширование (требуется установка: cargo install sccache)
+rustc-wrapper = "sccache"
+
+[profile.dev]
+# Оптимизация для более быстрой разработки
+opt-level = 0
+debug = true
+codegen-units = 256
+
+[profile.release]
+# Баланс между скоростью сборки и скоростью работы программы
+debug = false
+codegen-units = 16
+lto = "thin" # "Thin LTO" быстрее, чем "fat", но почти не уступает в оптимизации

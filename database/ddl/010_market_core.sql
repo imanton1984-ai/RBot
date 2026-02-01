@@ -36,23 +36,4 @@ CREATE TABLE IF NOT EXISTS market.collected_candles (
 );
 
 
--- “Живая” незакрытая свеча (persist_live_candle=true)
--- 1 строка на (symbol_id, tf)
-CREATE TABLE IF NOT EXISTS market.candles_live (
-    symbol_id    BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
-    tf_minutes   SMALLINT NOT NULL,
 
-    open_time    TIMESTAMPTZ NOT NULL,        -- start time of current candle
-    open         DOUBLE PRECISION NOT NULL,
-    high         DOUBLE PRECISION NOT NULL,
-    low          DOUBLE PRECISION NOT NULL,
-    close        DOUBLE PRECISION NOT NULL,
-    volume       DOUBLE PRECISION NOT NULL,
-
-    last_event_time TIMESTAMPTZ NOT NULL,     -- время последнего WS update
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    PRIMARY KEY(symbol_id, tf_minutes)
-);
-
-CREATE INDEX IF NOT EXISTS ix_candles_live_updated ON market.candles_live(updated_at DESC);

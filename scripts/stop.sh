@@ -143,6 +143,13 @@ else
   echo "docker-compose not found. Skipping Grafana shutdown."
 fi
 
+# Stop sccache server if available
+if command -v sccache >/dev/null 2>&1; then
+  echo "Stopping sccache server..."
+  sccache --stop-server || true
+  echo "sccache server stopped"
+fi
+
 echo "==========================================="
 echo "STOP DONE @ $(date)"
 echo "Logs in : $LOG_DIR"

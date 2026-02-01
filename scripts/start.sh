@@ -31,6 +31,7 @@ else
   C_CYAN=$'\033[36m'
 fi
 
+
 ts() { date +"%H:%M:%S"; }
 
 hr() {
@@ -110,6 +111,19 @@ run_with_pty() {
 section "START"
 log "ROOT: ${C_BOLD}$ROOT_DIR${C_RESET}"
 log "LOG : ${C_BOLD}$START_LOG${C_RESET}"
+
+# Start sccache server if available
+if command -v sccache >/dev/null 2>&1; then
+  if ! pgrep sccache > /dev/null; then
+    log "Starting sccache server..."
+    sccache --start-server
+    ok "sccache server started"
+  else
+    ok "sccache server is already running."
+  fi
+else
+  warn "sccache not found, skipping server start"
+fi
 
 # ----------------- env -----------------
 
@@ -340,8 +354,8 @@ run_oneshot() {
 check_db_initialized() {
   local db_url="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance}"
 
-  # Check if market schema exists by looking for a key table
-  if PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'market' LIMIT 1);" 2>/dev/null | grep -q 't'; then
+  # Check if market.pairs table exists
+  if PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'market' AND table_name = 'pairs');" 2>/dev/null | grep -q 't'; then
     return 0  # Database is initialized
   else
     return 1  # Database is not initialized

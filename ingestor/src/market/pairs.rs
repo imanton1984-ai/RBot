@@ -104,6 +104,12 @@ async fn refresh_pairs_inner() -> Result<UniversePairsResult> {
     for s in exchange.symbols {
         let sym = s.symbol;
 
+        // Filter out non-alphanumeric symbols to avoid issues with weird names from the exchange
+        if !sym.chars().all(|c| c.is_ascii_alphanumeric()) {
+            warn!("Skipping non-alphanumeric symbol: {}", sym);
+            continue;
+        }
+
         if deny.contains(&sym) || excl_sym.contains(&sym) {
             continue;
         }

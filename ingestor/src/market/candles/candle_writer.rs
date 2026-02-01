@@ -11,6 +11,7 @@
  * - Manages database connections and transactions
  * - Handles data preparation and deduplication
  * - Provides separate buffers for different data sources
+ * - Implements live candle writer for real-time updates to market.candles_live table
  *
  * WORKFLOW:
  * 1. writer_task_copy() initializes database connection
@@ -19,6 +20,7 @@
  * 4. flush_copy() performs the actual database insertion
  * 5. Data is filtered, sorted, and deduplicated before insertion
  * 6. Separate timers control flushing for each data type
+ * 7. LiveWriter handles real-time updates to market.candles_live table
  */
 use crate::market::candles::candle_common::*;
 use anyhow::{Context, Result};
@@ -29,6 +31,9 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::{Duration, Instant};
 use tokio_postgres::binary_copy::BinaryCopyInWriter;
 use tokio_postgres::types::Type;
+use sqlx::{PgPool, Postgres, QueryBuilder};
+use std::time::{Duration as StdDuration};
+use tracing::debug;
 
 // Different message types for REST and WebSocket data to handle them differently
 #[derive(Debug, Clone)]
@@ -41,6 +46,154 @@ pub enum DataSource {
 pub struct TypedWriterMsg {
     pub rows: Vec<CandleRow>,
     pub source: DataSource,
+}
+
+#[derive(Debug, Clone)]
+pub struct LiveCandle {
+    pub symbol: String,
+    pub timeframe: String,
+    pub open_time_ms: i64,
+    pub close_time_ms: i64,
+
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+
+    pub trades: Option<i32>,
+    pub is_final: bool,
+
+    pub event_time_ms: i64,
+    pub source: &'static str, // "ws"
+}
+
+
+fn merge_live(dst: &mut LiveCandle, src: LiveCandle) {
+    // open_time совпадает по ключу
+    dst.close_time_ms = src.close_time_ms;
+    // open usually the same, but keep dst.open
+    dst.high = dst.high.max(src.high);
+    dst.low = dst.low.min(src.low);
+    // close/volume — берём самые свежие
+    if src.event_time_ms >= dst.event_time_ms {
+        dst.close = src.close;
+        dst.volume = src.volume;
+        dst.trades = src.trades.or(dst.trades);
+        dst.event_time_ms = src.event_time_ms;
+    } else {
+        // если прилетело старое — всё равно high/low уже учли
+        dst.volume = dst.volume.max(src.volume);
+    }
+    dst.is_final = dst.is_final || src.is_final;
+}
+
+pub struct LiveWriter {
+    pool: PgPool,
+    flush_every: StdDuration,
+    max_buf: usize,
+}
+
+impl LiveWriter {
+    pub fn new(pool: PgPool, flush_every_ms: u64, max_buf: usize) -> Self {
+        Self {
+            pool,
+            flush_every: StdDuration::from_millis(flush_every_ms),
+            max_buf,
+        }
+    }
+
+    pub async fn run(self, mut rx: mpsc::Receiver<LiveCandle>) -> Result<()> {
+        let mut tick = tokio::time::interval(self.flush_every);
+        let mut buf: HashMap<(String, String, i64), LiveCandle> = HashMap::with_capacity(self.max_buf);
+        let mut last_flush = Instant::now();
+
+        loop {
+            tokio::select! {
+                _ = tick.tick() => {
+                    if !buf.is_empty() {
+                        let n = flush_upsert_live(&self.pool, &mut buf).await?;
+                        debug!("candles_live flushed rows={}", n);
+                        last_flush = Instant::now();
+                    }
+                }
+                maybe = rx.recv() => {
+                    let c = match maybe {
+                        Some(v) => v,
+                        None => break, // channel closed
+                    };
+                    let k = (c.symbol.clone(), c.timeframe.clone(), c.open_time_ms);
+                    match buf.get_mut(&k) {
+                        Some(existing) => merge_live(existing, c),
+                        None => { buf.insert(k, c); }
+                    }
+
+                    // backpressure guard: если переполнились — принудительный flush
+                    if buf.len() >= self.max_buf || last_flush.elapsed() > self.flush_every {
+                        let _ = flush_upsert_live(&self.pool, &mut buf).await?;
+                        last_flush = Instant::now();
+                    }
+                }
+            }
+        }
+
+        // финальный flush
+        if !buf.is_empty() {
+            let _ = flush_upsert_live(&self.pool, &mut buf).await?;
+        }
+
+        Ok(())
+    }
+}
+
+async fn flush_upsert_live(pool: &PgPool, buf: &mut HashMap<(String, String, i64), LiveCandle>) -> Result<u64> {
+    let rows: Vec<LiveCandle> = buf.drain().map(|(_, v)| v).collect();
+    if rows.is_empty() {
+        return Ok(0);
+    }
+
+    // Один большой UPSERT батчен:
+    // INSERT ... VALUES (...),(...),...
+    // ON CONFLICT (symbol,timeframe,open_time_ms) DO UPDATE SET ...
+    let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
+        "INSERT INTO market.candles_live
+         (symbol,timeframe,open_time_ms,close_time_ms,open,high,low,close,volume,trades,is_final,last_event_time_ms,updated_at,source) "
+    );
+
+    qb.push_values(rows.iter(), |mut b, r| {
+        b.push_bind(&r.symbol)
+         .push_bind(&r.timeframe)
+         .push_bind(r.open_time_ms)
+         .push_bind(r.close_time_ms)
+         .push_bind(r.open)
+         .push_bind(r.high)
+         .push_bind(r.low)
+         .push_bind(r.close)
+         .push_bind(r.volume)
+         .push_bind(r.trades)
+         .push_bind(r.is_final)
+         .push_bind(r.event_time_ms)
+         .push_bind(Utc::now())
+         .push_bind(r.source);
+    });
+
+    qb.push(
+        " ON CONFLICT (symbol,timeframe,open_time_ms) DO UPDATE SET
+            close_time_ms = EXCLUDED.close_time_ms,
+            open          = EXCLUDED.open,
+            high          = GREATEST(market.candles_live.high, EXCLUDED.high),
+            low           = LEAST(market.candles_live.low, EXCLUDED.low),
+            close         = EXCLUDED.close,
+            volume        = GREATEST(market.candles_live.volume, EXCLUDED.volume),
+            trades        = COALESCE(EXCLUDED.trades, market.candles_live.trades),
+            is_final      = (market.candles_live.is_final OR EXCLUDED.is_final),
+            last_event_time_ms = GREATEST(market.candles_live.last_event_time_ms, EXCLUDED.last_event_time_ms),
+            updated_at    = now(),
+            source        = EXCLUDED.source"
+    );
+
+    let res = qb.build().execute(pool).await.context("upsert candles_live failed")?;
+    Ok(res.rows_affected())
 }
 
 pub async fn flush_copy(
@@ -237,6 +390,7 @@ pub async fn writer_task_copy(
                 }
 
                 msg = rx.recv() => {
+                    tracing::trace!("writer({}) received message: {:?}", tf.as_str(), msg);
                     match msg {
                         Some(m) => {
                             match m.source {

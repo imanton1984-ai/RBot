@@ -27,4 +27,4 @@ intra_update_sampling_ms = 200
 
 # HTTP concurrency for API requests (higher = more parallel requests)
 # Note: Binance has limits, so don't set too high (recommended: 50-100)
-http_concurrency = 80
+http_concurrency = 10

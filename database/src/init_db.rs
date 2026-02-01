@@ -29,6 +29,7 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/001_extensions_and_schemas.sql"),
             include_str!("../../database/ddl/010_market_core.sql"),
             include_str!("../../database/ddl/020_market_candles_tf.sql"),
+            include_str!("../../database/ddl/021_market_candles_live.sql"),
             include_str!("../../database/ddl/025_market_staging.sql"),
             include_str!("../../database/ddl/030_market_indicators_tf.sql"),
             include_str!("../../database/ddl/040_market_raw_signals.sql"),
