@@ -1,11 +1,10 @@
 ===========================================
-FULL STOP @ Sun 01 Feb 2026 04:55:01 AM MSK
+FULL STOP @ Sun 01 Feb 2026 10:25:04 PM MSK
 ROOT: /home/anton/Desktop/Whitelist
-LOG : /home/anton/Desktop/Whitelist/logs/full_stop_20260201_045501.log
+LOG : /home/anton/Desktop/Whitelist/logs/full_stop_20260201_222504.log
 ===========================================
 Loading env: /home/anton/Desktop/Whitelist/.env
-Stopping connections (pid 693579)...
 --- Stopping by pidfiles in /home/anton/Desktop/Whitelist/run ---
-TERM: ingestor pid=693598
-Stopped: ingestor pid=693598
+No pidfiles found.
 --- Killing leftover processes that belong to this repo only (cmdline contains ROOT_DIR) ---
+TERM leftover: pid=2275419 cmd=tee -a /home/anton/Desktop/Whitelist/logs/full_stop_20260201_222504.log

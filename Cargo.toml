@@ -5,7 +5,9 @@ members = [
   "database",
   "healthcheck",
   "ingestor",         # <-- единый модуль получения и записи данных
-  
+  "compute",          # <-- модуль вычислений индикаторов
+  "cuda",             # <-- модуль CUDA вычислений
+
 ]
 resolver = "2"
 

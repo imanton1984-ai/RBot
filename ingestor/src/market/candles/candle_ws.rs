@@ -28,7 +28,6 @@ use anyhow::{Context, Result};
 use common::timeframe::TimeFrame;
 use common::AppConfig;
 use futures::{SinkExt, StreamExt};
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};

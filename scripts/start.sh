@@ -179,7 +179,7 @@ log "cargo: $(cargo -V 2>/dev/null || echo 'not found')"
 
 COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
 BUILD_PROFILE="${BUILD_PROFILE:-release}" # release|debug
-SERVICE_BINS="${SERVICE_BINS:-connections ingestor}"
+SERVICE_BINS="${SERVICE_BINS:-connections ingestor compute}"
 
 if [[ -n "$SERVICES_OVERRIDE" ]]; then
   SERVICE_BINS="$SERVICES_OVERRIDE"
@@ -312,9 +312,9 @@ if [[ "$need_build" -eq 1 ]]; then
   log "Targets : ${C_BOLD}$SERVICE_BINS${C_RESET}"
 
   if [[ "$BUILD_PROFILE" == "release" ]]; then
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor -p compute --features compute/cuda}"
   else
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor}"
+    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor -p compute --features compute/cuda}"
   fi
 
   
