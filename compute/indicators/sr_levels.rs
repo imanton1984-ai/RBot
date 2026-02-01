@@ -122,6 +122,7 @@ pub fn calculate_sr_levels(
     }
 }
 
+#[allow(dead_code)]
 fn calculate_intensity_levels(points: &[f64]) -> (f64, f64, f64) {
     if points.is_empty() {
         return (f64::NAN, f64::NAN, f64::NAN);

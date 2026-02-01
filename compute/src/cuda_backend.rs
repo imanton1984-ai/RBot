@@ -4,8 +4,11 @@ use crate::{
     ComputeBackend, ComputeJob, ComputeResult, FeatureWindow,
     BatchTensor
 };
+#[cfg(feature = "cuda")]
+use cuda::IndicatorKernelRunner;
 
 pub struct CudaBackend {
+    #[allow(dead_code)]
     device_id: usize,
     initialized: bool,
 }
@@ -85,6 +88,7 @@ impl CudaBackend {
         runner.calculate_macd(input, fast_period, slow_period, signal_period)
     }
 
+    #[allow(dead_code)]
     fn run_batch_kernel(
         &self,
         _batch_tensor: &BatchTensor,

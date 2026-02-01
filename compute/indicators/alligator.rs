@@ -35,9 +35,10 @@ fn calculate_sma_with_offset(data: &[f64], period: usize, offset: usize) -> Vec<
 }
 
 // Helper function to calculate plain SMA
+#[allow(dead_code)]
 fn calculate_sma(data: &[f64], period: usize) -> Vec<f64> {
     let mut sma = vec![f64::NAN; data.len()];
-    
+
     for i in (period - 1)..data.len() {
         let sum: f64 = data[(i + 1 - period)..=i].iter().sum();
         sma[i] = sum / period as f64;

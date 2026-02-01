@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use common::{Symbol, Timeframe};
 use compute_lib::*;
+use sqlx::Row;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize indicator persistor
     let (persistor, _persist_sender) = IndicatorPersistor::new(
-        db_pool,
+        db_pool.clone(), // Clone the pool to use in persistor
         1000, // batch size
         5000, // flush every 5 seconds
     );
@@ -50,12 +51,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize bootstrap coordinator
     let feature_store = Arc::new(compute_indicators::FeatureStore::new());
-    let _bootstrap_coordinator = Arc::new(BootstrapCoordinator::new(
+    let bootstrap_coordinator = Arc::new(BootstrapCoordinator::new(
         feature_store,
         job_scheduler.clone(),
         1000, // required lookback
         100,  // warmup bars
     ));
+
+    // Trigger bootstrap computation for historical data
+    let bootstrap_coordinator_clone = bootstrap_coordinator.clone();
+    let db_pool_clone = db_pool.clone();
+    tokio::spawn(async move {
+        // Small delay to let other initialization complete
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        if let Err(e) = trigger_historical_compute(&bootstrap_coordinator_clone, &db_pool_clone).await {
+            eprintln!("Error triggering historical compute: {}", e);
+        }
+    });
 
     // Spawn persistence loop
     let persistor_clone = persistor.clone();
@@ -103,11 +116,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Simulate getting historical data and starting calculations
-    println!("Fetching historical data and starting calculations...");
+    // Fetch symbols from database and submit jobs
+    println!("Fetching symbols from database and starting calculations...");
 
-    // Example: Submit a job for processing
-    let symbols = vec![Symbol::from("BTCUSDT"), Symbol::from("ETHUSDT")];
+    // Fetch active symbols from the database
+    let symbols_result = fetch_active_symbols_from_db(&db_pool).await;
+    let symbols = match symbols_result {
+        Ok(symbols) => {
+            if symbols.is_empty() {
+                println!("No active symbols found in database, using defaults");
+                vec![Symbol::from("BTCUSDT"), Symbol::from("ETHUSDT")]
+            } else {
+                println!("Fetched {} symbols from database", symbols.len());
+                symbols
+            }
+        },
+        Err(e) => {
+            eprintln!("Error fetching symbols from database: {}, using defaults", e);
+            vec![Symbol::from("BTCUSDT"), Symbol::from("ETHUSDT")]
+        }
+    };
+
     let window_spec = WindowSpec {
         length: 1000,
         warmup: 100,
@@ -137,6 +166,168 @@ struct CandleCloseEvent {
     close_time: i64,
 }
 
+// Function to fetch active symbols from the database
+async fn fetch_active_symbols_from_db(
+    db_pool: &sqlx::PgPool,
+) -> Result<Vec<Symbol>, Box<dyn std::error::Error + Send + Sync>> {
+    // First check if the table exists
+    let table_exists_result = sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'market' AND table_name = 'pairs'
+        )"#
+    )
+    .fetch_one(db_pool)
+    .await;
+
+    match table_exists_result {
+        Ok(table_exists) => {
+            if !table_exists {
+                return Ok(Vec::new()); // Return empty vector if table doesn't exist
+            }
+        },
+        Err(_) => {
+            return Ok(Vec::new()); // Return empty vector if table check fails
+        }
+    }
+
+    // If table exists, try to fetch symbols
+    let rows_result = sqlx::query(
+        r#"SELECT symbol FROM market.pairs WHERE is_active = true"#
+    )
+    .fetch_all(db_pool)
+    .await;
+
+    match rows_result {
+        Ok(rows) => {
+            let symbols: Vec<Symbol> = rows
+                .into_iter()
+                .map(|row| {
+                    let symbol: String = row.get("symbol");
+                    Symbol::from(symbol)
+                })
+                .collect();
+            Ok(symbols)
+        },
+        Err(_) => Ok(Vec::new()), // Return empty vector if fetch fails
+    }
+}
+
+// Function to trigger historical compute for existing data in the database
+async fn trigger_historical_compute(
+    bootstrap_coordinator: &BootstrapCoordinator,
+    db_pool: &sqlx::PgPool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use common::Timeframe;
+
+    println!("Triggering historical compute for existing data...");
+
+    // Define the timeframes we want to process
+    let timeframes = [
+        Timeframe::M1,
+        Timeframe::M5,
+        Timeframe::M15,
+        Timeframe::H1,
+        Timeframe::H4,
+        Timeframe::D1,
+    ];
+
+    for timeframe in &timeframes {
+        println!("Processing historical data for timeframe: {:?}", timeframe);
+
+        // Get symbols that have data for this timeframe
+        let table_name = format!("market.candles_{}", timeframe.as_str());
+
+        // Check if table exists and has data - extract just the table name part after the dot
+        let table_name_part = &table_name[7..]; // Remove "market." prefix to get just the table name
+        let table_exists = sqlx::query_scalar::<_, bool>(
+            r#"SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'market' AND table_name = $1
+            )"#
+        )
+        .bind(table_name_part)
+        .fetch_one(db_pool)
+        .await
+        .unwrap_or(false);
+
+        if !table_exists {
+            println!("Table {} does not exist, skipping", table_name);
+            continue;
+        }
+
+        // Get symbols with data in this timeframe
+        let symbols_query = format!(
+            "SELECT DISTINCT p.symbol
+             FROM {} c
+             JOIN market.pairs p ON c.symbol_id = p.symbol_id
+             WHERE p.is_active = true
+             LIMIT 10", // Limit to avoid overwhelming the system
+            table_name
+        );
+
+        let symbol_rows = sqlx::query(&symbols_query)
+            .fetch_all(db_pool)
+            .await
+            .unwrap_or_default();
+
+        let symbols: Vec<Symbol> = symbol_rows
+            .into_iter()
+            .map(|row| {
+                let symbol: String = row.get("symbol");
+                Symbol::from(symbol)
+            })
+            .collect();
+
+        if symbols.is_empty() {
+            println!("No symbols found for timeframe: {:?}", timeframe);
+            continue;
+        }
+
+        println!("Found {} symbols for timeframe {:?}, submitting compute jobs...", symbols.len(), timeframe);
+
+        // Submit compute jobs for these symbols by updating history status to trigger bootstrap
+        for symbol in &symbols {
+            // Get the latest timestamp for this symbol/timeframe to mark as ready
+            let latest_ts_query = format!(
+                "SELECT MAX(time_ms) as latest_time
+                 FROM {} c
+                 JOIN market.pairs p ON c.symbol_id = p.symbol_id
+                 WHERE p.symbol = $1",
+                table_name
+            );
+
+            if let Ok(row) = sqlx::query(&latest_ts_query)
+                .bind(symbol.as_str())
+                .fetch_optional(db_pool)
+                .await
+            {
+                if let Some(row) = row {
+                    let latest_time: Option<i64> = row.get("latest_time");
+                    let latest_time = latest_time.unwrap_or(0);
+
+                    // Update history status to mark this symbol/timeframe as ready for bootstrap
+                    bootstrap_coordinator.update_history_status(
+                        symbol.clone(),
+                        *timeframe,
+                        latest_time,
+                        1000 // Assume we have enough bars for bootstrap
+                    ).await;
+                }
+            }
+        }
+
+        // Now trigger bootstrap compute for all ready symbols
+        if let Err(e) = bootstrap_coordinator.start_bootstrap_compute().await {
+            eprintln!("Error submitting batch job for {:?}: {}", timeframe, e);
+        } else {
+            println!("Successfully submitted batch job for {:?} with {} symbols", timeframe, symbols.len());
+        }
+    }
+
+    Ok(())
+}
+
 async fn start_kafka_consumer(
     job_scheduler: Arc<JobScheduler>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -161,60 +352,68 @@ async fn start_kafka_consumer(
         .create()
         .expect("Consumer creation failed");
 
-    consumer.subscribe(&[&topic]).expect("Can't subscribe to topic");
+    let result = consumer.subscribe(&[&topic]);
+    match result {
+        Ok(_) => {
+            println!("Started Kafka consumer, listening on topic: {}", topic);
 
-    println!("Started Kafka consumer, listening on topic: {}", topic);
-
-    loop {
-        match consumer.recv().await {
-            Err(e) => {
-                eprintln!("Kafka consumer error: {}", e);
-            }
-            Ok(msg) => {
-                match msg.payload() {
-                    None => {
-                        println!("Received message with no payload");
+            loop {
+                match consumer.recv().await {
+                    Err(e) => {
+                        eprintln!("Kafka consumer error: {}", e);
                     }
-                    Some(payload) => {
-                        match serde_json::from_slice::<CandleCloseEvent>(payload) {
-                            Ok(event) => {
-                                println!("Received candle close event: {} {} at {}", event.symbol, event.timeframe, event.close_time);
-
-                                // Convert timeframe string to Timeframe enum
-                                let timeframe = match event.timeframe.as_str() {
-                                    "1m" => Timeframe::M1,
-                                    "5m" => Timeframe::M5,
-                                    "15m" => Timeframe::M15,
-                                    "1h" => Timeframe::H1,
-                                    "4h" => Timeframe::H4,
-                                    "1d" => Timeframe::D1,
-                                    _ => {
-                                        eprintln!("Unknown timeframe: {}", event.timeframe);
-                                        continue;
-                                    }
-                                };
-
-                                // Create a compute job based on the received candle close event
-                                let job = ComputeJob {
-                                    symbol: Symbol::from(event.symbol),
-                                    timeframe,
-                                    window_end: event.close_time,
-                                    window_start: event.close_time - (1000 * 60000), // 1000 minutes lookback
-                                    indicators: vec!["rsi".to_string(), "sr_levels".to_string(), "trend".to_string()],
-                                };
-
-                                // Submit the job to the scheduler
-                                if let Err(e) = job_scheduler.process_single_job(job).await {
-                                    eprintln!("Error processing job: {}", e);
-                                }
+                    Ok(msg) => {
+                        match msg.payload() {
+                            None => {
+                                println!("Received message with no payload");
                             }
-                            Err(e) => {
-                                eprintln!("Failed to deserialize candle close event: {}", e);
+                            Some(payload) => {
+                                match serde_json::from_slice::<CandleCloseEvent>(payload) {
+                                    Ok(event) => {
+                                        println!("Received candle close event: {} {} at {}", event.symbol, event.timeframe, event.close_time);
+
+                                        // Convert timeframe string to Timeframe enum
+                                        let timeframe = match event.timeframe.as_str() {
+                                            "1m" => Timeframe::M1,
+                                            "5m" => Timeframe::M5,
+                                            "15m" => Timeframe::M15,
+                                            "1h" => Timeframe::H1,
+                                            "4h" => Timeframe::H4,
+                                            "1d" => Timeframe::D1,
+                                            _ => {
+                                                eprintln!("Unknown timeframe: {}", event.timeframe);
+                                                continue;
+                                            }
+                                        };
+
+                                        // Create a compute job based on the received candle close event
+                                        let job = ComputeJob {
+                                            symbol: Symbol::from(event.symbol),
+                                            timeframe,
+                                            window_end: event.close_time,
+                                            window_start: event.close_time - (1000 * 60000), // 1000 minutes lookback
+                                            indicators: vec!["rsi".to_string(), "sr_levels".to_string(), "trend".to_string()],
+                                        };
+
+                                        // Submit the job to the scheduler
+                                        if let Err(e) = job_scheduler.process_single_job(job).await {
+                                            eprintln!("Error processing job: {}", e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Failed to deserialize candle close event: {}", e);
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+        },
+        Err(e) => {
+            eprintln!("Failed to subscribe to topic '{}': {}. This may happen if the topic doesn't exist yet. The service will continue running but won't process candle close events from Kafka.", topic, e);
+            // Just return to continue with other functionality
+            return Ok(());
         }
-    }
+    };
 }

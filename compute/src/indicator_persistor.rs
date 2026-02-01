@@ -67,39 +67,67 @@ impl IndicatorPersistor {
             return Ok(());
         }
 
-        // Write records to the database
-        let mut query_builder = sqlx::QueryBuilder::new(
-            "INSERT INTO market.raw_signals (time_ms, symbol_id, tf_minutes, indicator_id, signal_kind, side, score, value, details) "
-        );
+        // Group records by symbol, timeframe, and timestamp for aggregation
+        use std::collections::HashMap;
+        let mut grouped_records: HashMap<(Symbol, Timeframe, i64), std::collections::HashMap<String, f64>> = HashMap::new();
 
-        let mut records_with_strings: Vec<(i64, String, i64, i32, i32, i32, f64, f64, Value)> = Vec::new();
-        for rec in records_to_flush {
-            records_with_strings.push((
-                rec.timestamp,
-                rec.symbol.as_str().to_string(), // Convert to owned string
-                rec.timeframe.to_minutes().into(),
-                1, // placeholder indicator_id
-                1, // placeholder signal_kind
-                0, // neutral side
-                0.0, // score (will be calculated later)
-                rec.value,
-                json!({"name": rec.indicator_name}),
-            ));
+        for record in records_to_flush {
+            let key = (record.symbol.clone(), record.timeframe, record.timestamp);
+            grouped_records.entry(key).or_insert_with(std::collections::HashMap::new)
+                .insert(record.indicator_name, record.value);
         }
 
-        query_builder.push_values(records_with_strings, |mut b, (timestamp, symbol, tf_minutes, indicator_id, signal_kind, side, score, value, details)| {
-            b.push_bind(timestamp);
-            b.push_bind(symbol);
-            b.push_bind(tf_minutes);
-            b.push_bind(indicator_id);
-            b.push_bind(signal_kind);
-            b.push_bind(side);
-            b.push_bind(score);
-            b.push_bind(value);
-            b.push_bind(details);
-        });
+        // Process each unique (symbol, timeframe, timestamp) combination
+        for ((symbol, timeframe, timestamp), indicators_map) in grouped_records {
+            // Get the symbol_id from the pairs table
+            let symbol_row = sqlx::query!("SELECT symbol_id FROM market.pairs WHERE symbol = $1", symbol.as_str())
+                .fetch_one(&self.db_pool)
+                .await?;
+            let symbol_id = symbol_row.symbol_id;
 
-        query_builder.build().execute(&self.db_pool).await?;
+            // Determine the correct table based on timeframe
+            let table_name = format!("market.indicators_{}", timeframe.as_str());
+
+            // Build the query with all indicator columns that we have values for
+            let mut query_builder = sqlx::QueryBuilder::new(format!("INSERT INTO {} (time_ms, symbol_id", table_name));
+
+            // Add indicator columns based on what's available
+            let mut indicator_names = Vec::new();
+            let mut indicator_values = Vec::new();
+            for (indicator_name, value) in &indicators_map {
+                indicator_names.push(indicator_name.as_str());
+                indicator_values.push(*value);
+            }
+
+            for indicator_name in &indicator_names {
+                query_builder.push(format!(", {}", indicator_name));
+            }
+
+            query_builder.push(") VALUES (");
+            query_builder.push_bind(timestamp);
+            query_builder.push_bind(symbol_id);
+
+            // Add the indicator values to the VALUES clause
+            for value in &indicator_values {
+                query_builder.push_bind(*value);
+            }
+
+            query_builder.push(") ON CONFLICT (time_ms, symbol_id) DO UPDATE SET ");
+
+            // Update each indicator column that we have
+            let mut first_set_item = true;
+            for indicator_name in &indicator_names {
+                if !first_set_item {
+                    query_builder.push(", ");
+                }
+                query_builder.push(format!("{} = EXCLUDED.{}", indicator_name, indicator_name));
+                first_set_item = false;
+            }
+
+            query_builder.push(", updated_at_ms = EXCLUDED.updated_at_ms, updated_at = NOW()");
+
+            query_builder.build().execute(&self.db_pool).await?;
+        }
 
         Ok(())
     }

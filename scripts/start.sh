@@ -409,6 +409,21 @@ else
   fi
 fi
 
+# Create necessary Kafka topics
+section "KAFKA TOPICS SETUP"
+log "Creating necessary Kafka topics..."
+docker exec redpanda rpk topic create candles.close --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic candles.close already exists or error occurred"
+docker exec redpanda rpk topic create candles.update --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic candles.update already exists or error occurred"
+docker exec redpanda rpk topic create indicators.close --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic indicators.close already exists or error occurred"
+docker exec redpanda rpk topic create ws_feed --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic ws_feed already exists or error occurred"
+docker exec redpanda rpk topic create signals.raw --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic signals.raw already exists or error occurred"
+docker exec redpanda rpk topic create signals.final --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic signals.final already exists or error occurred"
+docker exec redpanda rpk topic create features.snapshot --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic features.snapshot already exists or error occurred"
+docker exec redpanda rpk topic create orders.cmd --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic orders.cmd already exists or error occurred"
+docker exec redpanda rpk topic create orders.events --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic orders.events already exists or error occurred"
+docker exec redpanda rpk topic create positions.events --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic positions.events already exists or error occurred"
+ok "Kafka topics setup completed."
+
 # --- CANDLES: load historical candles and start real-time ingestion ---
 section "ONESHOT: load_candles"
 log "Loading historical candles and starting real-time ingestion..."

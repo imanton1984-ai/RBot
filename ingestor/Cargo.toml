@@ -23,7 +23,8 @@ chrono = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 tokio-postgres = { workspace = true }
 tokio-tungstenite = { workspace = true }
-rustls = { workspace = true } 
+rustls = { workspace = true }
+rdkafka = { version = "0.39.0", features = ["tokio"] }
 
 common = { path = "../common" }
 connections = { path = "../connections" }

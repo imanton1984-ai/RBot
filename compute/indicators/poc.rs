@@ -11,7 +11,7 @@ pub fn calculate_poc(prices: &[f64], volumes: &[f64], bucket_size: f64) -> f64 {
 
     for i in 0..prices.len() {
         // Round price to nearest bucket
-        let bucket_key = ((prices[i] / bucket_size).round() as i64);
+        let bucket_key = (prices[i] / bucket_size).round() as i64;
         let entry = volume_by_price.entry(bucket_key).or_insert(0.0);
         *entry += volumes[i];
     }
