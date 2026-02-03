@@ -48,18 +48,36 @@ impl JobScheduler {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut jobs = Vec::new();
 
-        let end_time = chrono::Utc::now().timestamp_millis();
-        let start_time = end_time - (window_spec.length as i64 * 60000); // Assuming 1 minute candles
-
-        let all_windows = self.inner.candle_fetcher.fetch_bulk_candles(&symbols, timeframe, start_time, end_time).await?;
+        // For historical data processing, we need to get the actual time range of available data
+        let all_windows = self.inner.candle_fetcher.fetch_bulk_candles(&symbols, timeframe, 0, chrono::Utc::now().timestamp_millis()).await?;
 
         // Create jobs for each symbol
         for symbol in symbols {
+            // Use the actual window that was fetched, or create a job with the calculated time range
+            let (window_start, window_end, candle_window) = if let Some(window) = all_windows.get(&symbol) {
+                if !window.close.is_empty() {
+                    // Use the actual time range of the data
+                    let start_time = window.timestamps.first().copied().unwrap_or_else(|| chrono::Utc::now().timestamp_millis() - (window_spec.length as i64 * timeframe.to_minutes() as i64 * 60 * 1000));
+                    let end_time = window.timestamps.last().copied().unwrap_or_else(|| chrono::Utc::now().timestamp_millis());
+                    (start_time, end_time, Some(window.clone()))
+                } else {
+                    // If no data, use default range
+                    let end_time = chrono::Utc::now().timestamp_millis();
+                    let start_time = end_time - (window_spec.length as i64 * timeframe.to_minutes() as i64 * 60 * 1000);
+                    (start_time, end_time, None)
+                }
+            } else {
+                // If no window found, use default range
+                let end_time = chrono::Utc::now().timestamp_millis();
+                let start_time = end_time - (window_spec.length as i64 * timeframe.to_minutes() as i64 * 60 * 1000);
+                (start_time, end_time, None)
+            };
+
             let job = ComputeJob {
                 symbol: symbol.clone(),
                 timeframe,
-                window_start: start_time,
-                window_end: end_time,
+                window_start,
+                window_end,
                 indicators: vec![
                     "adx".to_string(),
                     "atr".to_string(),
@@ -75,7 +93,7 @@ impl JobScheduler {
                     "williams".to_string(),
                     "alligator".to_string(),
                 ],
-                candle_window: all_windows.get(&symbol).cloned(),
+                candle_window,
             };
             jobs.push(job);
         }

@@ -9,22 +9,22 @@ pub const MIN_USELESS_THRESHOLD: f64 = 0.80;      // Below this gets filtered ou
 /// Raw signal types
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum RawSignalType {
-    Atr,
-    Adx,
-    Rsi,
-    Macd,
-    BollingerBands,
-    Cci,
-    Stochastic,
-    Williams,
-    VolumeSpike,
-    Trend,
-    SrLevels,
-    Ema,
-    Sma,
-    Obv,
-    Poc,
-    Vwap,
+    Atr = 1,
+    Adx = 2,
+    Rsi = 3,
+    Macd = 4,
+    BollingerBands = 5,
+    Cci = 6,
+    Stochastic = 7,
+    Williams = 8,
+    VolumeSpike = 9,
+    Trend = 10,
+    SrLevels = 11,
+    Ema = 12,
+    Sma = 13,
+    Obv = 14,
+    Poc = 15,
+    Vwap = 16,
 }
 
 impl RawSignalType {
@@ -35,11 +35,11 @@ impl RawSignalType {
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum SignalKind {
-    PriceRelation,
-    Breakout,
-    Convergence,
-    Volatility,
-    Crossover,
+    PriceRelation = 1,
+    Breakout = 2,
+    Convergence = 3,
+    Volatility = 4,
+    Crossover = 5,
 }
 
 impl SignalKind {

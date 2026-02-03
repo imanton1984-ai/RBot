@@ -98,7 +98,7 @@ impl IndicatorPersistor {
 
             let mut indicator_names = Vec::new();
             let mut indicator_values: Vec<&FeatureValue> = Vec::new();
-            
+
             for (indicator_name, value) in &indicators_map {
                 if !indicator_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
                     continue;

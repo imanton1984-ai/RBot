@@ -21,12 +21,12 @@ ALTER TABLE trade.final_signals
   ADD CONSTRAINT chk_final_score
   CHECK (final_score >= 0 AND final_score <= 1);
 
--- indicator_id range (v1)
+-- indicator_id range (expanded to accommodate more indicators)
 ALTER TABLE market.raw_signals
   ADD CONSTRAINT chk_indicator_id
-  CHECK (indicator_id BETWEEN 1 AND 18);
+  CHECK (indicator_id BETWEEN 1 AND 20);
 
--- signal_kind range (v1)
+-- signal_kind range (expanded to accommodate more signal types)
 ALTER TABLE market.raw_signals
   ADD CONSTRAINT chk_signal_kind
-  CHECK (signal_kind BETWEEN 1 AND 3);
+  CHECK (signal_kind BETWEEN 1 AND 5);

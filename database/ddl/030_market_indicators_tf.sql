@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS market.indicators_1m (
     williams REAL,
     alli_jaw REAL, alli_teeth REAL, alli_lips REAL,
     sr_levels JSONB,
+    poc REAL,
 
     features_version TEXT NOT NULL DEFAULT 'v1',
     updated_at_ms BIGINT,

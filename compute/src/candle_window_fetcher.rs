@@ -16,6 +16,12 @@ pub struct CandleWindowFetcher {
 }
 
 impl CandleWindowFetcher {
+    pub fn get_db_pool(&self) -> &PgPool {
+        &self.db_pool
+    }
+}
+
+impl CandleWindowFetcher {
     pub fn new(db_pool: PgPool) -> Self {
         Self {
             db_pool,
@@ -81,12 +87,22 @@ impl CandleWindowFetcher {
         end_time: i64,
     ) -> Result<std::collections::HashMap<Symbol, CandleWindow>, Box<dyn std::error::Error + Send + Sync>> {
         let mut results = std::collections::HashMap::new();
-        
+
         for symbol in symbols {
-            let window = self.fetch_candle_window(symbol, timeframe, start_time, end_time).await?;
-            results.insert(symbol.clone(), window);
+            match self.fetch_candle_window(symbol, timeframe, start_time, end_time).await {
+                Ok(window) => {
+                    // Only add to results if the window has data
+                    if !window.close.is_empty() {
+                        results.insert(symbol.clone(), window);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Warning: Failed to fetch candle window for {}: {}", symbol, e);
+                    // Continue with other symbols instead of failing the entire operation
+                }
+            }
         }
-        
+
         Ok(results)
     }
 

@@ -35,6 +35,7 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/040_market_raw_signals.sql"),
             include_str!("../../database/ddl/050_trade_tables.sql"),
             include_str!("../../database/ddl/055_constraints.sql"),
+            include_str!("../../database/ddl/056_raw_signals_pk_update.sql"),
             include_str!("../../database/ddl/060_policies.sql"),
             include_str!("../../database/ddl/070_views_all.sql"),
             include_str!("../../database/ddl/080_health_queries.sql"),

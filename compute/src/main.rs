@@ -2,10 +2,19 @@ use std::sync::Arc;
 use common::{Symbol, Timeframe};
 use compute_lib::*;
 use sqlx::Row;
+use dotenvy::dotenv;
+
+fn env_usize(key: &str, default: usize) -> usize {
+    std::env::var(key)
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(default)
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting Compute Service...");
+    dotenv().ok();
 
     // Initialize configuration
     let config = ComputeConfig {
@@ -51,12 +60,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let persistor = Arc::new(persistor);
 
     // Initialize bootstrap coordinator
+    let required_lookback = env_usize("COMPUTE_REQUIRED_LOOKBACK", 1000);
+    let warmup_bars = env_usize("COMPUTE_WARMUP_BARS", 100);
+    let min_bars_ready = env_usize("COMPUTE_MIN_BARS_READY", 250);
+
+    println!(
+        "Compute bootstrap config: required_lookback={}, warmup_bars={}, min_bars_ready={}",
+        required_lookback, warmup_bars, min_bars_ready
+    );
+
     let feature_store = Arc::new(compute_indicators::FeatureStore::new());
     let bootstrap_coordinator = Arc::new(BootstrapCoordinator::new(
         feature_store,
         job_scheduler.clone(),
-        1000, // required lookback
-        100,  // warmup bars
+        required_lookback,
+        warmup_bars,
+        min_bars_ready,
     ));
 
     // Trigger bootstrap computation for historical data
@@ -180,11 +199,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Fetch symbols from database and submit jobs
-    println!("Fetching symbols from database and starting calculations...");
+    // Fetch symbols from database to ensure they're available
+    println!("Fetching symbols from database...");
 
     // Fetch active symbols from the database
-    let symbols = loop {
+    let _symbols = loop {
         let symbols_res = fetch_active_symbols_from_db(&db_pool).await;
         match symbols_res {
             Ok(s) if !s.is_empty() => {
@@ -198,15 +217,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let window_spec = WindowSpec {
-        length: 1000,
-        warmup: 100,
-    };
-
-    // Submit batch jobs for computation
-    if let Err(e) = job_scheduler.submit_batch(Timeframe::M1, symbols, window_spec).await {
-        eprintln!("Error submitting batch job: {}", e);
-    }
+    // NOTE: Initial batch submission is now handled by bootstrap coordinator after historical data is processed
+    // This prevents attempts to calculate indicators on empty or insufficient data
+    println!("Initial batch submission deferred until historical data processing completes.");
 
     // Keep the service running
     println!("Compute service started successfully. Processing indicators...");
@@ -322,8 +335,7 @@ async fn trigger_historical_compute(
             "SELECT DISTINCT p.symbol
              FROM {} c
              JOIN market.pairs p ON c.symbol_id = p.symbol_id
-             WHERE p.is_active = true
-             LIMIT 10", // Limit to avoid overwhelming the system
+             WHERE p.is_active = true",
             table_name
         );
 
@@ -340,52 +352,79 @@ async fn trigger_historical_compute(
             })
             .collect();
 
-        if symbols.is_empty() {
-            println!("No symbols found for timeframe: {:?}", timeframe);
-            continue;
-        }
+        let mut min_bars = usize::MAX;
+        let mut max_bars = 0usize;
+        let mut ready_cnt = 0usize;
 
-        println!("Found {} symbols for timeframe {:?}, submitting compute jobs...", symbols.len(), timeframe);
-
-        // Submit compute jobs for these symbols by updating history status to trigger bootstrap
-        for symbol in &symbols {
-            // Get the latest timestamp and count of candles for this symbol/timeframe
-            let stats_query = format!(
-                "SELECT MAX(time_ms) as latest_time, COUNT(*) as total_candles
+        for symbol in symbols.iter() {
+            let query = format!(
+                "SELECT MAX(time_ms) as last_timestamp, COUNT(*) as total_candles
                  FROM {} c
                  JOIN market.pairs p ON c.symbol_id = p.symbol_id
                  WHERE p.symbol = $1",
                 table_name
             );
 
-            if let Ok(row) = sqlx::query(&stats_query)
+            let row = sqlx::query(&query)
                 .bind(symbol.as_str())
                 .fetch_optional(db_pool)
-                .await
-            {
-                if let Some(row) = row {
-                    let latest_time: Option<i64> = row.get("latest_time");
-                    let total_candles: i64 = row.get("total_candles");
+                .await?;
 
-                    let latest_time = latest_time.unwrap_or(0);
-                    let bars_count = total_candles as usize;
+            if let Some(r) = row {
+                let last_timestamp: i64 = r.get("last_timestamp");
+                let total_candles: i64 = r.get("total_candles");
+                let bars_written = total_candles as usize;
 
-                    // Update history status to mark this symbol/timeframe as ready
-                    bootstrap_coordinator.update_history_status(
+                min_bars = min_bars.min(bars_written);
+                max_bars = max_bars.max(bars_written);
+
+                let is_ready = bootstrap_coordinator
+                    .update_history_status(
                         symbol.clone(),
                         *timeframe,
-                        latest_time,
-                        bars_count // Use actual count of bars
-                    ).await;
+                        last_timestamp,
+                        bars_written,
+                    )
+                    .await;
+
+                if is_ready {
+                    ready_cnt += 1;
                 }
             }
         }
 
-        // Now trigger bootstrap compute for all ready symbols
-        if let Err(e) = bootstrap_coordinator.start_bootstrap_compute().await {
-            eprintln!("Error submitting batch job for {:?}: {}", timeframe, e);
+        if min_bars == usize::MAX {
+            println!(
+                "Timeframe {:?}: no candle rows found for any symbols (table empty?)",
+                timeframe
+            );
+            continue;
+        }
+
+        println!(
+            "Timeframe {:?}: symbols={}, bars_range={}..{}, ready={}/{} (min_bars_ready={})",
+            timeframe,
+            symbols.len(),
+            min_bars,
+            max_bars,
+            ready_cnt,
+            symbols.len(),
+            bootstrap_coordinator.min_bars_ready(),
+        );
+
+        // ВАЖНО: сабмитим только этот TF, чтобы не было дубликатов
+        let submitted = bootstrap_coordinator
+            .start_bootstrap_compute_for_timeframe(*timeframe)
+            .await?;
+
+        if submitted == 0 {
+            println!(
+                "Timeframe {:?}: submitted 0 jobs (most likely bars < min_bars_ready={})",
+                timeframe,
+                bootstrap_coordinator.min_bars_ready()
+            );
         } else {
-            println!("Successfully submitted batch job for {:?} with {} symbols", timeframe, symbols.len());
+            println!("Timeframe {:?}: submitted {} compute jobs", timeframe, submitted);
         }
     }
 

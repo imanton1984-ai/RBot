@@ -1,7 +1,13 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use tokio::sync::RwLock;
+
 use common::{Symbol, Timeframe};
-use crate::{JobScheduler};
+use crate::{JobScheduler, WindowSpec};
 use compute_indicators::FeatureStore;
 
 #[derive(Debug, Clone)]
@@ -12,11 +18,15 @@ pub struct HistoryStatus {
 }
 
 pub struct BootstrapCoordinator {
-    history_tracker: Arc<RwLock<std::collections::HashMap<(Symbol, Timeframe), HistoryStatus>>>,
+    history_tracker: Arc<RwLock<HashMap<(Symbol, Timeframe), HistoryStatus>>>,
     _feature_store: Arc<FeatureStore>,
     job_scheduler: Arc<JobScheduler>,
+
     required_lookback: usize,
     warmup_bars: usize,
+
+    // NEW: минимальный порог баров, после которого мы считаем историю "готовой"
+    min_bars_ready: usize,
 }
 
 impl BootstrapCoordinator {
@@ -25,27 +35,33 @@ impl BootstrapCoordinator {
         job_scheduler: Arc<JobScheduler>,
         required_lookback: usize,
         warmup_bars: usize,
+        min_bars_ready: usize,
     ) -> Self {
         Self {
-            history_tracker: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            history_tracker: Arc::new(RwLock::new(HashMap::new())),
             _feature_store,
             job_scheduler,
             required_lookback,
             warmup_bars,
+            min_bars_ready,
         }
     }
 
+    pub fn min_bars_ready(&self) -> usize {
+        self.min_bars_ready
+    }
+
+    /// Возвращает true, если история теперь ready
     pub async fn update_history_status(
         &self,
         symbol: Symbol,
         timeframe: Timeframe,
         last_timestamp: i64,
         bars_written: usize,
-    ) {
+    ) -> bool {
+        let history_ready = bars_written >= self.min_bars_ready;
+
         let mut tracker = self.history_tracker.write().await;
-        
-        let history_ready = bars_written >= (self.required_lookback + self.warmup_bars);
-        
         tracker.insert(
             (symbol, timeframe),
             HistoryStatus {
@@ -54,68 +70,94 @@ impl BootstrapCoordinator {
                 history_ready,
             },
         );
+
+        history_ready
     }
 
     pub async fn is_history_ready(&self, symbol: &Symbol, timeframe: &Timeframe) -> bool {
         let tracker = self.history_tracker.read().await;
-        
-        if let Some(status) = tracker.get(&(symbol.clone(), *timeframe)) {
-            status.history_ready
-        } else {
-            false
-        }
+        tracker
+            .get(&(symbol.clone(), *timeframe))
+            .map(|s| s.history_ready)
+            .unwrap_or(false)
     }
 
-    pub async fn are_all_histories_ready(&self) -> bool {
-        let tracker = self.history_tracker.read().await;
-        
-        for (_, status) in tracker.iter() {
-            if !status.history_ready {
-                return false;
+    /// Сабмит только для одного таймфрейма, чтобы НЕ было дубликатов сабмита при цикле по TF
+    pub async fn start_bootstrap_compute_for_timeframe(
+        &self,
+        timeframe: Timeframe,
+    ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+        // Сначала собираем список без удержания lock во время await
+        let to_submit: Vec<(Symbol, WindowSpec)> = {
+            let tracker = self.history_tracker.read().await;
+
+            tracker
+                .iter()
+                .filter(|((_, tf), status)| *tf == timeframe && status.history_ready)
+                .map(|((sym, _), status)| {
+                    let length = std::cmp::min(
+                        status.bars_written,
+                        self.required_lookback + self.warmup_bars,
+                    );
+
+                    // warmup не должен быть >= length
+                    let warmup = std::cmp::min(self.warmup_bars, length.saturating_sub(1));
+
+                    (
+                        sym.clone(),
+                        WindowSpec {
+                            length,
+                            warmup,
+                        },
+                    )
+                })
+                .collect()
+        };
+
+        let mut submitted = 0usize;
+
+        for (symbol, window_spec) in to_submit {
+            // если внезапно слишком мало баров — не сабмитим мусор
+            if window_spec.length <= window_spec.warmup {
+                continue;
             }
-        }
-        
-        true
-    }
-
-    pub async fn start_bootstrap_compute(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let tracker = self.history_tracker.read().await;
-        
-        // Collect all ready symbols/timeframes
-        let ready_pairs: Vec<(Symbol, Timeframe)> = tracker
-            .iter()
-            .filter(|(_, status)| status.history_ready)
-            .map(|((symbol, timeframe), _)| (symbol.clone(), *timeframe))
-            .collect();
-
-        // Submit compute jobs for all ready pairs
-        for (symbol, timeframe) in ready_pairs {
-            let window_spec = crate::WindowSpec {
-                length: self.required_lookback + self.warmup_bars,
-                warmup: self.warmup_bars,
-            };
 
             self.job_scheduler
                 .submit_batch(timeframe, vec![symbol], window_spec)
                 .await?;
+
+            submitted += 1;
         }
 
-        Ok(())
+        Ok(submitted)
     }
 
-    pub async fn wait_for_readiness_threshold(&self, min_symbols: usize) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// Ждём пока будет хотя бы min_symbols ready (для запуска realtime)
+    pub async fn wait_for_readiness_threshold(
+        &self,
+        min_symbols: usize,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut last_log = Instant::now();
+
         loop {
-            let tracker = self.history_tracker.read().await;
-            let ready_count = tracker.values().filter(|status| status.history_ready).count();
-            
+            let (ready_count, total) = {
+                let tracker = self.history_tracker.read().await;
+                (tracker.values().filter(|s| s.history_ready).count(), tracker.len())
+            };
+
             if ready_count >= min_symbols {
-                break;
+                return Ok(());
             }
 
-            // Wait a bit before checking again
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
+            if last_log.elapsed() >= Duration::from_secs(5) {
+                println!(
+                    "Waiting readiness: ready={}/{} (min_symbols={}, min_bars_ready={})",
+                    ready_count, total, min_symbols, self.min_bars_ready
+                );
+                last_log = Instant::now();
+            }
 
-        Ok(())
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
     }
 }

@@ -26,6 +26,7 @@ cuda = { path = "../cuda", optional = true }
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
 connections = { path = "../connections" }
 rdkafka = { version = "0.39.0", features = ["tokio"] }
+dotenvy = "0.15"
 
 [features]
 default = []

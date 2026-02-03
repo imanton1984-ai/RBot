@@ -38,6 +38,9 @@ DROP TABLE IF EXISTS market.indicators_1d CASCADE;
 -- Drop pairs table
 DROP TABLE IF EXISTS market.pairs CASCADE;
 
+-- Drop raw signals table
+DROP TABLE IF EXISTS market.raw_signals CASCADE;
+
 -- Recreate the market schema
 CREATE SCHEMA IF NOT EXISTS market;
 
