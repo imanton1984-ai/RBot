@@ -142,16 +142,74 @@ impl RawSignalPersistor {
         // 1000 строк = 12000 параметров — норм.
         const CHUNK: usize = 1000;
 
+        // Дедупликация сигналов перед вставкой, чтобы избежать ошибки
+        // "ON CONFLICT cannot affect row a second time"
+        #[derive(Hash, Eq, PartialEq, Clone)]
+        struct RsKey {
+            time_ms: i64,
+            symbol_id: i64,
+            tf_minutes: i16,
+            indicator_id: i16,
+            signal_kind: i16,
+        }
+
+        let mut best: HashMap<RsKey, (i64, RawSignal)> = HashMap::new();
+        for &(symbol_id, ref signal) in rows.iter() {
+            let k = RsKey {
+                time_ms: signal.timestamp,
+                symbol_id,
+                tf_minutes: signal.timeframe.to_minutes() as i16,
+                indicator_id: signal.indicator_id,
+                signal_kind: signal.signal_kind,
+            };
+
+            match best.get(&k) {
+                None => { best.insert(k, (symbol_id, signal.clone())); }
+                Some((_, ref prev)) => {
+                    // оставляем тот, у кого сильнее score
+                    if signal.score.abs() > prev.score.abs() {
+                        best.insert(k, (symbol_id, signal.clone()));
+                    }
+                }
+            }
+        }
+
+        let deduped_rows: Vec<(i64, RawSignal)> = best.into_values().collect();
+
         let now = Utc::now();
         let now_ms = now.timestamp_millis();
 
         let mut tx = self.db_pool.begin().await?;
 
-        for chunk in rows.chunks(CHUNK) {
+        // Create a map of symbol_ids to symbols to avoid repeated DB queries
+        let mut symbol_map: HashMap<i64, String> = HashMap::new();
+
+        // Fetch all unique symbols in one query
+        let unique_symbol_ids: Vec<i64> = deduped_rows
+            .iter()
+            .map(|(symbol_id, _)| *symbol_id)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        if !unique_symbol_ids.is_empty() {
+            let symbols: Vec<(i64, String)> = sqlx::query_as(
+                "SELECT symbol_id, symbol FROM market.pairs WHERE symbol_id = ANY($1)"
+            )
+            .bind(&unique_symbol_ids)
+            .fetch_all(&self.db_pool)
+            .await?;
+
+            for (symbol_id, symbol) in symbols {
+                symbol_map.insert(symbol_id, symbol);
+            }
+        }
+
+        for chunk in deduped_rows.chunks(CHUNK) {
             let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
                 r#"
                 INSERT INTO market.raw_signals
-                  (time_ms, time, symbol_id, tf_minutes, indicator_id, signal_kind,
+                  (time_ms, time, symbol_id, symbol, tf_minutes, indicator_id, signal_kind,
                    side, score, value, details, created_at_ms, created_at)
                 "#
             );
@@ -162,9 +220,18 @@ impl RawSignalPersistor {
                     .single()
                     .unwrap_or(now);
 
+                // Get the symbol from the map, fallback to the symbol in the signal if not found
+                let symbol_from_map = symbol_map.get(symbol_id);
+                let symbol_to_use = if let Some(symbol_val) = symbol_from_map {
+                    symbol_val.as_str()
+                } else {
+                    s.symbol.as_str()
+                };
+
                 b.push_bind(s.timestamp)
                     .push_bind(time_value)
                     .push_bind(*symbol_id)
+                    .push_bind(symbol_to_use)
                     .push_bind(s.timeframe.to_minutes() as i16)
                     .push_bind(s.indicator_id)
                     .push_bind(s.signal_kind)
@@ -185,6 +252,7 @@ impl RawSignalPersistor {
                   score         = EXCLUDED.score,
                   value         = EXCLUDED.value,
                   details       = EXCLUDED.details,
+                  symbol        = EXCLUDED.symbol,
                   created_at_ms = EXCLUDED.created_at_ms,
                   created_at    = EXCLUDED.created_at
                 "#

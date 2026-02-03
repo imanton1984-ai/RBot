@@ -249,6 +249,7 @@ pub async fn ws_worker(
                     let row = CandleRow {
                         time_ms: k.close_time,
                         symbol_id: sid,
+                        symbol: ev.symbol.clone(),
                         open: str_f64(&k.open),
                         high: str_f64(&k.high),
                         low: str_f64(&k.low),

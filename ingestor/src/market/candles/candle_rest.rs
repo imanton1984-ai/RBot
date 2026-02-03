@@ -238,6 +238,7 @@ pub async fn rest_backfill_one(
             out.push(CandleRow {
                 time_ms: close_time,
                 symbol_id: pair.symbol_id,
+                symbol: pair.symbol.clone(),
                 open: str_f64(k.1.as_ref()),
                 high: str_f64(k.2.as_ref()),
                 low: str_f64(k.3.as_ref()),

@@ -33,6 +33,7 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/025_market_staging.sql"),
             include_str!("../../database/ddl/030_market_indicators_tf.sql"),
             include_str!("../../database/ddl/040_market_raw_signals.sql"),
+            include_str!("../../database/ddl/045_add_symbol_column.sql"),  // Add symbol column to all tables
             include_str!("../../database/ddl/050_trade_tables.sql"),
             include_str!("../../database/ddl/055_constraints.sql"),
             include_str!("../../database/ddl/056_raw_signals_pk_update.sql"),

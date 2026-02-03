@@ -32,6 +32,7 @@ pub struct PairInfo {
 pub struct CandleRow {
     pub time_ms: i64, // close time ms
     pub symbol_id: i64,
+    pub symbol: String, // Add symbol field for direct access
     pub open: f64,
     pub high: f64,
     pub low: f64,

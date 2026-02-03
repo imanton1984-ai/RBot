@@ -1,0 +1,1011 @@
+Starting Compute Service...
+Compute bootstrap config: required_lookback=1000, warmup_bars=100, min_bars_ready=250
+Fetching symbols from database...
+Waiting for historical data to be ingested...
+Waiting for historical data processing to complete before starting real-time processing...
+Waiting for ingestor... (attempt 1/30)
+Waiting for market.pairs to be populated...
+Waiting for market.pairs to be populated...
+Waiting for market.pairs to be populated...
+Waiting readiness: ready=0/0 (min_symbols=5, min_bars_ready=250)
+Fetched 62 symbols from database
+Initial batch submission deferred until historical data processing completes.
+Compute service started successfully. Processing indicators...
+Waiting for ingestor... (attempt 6/30)
+Waiting readiness: ready=0/0 (min_symbols=5, min_bars_ready=250)
+Waiting readiness: ready=0/0 (min_symbols=5, min_bars_ready=250)
+Waiting for ingestor... (attempt 11/30)
+Waiting readiness: ready=0/0 (min_symbols=5, min_bars_ready=250)
+Data detected in DB. Starting historical compute...
+Waiting readiness: ready=0/0 (min_symbols=5, min_bars_ready=250)
+Triggering historical compute for existing data...
+Processing historical data for timeframe: M1
+Timeframe M1: symbols=62, bars_range=499..500, ready=62/62 (min_bars_ready=250)
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Historical data processing completed. Starting real-time processing...
+Processing 499 computed features
+Started Kafka consumer, listening on topic: candles.close
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Received candle close event: DASHUSDT 5m at 1770143099999
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Received candle close event: DASHUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: SENTUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: SENTUSDT 5m at 1770143099999
+Processing 499 computed features
+Received candle close event: ZECUSDT 5m at 1770143099999
+Processing 499 computed features
+Received candle close event: ZECUSDT 1m at 1770143099999
+Processing 500 computed features
+Received candle close event: TAOUSDT 5m at 1770143099999
+Received candle close event: TAOUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: LINKUSDT 5m at 1770143099999
+Received candle close event: LINKUSDT 1m at 1770143099999
+Processing 499 computed features
+Processing 499 computed features
+Received candle close event: STXUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: STXUSDT 5m at 1770143099999
+Processing 499 computed features
+Received candle close event: ZAMAUSDT 1m at 1770143099999
+Timeframe M1: submitted 62 compute jobs
+Processing historical data for timeframe: M5
+Processing 499 computed features
+Received candle close event: ZAMAUSDT 5m at 1770143099999
+Received candle close event: OPUSDT 1m at 1770143099999
+Received candle close event: OPUSDT 5m at 1770143099999
+Received candle close event: UNIUSDT 5m at 1770143099999
+Received candle close event: UNIUSDT 1m at 1770143099999
+Received candle close event: DOTUSDT 5m at 1770143099999
+Received candle close event: DOTUSDT 1m at 1770143099999
+Received candle close event: C98USDT 5m at 1770143099999
+Received candle close event: C98USDT 1m at 1770143099999
+Received candle close event: VIRTUALUSDT 1m at 1770143099999
+Received candle close event: VIRTUALUSDT 5m at 1770143099999
+Received candle close event: CYBERUSDT 1m at 1770143099999
+Received candle close event: CYBERUSDT 5m at 1770143099999
+Received candle close event: ZILUSDT 5m at 1770143099999
+Received candle close event: ZILUSDT 1m at 1770143099999
+Received candle close event: WLFIUSDT 5m at 1770143099999
+Received candle close event: WLFIUSDT 1m at 1770143099999
+Received candle close event: ARBUSDT 1m at 1770143099999
+Received candle close event: ARBUSDT 5m at 1770143099999
+Received candle close event: ZKUSDT 5m at 1770143099999
+Received candle close event: ZKUSDT 1m at 1770143099999
+Received candle close event: PIPPINUSDT 5m at 1770143099999
+Received candle close event: PIPPINUSDT 1m at 1770143099999
+Received candle close event: ADAUSDT 5m at 1770143099999
+Received candle close event: ADAUSDT 1m at 1770143099999
+Received candle close event: WIFUSDT 1m at 1770143099999
+Received candle close event: WIFUSDT 5m at 1770143099999
+Received candle close event: ENAUSDT 1m at 1770143099999
+Received candle close event: ENAUSDT 5m at 1770143099999
+Received candle close event: FHEUSDT 1m at 1770143099999
+Received candle close event: FHEUSDT 5m at 1770143099999
+Received candle close event: XLMUSDT 5m at 1770143099999
+Received candle close event: XLMUSDT 1m at 1770143099999
+Received candle close event: AVAXUSDT 1m at 1770143099999
+Received candle close event: AVAXUSDT 5m at 1770143099999
+Received candle close event: LTCUSDT 5m at 1770143099999
+Received candle close event: LTCUSDT 1m at 1770143099999
+Timeframe M5: symbols=62, bars_range=499..499, ready=62/62 (min_bars_ready=250)
+Received candle close event: RIVERUSDT 5m at 1770143099999
+Processing 499 computed features
+Received candle close event: RIVERUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: ONDOUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: ONDOUSDT 5m at 1770143099999
+Received candle close event: AXSUSDT 5m at 1770143099999
+Processing 499 computed features
+Received candle close event: AXSUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: NEARUSDT 5m at 1770143099999
+Processing 499 computed features
+Received candle close event: NEARUSDT 1m at 1770143099999
+Processing 499 computed features
+Received candle close event: XPLUSDT 5m at 1770143099999
+Processing 499 computed features
+Received candle close event: XPLUSDT 1m at 1770143099999
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Timeframe M5: submitted 62 compute jobs
+Processing historical data for timeframe: M15
+Processing 499 computed features
+Processing 499 computed features
+Timeframe M15: symbols=62, bars_range=499..499, ready=62/62 (min_bars_ready=250)
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Timeframe M15: submitted 62 compute jobs
+Processing 499 computed features
+Processing historical data for timeframe: H1
+Timeframe H1: symbols=62, bars_range=133..499, ready=60/62 (min_bars_ready=250)
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Timeframe H1: submitted 60 compute jobs
+Processing 499 computed features
+Processing historical data for timeframe: H4
+Processing 499 computed features
+Timeframe H4: symbols=62, bars_range=33..499, ready=59/62 (min_bars_ready=250)
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 252 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 487 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Timeframe H4: submitted 59 compute jobs
+Processing historical data for timeframe: D1
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Timeframe D1: symbols=62, bars_range=5..499, ready=47/62 (min_bars_ready=250)
+Processing 381 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 382 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 420 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 297 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 375 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 410 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Processing 499 computed features
+Timeframe D1: submitted 47 compute jobs
+Processing 499 computed features
+Received candle close event: ETHUSDT 1m at 1770143639999
+Received candle close event: BTCUSDT 1m at 1770143639999
+Received candle close event: WLDUSDT 1m at 1770143639999
+Received candle close event: AUCTIONUSDT 1m at 1770143639999
+Received candle close event: BIRBUSDT 1m at 1770143639999
+Received candle close event: PIPPINUSDT 1m at 1770143639999
+Received candle close event: POLUSDT 1m at 1770143639999
+Received candle close event: XRPUSDT 1m at 1770143639999
+Received candle close event: SOLUSDT 1m at 1770143639999
+Received candle close event: ONDOUSDT 1m at 1770143639999
+Received candle close event: RIVERUSDT 1m at 1770143639999
+Received candle close event: TAOUSDT 1m at 1770143639999
+Received candle close event: ZECUSDT 1m at 1770143639999
+Received candle close event: 1000PEPEUSDT 1m at 1770143639999
+Received candle close event: SUIUSDT 1m at 1770143639999
+Received candle close event: STXUSDT 1m at 1770143639999
+Received candle close event: XLMUSDT 1m at 1770143639999
+Received candle close event: BCHUSDT 1m at 1770143639999
+Received candle close event: AVAXUSDT 1m at 1770143639999
+Received candle close event: STABLEUSDT 1m at 1770143639999
+Received candle close event: ASTERUSDT 1m at 1770143639999
+Received candle close event: DOGEUSDT 1m at 1770143639999
+Received candle close event: BNBUSDT 1m at 1770143639999
+Received candle close event: LINKUSDT 1m at 1770143639999
+Received candle close event: AAVEUSDT 1m at 1770143639999
+Received candle close event: OPUSDT 1m at 1770143639999
+Received candle close event: ENAUSDT 1m at 1770143639999
+Received candle close event: DASHUSDT 1m at 1770143639999
+Received candle close event: PUMPUSDT 1m at 1770143639999
+Received candle close event: HYPEUSDT 1m at 1770143639999
+Received candle close event: FARTCOINUSDT 1m at 1770143639999
+Received candle close event: XMRUSDT 1m at 1770143639999
+Received candle close event: TRUMPUSDT 1m at 1770143639999
+Received candle close event: ANKRUSDT 1m at 1770143639999
+Received candle close event: NEARUSDT 1m at 1770143639999
+Received candle close event: ENSOUSDT 1m at 1770143639999
+Received candle close event: UNIUSDT 1m at 1770143639999
+Received candle close event: LTCUSDT 1m at 1770143639999
+Received candle close event: ADAUSDT 1m at 1770143639999
+Received candle close event: VIRTUALUSDT 1m at 1770143639999
+Received candle close event: ARBUSDT 1m at 1770143639999
+Received candle close event: 1000SHIBUSDT 1m at 1770143639999
+Received candle close event: DUSKUSDT 1m at 1770143639999
+Received candle close event: ZKUSDT 1m at 1770143639999
+Received candle close event: GWEIUSDT 1m at 1770143639999
+Received candle close event: WIFUSDT 1m at 1770143639999
+Received candle close event: XPLUSDT 1m at 1770143639999
+Received candle close event: ZILUSDT 1m at 1770143639999
+Received candle close event: ARCUSDT 1m at 1770143639999
+Received candle close event: FHEUSDT 1m at 1770143639999
+Received candle close event: BULLAUSDT 1m at 1770143639999
+Received candle close event: SENTUSDT 1m at 1770143639999
+Received candle close event: ZAMAUSDT 1m at 1770143639999
+Received candle close event: LITUSDT 1m at 1770143639999
+Received candle close event: UAIUSDT 1m at 1770143639999
+Received candle close event: AXSUSDT 1m at 1770143639999
+Received candle close event: DOTUSDT 1m at 1770143639999
+Received candle close event: CYBERUSDT 1m at 1770143639999
+Received candle close event: WLFIUSDT 1m at 1770143639999
+Received candle close event: FILUSDT 1m at 1770143639999
+Received candle close event: C98USDT 1m at 1770143639999
+Received candle close event: CRVUSDT 1m at 1770143639999
+Received candle close event: XRPUSDT 5m at 1770143699999
+Received candle close event: XRPUSDT 1m at 1770143699999
+Received candle close event: BIRBUSDT 1m at 1770143699999
+Received candle close event: BIRBUSDT 5m at 1770143699999
+Received candle close event: AVAXUSDT 5m at 1770143699999
+Received candle close event: AVAXUSDT 1m at 1770143699999
+Received candle close event: RIVERUSDT 1m at 1770143699999
+Received candle close event: RIVERUSDT 5m at 1770143699999
+Received candle close event: BTCUSDT 1m at 1770143699999
+Received candle close event: BTCUSDT 5m at 1770143699999
+Received candle close event: WIFUSDT 1m at 1770143699999
+Received candle close event: WIFUSDT 5m at 1770143699999
+Received candle close event: HYPEUSDT 1m at 1770143699999
+Received candle close event: HYPEUSDT 5m at 1770143699999
+Received candle close event: SUIUSDT 5m at 1770143699999
+Received candle close event: AUCTIONUSDT 5m at 1770143699999
+Received candle close event: AUCTIONUSDT 1m at 1770143699999
+Received candle close event: SUIUSDT 1m at 1770143699999
+Received candle close event: XLMUSDT 5m at 1770143699999
+Received candle close event: XLMUSDT 1m at 1770143699999
+Received candle close event: STABLEUSDT 1m at 1770143699999
+Received candle close event: STABLEUSDT 5m at 1770143699999
+Received candle close event: GWEIUSDT 5m at 1770143699999
+Received candle close event: GWEIUSDT 1m at 1770143699999
+Received candle close event: VIRTUALUSDT 1m at 1770143699999
+Received candle close event: VIRTUALUSDT 5m at 1770143699999
+Received candle close event: SOLUSDT 1m at 1770143699999
+Received candle close event: SOLUSDT 5m at 1770143699999
+Received candle close event: FHEUSDT 1m at 1770143699999
+Received candle close event: FHEUSDT 5m at 1770143699999
+Received candle close event: ARCUSDT 5m at 1770143699999
+Received candle close event: ZILUSDT 5m at 1770143699999
+Received candle close event: ZILUSDT 1m at 1770143699999
+Received candle close event: ETHUSDT 5m at 1770143699999
+Received candle close event: ETHUSDT 1m at 1770143699999
+Received candle close event: PUMPUSDT 5m at 1770143699999
+Received candle close event: PUMPUSDT 1m at 1770143699999
+Received candle close event: ARBUSDT 5m at 1770143699999
+Received candle close event: ARBUSDT 1m at 1770143699999
+Received candle close event: LTCUSDT 5m at 1770143699999
+Received candle close event: LTCUSDT 1m at 1770143699999
+Received candle close event: PIPPINUSDT 1m at 1770143699999
+Received candle close event: PIPPINUSDT 5m at 1770143699999
+Received candle close event: DOTUSDT 5m at 1770143699999
+Received candle close event: DOTUSDT 1m at 1770143699999
+Received candle close event: STXUSDT 1m at 1770143699999
+Received candle close event: STXUSDT 5m at 1770143699999
+Received candle close event: ZECUSDT 1m at 1770143699999
+Received candle close event: ZECUSDT 5m at 1770143699999
+Received candle close event: ENSOUSDT 5m at 1770143699999
+Received candle close event: ENSOUSDT 1m at 1770143699999
+Received candle close event: UNIUSDT 5m at 1770143699999
+Received candle close event: UNIUSDT 1m at 1770143699999
+Received candle close event: DUSKUSDT 5m at 1770143699999
+Received candle close event: DUSKUSDT 1m at 1770143699999
+Received candle close event: DASHUSDT 5m at 1770143699999
+Received candle close event: DASHUSDT 1m at 1770143699999
+Received candle close event: ZAMAUSDT 1m at 1770143699999
+Received candle close event: ZAMAUSDT 5m at 1770143699999
+Received candle close event: BCHUSDT 5m at 1770143699999
+Received candle close event: BCHUSDT 1m at 1770143699999
+Received candle close event: ADAUSDT 1m at 1770143699999
+Received candle close event: ADAUSDT 5m at 1770143699999
+Received candle close event: AAVEUSDT 5m at 1770143699999
+Received candle close event: AAVEUSDT 1m at 1770143699999
+Received candle close event: AXSUSDT 5m at 1770143699999
+Received candle close event: AXSUSDT 1m at 1770143699999
+Received candle close event: OPUSDT 5m at 1770143699999
+Received candle close event: OPUSDT 1m at 1770143699999
+Received candle close event: UAIUSDT 1m at 1770143699999
+Received candle close event: UAIUSDT 5m at 1770143699999
+Received candle close event: DOGEUSDT 1m at 1770143699999
+Received candle close event: DOGEUSDT 5m at 1770143699999
+Received candle close event: ONDOUSDT 5m at 1770143699999
+Received candle close event: ONDOUSDT 1m at 1770143699999
+Received candle close event: 1000SHIBUSDT 1m at 1770143699999
+Received candle close event: 1000SHIBUSDT 5m at 1770143699999
+Received candle close event: TRUMPUSDT 1m at 1770143699999
+Received candle close event: TRUMPUSDT 5m at 1770143699999
+Received candle close event: ARCUSDT 1m at 1770143699999
+Received candle close event: SENTUSDT 1m at 1770143699999
+Received candle close event: SENTUSDT 5m at 1770143699999
+Received candle close event: LITUSDT 5m at 1770143699999
+Received candle close event: LITUSDT 1m at 1770143699999
+Received candle close event: TAOUSDT 5m at 1770143699999
+Received candle close event: TAOUSDT 1m at 1770143699999
+Received candle close event: XMRUSDT 1m at 1770143699999
+Received candle close event: LINKUSDT 5m at 1770143699999
+Received candle close event: LINKUSDT 1m at 1770143699999
+Received candle close event: XMRUSDT 5m at 1770143699999
+Received candle close event: BNBUSDT 1m at 1770143699999
+Received candle close event: BNBUSDT 5m at 1770143699999
+Received candle close event: ENAUSDT 5m at 1770143699999
+Received candle close event: ENAUSDT 1m at 1770143699999
+Received candle close event: ASTERUSDT 1m at 1770143699999
+Received candle close event: ASTERUSDT 5m at 1770143699999
+Received candle close event: NEARUSDT 1m at 1770143699999
+Received candle close event: NEARUSDT 5m at 1770143699999
+Received candle close event: XPLUSDT 1m at 1770143699999
+Received candle close event: XPLUSDT 5m at 1770143699999
+Received candle close event: WLFIUSDT 5m at 1770143699999
+Received candle close event: WLFIUSDT 1m at 1770143699999
+Received candle close event: C98USDT 1m at 1770143699999
+Received candle close event: C98USDT 5m at 1770143699999
+Received candle close event: BULLAUSDT 5m at 1770143699999
+Received candle close event: BULLAUSDT 1m at 1770143699999
+Received candle close event: 1000PEPEUSDT 1m at 1770143699999
+Received candle close event: 1000PEPEUSDT 5m at 1770143699999
+Received candle close event: WLDUSDT 1m at 1770143699999
+Received candle close event: WLDUSDT 5m at 1770143699999
+Received candle close event: ANKRUSDT 5m at 1770143699999
+Received candle close event: ANKRUSDT 1m at 1770143699999
+Received candle close event: FARTCOINUSDT 5m at 1770143699999
+Received candle close event: FARTCOINUSDT 1m at 1770143699999
+Received candle close event: POLUSDT 5m at 1770143699999
+Received candle close event: POLUSDT 1m at 1770143699999
+Received candle close event: CYBERUSDT 1m at 1770143699999
+Received candle close event: CYBERUSDT 5m at 1770143699999
+Received candle close event: ZKUSDT 1m at 1770143699999
+Received candle close event: ZKUSDT 5m at 1770143699999
+Received candle close event: CRVUSDT 5m at 1770143699999
+Received candle close event: CRVUSDT 1m at 1770143699999
+Received candle close event: FILUSDT 1m at 1770143699999
+Received candle close event: FILUSDT 5m at 1770143699999
+Received candle close event: BTCUSDT 1m at 1770143759999
+Received candle close event: 1000PEPEUSDT 1m at 1770143759999
+Received candle close event: PUMPUSDT 1m at 1770143759999
+Received candle close event: BULLAUSDT 1m at 1770143759999
+Received candle close event: SENTUSDT 1m at 1770143759999
+Received candle close event: ASTERUSDT 1m at 1770143759999
+Received candle close event: ARCUSDT 1m at 1770143759999
+Received candle close event: HYPEUSDT 1m at 1770143759999
+Received candle close event: DASHUSDT 1m at 1770143759999
+Received candle close event: XMRUSDT 1m at 1770143759999
+Received candle close event: STXUSDT 1m at 1770143759999
+Received candle close event: XPLUSDT 1m at 1770143759999
+Received candle close event: ARBUSDT 1m at 1770143759999
+Received candle close event: ETHUSDT 1m at 1770143759999
+Received candle close event: XLMUSDT 1m at 1770143759999
+Received candle close event: RIVERUSDT 1m at 1770143759999
+Received candle close event: XRPUSDT 1m at 1770143759999
+Received candle close event: FHEUSDT 1m at 1770143759999
+Received candle close event: FARTCOINUSDT 1m at 1770143759999
+Received candle close event: BNBUSDT 1m at 1770143759999
+Received candle close event: POLUSDT 1m at 1770143759999
+Received candle close event: PIPPINUSDT 1m at 1770143759999
+Received candle close event: ENSOUSDT 1m at 1770143759999
+Received candle close event: UAIUSDT 1m at 1770143759999
+Received candle close event: SOLUSDT 1m at 1770143759999
+Received candle close event: ADAUSDT 1m at 1770143759999
+Received candle close event: AVAXUSDT 1m at 1770143759999
+Received candle close event: DUSKUSDT 1m at 1770143759999
+Received candle close event: VIRTUALUSDT 1m at 1770143759999
+Received candle close event: BCHUSDT 1m at 1770143759999
+Received candle close event: ZILUSDT 1m at 1770143759999
+Received candle close event: SUIUSDT 1m at 1770143759999
+Received candle close event: WLDUSDT 1m at 1770143759999
+Received candle close event: BIRBUSDT 1m at 1770143759999
+Received candle close event: GWEIUSDT 1m at 1770143759999
+Received candle close event: AXSUSDT 1m at 1770143759999
+Received candle close event: ZECUSDT 1m at 1770143759999
+Received candle close event: FILUSDT 1m at 1770143759999
+Received candle close event: ZAMAUSDT 1m at 1770143759999
+Received candle close event: ENAUSDT 1m at 1770143759999
+Received candle close event: DOGEUSDT 1m at 1770143759999
+Received candle close event: CYBERUSDT 1m at 1770143759999
+Received candle close event: TAOUSDT 1m at 1770143759999
+Received candle close event: LINKUSDT 1m at 1770143759999
+Received candle close event: STABLEUSDT 1m at 1770143759999
+Received candle close event: LITUSDT 1m at 1770143759999
+Received candle close event: OPUSDT 1m at 1770143759999
+Received candle close event: ONDOUSDT 1m at 1770143759999
+Received candle close event: ZKUSDT 1m at 1770143759999
+Received candle close event: 1000SHIBUSDT 1m at 1770143759999
+Received candle close event: AAVEUSDT 1m at 1770143759999
+Received candle close event: NEARUSDT 1m at 1770143759999
+Received candle close event: UNIUSDT 1m at 1770143759999
+Received candle close event: LTCUSDT 1m at 1770143759999
+Received candle close event: TRUMPUSDT 1m at 1770143759999
+Received candle close event: AUCTIONUSDT 1m at 1770143759999
+Received candle close event: ANKRUSDT 1m at 1770143759999
+Received candle close event: DOTUSDT 1m at 1770143759999
+Received candle close event: WIFUSDT 1m at 1770143759999
+Received candle close event: C98USDT 1m at 1770143759999
+Received candle close event: WLFIUSDT 1m at 1770143759999
+Received candle close event: CRVUSDT 1m at 1770143759999
+Received candle close event: ETHUSDT 1m at 1770143819999
+Received candle close event: STABLEUSDT 1m at 1770143819999
+Received candle close event: DOGEUSDT 1m at 1770143819999
+Received candle close event: XRPUSDT 1m at 1770143819999
+Received candle close event: BCHUSDT 1m at 1770143819999
+Received candle close event: DASHUSDT 1m at 1770143819999
+Received candle close event: AVAXUSDT 1m at 1770143819999
+Received candle close event: BIRBUSDT 1m at 1770143819999
+Received candle close event: RIVERUSDT 1m at 1770143819999
+Received candle close event: BTCUSDT 1m at 1770143819999
+Received candle close event: SUIUSDT 1m at 1770143819999
+Received candle close event: AUCTIONUSDT 1m at 1770143819999
+Received candle close event: ONDOUSDT 1m at 1770143819999
+Received candle close event: XLMUSDT 1m at 1770143819999
+Received candle close event: XMRUSDT 1m at 1770143819999
+Received candle close event: WLDUSDT 1m at 1770143819999
+Received candle close event: SOLUSDT 1m at 1770143819999
+Received candle close event: GWEIUSDT 1m at 1770143819999
+Received candle close event: AAVEUSDT 1m at 1770143819999
+Received candle close event: TAOUSDT 1m at 1770143819999
+Received candle close event: NEARUSDT 1m at 1770143819999
+Received candle close event: BNBUSDT 1m at 1770143819999
+Received candle close event: OPUSDT 1m at 1770143819999
+Received candle close event: ENSOUSDT 1m at 1770143819999
+Received candle close event: XPLUSDT 1m at 1770143819999
+Received candle close event: ARCUSDT 1m at 1770143819999
+Received candle close event: ASTERUSDT 1m at 1770143819999
+Received candle close event: POLUSDT 1m at 1770143819999
+Received candle close event: UNIUSDT 1m at 1770143819999
+Received candle close event: FILUSDT 1m at 1770143819999
+Received candle close event: ANKRUSDT 1m at 1770143819999
+Received candle close event: 1000PEPEUSDT 1m at 1770143819999
+Received candle close event: SENTUSDT 1m at 1770143819999
+Received candle close event: ZECUSDT 1m at 1770143819999
+Received candle close event: STXUSDT 1m at 1770143819999
+Received candle close event: VIRTUALUSDT 1m at 1770143819999
+Received candle close event: DUSKUSDT 1m at 1770143819999
+Received candle close event: ADAUSDT 1m at 1770143819999
+Received candle close event: FARTCOINUSDT 1m at 1770143819999
+Received candle close event: 1000SHIBUSDT 1m at 1770143819999
+Received candle close event: LTCUSDT 1m at 1770143819999
+Received candle close event: ZKUSDT 1m at 1770143819999
+Received candle close event: LINKUSDT 1m at 1770143819999
+Received candle close event: TRUMPUSDT 1m at 1770143819999
+Received candle close event: UAIUSDT 1m at 1770143819999
+Received candle close event: CYBERUSDT 1m at 1770143819999
+Received candle close event: BULLAUSDT 1m at 1770143819999
+Received candle close event: FHEUSDT 1m at 1770143819999
+Received candle close event: HYPEUSDT 1m at 1770143819999
+Received candle close event: PIPPINUSDT 1m at 1770143819999
+Received candle close event: WIFUSDT 1m at 1770143819999
+Received candle close event: ZAMAUSDT 1m at 1770143819999
+Received candle close event: ENAUSDT 1m at 1770143819999
+Received candle close event: CRVUSDT 1m at 1770143819999
+Received candle close event: PUMPUSDT 1m at 1770143819999
+Received candle close event: WLFIUSDT 1m at 1770143819999
+Received candle close event: ZILUSDT 1m at 1770143819999
+Received candle close event: ARBUSDT 1m at 1770143819999
+Received candle close event: AXSUSDT 1m at 1770143819999
+Received candle close event: C98USDT 1m at 1770143819999
+Received candle close event: LITUSDT 1m at 1770143819999
+Received candle close event: DOTUSDT 1m at 1770143819999
+Received candle close event: BTCUSDT 1m at 1770143879999
+Received candle close event: BNBUSDT 1m at 1770143879999
+Received candle close event: STABLEUSDT 1m at 1770143879999
+Received candle close event: SUIUSDT 1m at 1770143879999
+Received candle close event: ETHUSDT 1m at 1770143879999
+Received candle close event: BIRBUSDT 1m at 1770143879999
+Received candle close event: RIVERUSDT 1m at 1770143879999
+Received candle close event: TAOUSDT 1m at 1770143879999
+Received candle close event: ONDOUSDT 1m at 1770143879999
+Received candle close event: DOGEUSDT 1m at 1770143879999
+Received candle close event: ZECUSDT 1m at 1770143879999
+Received candle close event: ARBUSDT 1m at 1770143879999
+Received candle close event: LINKUSDT 1m at 1770143879999
+Received candle close event: ADAUSDT 1m at 1770143879999
+Received candle close event: SOLUSDT 1m at 1770143879999
+Received candle close event: WLDUSDT 1m at 1770143879999
+Received candle close event: 1000PEPEUSDT 1m at 1770143879999
+Received candle close event: BULLAUSDT 1m at 1770143879999
+Received candle close event: PUMPUSDT 1m at 1770143879999
+Received candle close event: AAVEUSDT 1m at 1770143879999
+Received candle close event: DASHUSDT 1m at 1770143879999
+Received candle close event: XLMUSDT 1m at 1770143879999
+Received candle close event: AVAXUSDT 1m at 1770143879999
+Received candle close event: UNIUSDT 1m at 1770143879999
+Received candle close event: SENTUSDT 1m at 1770143879999
+Received candle close event: HYPEUSDT 1m at 1770143879999
+Received candle close event: ZILUSDT 1m at 1770143879999
+Received candle close event: UAIUSDT 1m at 1770143879999
+Received candle close event: GWEIUSDT 1m at 1770143879999
+Received candle close event: NEARUSDT 1m at 1770143879999
+Received candle close event: ZAMAUSDT 1m at 1770143879999
+Received candle close event: ANKRUSDT 1m at 1770143879999
+Received candle close event: 1000SHIBUSDT 1m at 1770143879999
+Received candle close event: AXSUSDT 1m at 1770143879999
+Received candle close event: FILUSDT 1m at 1770143879999
+Received candle close event: LITUSDT 1m at 1770143879999
+Received candle close event: BCHUSDT 1m at 1770143879999
+Received candle close event: XRPUSDT 1m at 1770143879999
+Received candle close event: LTCUSDT 1m at 1770143879999
+Received candle close event: FHEUSDT 1m at 1770143879999
+Received candle close event: STXUSDT 1m at 1770143879999
+Received candle close event: DUSKUSDT 1m at 1770143879999
+Received candle close event: AUCTIONUSDT 1m at 1770143879999
+Received candle close event: ZKUSDT 1m at 1770143879999
+Received candle close event: WIFUSDT 1m at 1770143879999
+Received candle close event: ASTERUSDT 1m at 1770143879999
+Received candle close event: ENSOUSDT 1m at 1770143879999
+Received candle close event: WLFIUSDT 1m at 1770143879999
+Received candle close event: XMRUSDT 1m at 1770143879999
+Received candle close event: PIPPINUSDT 1m at 1770143879999
+Received candle close event: CRVUSDT 1m at 1770143879999
+Received candle close event: OPUSDT 1m at 1770143879999
+Received candle close event: ENAUSDT 1m at 1770143879999
+Received candle close event: VIRTUALUSDT 1m at 1770143879999
+Received candle close event: ARCUSDT 1m at 1770143879999
+Received candle close event: TRUMPUSDT 1m at 1770143879999
+Received candle close event: POLUSDT 1m at 1770143879999
+Received candle close event: FARTCOINUSDT 1m at 1770143879999
+Received candle close event: CYBERUSDT 1m at 1770143879999
+Received candle close event: XPLUSDT 1m at 1770143879999
+Received candle close event: C98USDT 1m at 1770143879999
+Received candle close event: DOTUSDT 1m at 1770143879999
+Received candle close event: HYPEUSDT 1m at 1770143939999
+Received candle close event: ENSOUSDT 1m at 1770143939999
+Received candle close event: TAOUSDT 1m at 1770143939999
+Received candle close event: ARCUSDT 1m at 1770143939999
+Received candle close event: FHEUSDT 1m at 1770143939999
+Received candle close event: SOLUSDT 1m at 1770143939999
+Received candle close event: BULLAUSDT 1m at 1770143939999
+Received candle close event: OPUSDT 1m at 1770143939999
+Received candle close event: GWEIUSDT 1m at 1770143939999
+Received candle close event: PUMPUSDT 1m at 1770143939999
+Received candle close event: DOGEUSDT 1m at 1770143939999
+Received candle close event: AVAXUSDT 1m at 1770143939999
+Received candle close event: 1000PEPEUSDT 1m at 1770143939999
+Received candle close event: SUIUSDT 1m at 1770143939999
+Received candle close event: DASHUSDT 1m at 1770143939999
+Received candle close event: LINKUSDT 1m at 1770143939999
+Received candle close event: ASTERUSDT 1m at 1770143939999
+Received candle close event: 1000SHIBUSDT 1m at 1770143939999
+Received candle close event: BIRBUSDT 1m at 1770143939999
+Received candle close event: DUSKUSDT 1m at 1770143939999
+Received candle close event: RIVERUSDT 1m at 1770143939999
+Received candle close event: ONDOUSDT 1m at 1770143939999
+Received candle close event: XLMUSDT 1m at 1770143939999
+Received candle close event: SENTUSDT 1m at 1770143939999
+Received candle close event: ZECUSDT 1m at 1770143939999
+Received candle close event: WLDUSDT 1m at 1770143939999
+Received candle close event: TRUMPUSDT 1m at 1770143939999
+Received candle close event: STXUSDT 1m at 1770143939999
+Received candle close event: ZKUSDT 1m at 1770143939999
+Received candle close event: FARTCOINUSDT 1m at 1770143939999
+Received candle close event: C98USDT 1m at 1770143939999
+Received candle close event: VIRTUALUSDT 1m at 1770143939999
+Received candle close event: UNIUSDT 1m at 1770143939999
+Received candle close event: WIFUSDT 1m at 1770143939999
+Received candle close event: ZILUSDT 1m at 1770143939999
+Received candle close event: ADAUSDT 1m at 1770143939999
+Received candle close event: PIPPINUSDT 1m at 1770143939999
+Received candle close event: BNBUSDT 1m at 1770143939999
+Received candle close event: STABLEUSDT 1m at 1770143939999
+Received candle close event: BCHUSDT 1m at 1770143939999
+Received candle close event: XRPUSDT 1m at 1770143939999
+Received candle close event: LTCUSDT 1m at 1770143939999
+Received candle close event: BTCUSDT 1m at 1770143939999
+Received candle close event: ETHUSDT 1m at 1770143939999
+Received candle close event: AXSUSDT 1m at 1770143939999
+Received candle close event: CYBERUSDT 1m at 1770143939999
+Received candle close event: ZAMAUSDT 1m at 1770143939999
+Received candle close event: UAIUSDT 1m at 1770143939999
+Received candle close event: AAVEUSDT 1m at 1770143939999
+Received candle close event: XMRUSDT 1m at 1770143939999
+Received candle close event: ARBUSDT 1m at 1770143939999
+Received candle close event: WLFIUSDT 1m at 1770143939999
+Received candle close event: POLUSDT 1m at 1770143939999
+Received candle close event: NEARUSDT 1m at 1770143939999
+Received candle close event: XPLUSDT 1m at 1770143939999
+Received candle close event: ENAUSDT 1m at 1770143939999
+Received candle close event: DOTUSDT 1m at 1770143939999
+Received candle close event: AUCTIONUSDT 1m at 1770143939999
+Received candle close event: LITUSDT 1m at 1770143939999
+Received candle close event: ANKRUSDT 1m at 1770143939999
+Received candle close event: FILUSDT 1m at 1770143939999
+Received candle close event: CRVUSDT 1m at 1770143939999
+Received candle close event: ETHUSDT 5m at 1770143999999
+Received candle close event: ETHUSDT 1m at 1770143999999
+Received candle close event: BIRBUSDT 1m at 1770143999999
+Received candle close event: BIRBUSDT 5m at 1770143999999
+Received candle close event: HYPEUSDT 1m at 1770143999999
+Received candle close event: HYPEUSDT 5m at 1770143999999
+Received candle close event: CRVUSDT 5m at 1770143999999
+Received candle close event: CRVUSDT 1m at 1770143999999
+Received candle close event: SOLUSDT 1m at 1770143999999
+Received candle close event: SOLUSDT 5m at 1770143999999
+Received candle close event: BCHUSDT 1m at 1770143999999
+Received candle close event: DOGEUSDT 5m at 1770143999999
+Received candle close event: DOGEUSDT 1m at 1770143999999
+Received candle close event: BTCUSDT 1m at 1770143999999
+Received candle close event: BTCUSDT 5m at 1770143999999
+Received candle close event: PUMPUSDT 5m at 1770143999999
+Received candle close event: PUMPUSDT 1m at 1770143999999
+Received candle close event: ZECUSDT 1m at 1770143999999
+Received candle close event: ZECUSDT 5m at 1770143999999
+Received candle close event: BCHUSDT 5m at 1770143999999
+Received candle close event: 1000PEPEUSDT 1m at 1770143999999
+Received candle close event: 1000PEPEUSDT 5m at 1770143999999
+Received candle close event: WLDUSDT 1m at 1770143999999
+Received candle close event: WLDUSDT 5m at 1770143999999
+Received candle close event: SUIUSDT 5m at 1770143999999
+Received candle close event: SUIUSDT 1m at 1770143999999
+Received candle close event: AVAXUSDT 1m at 1770143999999
+Received candle close event: AVAXUSDT 5m at 1770143999999
+Received candle close event: XMRUSDT 1m at 1770143999999
+Received candle close event: DASHUSDT 1m at 1770143999999
+Received candle close event: DASHUSDT 5m at 1770143999999
+Received candle close event: XMRUSDT 5m at 1770143999999
+Received candle close event: BNBUSDT 1m at 1770143999999
+Received candle close event: BNBUSDT 5m at 1770143999999
+Received candle close event: ASTERUSDT 1m at 1770143999999
+Received candle close event: ASTERUSDT 5m at 1770143999999
+Received candle close event: 1000SHIBUSDT 5m at 1770143999999
+Received candle close event: 1000SHIBUSDT 1m at 1770143999999
+Received candle close event: NEARUSDT 1m at 1770143999999
+Received candle close event: NEARUSDT 5m at 1770143999999
+Received candle close event: AUCTIONUSDT 1m at 1770143999999
+Received candle close event: AUCTIONUSDT 5m at 1770143999999
+Received candle close event: ENAUSDT 5m at 1770143999999
+Received candle close event: ENAUSDT 1m at 1770143999999
+Received candle close event: TAOUSDT 5m at 1770143999999
+Received candle close event: TAOUSDT 1m at 1770143999999
+Received candle close event: SENTUSDT 5m at 1770143999999
+Received candle close event: SENTUSDT 1m at 1770143999999
+Received candle close event: BULLAUSDT 5m at 1770143999999
+Received candle close event: BULLAUSDT 1m at 1770143999999
+Received candle close event: XPLUSDT 5m at 1770143999999
+Received candle close event: XPLUSDT 1m at 1770143999999
+Received candle close event: XRPUSDT 1m at 1770143999999
+Received candle close event: XRPUSDT 5m at 1770143999999
+Received candle close event: GWEIUSDT 5m at 1770143999999
+Received candle close event: GWEIUSDT 1m at 1770143999999
+Received candle close event: VIRTUALUSDT 1m at 1770143999999
+Received candle close event: VIRTUALUSDT 5m at 1770143999999
+Received candle close event: LINKUSDT 1m at 1770143999999
+Received candle close event: LINKUSDT 5m at 1770143999999
+Received candle close event: AAVEUSDT 1m at 1770143999999
+Received candle close event: AAVEUSDT 5m at 1770143999999
+Received candle close event: STABLEUSDT 5m at 1770143999999
+Received candle close event: STABLEUSDT 1m at 1770143999999
+Received candle close event: UNIUSDT 1m at 1770143999999
+Received candle close event: UNIUSDT 5m at 1770143999999
+Received candle close event: ADAUSDT 5m at 1770143999999
+Received candle close event: ADAUSDT 1m at 1770143999999
+Received candle close event: FARTCOINUSDT 5m at 1770143999999
+Received candle close event: FARTCOINUSDT 1m at 1770143999999
+Received candle close event: ENSOUSDT 1m at 1770143999999
+Received candle close event: ENSOUSDT 5m at 1770143999999
+Received candle close event: POLUSDT 5m at 1770143999999
+Received candle close event: POLUSDT 1m at 1770143999999
+Received candle close event: STXUSDT 1m at 1770143999999
+Received candle close event: STXUSDT 5m at 1770143999999
+Received candle close event: LTCUSDT 5m at 1770143999999
+Received candle close event: LTCUSDT 1m at 1770143999999
+Received candle close event: XLMUSDT 1m at 1770143999999
+Received candle close event: XLMUSDT 5m at 1770143999999
+Received candle close event: RIVERUSDT 5m at 1770143999999
+Received candle close event: RIVERUSDT 1m at 1770143999999
+Received candle close event: OPUSDT 5m at 1770143999999
+Received candle close event: OPUSDT 1m at 1770143999999
+Received candle close event: ANKRUSDT 5m at 1770143999999
+Received candle close event: ANKRUSDT 1m at 1770143999999
+Received candle close event: CYBERUSDT 5m at 1770143999999
+Received candle close event: CYBERUSDT 1m at 1770143999999
+Received candle close event: PIPPINUSDT 5m at 1770143999999
+Received candle close event: PIPPINUSDT 1m at 1770143999999
+Received candle close event: ONDOUSDT 1m at 1770143999999
+Received candle close event: ONDOUSDT 5m at 1770143999999
+Received candle close event: DUSKUSDT 5m at 1770143999999
+Received candle close event: DUSKUSDT 1m at 1770143999999
+Received candle close event: UAIUSDT 1m at 1770143999999
+Received candle close event: UAIUSDT 5m at 1770143999999
+Received candle close event: ZKUSDT 5m at 1770143999999
+Received candle close event: ZKUSDT 1m at 1770143999999
+Received candle close event: ZAMAUSDT 1m at 1770143999999
+Received candle close event: ZAMAUSDT 5m at 1770143999999
+Received candle close event: ARCUSDT 5m at 1770143999999
+Received candle close event: ARCUSDT 1m at 1770143999999
+Received candle close event: LITUSDT 1m at 1770143999999
+Received candle close event: LITUSDT 5m at 1770143999999
+Received candle close event: FILUSDT 1m at 1770143999999
+Received candle close event: FILUSDT 5m at 1770143999999
+Received candle close event: FHEUSDT 1m at 1770143999999
+Received candle close event: FHEUSDT 5m at 1770143999999
+Received candle close event: ARBUSDT 1m at 1770143999999
+Received candle close event: ARBUSDT 5m at 1770143999999
+Received candle close event: TRUMPUSDT 1m at 1770143999999
+Received candle close event: TRUMPUSDT 5m at 1770143999999
+Received candle close event: ZILUSDT 5m at 1770143999999
+Received candle close event: ZILUSDT 1m at 1770143999999
+Received candle close event: WLFIUSDT 1m at 1770143999999
+Received candle close event: WLFIUSDT 5m at 1770143999999
+Received candle close event: WIFUSDT 5m at 1770143999999
+Received candle close event: WIFUSDT 1m at 1770143999999
+Received candle close event: AXSUSDT 5m at 1770143999999
+Received candle close event: AXSUSDT 1m at 1770143999999
+Received candle close event: C98USDT 1m at 1770143999999
+Received candle close event: C98USDT 5m at 1770143999999
+Received candle close event: DOTUSDT 5m at 1770143999999
+Received candle close event: DOTUSDT 1m at 1770143999999

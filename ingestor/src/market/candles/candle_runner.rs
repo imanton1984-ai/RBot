@@ -300,6 +300,7 @@ pub async fn run_candles_ingest() -> Result<()> {
                         results.push(CandleRow {
                             time_ms: k.6, // close_time
                             symbol_id: pair_clone.symbol_id,
+                            symbol: pair_clone.symbol.clone(),
                             open: str_f64(k.1.as_ref()),
                             high: str_f64(k.2.as_ref()),
                             low: str_f64(k.3.as_ref()),

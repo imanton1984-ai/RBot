@@ -111,7 +111,13 @@ impl IndicatorPersistor {
                 continue;
             }
 
-            let mut query_builder = sqlx::QueryBuilder::new(format!("INSERT INTO {} (time_ms, time, symbol_id", table_name));
+            // Get the symbol for the symbol_id
+            let symbol: String = sqlx::query_scalar("SELECT symbol FROM market.pairs WHERE symbol_id = $1")
+                .bind(symbol_id)
+                .fetch_one(&self.db_pool)
+                .await?;
+
+            let mut query_builder = sqlx::QueryBuilder::new(format!("INSERT INTO {} (time_ms, time, symbol_id, symbol", table_name));
             for indicator_name in &indicator_names {
                 query_builder.push(format!(", {}", indicator_name));
             }
@@ -122,6 +128,8 @@ impl IndicatorPersistor {
             query_builder.push_bind(time_utc);
             query_builder.push(", ");
             query_builder.push_bind(symbol_id);
+            query_builder.push(", ");
+            query_builder.push_bind(&symbol);
 
             for value in &indicator_values {
                 query_builder.push(", ");
@@ -132,7 +140,7 @@ impl IndicatorPersistor {
             }
 
             query_builder.push(") ON CONFLICT (symbol_id, time) DO UPDATE SET ");
-            
+
             let mut first_set_item = true;
             for indicator_name in &indicator_names {
                 if !first_set_item {
@@ -142,7 +150,7 @@ impl IndicatorPersistor {
                 first_set_item = false;
             }
 
-            query_builder.push(", updated_at_ms = EXCLUDED.time_ms, updated_at = NOW()");
+            query_builder.push(", symbol = EXCLUDED.symbol, updated_at_ms = EXCLUDED.time_ms, updated_at = NOW()");
             
             if let Err(e) = query_builder.build().execute(&self.db_pool).await {
                 eprintln!("Failed to insert indicators for {}: {}", symbol, e);
