@@ -2,6 +2,12 @@ use serde::{Deserialize, Serialize};
 use common::{Symbol, Timeframe};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FeatureValue {
+    Float(f64),
+    Json(serde_json::Value),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WindowSpec {
     pub length: usize,
     pub warmup: usize,

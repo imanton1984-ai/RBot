@@ -1,4 +1,3 @@
-use std::vec::Vec;
 
 /// Normalizes a signal value to the range [0, 1] based on min/max values
 pub fn normalize_signal(value: f64, min_val: f64, max_val: f64) -> f64 {

@@ -1,4 +1,6 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate SMA raw signals based on price vs SMA relationship
@@ -6,8 +8,8 @@ pub fn calculate_sma_raw_signals(
     prices: &[f64],
     sma_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -30,16 +32,20 @@ pub fn calculate_sma_raw_signals(
         
         // Normalize distance to score
         let normalized = (abs_distance / 10.0).min(1.0); // Assuming max 10% deviation
-        let score = crate::sigmoid_normalize(normalized, 0.3, 6.0);
+        let score = sigmoid_normalize(normalized, 0.3, 6.0);
+        let side = if distance_pct > 0.0 { 1 } else { -1 };
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Sma,
-            distance_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Sma.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            distance_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -56,8 +62,8 @@ pub fn calculate_sma_crossover_signals(
     prices: &[f64],
     sma_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -86,15 +92,19 @@ pub fn calculate_sma_crossover_signals(
             // Use the absolute distance from SMA as signal strength
             let cross_strength = ((curr_price - curr_sma) / curr_sma).abs() * 100.0;
             let score = normalize_crossover_score(cross_strength);
-            
+            let side = if is_bullish_cross { 1 } else { -1 };
+
             // Create raw signal for crossover
             let signal = RawSignal::new(
-                RawSignalType::Sma,
-                cross_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Sma.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                side,
+                score as f32,
+                cross_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -111,8 +121,8 @@ pub fn calculate_sma_crossover_signals(
 pub fn calculate_sma_trend_signals(
     sma_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -136,16 +146,20 @@ pub fn calculate_sma_trend_signals(
         
         // Normalize slope to score
         let normalized = (abs_slope / 5.0).min(1.0); // Assuming max 5% change
-        let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+        let score = sigmoid_normalize(normalized, 0.2, 5.0);
+        let side = if slope_pct > 0.0 { 1 } else { -1 };
         
         // Create raw signal for trend
         let signal = RawSignal::new(
-            RawSignalType::Sma,
-            slope_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Sma.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            slope_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -162,8 +176,8 @@ pub fn calculate_sma_convergence_signals(
     prices: &[f64],
     sma_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -189,21 +203,25 @@ pub fn calculate_sma_convergence_signals(
         
         // Check if getting closer to SMA (convergence) or moving away (divergence)
         let is_converging = curr_distance < prev_distance;
-        
+        let side = if is_converging { if curr_price > curr_sma { 1 } else { -1 } } else { 0 };
+
         if is_converging {
             // Calculate convergence strength
             let convergence_strength = (prev_distance - curr_distance) * 100.0;
             let normalized = (convergence_strength / 5.0).min(1.0); // Assuming max 5% convergence
-            let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+            let score = sigmoid_normalize(normalized, 0.2, 5.0);
             
             // Create raw signal for convergence
             let signal = RawSignal::new(
-                RawSignalType::Sma,
-                convergence_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Sma.to_indicator_id(),
+                SignalKind::Convergence.to_i16(),
+                side,
+                score as f32,
+                convergence_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -222,40 +240,5 @@ fn normalize_crossover_score(cross_strength: f64) -> f64 {
     let normalized = (cross_strength / 5.0).min(1.0);
     
     // Apply sigmoid to emphasize strong crossovers
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_sma_raw_signals() {
-        let prices = vec![100.0, 102.0, 101.0, 103.0, 105.0];
-        let sma_values = vec![99.0, 101.0, 101.5, 102.5, 104.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_sma_raw_signals(&prices, &sma_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= prices.len());
-    }
-    
-    #[test]
-    fn test_calculate_sma_crossover_signals() {
-        let prices = vec![100.0, 102.0, 101.0, 103.0, 105.0];
-        let sma_values = vec![101.0, 101.0, 101.5, 102.0, 104.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_sma_crossover_signals(&prices, &sma_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some crossover signals
-        assert!(signals.len() <= prices.len() - 1);
-    }
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }

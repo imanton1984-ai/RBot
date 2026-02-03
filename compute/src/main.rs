@@ -26,20 +26,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compute_backend_manager = ComputeBackendManager::new(backend_type);
     let compute_backend = compute_backend_manager.get_backend();
 
+    // Initialize database connection pool
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+    let db_pool = sqlx::PgPool::connect(&db_url).await?;
+
+    // Initialize candle window fetcher
+    let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
+
     // Initialize job scheduler
     let (job_scheduler, mut result_receiver) = JobScheduler::new(
         compute_backend,
         config.clone(),
+        candle_fetcher.clone(),
     );
     let job_scheduler = Arc::new(job_scheduler);
-
-    // Initialize candle window fetcher
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
-    let _candle_fetcher = Arc::new(CandleWindowFetcher::new(db_url.clone()));
-
-    // Initialize database connection pool
-    let db_pool = sqlx::PgPool::connect(&db_url).await?;
 
     // Initialize indicator persistor
     let (persistor, _persist_sender) = IndicatorPersistor::new(
@@ -105,13 +106,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Spawn result processor to handle computed indicators
+    // Initialize RawSignal persistor
+    let (raw_signal_persistor, raw_signal_sender) = RawSignalPersistor::new(
+        db_pool.clone(),
+        1000,
+        5000,
+    );
+    let raw_signal_persistor = Arc::new(raw_signal_persistor);
+
+    // Initialize RawSignal processor
+    let raw_signal_processor = Arc::new(RawSignalProcessor::new(Default::default()));
+
+    // Spawn RawSignal persistence loop
+    let raw_signal_persistor_clone = raw_signal_persistor.clone();
+    tokio::spawn(async move {
+        if let Err(e) = raw_signal_persistor_clone.start_persistence_loop().await {
+            eprintln!("RawSignal persistence loop error: {}", e);
+        }
+    });
+
+    // Spawn result processor to handle computed indicators and raw signals
     let persistor_clone2 = persistor.clone();
+    let raw_signal_processor_clone = raw_signal_processor.clone();
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
             println!("Processing {} computed features", feature_window.features.len());
 
-            // Convert features to indicator records and queue for persistence
+            // Handle indicators
             let mut records = Vec::new();
             for result in &feature_window.features {
                 for (indicator_name, value) in &result.features {
@@ -120,7 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         timeframe: result.timeframe,
                         timestamp: result.timestamp,
                         indicator_name: indicator_name.clone(),
-                        value: *value,
+                        value: value.clone(),
                     });
                 }
             }
@@ -130,15 +151,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("Error queuing records for persistence: {}", e);
                 }
             }
+            
+            // Handle raw signals
+            let raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
+            for signal in raw_signals {
+                if let Err(e) = raw_signal_sender.send(signal) {
+                    eprintln!("Error sending raw signal for processing: {}", e);
+                }
+            }
         }
     });
 
     // Start Kafka consumer to listen for candle close events
-    let job_scheduler_clone = job_scheduler.clone();
+    // Wait for historical compute to complete before starting real-time processing
+    let bootstrap_coordinator_clone2 = bootstrap_coordinator.clone();
+    let kafka_job_scheduler = job_scheduler.clone();
 
-    // Spawn Kafka consumer task
     tokio::spawn(async move {
-        if let Err(e) = start_kafka_consumer(job_scheduler_clone).await {
+        // Wait for historical data to be processed (wait for at least some symbols to be ready)
+        println!("Waiting for historical data processing to complete before starting real-time processing...");
+        if let Err(e) = bootstrap_coordinator_clone2.wait_for_readiness_threshold(5).await { // Wait for at least 5 symbols
+            eprintln!("Error waiting for historical data readiness: {}", e);
+        }
+        println!("Historical data processing completed. Starting real-time processing...");
+
+        if let Err(e) = start_kafka_consumer(kafka_job_scheduler).await {
             eprintln!("Kafka consumer error: {}", e);
         }
     });
@@ -147,20 +184,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching symbols from database and starting calculations...");
 
     // Fetch active symbols from the database
-    let symbols_result = fetch_active_symbols_from_db(&db_pool).await;
-    let symbols = match symbols_result {
-        Ok(symbols) => {
-            if symbols.is_empty() {
-                println!("No active symbols found in database, using defaults");
-                vec![Symbol::from("BTCUSDT"), Symbol::from("ETHUSDT")]
-            } else {
-                println!("Fetched {} symbols from database", symbols.len());
-                symbols
+    let symbols = loop {
+        let symbols_res = fetch_active_symbols_from_db(&db_pool).await;
+        match symbols_res {
+            Ok(s) if !s.is_empty() => {
+                println!("Fetched {} symbols from database", s.len());
+                break s;
             }
-        },
-        Err(e) => {
-            eprintln!("Error fetching symbols from database: {}, using defaults", e);
-            vec![Symbol::from("BTCUSDT"), Symbol::from("ETHUSDT")]
+            _ => {
+                println!("Waiting for market.pairs to be populated...");
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
         }
     };
 
@@ -315,30 +349,33 @@ async fn trigger_historical_compute(
 
         // Submit compute jobs for these symbols by updating history status to trigger bootstrap
         for symbol in &symbols {
-            // Get the latest timestamp for this symbol/timeframe to mark as ready
-            let latest_ts_query = format!(
-                "SELECT MAX(time_ms) as latest_time
+            // Get the latest timestamp and count of candles for this symbol/timeframe
+            let stats_query = format!(
+                "SELECT MAX(time_ms) as latest_time, COUNT(*) as total_candles
                  FROM {} c
                  JOIN market.pairs p ON c.symbol_id = p.symbol_id
                  WHERE p.symbol = $1",
                 table_name
             );
 
-            if let Ok(row) = sqlx::query(&latest_ts_query)
+            if let Ok(row) = sqlx::query(&stats_query)
                 .bind(symbol.as_str())
                 .fetch_optional(db_pool)
                 .await
             {
                 if let Some(row) = row {
                     let latest_time: Option<i64> = row.get("latest_time");
-                    let latest_time = latest_time.unwrap_or(0);
+                    let total_candles: i64 = row.get("total_candles");
 
-                    // Update history status to mark this symbol/timeframe as ready for bootstrap
+                    let latest_time = latest_time.unwrap_or(0);
+                    let bars_count = total_candles as usize;
+
+                    // Update history status to mark this symbol/timeframe as ready
                     bootstrap_coordinator.update_history_status(
                         symbol.clone(),
                         *timeframe,
                         latest_time,
-                        1000 // Assume we have enough bars for bootstrap
+                        bars_count // Use actual count of bars
                     ).await;
                 }
             }
@@ -414,12 +451,33 @@ async fn start_kafka_consumer(
                                         };
 
                                         // Create a compute job based on the received candle close event
+                                        // Fetch a window of historical data to calculate indicators properly
+                                        let window_lookback_minutes = 1000; // Look back 1000 minutes
+                                        let window_end = event.close_time;
+                                        let window_start = event.close_time - (window_lookback_minutes * 60000); // Convert minutes to milliseconds
+
                                         let job = ComputeJob {
                                             symbol: Symbol::from(event.symbol),
                                             timeframe,
-                                            window_end: event.close_time,
-                                            window_start: event.close_time - (1000 * 60000), // 1000 minutes lookback
-                                            indicators: vec!["rsi".to_string(), "sr_levels".to_string(), "trend".to_string()],
+                                            window_start,
+                                            window_end,
+                                            indicators: vec![
+                                                "adx".to_string(),
+                                                "atr".to_string(),
+                                                "bb".to_string(),
+                                                "cci".to_string(),
+                                                "ema".to_string(),
+                                                "macd".to_string(),
+                                                "obv".to_string(),
+                                                "rsi".to_string(),
+                                                "sma".to_string(),
+                                                "stoch".to_string(),
+                                                "vwap".to_string(),
+                                                "williams".to_string(),
+                                                "alligator".to_string(),
+                                                "sr_levels".to_string(),
+                                            ],
+                                            candle_window: None, // Will be filled in by process_single_job
                                         };
 
                                         // Submit the job to the scheduler

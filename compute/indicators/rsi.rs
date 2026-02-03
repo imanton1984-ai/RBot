@@ -1,19 +1,17 @@
 use std::vec::Vec;
 
 pub fn calculate_rsi(prices: &[f64], period: usize) -> Vec<f64> {
-    let mut result = Vec::with_capacity(prices.len());
-    
-    if prices.len() < period + 1 {
-        for _ in 0..prices.len() {
-            result.push(f64::NAN);
-        }
+    let n = prices.len();
+    let mut result = vec![f64::NAN; n];
+
+    if n < period + 1 {
         return result;
     }
 
     // Calculate initial average gain and loss
     let mut avg_gain = 0.0;
     let mut avg_loss = 0.0;
-    
+
     for i in 1..=period {
         let change = prices[i] - prices[i - 1];
         if change > 0.0 {
@@ -22,16 +20,20 @@ pub fn calculate_rsi(prices: &[f64], period: usize) -> Vec<f64> {
             avg_loss += change.abs();
         }
     }
-    
+
     avg_gain /= period as f64;
     avg_loss /= period as f64;
-    
-    let rs = if avg_loss != 0.0 { avg_gain / avg_loss } else { 0.0 };
-    let rsi = 100.0 - (100.0 / (1.0 + rs));
-    result.push(rsi);
+
+    // Calculate RSI for the first valid position
+    if avg_loss != 0.0 {
+        let rs = avg_gain / avg_loss;
+        result[period] = 100.0 - (100.0 / (1.0 + rs));
+    } else {
+        result[period] = 100.0;
+    }
 
     // Calculate subsequent values
-    for i in period + 1..prices.len() {
+    for i in (period + 1)..n {
         let change = prices[i] - prices[i - 1];
         let gain = if change > 0.0 { change } else { 0.0 };
         let loss = if change < 0.0 { change.abs() } else { 0.0 };
@@ -39,21 +41,12 @@ pub fn calculate_rsi(prices: &[f64], period: usize) -> Vec<f64> {
         avg_gain = (avg_gain * (period as f64 - 1.0) + gain) / period as f64;
         avg_loss = (avg_loss * (period as f64 - 1.0) + loss) / period as f64;
 
-        let rs = if avg_loss != 0.0 { avg_gain / avg_loss } else { 100.0 };
-        let rsi = 100.0 - (100.0 / (1.0 + rs));
-        result.push(rsi);
-    }
-
-    // Pad beginning with NaN
-    for _ in 0..(period + 1) {
-        if result.len() > 0 {
-            result.insert(0, f64::NAN);
+        if avg_loss != 0.0 {
+            let rs = avg_gain / avg_loss;
+            result[i] = 100.0 - (100.0 / (1.0 + rs));
+        } else {
+            result[i] = 100.0;
         }
-    }
-
-    // Ensure we have the right length
-    while result.len() < prices.len() {
-        result.insert(0, f64::NAN);
     }
 
     result

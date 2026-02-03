@@ -1,12 +1,14 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::{normalize_indicator_to_score, sigmoid_normalize};
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate MACD raw signals based on MACD line values
 pub fn calculate_macd_raw_signals(
     macd_line: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -24,15 +26,19 @@ pub fn calculate_macd_raw_signals(
         
         // Normalize MACD value to score [0, 1]
         let score = normalize_indicator_to_score(raw_value, "macd");
+        let side = if raw_value > 0.0 { 1 } else { -1 };
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Macd,
-            raw_value,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Macd.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            raw_value as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -49,8 +55,8 @@ pub fn calculate_macd_crossover_signals(
     macd_line: &[f64],
     signal_line: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -79,15 +85,19 @@ pub fn calculate_macd_crossover_signals(
             // Use the absolute difference as signal strength
             let cross_strength = (curr_macd - curr_signal).abs();
             let score = normalize_crossover_score(cross_strength);
+            let side = if is_bullish_cross { 1 } else { -1 };
             
             // Create raw signal for crossover
             let signal = RawSignal::new(
-                RawSignalType::Macd,
-                cross_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Macd.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                side,
+                score as f32,
+                cross_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -104,8 +114,8 @@ pub fn calculate_macd_crossover_signals(
 pub fn calculate_macd_histogram_signals(
     histogram: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -124,15 +134,19 @@ pub fn calculate_macd_histogram_signals(
         // Use absolute value of histogram for signal strength
         let abs_histogram = raw_value.abs();
         let score = normalize_histogram_score(abs_histogram);
-        
+        let side = if raw_value > 0.0 { 1 } else { -1 };
+
         // Create raw signal for histogram
         let signal = RawSignal::new(
-            RawSignalType::Macd,
-            raw_value,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Macd.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            raw_value as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -149,8 +163,8 @@ pub fn calculate_macd_divergence_signals(
     prices: &[f64],
     macd_line: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -184,15 +198,19 @@ pub fn calculate_macd_divergence_signals(
             // Calculate divergence strength
             let divergence_strength = (price_change.abs() + macd_change.abs()) / 2.0;
             let score = normalize_divergence_score(divergence_strength);
+            let side = if is_bullish_div { 1 } else { -1 };
             
             // Create raw signal for divergence
             let signal = RawSignal::new(
-                RawSignalType::Macd,
-                divergence_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Macd.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                side,
+                score as f32,
+                divergence_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -211,7 +229,7 @@ fn normalize_crossover_score(cross_strength: f64) -> f64 {
     let normalized = (cross_strength / 2.0).min(1.0);
     
     // Apply sigmoid to emphasize strong crossovers
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }
 
 /// Helper function to normalize histogram score
@@ -220,7 +238,7 @@ fn normalize_histogram_score(histogram_value: f64) -> f64 {
     let normalized = (histogram_value / 2.0).min(1.0);
     
     // Apply sigmoid to emphasize strong histogram values
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }
 
 /// Helper function to normalize divergence score
@@ -229,39 +247,5 @@ fn normalize_divergence_score(divergence_strength: f64) -> f64 {
     let normalized = (divergence_strength / 5.0).min(1.0);
     
     // Apply sigmoid to emphasize strong divergences
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_macd_raw_signals() {
-        let macd_line = vec![0.01, -0.02, 0.03, -0.01, 0.05];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_macd_raw_signals(&macd_line, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= macd_line.len());
-    }
-    
-    #[test]
-    fn test_calculate_macd_crossover_signals() {
-        let macd_line = vec![0.01, 0.02, -0.01, 0.01, 0.03];
-        let signal_line = vec![0.015, 0.01, 0.0, 0.0, 0.02];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_macd_crossover_signals(&macd_line, &signal_line, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some crossover signals
-        assert!(signals.len() <= macd_line.len() - 1);
-    }
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }

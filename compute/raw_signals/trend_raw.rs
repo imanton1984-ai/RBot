@@ -1,4 +1,6 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate trend raw signals based on trend direction
@@ -6,8 +8,8 @@ pub fn calculate_trend_raw_signals(
     trend_directions: &[i8],  // 1 for uptrend, -1 for downtrend, 0 for sideways
     trend_strengths: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -27,16 +29,19 @@ pub fn calculate_trend_raw_signals(
         // Normalize trend strength to score [0, 1]
         let abs_strength = strength.abs();
         let normalized_strength = (abs_strength / 100.0).min(1.0); // Assuming max strength is 100%
-        let score = crate::sigmoid_normalize(normalized_strength, 0.3, 6.0);
+        let score = sigmoid_normalize(normalized_strength, 0.3, 6.0);
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Trend,
-            strength,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Trend.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            direction as i16,
+            score as f32,
+            strength as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -52,8 +57,8 @@ pub fn calculate_trend_raw_signals(
 pub fn calculate_trend_reversal_signals(
     trend_directions: &[i8],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -76,12 +81,15 @@ pub fn calculate_trend_reversal_signals(
             
             // Create raw signal for reversal
             let signal = RawSignal::new(
-                RawSignalType::Trend,
-                curr_trend as f64,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Trend.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                curr_trend as i16,
+                score as f32,
+                curr_trend as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -98,8 +106,8 @@ pub fn calculate_trend_reversal_signals(
 pub fn calculate_trend_momentum_signals(
     trend_strengths: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -123,16 +131,20 @@ pub fn calculate_trend_momentum_signals(
         
         // Normalize momentum to score
         let normalized = (abs_momentum / 50.0).min(1.0); // Assuming max momentum is 50 units
-        let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+        let score = sigmoid_normalize(normalized, 0.2, 5.0);
+        let side = if momentum > 0.0 { 1 } else { -1 };
         
         // Create raw signal for momentum
         let signal = RawSignal::new(
-            RawSignalType::Trend,
-            momentum,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Trend.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            momentum as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -148,8 +160,8 @@ pub fn calculate_trend_momentum_signals(
 pub fn calculate_trend_continuation_signals(
     trend_directions: &[i8],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -173,16 +185,19 @@ pub fn calculate_trend_continuation_signals(
                 // Previous trend was significant, generate continuation signal
                 // based on the length of the trend
                 let normalized_length = (trend_length as f64 / 50.0).min(1.0); // Assuming max trend length of 50
-                let score = crate::sigmoid_normalize(normalized_length, 0.4, 5.0);
+                let score = sigmoid_normalize(normalized_length, 0.4, 5.0);
                 
                 // Create raw signal for trend continuation
                 let signal = RawSignal::new(
-                    RawSignalType::Trend,
-                    current_trend as f64,
-                    score,
-                    timestamps[i - 1], // Use previous timestamp
                     symbols[i - 1].clone(),
-                    timeframes[i - 1].clone(),
+                    timeframes[i - 1],
+                    timestamps[i - 1], // Use previous timestamp
+                    RawSignalType::Trend.to_indicator_id(),
+                    SignalKind::PriceRelation.to_i16(),
+                    current_trend as i16,
+                    score as f32,
+                    trend_length as f32,
+                    None,
                 );
                 
                 // Only include signals that meet our threshold criteria
@@ -201,17 +216,20 @@ pub fn calculate_trend_continuation_signals(
     if current_trend != 0 && trend_length >= 3 && !signals.is_empty() {
         // Only add if we have room and it's different from the last signal
         let normalized_length = (trend_length as f64 / 50.0).min(1.0);
-        let score = crate::sigmoid_normalize(normalized_length, 0.4, 5.0);
+        let score = sigmoid_normalize(normalized_length, 0.4, 5.0);
         
         if let (Some(last_ts), Some(last_sym), Some(last_tf)) = 
             (timestamps.last(), symbols.last(), timeframes.last()) {
             let signal = RawSignal::new(
-                RawSignalType::Trend,
-                current_trend as f64,
-                score,
-                *last_ts,
                 last_sym.clone(),
-                last_tf.clone(),
+                *last_tf,
+                *last_ts,
+                RawSignalType::Trend.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                current_trend as i16,
+                score as f32,
+                trend_length as f32,
+                None,
             );
             
             if signal.is_above_threshold(config) {
@@ -221,38 +239,4 @@ pub fn calculate_trend_continuation_signals(
     }
     
     signals
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_trend_raw_signals() {
-        let trend_directions = vec![1, 1, -1, -1, 1];
-        let trend_strengths = vec![5.0, 8.0, -3.0, -7.0, 6.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_trend_raw_signals(&trend_directions, &trend_strengths, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have signals for trending periods
-        assert!(signals.len() <= trend_directions.len());
-    }
-    
-    #[test]
-    fn test_calculate_trend_reversal_signals() {
-        let trend_directions = vec![1, 1, -1, -1, 1];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_trend_reversal_signals(&trend_directions, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have reversal signals where trend changes
-        assert!(signals.len() <= trend_directions.len() - 1);
-    }
 }

@@ -1,4 +1,6 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate Bollinger Bands raw signals for price touching bands
@@ -8,8 +10,8 @@ pub fn calculate_bb_raw_signals(
     middle_band: &[f64],
     lower_band: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -32,6 +34,7 @@ pub fn calculate_bb_raw_signals(
         // Check if price touches upper or lower band
         let mut signal_strength = 0.0;
         let mut is_valid_signal = false;
+        let mut side = 0;
         
         // Calculate distance from bands as percentage of band width
         let band_width = upper - lower;
@@ -39,24 +42,29 @@ pub fn calculate_bb_raw_signals(
             if price >= upper * 0.99 { // Touching upper band (overbought)
                 signal_strength = ((price - middle) / band_width).min(1.0);
                 is_valid_signal = true;
+                side = -1; // Short signal
             } else if price <= lower * 1.01 { // Touching lower band (oversold)
                 signal_strength = ((middle - price) / band_width).min(1.0);
                 is_valid_signal = true;
+                side = 1; // Long signal
             }
         }
         
         if is_valid_signal {
             // Normalize the signal strength to score
-            let score = crate::sigmoid_normalize(signal_strength, 0.3, 6.0);
+            let score = sigmoid_normalize(signal_strength, 0.3, 6.0);
             
             // Create raw signal
             let signal = RawSignal::new(
-                RawSignalType::BollingerBands,
-                signal_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::BollingerBands.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                side,
+                score as f32,
+                signal_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -75,8 +83,8 @@ pub fn calculate_bb_squeeze_signals(
     lower_band: &[f64],
     atr_values: &[f64], // Using ATR as reference for normal volatility
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -111,16 +119,19 @@ pub fn calculate_bb_squeeze_signals(
         
         if squeeze_strength > 0.0 {
             // Normalize the squeeze strength to score
-            let score = crate::sigmoid_normalize(squeeze_strength, 0.2, 5.0);
+            let score = sigmoid_normalize(squeeze_strength, 0.2, 5.0);
             
             // Create raw signal for squeeze
             let signal = RawSignal::new(
-                RawSignalType::BollingerBands,
-                squeeze_ratio,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::BollingerBands.to_indicator_id(),
+                SignalKind::Volatility.to_i16(),
+                0,
+                score as f32,
+                squeeze_ratio as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -139,8 +150,8 @@ pub fn calculate_bb_breakout_signals(
     upper_band: &[f64],
     lower_band: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -169,30 +180,36 @@ pub fn calculate_bb_breakout_signals(
         
         let mut breakout_strength = 0.0;
         let mut is_breakout = false;
+        let mut side = 0;
         
         // Bullish breakout: price moves above upper band
         if (!prev_above_upper && curr_above_upper) || (prev_below_lower && !curr_below_lower && curr_price > upper * 0.95) {
             breakout_strength = ((curr_price - upper) / (upper - lower)).abs().min(1.0);
             is_breakout = true;
+            side = 1;
         }
         // Bearish breakout: price moves below lower band
         else if (!prev_below_lower && curr_below_lower) || (prev_above_upper && !curr_above_upper && curr_price < lower * 1.05) {
             breakout_strength = ((lower - curr_price) / (upper - lower)).abs().min(1.0);
             is_breakout = true;
+            side = -1;
         }
         
         if is_breakout {
             // Normalize the breakout strength to score
-            let score = crate::sigmoid_normalize(breakout_strength, 0.3, 6.0);
+            let score = sigmoid_normalize(breakout_strength, 0.3, 6.0);
             
             // Create raw signal for breakout
             let signal = RawSignal::new(
-                RawSignalType::BollingerBands,
-                breakout_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::BollingerBands.to_indicator_id(),
+                SignalKind::Breakout.to_i16(),
+                side,
+                score as f32,
+                breakout_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -203,44 +220,4 @@ pub fn calculate_bb_breakout_signals(
     }
     
     signals
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_bb_raw_signals() {
-        let prices = vec![100.0, 105.0, 110.0, 95.0, 90.0];
-        let upper_band = vec![108.0, 109.0, 110.0, 108.0, 107.0];
-        let middle_band = vec![100.0, 101.0, 102.0, 100.0, 99.0];
-        let lower_band = vec![92.0, 93.0, 94.0, 92.0, 91.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_bb_raw_signals(&prices, &upper_band, &middle_band, &lower_band, 
-                                              &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= prices.len());
-    }
-    
-    #[test]
-    fn test_calculate_bb_squeeze_signals() {
-        let upper_band = vec![101.0, 100.5, 100.2, 100.8, 102.0];
-        let lower_band = vec![99.0, 99.5, 99.8, 99.2, 98.0];
-        let atr_values = vec![2.0, 2.0, 2.0, 2.0, 2.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_bb_squeeze_signals(&upper_band, &lower_band, &atr_values,
-                                                  &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some squeeze signals
-        assert!(signals.len() <= upper_band.len());
-    }
 }

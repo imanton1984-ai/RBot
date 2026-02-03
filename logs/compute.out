@@ -1,186 +1,68 @@
 Starting Compute Service...
 Fetching symbols from database and starting calculations...
 Waiting for historical data to be ingested...
-Started Kafka consumer, listening on topic: candles.close
+Waiting for historical data processing to complete before starting real-time processing...
 Waiting for ingestor... (attempt 1/30)
-No active symbols found in database, using defaults
+Waiting for market.pairs to be populated...
+Fetched 56 symbols from database
+Processing 0 computed features
+Processing 0 computed features
 Compute service started successfully. Processing indicators...
-Processing 167 computed features
-Processing 167 computed features
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for ETHUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
-Failed to insert indicators for BTCUSDT: error returned from database: syntax error at or near "$2"
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
+Processing 0 computed features
 Waiting for ingestor... (attempt 6/30)
-Waiting for ingestor... (attempt 11/30)
 Data detected in DB. Starting historical compute...
 Triggering historical compute for existing data...
 Processing historical data for timeframe: M1
@@ -201,318 +83,3 @@ Successfully submitted batch job for H4 with 10 symbols
 Processing historical data for timeframe: D1
 Found 10 symbols for timeframe D1, submitting compute jobs...
 Successfully submitted batch job for D1 with 10 symbols
-Received candle close event: ASTERUSDT 1m at 1769981099999
-Received candle close event: ASTERUSDT 5m at 1769981099999
-Received candle close event: FIGHTUSDT 1m at 1769981099999
-Received candle close event: FIGHTUSDT 5m at 1769981099999
-Received candle close event: RIVERUSDT 1m at 1769981099999
-Received candle close event: RIVERUSDT 5m at 1769981099999
-Received candle close event: TAOUSDT 1m at 1769981099999
-Received candle close event: TAOUSDT 5m at 1769981099999
-Received candle close event: BULLAUSDT 5m at 1769981099999
-Received candle close event: BULLAUSDT 1m at 1769981099999
-Received candle close event: VIRTUALUSDT 1m at 1769981099999
-Received candle close event: VIRTUALUSDT 5m at 1769981099999
-Received candle close event: CYSUSDT 1m at 1769981099999
-Received candle close event: CYSUSDT 5m at 1769981099999
-Received candle close event: PIPPINUSDT 1m at 1769981099999
-Received candle close event: PIPPINUSDT 5m at 1769981099999
-Received candle close event: HYPEUSDT 1m at 1769981099999
-Received candle close event: HYPEUSDT 5m at 1769981099999
-Received candle close event: BNBUSDT 5m at 1769981099999
-Received candle close event: BNBUSDT 1m at 1769981099999
-Received candle close event: XMRUSDT 5m at 1769981099999
-Received candle close event: XMRUSDT 1m at 1769981099999
-Received candle close event: ETHUSDT 1m at 1769981099999
-Received candle close event: ETHUSDT 5m at 1769981099999
-Received candle close event: FRAXUSDT 5m at 1769981099999
-Received candle close event: FRAXUSDT 1m at 1769981099999
-Received candle close event: DASHUSDT 5m at 1769981099999
-Received candle close event: DASHUSDT 1m at 1769981099999
-Received candle close event: DOGEUSDT 5m at 1769981099999
-Received candle close event: DOGEUSDT 1m at 1769981099999
-Received candle close event: CLANKERUSDT 5m at 1769981099999
-Received candle close event: CLANKERUSDT 1m at 1769981099999
-Received candle close event: SOLUSDT 5m at 1769981099999
-Received candle close event: SOLUSDT 1m at 1769981099999
-Received candle close event: BTCUSDT 1m at 1769981099999
-Received candle close event: BTCUSDT 5m at 1769981099999
-Received candle close event: XRPUSDT 5m at 1769981099999
-Received candle close event: XRPUSDT 1m at 1769981099999
-Received candle close event: BCHUSDT 5m at 1769981099999
-Received candle close event: BCHUSDT 1m at 1769981099999
-Received candle close event: 1000SHIBUSDT 1m at 1769981099999
-Received candle close event: 1000SHIBUSDT 5m at 1769981099999
-Received candle close event: BIRBUSDT 5m at 1769981099999
-Received candle close event: BIRBUSDT 1m at 1769981099999
-Received candle close event: ZECUSDT 1m at 1769981099999
-Received candle close event: ZECUSDT 5m at 1769981099999
-Received candle close event: AVAXUSDT 5m at 1769981099999
-Received candle close event: AVAXUSDT 1m at 1769981099999
-Received candle close event: SUIUSDT 1m at 1769981099999
-Received candle close event: SUIUSDT 5m at 1769981099999
-Received candle close event: ENAUSDT 5m at 1769981099999
-Received candle close event: ENAUSDT 1m at 1769981099999
-Received candle close event: 1000BONKUSDT 1m at 1769981099999
-Received candle close event: 1000BONKUSDT 5m at 1769981099999
-Received candle close event: XLMUSDT 1m at 1769981099999
-Received candle close event: XLMUSDT 5m at 1769981099999
-Received candle close event: LINKUSDT 5m at 1769981099999
-Received candle close event: LINKUSDT 1m at 1769981099999
-Received candle close event: 1000PEPEUSDT 1m at 1769981099999
-Received candle close event: 1000PEPEUSDT 5m at 1769981099999
-Received candle close event: AAVEUSDT 1m at 1769981099999
-Received candle close event: AAVEUSDT 5m at 1769981099999
-Received candle close event: AXSUSDT 5m at 1769981099999
-Received candle close event: AXSUSDT 1m at 1769981099999
-Received candle close event: 0GUSDT 1m at 1769981099999
-Received candle close event: 0GUSDT 5m at 1769981099999
-Received candle close event: ZROUSDT 1m at 1769981099999
-Received candle close event: ZROUSDT 5m at 1769981099999
-Received candle close event: ZKPUSDT 5m at 1769981099999
-Received candle close event: ZKPUSDT 1m at 1769981099999
-Received candle close event: SOPHUSDT 1m at 1769981099999
-Received candle close event: SOPHUSDT 5m at 1769981099999
-Received candle close event: WLDUSDT 5m at 1769981099999
-Received candle close event: WLDUSDT 1m at 1769981099999
-Received candle close event: ZKUSDT 1m at 1769981099999
-Received candle close event: ZKUSDT 5m at 1769981099999
-Received candle close event: ENSOUSDT 5m at 1769981099999
-Received candle close event: ENSOUSDT 1m at 1769981099999
-Received candle close event: PENGUUSDT 5m at 1769981099999
-Received candle close event: PENGUUSDT 1m at 1769981099999
-Received candle close event: ZORAUSDT 1m at 1769981099999
-Received candle close event: ZORAUSDT 5m at 1769981099999
-Received candle close event: SYNUSDT 1m at 1769981099999
-Received candle close event: SYNUSDT 5m at 1769981099999
-Received candle close event: LIGHTUSDT 5m at 1769981099999
-Received candle close event: LIGHTUSDT 1m at 1769981099999
-Received candle close event: TRUMPUSDT 5m at 1769981099999
-Received candle close event: TRUMPUSDT 1m at 1769981099999
-Received candle close event: FARTCOINUSDT 1m at 1769981099999
-Received candle close event: FARTCOINUSDT 5m at 1769981099999
-Received candle close event: LTCUSDT 1m at 1769981099999
-Received candle close event: LTCUSDT 5m at 1769981099999
-Received candle close event: WLFIUSDT 5m at 1769981099999
-Received candle close event: WLFIUSDT 1m at 1769981099999
-Received candle close event: HBARUSDT 5m at 1769981099999
-Received candle close event: HBARUSDT 1m at 1769981099999
-Received candle close event: IPUSDT 5m at 1769981099999
-Received candle close event: IPUSDT 1m at 1769981099999
-Received candle close event: NEARUSDT 5m at 1769981099999
-Received candle close event: NEARUSDT 1m at 1769981099999
-Received candle close event: DOTUSDT 5m at 1769981099999
-Received candle close event: DOTUSDT 1m at 1769981099999
-Received candle close event: XPLUSDT 1m at 1769981099999
-Received candle close event: XPLUSDT 5m at 1769981099999
-Received candle close event: PUMPUSDT 5m at 1769981099999
-Received candle close event: PUMPUSDT 1m at 1769981099999
-Received candle close event: ADAUSDT 1m at 1769981099999
-Received candle close event: ADAUSDT 5m at 1769981099999
-Received candle close event: WIFUSDT 1m at 1769981099999
-Received candle close event: WIFUSDT 5m at 1769981099999
-Received candle close event: FILUSDT 1m at 1769981099999
-Received candle close event: FILUSDT 5m at 1769981099999
-Received candle close event: C98USDT 5m at 1769981099999
-Received candle close event: C98USDT 1m at 1769981099999
-Received candle close event: SENTUSDT 5m at 1769981099999
-Received candle close event: SENTUSDT 1m at 1769981099999
-Received candle close event: UNIUSDT 1m at 1769981099999
-Received candle close event: UNIUSDT 5m at 1769981099999
-Received candle close event: ARBUSDT 1m at 1769981099999
-Received candle close event: ARBUSDT 5m at 1769981099999
-Received candle close event: TRXUSDT 1m at 1769981099999
-Received candle close event: TRXUSDT 5m at 1769981099999
-Received candle close event: BREVUSDT 1m at 1769981099999
-Received candle close event: BREVUSDT 5m at 1769981099999
-Received candle close event: CRVUSDT 5m at 1769981099999
-Received candle close event: CRVUSDT 1m at 1769981099999
-Received candle close event: BULLAUSDT 1m at 1769981159999
-Received candle close event: 1000PEPEUSDT 1m at 1769981159999
-Received candle close event: ZORAUSDT 1m at 1769981159999
-Received candle close event: FIGHTUSDT 1m at 1769981159999
-Received candle close event: FRAXUSDT 1m at 1769981159999
-Received candle close event: RIVERUSDT 1m at 1769981159999
-Received candle close event: CLANKERUSDT 1m at 1769981159999
-Received candle close event: DOGEUSDT 1m at 1769981159999
-Received candle close event: ZECUSDT 1m at 1769981159999
-Received candle close event: SOLUSDT 1m at 1769981159999
-Received candle close event: ETHUSDT 1m at 1769981159999
-Received candle close event: XMRUSDT 1m at 1769981159999
-Received candle close event: ZKPUSDT 1m at 1769981159999
-Received candle close event: BIRBUSDT 1m at 1769981159999
-Received candle close event: CYSUSDT 1m at 1769981159999
-Received candle close event: PUMPUSDT 1m at 1769981159999
-Received candle close event: HYPEUSDT 1m at 1769981159999
-Received candle close event: ZKUSDT 1m at 1769981159999
-Received candle close event: VIRTUALUSDT 1m at 1769981159999
-Received candle close event: PENGUUSDT 1m at 1769981159999
-Received candle close event: BTCUSDT 1m at 1769981159999
-Received candle close event: PIPPINUSDT 1m at 1769981159999
-Received candle close event: WIFUSDT 1m at 1769981159999
-Received candle close event: SENTUSDT 1m at 1769981159999
-Received candle close event: FARTCOINUSDT 1m at 1769981159999
-Received candle close event: 1000BONKUSDT 1m at 1769981159999
-Received candle close event: SYNUSDT 1m at 1769981159999
-Received candle close event: LIGHTUSDT 1m at 1769981159999
-Received candle close event: AAVEUSDT 1m at 1769981159999
-Received candle close event: 1000SHIBUSDT 1m at 1769981159999
-Received candle close event: SUIUSDT 1m at 1769981159999
-Received candle close event: ASTERUSDT 1m at 1769981159999
-Received candle close event: LTCUSDT 1m at 1769981159999
-Received candle close event: ENSOUSDT 1m at 1769981159999
-Received candle close event: DOTUSDT 1m at 1769981159999
-Received candle close event: SOPHUSDT 1m at 1769981159999
-Received candle close event: ZROUSDT 1m at 1769981159999
-Received candle close event: TAOUSDT 1m at 1769981159999
-Received candle close event: ARBUSDT 1m at 1769981159999
-Received candle close event: AXSUSDT 1m at 1769981159999
-Received candle close event: IPUSDT 1m at 1769981159999
-Received candle close event: BNBUSDT 1m at 1769981159999
-Received candle close event: FILUSDT 1m at 1769981159999
-Received candle close event: 0GUSDT 1m at 1769981159999
-Received candle close event: WLDUSDT 1m at 1769981159999
-Received candle close event: WLFIUSDT 1m at 1769981159999
-Received candle close event: DASHUSDT 1m at 1769981159999
-Received candle close event: XLMUSDT 1m at 1769981159999
-Received candle close event: C98USDT 1m at 1769981159999
-Received candle close event: LINKUSDT 1m at 1769981159999
-Received candle close event: HBARUSDT 1m at 1769981159999
-Received candle close event: TRXUSDT 1m at 1769981159999
-Received candle close event: TRUMPUSDT 1m at 1769981159999
-Received candle close event: ENAUSDT 1m at 1769981159999
-Received candle close event: ADAUSDT 1m at 1769981159999
-Received candle close event: XPLUSDT 1m at 1769981159999
-Received candle close event: XRPUSDT 1m at 1769981159999
-Received candle close event: BCHUSDT 1m at 1769981159999
-Received candle close event: AVAXUSDT 1m at 1769981159999
-Received candle close event: CRVUSDT 1m at 1769981159999
-Received candle close event: UNIUSDT 1m at 1769981159999
-Received candle close event: NEARUSDT 1m at 1769981159999
-Received candle close event: BREVUSDT 1m at 1769981159999
-Received candle close event: HYPEUSDT 1m at 1769981219999
-Received candle close event: XMRUSDT 1m at 1769981219999
-Received candle close event: LIGHTUSDT 1m at 1769981219999
-Received candle close event: DASHUSDT 1m at 1769981219999
-Received candle close event: IPUSDT 1m at 1769981219999
-Received candle close event: LTCUSDT 1m at 1769981219999
-Received candle close event: BULLAUSDT 1m at 1769981219999
-Received candle close event: BIRBUSDT 1m at 1769981219999
-Received candle close event: BCHUSDT 1m at 1769981219999
-Received candle close event: BTCUSDT 1m at 1769981219999
-Received candle close event: DOTUSDT 1m at 1769981219999
-Received candle close event: SYNUSDT 1m at 1769981219999
-Received candle close event: BNBUSDT 1m at 1769981219999
-Received candle close event: ADAUSDT 1m at 1769981219999
-Received candle close event: 1000PEPEUSDT 1m at 1769981219999
-Received candle close event: RIVERUSDT 1m at 1769981219999
-Received candle close event: PIPPINUSDT 1m at 1769981219999
-Received candle close event: DOGEUSDT 1m at 1769981219999
-Received candle close event: TRXUSDT 1m at 1769981219999
-Received candle close event: FRAXUSDT 1m at 1769981219999
-Received candle close event: ETHUSDT 1m at 1769981219999
-Received candle close event: ENSOUSDT 1m at 1769981219999
-Received candle close event: PUMPUSDT 1m at 1769981219999
-Received candle close event: FIGHTUSDT 1m at 1769981219999
-Received candle close event: SOLUSDT 1m at 1769981219999
-Received candle close event: ZKUSDT 1m at 1769981219999
-Received candle close event: ZECUSDT 1m at 1769981219999
-Received candle close event: CLANKERUSDT 1m at 1769981219999
-Received candle close event: VIRTUALUSDT 1m at 1769981219999
-Received candle close event: PENGUUSDT 1m at 1769981219999
-Received candle close event: WIFUSDT 1m at 1769981219999
-Received candle close event: SENTUSDT 1m at 1769981219999
-Received candle close event: 1000SHIBUSDT 1m at 1769981219999
-Received candle close event: ZROUSDT 1m at 1769981219999
-Received candle close event: XLMUSDT 1m at 1769981219999
-Received candle close event: CYSUSDT 1m at 1769981219999
-Received candle close event: FARTCOINUSDT 1m at 1769981219999
-Received candle close event: ZORAUSDT 1m at 1769981219999
-Received candle close event: AVAXUSDT 1m at 1769981219999
-Received candle close event: XRPUSDT 1m at 1769981219999
-Received candle close event: AAVEUSDT 1m at 1769981219999
-Received candle close event: LINKUSDT 1m at 1769981219999
-Received candle close event: ENAUSDT 1m at 1769981219999
-Received candle close event: TAOUSDT 1m at 1769981219999
-Received candle close event: ARBUSDT 1m at 1769981219999
-Received candle close event: SUIUSDT 1m at 1769981219999
-Received candle close event: HBARUSDT 1m at 1769981219999
-Received candle close event: ASTERUSDT 1m at 1769981219999
-Received candle close event: 0GUSDT 1m at 1769981219999
-Received candle close event: ZKPUSDT 1m at 1769981219999
-Received candle close event: NEARUSDT 1m at 1769981219999
-Received candle close event: WLDUSDT 1m at 1769981219999
-Received candle close event: TRUMPUSDT 1m at 1769981219999
-Received candle close event: UNIUSDT 1m at 1769981219999
-Received candle close event: 1000BONKUSDT 1m at 1769981219999
-Received candle close event: AXSUSDT 1m at 1769981219999
-Received candle close event: FILUSDT 1m at 1769981219999
-Received candle close event: SOPHUSDT 1m at 1769981219999
-Received candle close event: WLFIUSDT 1m at 1769981219999
-Received candle close event: C98USDT 1m at 1769981219999
-Received candle close event: XPLUSDT 1m at 1769981219999
-Received candle close event: BREVUSDT 1m at 1769981219999
-Received candle close event: CRVUSDT 1m at 1769981219999
-Received candle close event: BULLAUSDT 1m at 1769981279999
-Received candle close event: SOPHUSDT 1m at 1769981279999
-Received candle close event: BTCUSDT 1m at 1769981279999
-Received candle close event: ETHUSDT 1m at 1769981279999
-Received candle close event: ZKUSDT 1m at 1769981279999
-Received candle close event: SENTUSDT 1m at 1769981279999
-Received candle close event: ENSOUSDT 1m at 1769981279999
-Received candle close event: BIRBUSDT 1m at 1769981279999
-Received candle close event: 1000PEPEUSDT 1m at 1769981279999
-Received candle close event: BCHUSDT 1m at 1769981279999
-Received candle close event: XRPUSDT 1m at 1769981279999
-Received candle close event: AAVEUSDT 1m at 1769981279999
-Received candle close event: AVAXUSDT 1m at 1769981279999
-Received candle close event: DOGEUSDT 1m at 1769981279999
-Received candle close event: ZECUSDT 1m at 1769981279999
-Received candle close event: VIRTUALUSDT 1m at 1769981279999
-Received candle close event: ADAUSDT 1m at 1769981279999
-Received candle close event: XMRUSDT 1m at 1769981279999
-Received candle close event: BNBUSDT 1m at 1769981279999
-Received candle close event: ZORAUSDT 1m at 1769981279999
-Received candle close event: WIFUSDT 1m at 1769981279999
-Received candle close event: 1000BONKUSDT 1m at 1769981279999
-Received candle close event: RIVERUSDT 1m at 1769981279999
-Received candle close event: ZKPUSDT 1m at 1769981279999
-Received candle close event: SOLUSDT 1m at 1769981279999
-Received candle close event: LIGHTUSDT 1m at 1769981279999
-Received candle close event: 0GUSDT 1m at 1769981279999
-Received candle close event: TAOUSDT 1m at 1769981279999
-Received candle close event: SUIUSDT 1m at 1769981279999
-Received candle close event: XLMUSDT 1m at 1769981279999
-Received candle close event: LINKUSDT 1m at 1769981279999
-Received candle close event: PENGUUSDT 1m at 1769981279999
-Received candle close event: LTCUSDT 1m at 1769981279999
-Received candle close event: XPLUSDT 1m at 1769981279999
-Received candle close event: DASHUSDT 1m at 1769981279999
-Received candle close event: HYPEUSDT 1m at 1769981279999
-Received candle close event: WLFIUSDT 1m at 1769981279999
-Received candle close event: ARBUSDT 1m at 1769981279999
-Received candle close event: WLDUSDT 1m at 1769981279999
-Received candle close event: HBARUSDT 1m at 1769981279999
-Received candle close event: ZROUSDT 1m at 1769981279999
-Received candle close event: CLANKERUSDT 1m at 1769981279999
-Received candle close event: FARTCOINUSDT 1m at 1769981279999
-Received candle close event: NEARUSDT 1m at 1769981279999
-Received candle close event: UNIUSDT 1m at 1769981279999
-Received candle close event: ASTERUSDT 1m at 1769981279999
-Received candle close event: TRUMPUSDT 1m at 1769981279999
-Received candle close event: AXSUSDT 1m at 1769981279999
-Received candle close event: FILUSDT 1m at 1769981279999
-Received candle close event: DOTUSDT 1m at 1769981279999
-Received candle close event: FIGHTUSDT 1m at 1769981279999
-Received candle close event: PIPPINUSDT 1m at 1769981279999
-Received candle close event: PUMPUSDT 1m at 1769981279999
-Received candle close event: TRXUSDT 1m at 1769981279999
-Received candle close event: 1000SHIBUSDT 1m at 1769981279999
-Received candle close event: CYSUSDT 1m at 1769981279999
-Received candle close event: FRAXUSDT 1m at 1769981279999
-Received candle close event: SYNUSDT 1m at 1769981279999
-Received candle close event: BREVUSDT 1m at 1769981279999
-Received candle close event: C98USDT 1m at 1769981279999
-Received candle close event: IPUSDT 1m at 1769981279999
-Received candle close event: ENAUSDT 1m at 1769981279999
-Received candle close event: CRVUSDT 1m at 1769981279999

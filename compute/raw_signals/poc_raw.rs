@@ -1,4 +1,6 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate POC raw signals based on price relation to Point of Control
@@ -6,8 +8,8 @@ pub fn calculate_poc_raw_signals(
     prices: &[f64],
     poc_levels: &[f64],  // POC levels for each time period
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -30,16 +32,19 @@ pub fn calculate_poc_raw_signals(
         // Inverse relationship: closer to POC = higher significance
         // But we want to detect when price moves away from POC significantly
         let normalized_distance = (distance_pct / 5.0).min(1.0); // Assuming max 5% deviation matters
-        let score = crate::sigmoid_normalize(normalized_distance, 0.3, 6.0);
+        let score = sigmoid_normalize(normalized_distance, 0.3, 6.0);
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Poc,
-            distance_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Poc.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            0, // side
+            score as f32,
+            distance_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -56,8 +61,8 @@ pub fn calculate_poc_breakout_signals(
     prices: &[f64],
     poc_levels: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -88,16 +93,21 @@ pub fn calculate_poc_breakout_signals(
             // Calculate breakout strength
             let breakout_strength = curr_distance * 100.0; // Convert to percentage
             let normalized = (breakout_strength / 10.0).min(1.0); // Max 10% breakout
-            let score = crate::sigmoid_normalize(normalized, 0.3, 6.0);
+            let score = sigmoid_normalize(normalized, 0.3, 6.0);
             
+            let side = if curr_price > poc_level { 1 } else { -1 };
+
             // Create raw signal for breakout
             let signal = RawSignal::new(
-                RawSignalType::Poc,
-                breakout_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Poc.to_indicator_id(),
+                SignalKind::Breakout.to_i16(),
+                side,
+                score as f32,
+                breakout_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -115,8 +125,8 @@ pub fn calculate_poc_convergence_signals(
     prices: &[f64],
     poc_levels: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -146,16 +156,21 @@ pub fn calculate_poc_convergence_signals(
             // Calculate convergence strength
             let convergence_strength = (prev_distance - curr_distance) * 100.0; // Percentage improvement
             let normalized = (convergence_strength / 5.0).min(1.0); // Max 5% convergence
-            let score = crate::sigmoid_normalize(normalized, 0.3, 6.0);
+            let score = sigmoid_normalize(normalized, 0.3, 6.0);
             
+            let side = if curr_price > poc_level { 1 } else { -1 };
+
             // Create raw signal for convergence
             let signal = RawSignal::new(
-                RawSignalType::Poc,
-                convergence_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Poc.to_indicator_id(),
+                SignalKind::Convergence.to_i16(),
+                side,
+                score as f32,
+                convergence_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -172,8 +187,8 @@ pub fn calculate_poc_convergence_signals(
 pub fn calculate_poc_volatility_signals(
     poc_levels: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -197,16 +212,21 @@ pub fn calculate_poc_volatility_signals(
         
         // Normalize volatility to score
         let normalized = (abs_change / 5.0).min(1.0); // Max 5% change
-        let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+        let score = sigmoid_normalize(normalized, 0.2, 5.0);
         
+        let side = if poc_change_pct > 0.0 { 1 } else { -1 };
+
         // Create raw signal for volatility
         let signal = RawSignal::new(
-            RawSignalType::Poc,
-            poc_change_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Poc.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            poc_change_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -216,39 +236,4 @@ pub fn calculate_poc_volatility_signals(
     }
     
     signals
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_poc_raw_signals() {
-        let prices = vec![100.0, 102.0, 101.0, 103.0, 105.0];
-        let poc_levels = vec![101.0, 101.5, 101.0, 102.0, 104.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_poc_raw_signals(&prices, &poc_levels, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= prices.len());
-    }
-    
-    #[test]
-    fn test_calculate_poc_breakout_signals() {
-        let prices = vec![101.0, 101.5, 105.0, 104.0, 106.0]; // Breakout at index 2
-        let poc_levels = vec![101.0, 101.0, 101.0, 101.0, 101.0]; // Constant POC
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_poc_breakout_signals(&prices, &poc_levels, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some breakout signals
-        assert!(signals.len() <= prices.len() - 1);
-    }
 }

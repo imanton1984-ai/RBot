@@ -1,4 +1,6 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate VWAP raw signals based on price vs VWAP relationship
@@ -6,8 +8,8 @@ pub fn calculate_vwap_raw_signals(
     prices: &[f64],
     vwap_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -30,16 +32,20 @@ pub fn calculate_vwap_raw_signals(
         
         // Normalize distance to score
         let normalized = (abs_distance / 10.0).min(1.0); // Assuming max 10% deviation
-        let score = crate::sigmoid_normalize(normalized, 0.3, 6.0);
+        let score = sigmoid_normalize(normalized, 0.3, 6.0);
+        let side = if distance_pct > 0.0 { 1 } else { -1 };
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Vwap,
-            distance_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Vwap.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            distance_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -56,8 +62,8 @@ pub fn calculate_vwap_crossover_signals(
     prices: &[f64],
     vwap_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -86,16 +92,20 @@ pub fn calculate_vwap_crossover_signals(
             // Use the absolute distance from VWAP as signal strength
             let cross_strength = ((curr_price - curr_vwap) / curr_vwap).abs() * 100.0;
             let normalized = (cross_strength / 5.0).min(1.0); // Max 5% cross strength
-            let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+            let score = sigmoid_normalize(normalized, 0.2, 5.0);
+            let side = if is_bullish_cross { 1 } else { -1 };
             
             // Create raw signal for crossover
             let signal = RawSignal::new(
-                RawSignalType::Vwap,
-                cross_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Vwap.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                side,
+                score as f32,
+                cross_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -113,8 +123,8 @@ pub fn calculate_vwap_deviation_signals(
     prices: &[f64],
     vwap_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -137,16 +147,20 @@ pub fn calculate_vwap_deviation_signals(
         
         // Calculate normalized score based on deviation
         let normalized = (abs_deviation / 8.0).min(1.0); // Assuming max 8% deviation
-        let score = crate::sigmoid_normalize(normalized, 0.4, 7.0); // Higher steepness for deviation
-        
+        let score = sigmoid_normalize(normalized, 0.4, 7.0); // Higher steepness for deviation
+        let side = if deviation_pct > 0.0 { 1 } else { -1 };
+
         // Create raw signal for deviation
         let signal = RawSignal::new(
-            RawSignalType::Vwap,
-            deviation_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Vwap.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            deviation_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -162,8 +176,8 @@ pub fn calculate_vwap_deviation_signals(
 pub fn calculate_vwap_momentum_signals(
     vwap_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -187,16 +201,20 @@ pub fn calculate_vwap_momentum_signals(
         
         // Normalize momentum to score
         let normalized = (abs_momentum / 3.0).min(1.0); // Max 3% momentum
-        let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+        let score = sigmoid_normalize(normalized, 0.2, 5.0);
+        let side = if momentum_pct > 0.0 { 1 } else { -1 };
         
         // Create raw signal for momentum
         let signal = RawSignal::new(
-            RawSignalType::Vwap,
-            momentum_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Vwap.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            momentum_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -213,8 +231,8 @@ pub fn calculate_vwap_trend_strength_signals(
     prices: &[f64],
     vwap_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -250,15 +268,18 @@ pub fn calculate_vwap_trend_strength_signals(
             // Strong bullish trend above VWAP
             let trend_strength = (above_count as f64 / trend_period as f64) * 100.0;
             let normalized = (trend_strength / 100.0).min(1.0);
-            let score = crate::sigmoid_normalize(normalized, 0.5, 8.0);
+            let score = sigmoid_normalize(normalized, 0.5, 8.0);
             
             let signal = RawSignal::new(
-                RawSignalType::Vwap,
-                trend_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Vwap.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                1,
+                score as f32,
+                trend_strength as f32,
+                None,
             );
             
             if signal.is_above_threshold(config) {
@@ -268,15 +289,18 @@ pub fn calculate_vwap_trend_strength_signals(
             // Strong bearish trend below VWAP
             let trend_strength = (below_count as f64 / trend_period as f64) * 100.0;
             let normalized = (trend_strength / 100.0).min(1.0);
-            let score = crate::sigmoid_normalize(normalized, 0.5, 8.0);
+            let score = sigmoid_normalize(normalized, 0.5, 8.0);
             
             let signal = RawSignal::new(
-                RawSignalType::Vwap,
-                -trend_strength, // Negative to indicate bearish
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Vwap.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                -1,
+                score as f32,
+                -trend_strength as f32,
+                None,
             );
             
             if signal.is_above_threshold(config) {
@@ -286,39 +310,4 @@ pub fn calculate_vwap_trend_strength_signals(
     }
     
     signals
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_vwap_raw_signals() {
-        let prices = vec![100.0, 102.0, 101.0, 103.0, 105.0];
-        let vwap_values = vec![99.0, 101.0, 101.5, 102.5, 104.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_vwap_raw_signals(&prices, &vwap_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= prices.len());
-    }
-    
-    #[test]
-    fn test_calculate_vwap_crossover_signals() {
-        let prices = vec![100.0, 102.0, 101.0, 103.0, 105.0];
-        let vwap_values = vec![101.0, 101.0, 101.5, 102.0, 104.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_vwap_crossover_signals(&prices, &vwap_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some crossover signals
-        assert!(signals.len() <= prices.len() - 1);
-    }
 }

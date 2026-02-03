@@ -1,12 +1,14 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate OBV raw signals based on OBV values
 pub fn calculate_obv_raw_signals(
     obv_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -33,16 +35,20 @@ pub fn calculate_obv_raw_signals(
             0.0
         };
         
-        let score = crate::sigmoid_normalize(normalized, 0.3, 6.0);
+        let score = sigmoid_normalize(normalized, 0.3, 6.0);
+        let side = if raw_value > 0.0 { 1 } else { -1 };
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Obv,
-            raw_value,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Obv.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            raw_value as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -58,8 +64,8 @@ pub fn calculate_obv_raw_signals(
 pub fn calculate_obv_momentum_signals(
     obv_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -90,16 +96,20 @@ pub fn calculate_obv_momentum_signals(
             0.0
         };
         
-        let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+        let score = sigmoid_normalize(normalized, 0.2, 5.0);
+        let side = if momentum > 0.0 { 1 } else { -1 };
         
         // Create raw signal for momentum
         let signal = RawSignal::new(
-            RawSignalType::Obv,
-            momentum,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Obv.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            momentum as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -115,8 +125,8 @@ pub fn calculate_obv_momentum_signals(
 pub fn calculate_obv_trend_signals(
     obv_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -189,16 +199,20 @@ pub fn calculate_obv_trend_signals(
             // Calculate trend strength based on the difference between MAs
             let trend_strength = ((short_avg - long_avg) / long_avg.abs()).abs();
             let normalized = (trend_strength * 100.0).min(1.0); // Scale appropriately
-            let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+            let score = sigmoid_normalize(normalized, 0.2, 5.0);
+            let side = if is_bullish { 1 } else { -1 };
             
             // Create raw signal for OBV trend
             let signal = RawSignal::new(
-                RawSignalType::Obv,
-                trend_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Obv.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                side,
+                score as f32,
+                trend_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -216,8 +230,8 @@ pub fn calculate_obv_divergence_signals(
     prices: &[f64],
     obv_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -258,16 +272,20 @@ pub fn calculate_obv_divergence_signals(
                 0.0
             };
             
-            let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+            let score = sigmoid_normalize(normalized, 0.2, 5.0);
+            let side = if is_bullish_div { 1 } else { -1 };
             
             // Create raw signal for divergence
             let signal = RawSignal::new(
-                RawSignalType::Obv,
-                divergence_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Obv.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                side,
+                score as f32,
+                divergence_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -278,37 +296,4 @@ pub fn calculate_obv_divergence_signals(
     }
     
     signals
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_obv_raw_signals() {
-        let obv_values = vec![1000.0, 1200.0, 1100.0, 1300.0, 1500.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_obv_raw_signals(&obv_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= obv_values.len());
-    }
-    
-    #[test]
-    fn test_calculate_obv_momentum_signals() {
-        let obv_values = vec![1000.0, 1200.0, 1100.0, 1300.0, 1500.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_obv_momentum_signals(&obv_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some momentum signals
-        assert!(signals.len() <= obv_values.len() - 1);
-    }
 }

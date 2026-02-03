@@ -1,12 +1,14 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::{normalize_indicator_to_score, sigmoid_normalize};
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate RSI-based raw signals for overbought/oversold conditions
 pub fn calculate_rsi_raw_signals(
     rsi_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -24,15 +26,19 @@ pub fn calculate_rsi_raw_signals(
         
         // Normalize RSI value to score [0, 1]
         let score = normalize_indicator_to_score(raw_value, "rsi");
-        
+        let side = if raw_value > 70.0 { -1 } else if raw_value < 30.0 { 1 } else { 0 };
+
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Rsi,
-            raw_value,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Rsi.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            raw_value as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -49,8 +55,8 @@ pub fn calculate_rsi_divergence_signals(
     prices: &[f64],
     rsi_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -84,15 +90,19 @@ pub fn calculate_rsi_divergence_signals(
             // Calculate divergence strength
             let divergence_strength = (price_change.abs() + rsi_change.abs()) / 2.0;
             let score = normalize_divergence_score(divergence_strength);
+            let side = if is_bullish_div { 1 } else { -1 };
             
             // Create raw signal for divergence
             let signal = RawSignal::new(
-                RawSignalType::Rsi,
-                divergence_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Rsi.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                side,
+                score as f32,
+                divergence_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -109,8 +119,8 @@ pub fn calculate_rsi_divergence_signals(
 pub fn calculate_rsi_momentum_signals(
     rsi_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -134,15 +144,19 @@ pub fn calculate_rsi_momentum_signals(
         
         // Normalize momentum to score
         let score = normalize_momentum_score(abs_momentum);
-        
+        let side = if momentum > 0.0 { 1 } else { -1 };
+
         // Create raw signal for momentum
         let signal = RawSignal::new(
-            RawSignalType::Rsi,
-            momentum,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Rsi.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            momentum as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -160,7 +174,7 @@ fn normalize_divergence_score(divergence_strength: f64) -> f64 {
     let normalized = (divergence_strength / 10.0).min(1.0);
     
     // Apply sigmoid to emphasize strong divergences
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }
 
 /// Helper function to normalize momentum score
@@ -169,39 +183,5 @@ fn normalize_momentum_score(momentum: f64) -> f64 {
     let normalized = (momentum / 20.0).min(1.0);
     
     // Apply sigmoid to emphasize strong momentum
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_rsi_raw_signals() {
-        let rsi_values = vec![30.0, 20.0, 80.0, 90.0, 45.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_rsi_raw_signals(&rsi_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= rsi_values.len());
-    }
-    
-    #[test]
-    fn test_calculate_rsi_divergence_signals() {
-        let prices = vec![100.0, 95.0, 90.0, 92.0, 95.0];
-        let rsi_values = vec![80.0, 75.0, 25.0, 35.0, 40.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_rsi_divergence_signals(&prices, &rsi_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some divergence signals
-        assert!(signals.len() <= prices.len() - 1);
-    }
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }

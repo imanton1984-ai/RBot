@@ -1,6 +1,7 @@
+use serde::Serialize;
 use std::vec::Vec;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SRLLevel {
     pub price: f64,
     pub strength: f64,  // How many times this level was touched
@@ -8,20 +9,20 @@ pub struct SRLLevel {
     pub intensity: LevelIntensity, // Strong, Mid, Light
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum SRLType {
     Support,
     Resistance,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum LevelIntensity {
     Strong,
     Mid,
     Light,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SRLLevels {
     pub strong_support: f64,
     pub mid_support: f64,

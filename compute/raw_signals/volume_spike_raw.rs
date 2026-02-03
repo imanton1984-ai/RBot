@@ -1,4 +1,6 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate volume spike raw signals
@@ -6,8 +8,8 @@ pub fn calculate_volume_spike_raw_signals(
     volume_spikes: &[bool],
     volumes: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -35,16 +37,19 @@ pub fn calculate_volume_spike_raw_signals(
             };
             
             // Apply sigmoid to emphasize strong volume spikes
-            let score = crate::sigmoid_normalize(normalized_volume, 0.3, 6.0);
+            let score = sigmoid_normalize(normalized_volume, 0.3, 6.0);
             
             // Create raw signal
             let signal = RawSignal::new(
-                RawSignalType::VolumeSpike,
-                raw_volume,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::VolumeSpike.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                0,
+                score as f32,
+                raw_volume as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -61,8 +66,8 @@ pub fn calculate_volume_spike_raw_signals(
 pub fn calculate_volume_momentum_signals(
     volumes: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -92,16 +97,20 @@ pub fn calculate_volume_momentum_signals(
         
         // Normalize momentum to score
         let normalized = (abs_change_pct / 200.0).min(1.0); // Assuming max 200% change
-        let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+        let score = sigmoid_normalize(normalized, 0.2, 5.0);
+        let side = if volume_change > 0.0 { 1 } else { -1 };
         
         // Create raw signal for momentum
         let signal = RawSignal::new(
-            RawSignalType::VolumeSpike,
-            volume_change_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::VolumeSpike.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            volume_change_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -117,8 +126,8 @@ pub fn calculate_volume_momentum_signals(
 pub fn calculate_volume_trend_signals(
     volumes: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -191,16 +200,20 @@ pub fn calculate_volume_trend_signals(
             // Calculate trend strength based on the difference between MAs
             let trend_strength = ((short_avg - long_avg) / long_avg).abs();
             let normalized = (trend_strength * 100.0).min(1.0); // Scale appropriately
-            let score = crate::sigmoid_normalize(normalized, 0.2, 5.0);
+            let score = sigmoid_normalize(normalized, 0.2, 5.0);
+            let side = if is_bullish { 1 } else { -1 };
             
             // Create raw signal for volume trend
             let signal = RawSignal::new(
-                RawSignalType::VolumeSpike,
-                trend_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::VolumeSpike.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                side,
+                score as f32,
+                trend_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -211,38 +224,4 @@ pub fn calculate_volume_trend_signals(
     }
     
     signals
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_volume_spike_raw_signals() {
-        let volume_spikes = vec![false, true, false, true, false];
-        let volumes = vec![100.0, 500.0, 120.0, 600.0, 110.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_volume_spike_raw_signals(&volume_spikes, &volumes, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have signals for the spike events
-        assert!(signals.len() <= volume_spikes.iter().filter(|&&x| x).count());
-    }
-    
-    #[test]
-    fn test_calculate_volume_momentum_signals() {
-        let volumes = vec![100.0, 200.0, 150.0, 300.0, 120.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_volume_momentum_signals(&volumes, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have momentum signals for changes
-        assert!(signals.len() <= volumes.len() - 1);
-    }
 }

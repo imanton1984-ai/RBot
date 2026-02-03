@@ -1,29 +1,42 @@
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use common::{Symbol, Timeframe};
-use crate::{ComputeBackend, ComputeJob, FeatureWindow, ComputeConfig, WindowSpec};
+use crate::{ComputeBackend, ComputeJob, FeatureWindow, ComputeConfig, WindowSpec, CandleWindowFetcher};
 
-pub struct JobScheduler {
+
+pub struct JobSchedulerInner {
     compute_backend: Arc<dyn ComputeBackend>,
     config: ComputeConfig,
     job_queue: Arc<RwLock<Vec<ComputeJob>>>,
     result_sender: mpsc::UnboundedSender<Arc<FeatureWindow>>,
+    candle_fetcher: Arc<CandleWindowFetcher>,
+}
+
+#[derive(Clone)]
+pub struct JobScheduler {
+    inner: Arc<JobSchedulerInner>,
 }
 
 impl JobScheduler {
     pub fn new(
         compute_backend: Arc<dyn ComputeBackend>,
         config: ComputeConfig,
+        candle_fetcher: Arc<CandleWindowFetcher>,
     ) -> (Self, mpsc::UnboundedReceiver<Arc<FeatureWindow>>) {
         let (result_sender, result_receiver) = mpsc::unbounded_channel();
-        
-        let job_scheduler = Self {
+
+        let inner = JobSchedulerInner {
             compute_backend,
             config,
             job_queue: Arc::new(RwLock::new(Vec::new())),
             result_sender,
+            candle_fetcher,
         };
-        
+
+        let job_scheduler = Self {
+            inner: Arc::new(inner),
+        };
+
         (job_scheduler, result_receiver)
     }
 
@@ -31,25 +44,45 @@ impl JobScheduler {
         &self,
         timeframe: Timeframe,
         symbols: Vec<Symbol>,
-        _window_spec: WindowSpec,
+        window_spec: WindowSpec,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut jobs = Vec::new();
+
+        let end_time = chrono::Utc::now().timestamp_millis();
+        let start_time = end_time - (window_spec.length as i64 * 60000); // Assuming 1 minute candles
+
+        let all_windows = self.inner.candle_fetcher.fetch_bulk_candles(&symbols, timeframe, start_time, end_time).await?;
 
         // Create jobs for each symbol
         for symbol in symbols {
             let job = ComputeJob {
-                symbol,
+                symbol: symbol.clone(),
                 timeframe,
-                window_start: 0, // This would come from DB
-                window_end: 0,   // This would come from DB
-                indicators: vec!["rsi".to_string(), "ema".to_string(), "macd".to_string()], // Default indicators
+                window_start: start_time,
+                window_end: end_time,
+                indicators: vec![
+                    "adx".to_string(),
+                    "atr".to_string(),
+                    "bb".to_string(),
+                    "cci".to_string(),
+                    "ema".to_string(),
+                    "macd".to_string(),
+                    "obv".to_string(),
+                    "rsi".to_string(),
+                    "sma".to_string(),
+                    "stoch".to_string(),
+                    "vwap".to_string(),
+                    "williams".to_string(),
+                    "alligator".to_string(),
+                ],
+                candle_window: all_windows.get(&symbol).cloned(),
             };
             jobs.push(job);
         }
 
         // Add jobs to queue
         {
-            let mut queue = self.job_queue.write().await;
+            let mut queue = self.inner.job_queue.write().await;
             queue.extend(jobs);
         }
 
@@ -61,7 +94,7 @@ impl JobScheduler {
 
     async fn process_queue(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let jobs_to_process = {
-            let mut queue = self.job_queue.write().await;
+            let mut queue = self.inner.job_queue.write().await;
             let jobs_to_process = queue.drain(..).collect::<Vec<_>>();
             jobs_to_process
         };
@@ -71,11 +104,11 @@ impl JobScheduler {
         }
 
         // Process jobs in batches
-        for chunk in jobs_to_process.chunks(self.config.batch_size) {
-            let results = self.compute_backend.compute_indicators(chunk.to_vec()).await?;
-            
+        for chunk in jobs_to_process.chunks(self.inner.config.batch_size) {
+            let results = self.inner.compute_backend.compute_indicators(chunk.to_vec()).await?;
+
             for result in results {
-                if let Err(_) = self.result_sender.send(result) {
+                if let Err(_) = self.inner.result_sender.send(result) {
                     // Handle error if receiver dropped
                 }
             }
@@ -86,10 +119,12 @@ impl JobScheduler {
 
     pub async fn process_single_job(
         &self,
-        job: ComputeJob,
+        mut job: ComputeJob,
     ) -> Result<Arc<FeatureWindow>, Box<dyn std::error::Error + Send + Sync>> {
-        let results = self.compute_backend.compute_indicators(vec![job]).await?;
-        
+        let window = self.inner.candle_fetcher.fetch_candle_window(&job.symbol, job.timeframe, job.window_start, job.window_end).await?;
+        job.candle_window = Some(window);
+        let results = self.inner.compute_backend.compute_indicators(vec![job]).await?;
+
         if let Some(result) = results.into_iter().next() {
             Ok(result)
         } else {

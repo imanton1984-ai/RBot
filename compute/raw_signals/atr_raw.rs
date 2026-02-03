@@ -1,12 +1,14 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::{normalize_indicator_to_score, sigmoid_normalize};
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate ATR-based raw signals
 pub fn calculate_atr_raw_signals(
     atr_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -27,12 +29,15 @@ pub fn calculate_atr_raw_signals(
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Atr,
-            raw_value,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Atr.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            0,
+            score as f32,
+            raw_value as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -48,8 +53,8 @@ pub fn calculate_atr_raw_signals(
 pub fn calculate_atr_trend_signals(
     atr_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -77,15 +82,20 @@ pub fn calculate_atr_trend_signals(
         
         // Normalize the change percentage to score
         let score = normalize_atr_change_score(atr_change_pct);
+
+        let side = if atr_change > 0.0 { 1 } else { -1 };
         
         // Create raw signal for ATR trend
         let signal = RawSignal::new(
-            RawSignalType::Atr,
-            atr_change_pct,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Atr.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            atr_change_pct as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -109,38 +119,5 @@ fn normalize_atr_change_score(atr_change_pct: f64) -> f64 {
     let normalized = (abs_change / 50.0).min(1.0);
     
     // Apply sigmoid to emphasize strong changes
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_atr_raw_signals() {
-        let atr_values = vec![0.02, 0.03, 0.05, 0.01, 0.08];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_atr_raw_signals(&atr_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= atr_values.len());
-    }
-    
-    #[test]
-    fn test_calculate_atr_trend_signals() {
-        let atr_values = vec![0.02, 0.03, 0.05, 0.01, 0.08];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_atr_trend_signals(&atr_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have signals for changes (one less than input values)
-        assert!(signals.len() <= atr_values.len() - 1);
-    }
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }

@@ -1,6 +1,5 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use common::{Symbol, Timeframe};
+use sqlx::{PgPool, Row};
 
 #[derive(Debug, Clone)]
 pub struct CandleWindow {
@@ -13,48 +12,55 @@ pub struct CandleWindow {
 }
 
 pub struct CandleWindowFetcher {
-    // In a real implementation, this would hold DB connection info
-    _db_connection: Arc<RwLock<String>>, // Placeholder
+    db_pool: PgPool,
 }
 
 impl CandleWindowFetcher {
-    pub fn new(db_url: String) -> Self {
+    pub fn new(db_pool: PgPool) -> Self {
         Self {
-            _db_connection: Arc::new(RwLock::new(db_url)),
+            db_pool,
         }
     }
 
     pub async fn fetch_candle_window(
         &self,
-        _symbol: &Symbol,
-        _timeframe: Timeframe,
+        symbol: &Symbol,
+        timeframe: Timeframe,
         start_time: i64,
         end_time: i64,
     ) -> Result<CandleWindow, Box<dyn std::error::Error + Send + Sync>> {
-        // In a real implementation, this would query the database
-        // For now, we'll return dummy data
-        
-        // Simulate fetching from DB
+        let table_name = format!("market.candles_{}", timeframe.as_str());
+
+        let query = format!(
+            "SELECT time_ms, open, high, low, close, volume
+             FROM {}
+             WHERE symbol_id = (SELECT symbol_id FROM market.pairs WHERE symbol = $1)
+             AND time_ms >= $2 AND time_ms <= $3
+             ORDER BY time_ms ASC",
+            table_name
+        );
+
+        let rows = sqlx::query(&query)
+            .bind(symbol.as_str())
+            .bind(start_time)
+            .bind(end_time)
+            .fetch_all(&self.db_pool)
+            .await?;
+
         let mut open = Vec::new();
         let mut high = Vec::new();
         let mut low = Vec::new();
         let mut close = Vec::new();
         let mut volume = Vec::new();
         let mut timestamps = Vec::new();
-        
-        // Generate dummy data
-        let num_bars = ((end_time - start_time) / 60000) as usize; // Assuming 1-minute candles
-        
-        for i in 0..num_bars {
-            let ts = start_time + (i as i64 * 60000);
-            let base_price = 100.0 + (i as f64 * 0.1);
-            
-            timestamps.push(ts);
-            open.push(base_price);
-            high.push(base_price + 0.5);
-            low.push(base_price - 0.5);
-            close.push(base_price + if i % 2 == 0 { 0.2 } else { -0.2 });
-            volume.push(1000.0 + (i as f64 * 10.0));
+
+        for row in rows {
+            timestamps.push(row.get("time_ms"));
+            open.push(row.get::<f64, _>("open"));
+            high.push(row.get::<f64, _>("high"));
+            low.push(row.get::<f64, _>("low"));
+            close.push(row.get::<f64, _>("close"));
+            volume.push(row.get::<f64, _>("volume"));
         }
 
         Ok(CandleWindow {

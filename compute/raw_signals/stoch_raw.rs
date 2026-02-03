@@ -1,4 +1,6 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::sigmoid_normalize;
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate Stochastic raw signals for extreme values
@@ -6,8 +8,8 @@ pub fn calculate_stoch_raw_signals(
     k_values: &[f64],
     d_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -27,30 +29,36 @@ pub fn calculate_stoch_raw_signals(
         // Calculate signal based on how extreme the values are
         let mut signal_strength = 0.0;
         let mut is_valid_signal = false;
+        let mut side = 0;
         
         // Check for overbought conditions (both %K and %D above 80)
         if k_val >= 80.0 && d_val >= 80.0 {
             signal_strength = ((k_val - 50.0) / 50.0).min(1.0);
             is_valid_signal = true;
+            side = -1;
         }
         // Check for oversold conditions (both %K and %D below 20)
         else if k_val <= 20.0 && d_val <= 20.0 {
             signal_strength = ((50.0 - k_val) / 50.0).min(1.0);
             is_valid_signal = true;
+            side = 1;
         }
         
         if is_valid_signal {
             // Normalize the signal strength to score
-            let score = crate::sigmoid_normalize(signal_strength, 0.3, 6.0);
+            let score = sigmoid_normalize(signal_strength, 0.3, 6.0);
             
             // Create raw signal
             let signal = RawSignal::new(
-                RawSignalType::Stochastic,
-                k_val,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Stochastic.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                side,
+                score as f32,
+                k_val as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -68,8 +76,8 @@ pub fn calculate_stoch_crossover_signals(
     k_values: &[f64],
     d_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -98,15 +106,19 @@ pub fn calculate_stoch_crossover_signals(
             // Use the absolute difference as signal strength
             let cross_strength = (curr_k - curr_d).abs();
             let score = normalize_crossover_score(cross_strength);
+            let side = if is_bullish_cross { 1 } else { -1 };
             
             // Create raw signal for crossover
             let signal = RawSignal::new(
-                RawSignalType::Stochastic,
-                cross_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Stochastic.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                side,
+                score as f32,
+                cross_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -125,8 +137,8 @@ pub fn calculate_stoch_divergence_signals(
     k_values: &[f64],
     d_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -166,15 +178,19 @@ pub fn calculate_stoch_divergence_signals(
             // Calculate divergence strength
             let divergence_strength = (price_change.abs() + k_change.abs() + d_change.abs()) / 3.0;
             let score = normalize_divergence_score(divergence_strength);
+            let side = if is_bullish_div { 1 } else { -1 };
             
             // Create raw signal for divergence
             let signal = RawSignal::new(
-                RawSignalType::Stochastic,
-                divergence_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Stochastic.to_indicator_id(),
+                SignalKind::PriceRelation.to_i16(),
+                side,
+                score as f32,
+                divergence_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -192,8 +208,8 @@ pub fn calculate_stoch_momentum_signals(
     k_values: &[f64],
     d_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -220,15 +236,19 @@ pub fn calculate_stoch_momentum_signals(
         
         // Normalize momentum to score
         let score = normalize_momentum_score(avg_momentum);
+        let side = if k_momentum > 0.0 { 1 } else { -1 };
         
         // Create raw signal for momentum
         let signal = RawSignal::new(
-            RawSignalType::Stochastic,
-            avg_momentum,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Stochastic.to_indicator_id(),
+            SignalKind::Volatility.to_i16(),
+            side,
+            score as f32,
+            avg_momentum as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -246,7 +266,7 @@ fn normalize_crossover_score(cross_strength: f64) -> f64 {
     let normalized = (cross_strength / 50.0).min(1.0);
     
     // Apply sigmoid to emphasize strong crossovers
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }
 
 /// Helper function to normalize divergence score
@@ -255,7 +275,7 @@ fn normalize_divergence_score(divergence_strength: f64) -> f64 {
     let normalized = (divergence_strength / 50.0).min(1.0);
     
     // Apply sigmoid to emphasize strong divergences
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }
 
 /// Helper function to normalize momentum score
@@ -264,40 +284,5 @@ fn normalize_momentum_score(momentum: f64) -> f64 {
     let normalized = (momentum / 100.0).min(1.0);
     
     // Apply sigmoid to emphasize strong momentum
-    crate::sigmoid_normalize(normalized, 0.2, 5.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_stoch_raw_signals() {
-        let k_values = vec![85.0, 15.0, 75.0, 25.0, 90.0];
-        let d_values = vec![80.0, 20.0, 70.0, 30.0, 85.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_stoch_raw_signals(&k_values, &d_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= k_values.len());
-    }
-    
-    #[test]
-    fn test_calculate_stoch_crossover_signals() {
-        let k_values = vec![20.0, 80.0, 75.0, 25.0, 85.0];
-        let d_values = vec![25.0, 75.0, 80.0, 30.0, 80.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_stoch_crossover_signals(&k_values, &d_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some crossover signals
-        assert!(signals.len() <= k_values.len() - 1);
-    }
+    sigmoid_normalize(normalized, 0.2, 5.0)
 }

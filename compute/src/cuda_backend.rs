@@ -2,10 +2,8 @@ use std::sync::Arc;
 use common::{Symbol, Timeframe};
 use crate::{
     ComputeBackend, ComputeJob, ComputeResult, FeatureWindow,
-    BatchTensor
+    BatchTensor, FeatureValue
 };
-#[cfg(feature = "cuda")]
-use cuda::IndicatorKernelRunner;
 
 pub struct CudaBackend {
     #[allow(dead_code)]
@@ -22,22 +20,16 @@ impl CudaBackend {
     }
 
     pub fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // In a real implementation, this would initialize CUDA
-        // For now, we'll just check if CUDA is available
         if self.is_cuda_available() {
             self.initialized = true;
             Ok(())
         } else {
-            // If CUDA is not available, we can still use the backend as a wrapper that falls back to CPU
-            // This allows the system to work on machines without CUDA
-            self.initialized = true; // Mark as initialized anyway to allow fallback
+            self.initialized = true; 
             Ok(())
         }
     }
 
     fn is_cuda_available(&self) -> bool {
-        // In a real implementation, this would check for CUDA availability
-        // For now, we'll return true if the CUDA feature is enabled
         cfg!(feature = "cuda")
     }
 
@@ -46,12 +38,10 @@ impl CudaBackend {
         input: &[f64],
         period: usize,
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        // Check if CUDA is available, if not fall back to CPU
         if !self.initialized || !self.is_cuda_available() {
             return Ok(super::cpu_backend::CpuBackend::calculate_rsi(input, period));
         }
 
-        // Use the CUDA indicator kernels implementation
         let runner = cuda::IndicatorKernelRunner::new();
         runner.calculate_rsi(input, period)
     }
@@ -61,12 +51,10 @@ impl CudaBackend {
         input: &[f64],
         period: usize,
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        // Check if CUDA is available, if not fall back to CPU
         if !self.initialized || !self.is_cuda_available() {
             return Ok(super::cpu_backend::CpuBackend::calculate_ema(input, period));
         }
 
-        // Use the CUDA indicator kernels implementation
         let runner = cuda::IndicatorKernelRunner::new();
         runner.calculate_ema(input, period)
     }
@@ -78,25 +66,132 @@ impl CudaBackend {
         slow_period: usize,
         signal_period: usize,
     ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
-        // Check if CUDA is available, if not fall back to CPU
         if !self.initialized || !self.is_cuda_available() {
             return Ok(super::cpu_backend::CpuBackend::calculate_macd(input, fast_period, slow_period, signal_period));
         }
 
-        // Use the CUDA indicator kernels implementation
         let runner = cuda::IndicatorKernelRunner::new();
         runner.calculate_macd(input, fast_period, slow_period, signal_period)
     }
+
+    fn run_adx_kernel(
+        &self,
+        high: &[f64], low: &[f64], close: &[f64], period: usize
+    ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_adx(high, low, close, period));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_adx(high, low, close, period)
+    }
+
+    fn run_atr_kernel(
+        &self,
+        high: &[f64], low: &[f64], close: &[f64], period: usize
+    ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_atr(high, low, close, period));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_atr(high, low, close, period)
+    }
+
+    fn run_bollinger_bands_kernel(
+        &self,
+        prices: &[f64],
+        period: usize,
+        num_std_dev: f64,
+    ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_bollinger_bands(prices, period, num_std_dev));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_bollinger_bands(prices, period, num_std_dev)
+    }
+    
+    fn run_cci_kernel(
+        &self,
+        high: &[f64], low: &[f64], close: &[f64], period: usize
+    ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_cci(high, low, close, period));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_cci(high, low, close, period)
+    }
+
+    fn run_obv_kernel(
+        &self,
+        close: &[f64], volume: &[f64]
+    ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_obv(close, volume));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_obv(close, volume)
+    }
+
+    fn run_stochastic_kernel(
+        &self,
+        high: &[f64],
+        low: &[f64],
+        close: &[f64],
+        k_period: usize,
+        d_period: usize,
+    ) -> Result<(Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_stochastic(high, low, close, k_period, d_period));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_stochastic(high, low, close, k_period, d_period)
+    }
+
+    fn run_vwap_kernel(
+        &self,
+        high: &[f64], low: &[f64], close: &[f64], volume: &[f64]
+    ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_vwap(high, low, close, volume));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_vwap(high, low, close, volume)
+    }
+
+    fn run_williams_r_kernel(
+        &self,
+        high: &[f64], low: &[f64], close: &[f64], period: usize
+    ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_williams_r(high, low, close, period));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_williams_r(high, low, close, period)
+    }
+    
+    fn run_alligator_kernel(
+        &self,
+        source: &[f64],
+        jaw_period: usize,
+        teeth_period: usize,
+        lips_period: usize,
+        jaw_offset: usize,
+        teeth_offset: usize,
+        lips_offset: usize,
+    ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.initialized || !self.is_cuda_available() {
+            return Ok(super::cpu_backend::CpuBackend::calculate_alligator(source, jaw_period, teeth_period, lips_period, jaw_offset, teeth_offset, lips_offset));
+        }
+        let runner = cuda::IndicatorKernelRunner::new();
+        runner.calculate_alligator(source, jaw_period, teeth_period, lips_period, jaw_offset, teeth_offset, lips_offset)
+    }
+
 
     #[allow(dead_code)]
     fn run_batch_kernel(
         &self,
         _batch_tensor: &BatchTensor,
     ) -> Result<Vec<Arc<FeatureWindow>>, Box<dyn std::error::Error + Send + Sync>> {
-        // In a real implementation, this would run CUDA kernels on batched data
-        // For now, we'll fall back to CPU calculation
-        // This is a simplified implementation
-        Ok(vec![]) // Return empty for now
+        Ok(vec![])
     }
 }
 
@@ -107,7 +202,6 @@ impl ComputeBackend for CudaBackend {
         jobs: Vec<ComputeJob>,
     ) -> Result<Vec<Arc<FeatureWindow>>, Box<dyn std::error::Error + Send + Sync>> {
         if !self.initialized {
-            // If CUDA is not initialized, fall back to CPU
             let cpu_backend = super::cpu_backend::CpuBackend::new();
             return cpu_backend.compute_indicators(jobs).await;
         }
@@ -115,67 +209,240 @@ impl ComputeBackend for CudaBackend {
         let mut results = Vec::new();
 
         for job in jobs {
-            // In a real implementation, we would fetch the price data from DB based on job.window_start and job.window_end
-            // For now, we'll simulate with dummy data
-            let prices: Vec<f64> = (0..100).map(|i| 100.0 + (i as f64 * 0.1)).collect(); // Simulated price data
+            let candle_window = match &job.candle_window {
+                Some(cw) => cw,
+                None => continue,
+            };
             
             let mut features = Vec::new();
             
             for indicator in &job.indicators {
                 match indicator.as_str() {
-                    "rsi" => {
-                        let rsi_values = self.run_rsi_kernel(&prices, 14)?;
-                        for (i, &rsi_val) in rsi_values.iter().enumerate() {
-                            if !rsi_val.is_nan() {
+                    "adx" => {
+                        let adx_values = self.run_adx_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
+                        for (i, &adx_val) in adx_values.iter().enumerate() {
+                            if !adx_val.is_nan() {
                                 let mut feature_map = std::collections::HashMap::new();
-                                feature_map.insert("rsi_14".to_string(), rsi_val);
+                                feature_map.insert("adx".to_string(), FeatureValue::Float(adx_val));
                                 
                                 features.push(ComputeResult {
                                     symbol: job.symbol.clone(),
                                     timeframe: job.timeframe,
-                                    timestamp: (i as i64) * 60000, // Assuming 1-minute intervals
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "atr" => {
+                        let atr_values = self.run_atr_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
+                        for (i, &atr_val) in atr_values.iter().enumerate() {
+                            if !atr_val.is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("atr".to_string(), FeatureValue::Float(atr_val));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "bb" => {
+                        let (upper, middle, lower) = self.run_bollinger_bands_kernel(&candle_window.close, 20, 2.0)?;
+                        for i in 0..upper.len() {
+                            if !upper[i].is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("bb_upper".to_string(), FeatureValue::Float(upper[i]));
+                                feature_map.insert("bb_mid".to_string(), FeatureValue::Float(middle[i]));
+                                feature_map.insert("bb_lower".to_string(), FeatureValue::Float(lower[i]));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "cci" => {
+                        let cci_values = self.run_cci_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 20)?;
+                        for (i, &cci_val) in cci_values.iter().enumerate() {
+                            if !cci_val.is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("cci".to_string(), FeatureValue::Float(cci_val));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
                                     features: feature_map,
                                 });
                             }
                         }
                     }
                     "ema" => {
-                        let ema_values = self.run_ema_kernel(&prices, 20)?;
-                        for (i, &ema_val) in ema_values.iter().enumerate() {
-                            if !ema_val.is_nan() {
+                        let ema20 = self.run_ema_kernel(&candle_window.close, 20)?;
+                        let ema50 = self.run_ema_kernel(&candle_window.close, 50)?;
+                        let ema200 = self.run_ema_kernel(&candle_window.close, 200)?;
+                        for i in 0..ema20.len() {
+                            if !ema20[i].is_nan() || !ema50[i].is_nan() || !ema200[i].is_nan() {
                                 let mut feature_map = std::collections::HashMap::new();
-                                feature_map.insert("ema_20".to_string(), ema_val);
+                                if !ema20[i].is_nan() {
+                                    feature_map.insert("ema20".to_string(), FeatureValue::Float(ema20[i]));
+                                }
+                                if !ema50[i].is_nan() {
+                                    feature_map.insert("ema50".to_string(), FeatureValue::Float(ema50[i]));
+                                }
+                                if !ema200[i].is_nan() {
+                                    feature_map.insert("ema200".to_string(), FeatureValue::Float(ema200[i]));
+                                }
                                 
                                 features.push(ComputeResult {
                                     symbol: job.symbol.clone(),
                                     timeframe: job.timeframe,
-                                    timestamp: (i as i64) * 60000,
+                                    timestamp: candle_window.timestamps[i],
                                     features: feature_map,
                                 });
                             }
                         }
                     }
                     "macd" => {
-                        let (macd_line, signal_line, histogram) = self.run_macd_kernel(&prices, 12, 26, 9)?;
+                        let (macd_line, signal_line, histogram) = self.run_macd_kernel(&candle_window.close, 12, 26, 9)?;
                         
                         for i in 0..macd_line.len() {
                             if !macd_line[i].is_nan() && !signal_line[i].is_nan() && !histogram[i].is_nan() {
                                 let mut feature_map = std::collections::HashMap::new();
-                                feature_map.insert("macd_line".to_string(), macd_line[i]);
-                                feature_map.insert("macd_signal".to_string(), signal_line[i]);
-                                feature_map.insert("macd_histogram".to_string(), histogram[i]);
+                                feature_map.insert("macd".to_string(), FeatureValue::Float(macd_line[i]));
+                                feature_map.insert("macd_signal".to_string(), FeatureValue::Float(signal_line[i]));
+                                feature_map.insert("macd_hist".to_string(), FeatureValue::Float(histogram[i]));
                                 
                                 features.push(ComputeResult {
                                     symbol: job.symbol.clone(),
                                     timeframe: job.timeframe,
-                                    timestamp: (i as i64) * 60000,
+                                    timestamp: candle_window.timestamps[i],
                                     features: feature_map,
                                 });
                             }
                         }
                     }
+                    "obv" => {
+                        let obv_values = self.run_obv_kernel(&candle_window.close, &candle_window.volume)?;
+                        for (i, &obv_val) in obv_values.iter().enumerate() {
+                            if !obv_val.is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("obv".to_string(), FeatureValue::Float(obv_val));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "rsi" => {
+                        let rsi_values = self.run_rsi_kernel(&candle_window.close, 14)?;
+                        for (i, &rsi_val) in rsi_values.iter().enumerate() {
+                            if !rsi_val.is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("rsi".to_string(), FeatureValue::Float(rsi_val));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "stoch" => {
+                        let (k, d) = self.run_stochastic_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14, 3)?;
+                        for i in 0..k.len() {
+                            if !k[i].is_nan() && !d[i].is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("stoch_k".to_string(), FeatureValue::Float(k[i]));
+                                feature_map.insert("stoch_d".to_string(), FeatureValue::Float(d[i]));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "vwap" => {
+                        let vwap_values = self.run_vwap_kernel(&candle_window.high, &candle_window.low, &candle_window.close, &candle_window.volume)?;
+                        for (i, &vwap_val) in vwap_values.iter().enumerate() {
+                            if !vwap_val.is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("vwap".to_string(), FeatureValue::Float(vwap_val));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "williams" => {
+                        let williams_values = self.run_williams_r_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
+                        for (i, &williams_val) in williams_values.iter().enumerate() {
+                            if !williams_val.is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("williams".to_string(), FeatureValue::Float(williams_val));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "alligator" => {
+                        let (jaw, teeth, lips) = self.run_alligator_kernel(&candle_window.close, 13, 8, 5, 8, 5, 3)?;
+                        for i in 0..jaw.len() {
+                            if !jaw[i].is_nan() && !teeth[i].is_nan() && !lips[i].is_nan() {
+                                let mut feature_map = std::collections::HashMap::new();
+                                feature_map.insert("alli_jaw".to_string(), FeatureValue::Float(jaw[i]));
+                                feature_map.insert("alli_teeth".to_string(), FeatureValue::Float(teeth[i]));
+                                feature_map.insert("alli_lips".to_string(), FeatureValue::Float(lips[i]));
+                                
+                                features.push(ComputeResult {
+                                    symbol: job.symbol.clone(),
+                                    timeframe: job.timeframe,
+                                    timestamp: candle_window.timestamps[i],
+                                    features: feature_map,
+                                });
+                            }
+                        }
+                    }
+                    "sr_levels" => {
+                        let levels = compute_indicators::calculate_sr_levels(&candle_window.high, &candle_window.low, &candle_window.close, 0.5);
+                        if let Ok(json_levels) = serde_json::to_value(&levels) {
+                            let mut feature_map = std::collections::HashMap::new();
+                            feature_map.insert("sr_levels".to_string(), FeatureValue::Json(json_levels));
+
+                            features.push(ComputeResult {
+                                symbol: job.symbol.clone(),
+                                timeframe: job.timeframe,
+                                timestamp: candle_window.timestamps.last().cloned().unwrap_or(job.window_end),
+                                features: feature_map,
+                            });
+                        }
+                    }
                     _ => {
-                        // For other indicators, we could add more cases
                     }
                 }
             }
@@ -184,6 +451,7 @@ impl ComputeBackend for CudaBackend {
                 features,
                 start_time: job.window_start,
                 end_time: job.window_end,
+                candle_window: job.candle_window.clone(),
             });
 
             results.push(feature_window);
@@ -200,7 +468,6 @@ impl ComputeBackend for CudaBackend {
         indicator_name: &str,
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
         if !self.initialized {
-            // If CUDA is not initialized, fall back to CPU
             let cpu_backend = super::cpu_backend::CpuBackend::new();
             return cpu_backend.compute_single_indicator(symbol, timeframe, prices, indicator_name).await;
         }
@@ -209,7 +476,6 @@ impl ComputeBackend for CudaBackend {
             "rsi" => self.run_rsi_kernel(prices, 14),
             "ema" => self.run_ema_kernel(prices, 20),
             _ => {
-                // Fall back to CPU implementation for unsupported indicators
                 let cpu_backend = super::cpu_backend::CpuBackend::new();
                 cpu_backend.compute_single_indicator(symbol, timeframe, prices, indicator_name).await
             }

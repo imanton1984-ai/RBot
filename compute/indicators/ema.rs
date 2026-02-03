@@ -1,33 +1,27 @@
 use std::vec::Vec;
 
 pub fn calculate_ema(prices: &[f64], period: usize) -> Vec<f64> {
-    let mut result = Vec::with_capacity(prices.len());
-    let multiplier = 2.0 / (period as f64 + 1.0);
-    
-    // Calculate SMA for the first EMA value
-    if prices.len() < period {
-        for _ in 0..prices.len() {
-            result.push(f64::NAN);
-        }
+    let n = prices.len();
+    let mut result = vec![f64::NAN; n];
+
+    if n < period {
         return result;
     }
 
+    let multiplier = 2.0 / (period as f64 + 1.0);
+
+    // Calculate SMA for the first EMA value
     let mut sma_sum = 0.0;
     for i in 0..period {
         sma_sum += prices[i];
     }
     let mut ema = sma_sum / period as f64;
-    result.push(ema);
+    result[period - 1] = ema;
 
     // Calculate subsequent EMA values
-    for i in period..prices.len() {
+    for i in period..n {
         ema = (prices[i] - ema) * multiplier + ema;
-        result.push(ema);
-    }
-
-    // Pad beginning with NaN
-    for _ in 0..(period - 1) {
-        result.insert(0, f64::NAN);
+        result[i] = ema;
     }
 
     result

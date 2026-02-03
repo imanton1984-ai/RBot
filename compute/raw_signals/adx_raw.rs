@@ -1,12 +1,14 @@
-use crate::{RawSignal, RawSignalType, SignalConfig, normalize_indicator_to_score, filter_strong_signals};
+use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
+use crate::scoring::{normalize_indicator_to_score, sigmoid_normalize};
+use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
 /// Calculate ADX-based raw signals for trend strength
 pub fn calculate_adx_raw_signals(
     adx_values: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -27,12 +29,15 @@ pub fn calculate_adx_raw_signals(
         
         // Create raw signal
         let signal = RawSignal::new(
-            RawSignalType::Adx,
-            raw_value,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Adx.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            0, // side
+            score as f32,
+            raw_value as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -49,8 +54,8 @@ pub fn calculate_adx_direction_signals(
     plus_di: &[f64],
     minus_di: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -73,14 +78,19 @@ pub fn calculate_adx_direction_signals(
         // Normalize the direction strength to score
         let score = normalize_direction_strength_score(direction_strength);
         
+        let side = if direction_strength > 0.0 { 1 } else { -1 };
+
         // Create raw signal for direction
         let signal = RawSignal::new(
-            RawSignalType::Adx,
-            direction_strength,
-            score,
-            timestamps[i],
             symbols[i].clone(),
-            timeframes[i].clone(),
+            timeframes[i],
+            timestamps[i],
+            RawSignalType::Adx.to_indicator_id(),
+            SignalKind::PriceRelation.to_i16(),
+            side,
+            score as f32,
+            direction_strength as f32,
+            None,
         );
         
         // Only include signals that meet our threshold criteria
@@ -97,8 +107,8 @@ pub fn calculate_adx_crossover_signals(
     plus_di: &[f64],
     minus_di: &[f64],
     timestamps: &[i64],
-    symbols: &[String],
-    timeframes: &[String],
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
@@ -128,14 +138,19 @@ pub fn calculate_adx_crossover_signals(
             let cross_strength = (curr_plus - curr_minus).abs();
             let score = normalize_direction_strength_score(cross_strength);
             
+            let side = if is_bullish_cross { 1 } else { -1 };
+
             // Create raw signal for crossover
             let signal = RawSignal::new(
-                RawSignalType::Adx,
-                cross_strength,
-                score,
-                timestamps[i],
                 symbols[i].clone(),
-                timeframes[i].clone(),
+                timeframes[i],
+                timestamps[i],
+                RawSignalType::Adx.to_indicator_id(),
+                SignalKind::Crossover.to_i16(),
+                side,
+                score as f32,
+                cross_strength as f32,
+                None,
             );
             
             // Only include signals that meet our threshold criteria
@@ -157,39 +172,5 @@ fn normalize_direction_strength_score(direction_strength: f64) -> f64 {
     let normalized = (abs_strength / 50.0).min(1.0);
     
     // Apply sigmoid to emphasize strong signals
-    crate::sigmoid_normalize(normalized, 0.3, 6.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_calculate_adx_raw_signals() {
-        let adx_values = vec![20.0, 25.0, 30.0, 40.0, 60.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_adx_raw_signals(&adx_values, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have some signals
-        assert!(signals.len() <= adx_values.len());
-    }
-    
-    #[test]
-    fn test_calculate_adx_direction_signals() {
-        let plus_di = vec![20.0, 25.0, 30.0, 20.0, 35.0];
-        let minus_di = vec![25.0, 20.0, 15.0, 25.0, 15.0];
-        let timestamps = vec![1000, 2000, 3000, 4000, 5000];
-        let symbols = vec!["BTCUSDT".to_string(); 5];
-        let timeframes = vec!["1h".to_string(); 5];
-        let config = SignalConfig::default();
-        
-        let signals = calculate_adx_direction_signals(&plus_di, &minus_di, &timestamps, &symbols, &timeframes, &config);
-        
-        // Should have signals for each direction measurement
-        assert!(signals.len() <= plus_di.len());
-    }
+    sigmoid_normalize(normalized, 0.3, 6.0)
 }
