@@ -1,56 +1,55 @@
--- 040_market_raw_signals.sql (HARDCORE: time_ms BIGINT + generated time)
+-- database/ddl/040_market_raw_signals.sql
+-- Таблица сырых сигналов: одна строка = один raw-signal на свечу.
+-- Ключ ВКЛЮЧАЕТ signal_sub_id (чтобы не ломать upsert и позволить подтипы).
 
--- 1. Создаем функцию синхронизации (если она не была создана ранее или создаем уникальную)
-CREATE OR REPLACE FUNCTION market.sync_raw_signals_time()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Основное время
-    NEW.time := to_timestamp(NEW.time_ms / 1000.0);
-    
-    -- Логика для created_at
-    IF NEW.created_at_ms IS NULL THEN
-        NEW.created_at := now();
-    ELSE
-        NEW.created_at := to_timestamp(NEW.created_at_ms / 1000.0);
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE SCHEMA IF NOT EXISTS market;
+CREATE EXTENSION IF NOT EXISTS timescaledb;
 
--- 2. Создаем таблицу с обычными колонками
 CREATE TABLE IF NOT EXISTS market.raw_signals (
-    time_ms   BIGINT NOT NULL,
-    time      TIMESTAMPTZ NOT NULL, -- Обычная колонка
+    time              TIMESTAMPTZ NOT NULL,
+    time_ms           BIGINT      NOT NULL,
 
-    symbol_id BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
-    tf_minutes SMALLINT NOT NULL,
+    symbol_id         BIGINT      NOT NULL,
+    symbol            TEXT        NOT NULL,
+    tf_minutes        SMALLINT    NOT NULL,
 
-    indicator_id SMALLINT NOT NULL,
-    signal_kind  SMALLINT NOT NULL,
+    indicator_id      SMALLINT    NOT NULL,
+    signal_kind       SMALLINT    NOT NULL,
+    signal_sub_id     SMALLINT    NOT NULL DEFAULT 0,
 
-    side   SMALLINT NOT NULL,          -- 1 long, -1 short, 0 neutral
-    score  REAL NOT NULL,              -- 0..1
-    value  REAL,
-    details JSONB,
+    side              SMALLINT    NOT NULL,
+    score             REAL        NOT NULL,
+    value             REAL        NOT NULL,
 
-    created_at_ms BIGINT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), -- Обычная колонка
+    details           JSONB,
 
-    -- ВАЖНО: Добавляем 'time' в PRIMARY KEY для TimescaleDB
-    PRIMARY KEY(symbol_id, tf_minutes, indicator_id, signal_kind, time)
+    candle_is_final   BOOLEAN     NOT NULL DEFAULT TRUE,
+    calc_source       SMALLINT    NOT NULL DEFAULT 1,
+    event_time_ms     BIGINT,
+
+    features_json     JSONB,
+    scores_json       JSONB,
+    predictions_json  JSONB,
+
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at_ms     BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at_ms     BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+
+    CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id)
 );
 
--- 3. Вешаем триггер
-DROP TRIGGER IF EXISTS trg_sync_raw_signals ON market.raw_signals;
-CREATE TRIGGER trg_sync_raw_signals 
-    BEFORE INSERT OR UPDATE ON market.raw_signals 
-    FOR EACH ROW EXECUTE FUNCTION market.sync_raw_signals_time();
+-- Hypertable
+DO $$
+BEGIN
+    PERFORM create_hypertable('market.raw_signals', 'time', if_not_exists => TRUE, migrate_data => TRUE, chunk_time_interval => INTERVAL '14 days');
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'TimescaleDB not available, skipping create_hypertable for raw_signals';
+END $$;
 
--- 4. Создаем гипертаблицу
-SELECT create_hypertable('market.raw_signals', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '7 days');
-
--- 5. Индексы
-CREATE INDEX IF NOT EXISTS ix_raw_signals_time_desc ON market.raw_signals(time DESC);
-CREATE INDEX IF NOT EXISTS ix_raw_signals_symbol_tf_time_desc ON market.raw_signals(symbol_id, tf_minutes, time DESC);
-CREATE INDEX IF NOT EXISTS ix_raw_signals_score_desc ON market.raw_signals(score DESC);
+-- Индексы
+CREATE INDEX IF NOT EXISTS idx_raw_signals_sid_tf_time_desc ON market.raw_signals (symbol_id, tf_minutes, time DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_signals_symbol_tf_time_desc ON market.raw_signals (symbol, tf_minutes, time DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_signals_time_ms_desc ON market.raw_signals (time_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_signals_score_desc ON market.raw_signals (score DESC);

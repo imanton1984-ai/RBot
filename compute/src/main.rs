@@ -3,12 +3,19 @@ use common::{Symbol, Timeframe};
 use compute_lib::*;
 use sqlx::Row;
 use dotenvy::dotenv;
+use raw_signals::thresholds::SignalConfig;
 
 fn env_usize(key: &str, default: usize) -> usize {
     std::env::var(key)
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(default)
+}
+
+fn env_bool(key: &str, default: bool) -> bool { std::env::var(key).ok() .and_then(|v| match v.to_lowercase().as_str() { "1" | "true" | "yes" | "y" => Some(true), "0" | "false" | "no" | "n" => Some(false), _ => None }) .unwrap_or(default)
+}
+
+fn env_f64(key: &str, default: f64) -> f64 { std::env::var(key).ok() .and_then(|v| v.parse::<f64>().ok()) .unwrap_or(default)
 }
 
 #[tokio::main]
@@ -54,8 +61,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize indicator persistor
     let (persistor, _persist_sender) = IndicatorPersistor::new(
         db_pool.clone(), // Clone the pool to use in persistor
-        1000, // batch size
-        5000, // flush every 5 seconds
+        5000, // batch size INCREASED from 1000 to 5000
+        2000, // flush every 2 seconds (was 5000)
     );
     let persistor = Arc::new(persistor);
 
@@ -120,28 +127,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn persistence loop
     let persistor_clone = persistor.clone();
     tokio::spawn(async move {
-        if let Err(e) = persistor_clone.start_persistence_loop().await {
-            eprintln!("Persistence loop error: {}", e);
-        }
+        persistor_clone.start_persistence_loop().await;
     });
 
     // Initialize RawSignal persistor
     let (raw_signal_persistor, raw_signal_sender) = RawSignalPersistor::new(
         db_pool.clone(),
-        1000,
-        5000,
+        5000, // batch size INCREASED from 1000 to 5000
+        2000, // flush every 2 seconds
     );
     let raw_signal_persistor = Arc::new(raw_signal_persistor);
 
     // Initialize RawSignal processor
-    let raw_signal_processor = Arc::new(RawSignalProcessor::new(Default::default()));
+    let raw_cfg = SignalConfig {
+        enable_filtering: env_bool("RAW_SIGNALS_ENABLE_FILTERING", false),
+        min_interesting_score: env_f64("RAW_SIGNALS_MIN_SCORE", 0.0),
+        ..Default::default()
+    };
+    let raw_signal_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
     // Spawn RawSignal persistence loop
     let raw_signal_persistor_clone = raw_signal_persistor.clone();
     tokio::spawn(async move {
-        if let Err(e) = raw_signal_persistor_clone.start_persistence_loop().await {
-            eprintln!("RawSignal persistence loop error: {}", e);
-        }
+        raw_signal_persistor_clone.start_persistence_loop().await;
     });
 
     // Spawn result processor to handle computed indicators and raw signals
@@ -166,9 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if !records.is_empty() {
-                if let Err(e) = persistor_clone2.queue_records(records).await {
-                    eprintln!("Error queuing records for persistence: {}", e);
-                }
+                persistor_clone2.queue_records(records).await;
             }
             
             // Handle raw signals

@@ -4201,6 +4201,110 @@ tracing-subscriber = { workspace = true }
 dotenvy = { workspace = true }
 
 
+# database/src/db_logger.rs
+
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::interval;
+use tracing::info;
+
+/// Database logger to track insertions to indicators and raw_signals tables
+#[derive(Clone)]
+pub struct DatabaseLogger {
+    indicators_count: Arc<AtomicU64>,
+    raw_signals_count: Arc<AtomicU64>,
+}
+
+impl DatabaseLogger {
+    pub fn new() -> Self {
+        Self {
+            indicators_count: Arc::new(AtomicU64::new(0)),
+            raw_signals_count: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    /// Increment the counter for indicators inserted
+    pub fn increment_indicators(&self, count: u64) {
+        self.indicators_count.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Increment the counter for raw signals inserted
+    pub fn increment_raw_signals(&self, count: u64) {
+        self.raw_signals_count.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Get the current count of indicators inserted
+    pub fn get_indicators_count(&self) -> u64 {
+        self.indicators_count.load(Ordering::Relaxed)
+    }
+
+    /// Get the current count of raw signals inserted
+    pub fn get_raw_signals_count(&self) -> u64 {
+        self.raw_signals_count.load(Ordering::Relaxed)
+    }
+
+    /// Reset the counters to zero
+    pub fn reset_counters(&self) {
+        self.indicators_count.store(0, Ordering::Relaxed);
+        self.raw_signals_count.store(0, Ordering::Relaxed);
+    }
+
+    /// Start the periodic logging task
+    pub async fn start_logging(&self) {
+        let logger = self.clone();
+        tokio::spawn(async move {
+            let mut interval = interval(Duration::from_secs(60)); // Log every minute
+            loop {
+                interval.tick().await;
+                
+                let indicators_added = logger.get_indicators_count();
+                let raw_signals_added = logger.get_raw_signals_count();
+                
+                info!(
+                    "database.out - Indicators added: {}, Raw signals added: {}",
+                    indicators_added, raw_signals_added
+                );
+            }
+        });
+    }
+}
+
+// Global logger instance
+static mut DATABASE_LOGGER: Option<DatabaseLogger> = None;
+static LOGGER_INIT: std::sync::Once = std::sync::Once::new();
+
+pub fn get_database_logger() -> &'static DatabaseLogger {
+    unsafe {
+        LOGGER_INIT.call_once(|| {
+            DATABASE_LOGGER = Some(DatabaseLogger::new());
+        });
+        DATABASE_LOGGER.as_ref().unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_database_logger() {
+        let logger = DatabaseLogger::new();
+        
+        logger.increment_indicators(5);
+        logger.increment_raw_signals(3);
+        
+        assert_eq!(logger.get_indicators_count(), 5);
+        assert_eq!(logger.get_raw_signals_count(), 3);
+        
+        logger.reset_counters();
+        
+        assert_eq!(logger.get_indicators_count(), 0);
+        assert_eq!(logger.get_raw_signals_count(), 0);
+    }
+}
+
+
 # database/src/init_db.rs
 
 use sqlx::{PgPool, Row};
@@ -4236,8 +4340,9 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/020_market_candles_tf.sql"),
             include_str!("../../database/ddl/021_market_candles_live.sql"),
             include_str!("../../database/ddl/025_market_staging.sql"),
-            include_str!("../../database/ddl/030_market_indicators_tf.sql"),
+            include_str!("../../database/ddl/030_market_indicators.sql"),
             include_str!("../../database/ddl/040_market_raw_signals.sql"),
+            include_str!("../../database/ddl/045_add_symbol_column.sql"),  // Add symbol column to all tables
             include_str!("../../database/ddl/050_trade_tables.sql"),
             include_str!("../../database/ddl/055_constraints.sql"),
             include_str!("../../database/ddl/056_raw_signals_pk_update.sql"),
@@ -4638,153 +4743,341 @@ CREATE INDEX IF NOT EXISTS ix_ind_staging_symbol_time     ON market.indicators_s
 
 
 
-# database/ddl/030_market_indicators_tf.sql
+# database/ddl/030_market_indicators.sql
 
--- 030_market_indicators_tf.sql (HARDCORE: time_ms BIGINT + generated time)
+-- database/ddl/030_market_indicators.sql
+-- EAV-таблицы индикаторов: одна строка = один индикатор на свечу.
+-- PK гарантирует 1 значение на (symbol_id, time, indicator_name).
 
--- 1. Используем уже созданную функцию или создаем аналогичную для индикаторов
--- Если market.sync_candle_time уже создана в 020, можно использовать её.
--- Но для индикаторов добавим логику updated_at:
-CREATE OR REPLACE FUNCTION market.sync_indicator_time()
+CREATE SCHEMA IF NOT EXISTS market;
+
+-- TimescaleDB (если у тебя уже есть - ок)
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+DO $$
+DECLARE
+    tf TEXT;
+    tf_minutes SMALLINT;
+    chunk_txt TEXT;
+BEGIN
+    FOREACH tf IN ARRAY ARRAY['1m','5m','15m','1h','4h','1d']
+    LOOP
+        -- tf_minutes
+        IF tf = '1m' THEN tf_minutes := 1; chunk_txt := '7 days';
+        ELSIF tf = '5m' THEN tf_minutes := 5; chunk_txt := '14 days';
+        ELSIF tf = '15m' THEN tf_minutes := 15; chunk_txt := '21 days';
+        ELSIF tf = '1h' THEN tf_minutes := 60; chunk_txt := '60 days';
+        ELSIF tf = '4h' THEN tf_minutes := 240; chunk_txt := '180 days';
+        ELSIF tf = '1d' THEN tf_minutes := 1440; chunk_txt := '730 days';
+        ELSE
+            RAISE EXCEPTION 'Unknown tf=%', tf;
+        END IF;
+
+        EXECUTE format($SQL$
+            CREATE TABLE IF NOT EXISTS market.indicators_%s (
+                time            TIMESTAMPTZ NOT NULL,
+                time_ms         BIGINT      NOT NULL,
+                symbol_id       BIGINT      NOT NULL,
+                symbol          TEXT        NOT NULL,
+                tf_minutes      SMALLINT    NOT NULL DEFAULT %s,
+
+                indicator_name  TEXT        NOT NULL,
+                value_float     DOUBLE PRECISION,
+                value_json      JSONB,
+
+                candle_is_final BOOLEAN     NOT NULL DEFAULT TRUE,
+                calc_source     SMALLINT    NOT NULL DEFAULT 1,
+                event_time_ms   BIGINT,
+
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                created_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+                updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+
+                CONSTRAINT indicators_%s_pkey PRIMARY KEY (symbol_id, time, indicator_name)
+            );
+        $SQL$, tf, tf_minutes, tf);
+
+        -- Hypertable (idempotent)
+        BEGIN
+            EXECUTE format(
+                'SELECT create_hypertable(%L, %L, if_not_exists => TRUE, migrate_data => TRUE, chunk_time_interval => INTERVAL %L)',
+                'market.indicators_' || tf,
+                'time',
+                chunk_txt
+            );
+        EXCEPTION
+            WHEN undefined_function THEN
+                RAISE NOTICE 'TimescaleDB not available, skipping create_hypertable for indicators_%', tf;
+        END;
+
+        -- Индексы под чтение
+        EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ind_%s_sid_time_desc ON market.indicators_%s (symbol_id, time DESC)', tf, tf);
+        EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ind_%s_symbol_time_desc ON market.indicators_%s (symbol, time DESC)', tf, tf);
+        EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ind_%s_name_time_desc ON market.indicators_%s (indicator_name, time DESC)', tf, tf);
+        EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ind_%s_time_ms_desc ON market.indicators_%s (time_ms DESC)', tf, tf);
+    END LOOP;
+END $$;
+
+
+
+# database/ddl/040_market_raw_signals.sql
+
+-- database/ddl/040_market_raw_signals.sql
+-- Таблица сырых сигналов: одна строка = один raw-signal на свечу.
+-- Ключ ВКЛЮЧАЕТ signal_sub_id (чтобы не ломать upsert и позволить подтипы).
+
+CREATE SCHEMA IF NOT EXISTS market;
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+CREATE TABLE IF NOT EXISTS market.raw_signals (
+    time              TIMESTAMPTZ NOT NULL,
+    time_ms           BIGINT      NOT NULL,
+
+    symbol_id         BIGINT      NOT NULL,
+    symbol            TEXT        NOT NULL,
+    tf_minutes        SMALLINT    NOT NULL,
+
+    indicator_id      SMALLINT    NOT NULL,
+    signal_kind       SMALLINT    NOT NULL,
+    signal_sub_id     SMALLINT    NOT NULL DEFAULT 0,
+
+    side              SMALLINT    NOT NULL,
+    score             REAL        NOT NULL,
+    value             REAL        NOT NULL,
+
+    details           JSONB,
+
+    candle_is_final   BOOLEAN     NOT NULL DEFAULT TRUE,
+    calc_source       SMALLINT    NOT NULL DEFAULT 1,
+    event_time_ms     BIGINT,
+
+    features_json     JSONB,
+    scores_json       JSONB,
+    predictions_json  JSONB,
+
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at_ms     BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at_ms     BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+
+    CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id)
+);
+
+-- Hypertable
+DO $$
+BEGIN
+    PERFORM create_hypertable('market.raw_signals', 'time', if_not_exists => TRUE, migrate_data => TRUE, chunk_time_interval => INTERVAL '14 days');
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'TimescaleDB not available, skipping create_hypertable for raw_signals';
+END $$;
+
+-- Индексы
+CREATE INDEX IF NOT EXISTS idx_raw_signals_sid_tf_time_desc ON market.raw_signals (symbol_id, tf_minutes, time DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_signals_symbol_tf_time_desc ON market.raw_signals (symbol, tf_minutes, time DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_signals_time_ms_desc ON market.raw_signals (time_ms DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_signals_score_desc ON market.raw_signals (score DESC);
+
+
+
+# database/ddl/045_add_symbol_column.sql
+
+-- 045_add_symbol_column.sql
+-- Add symbol column to all relevant tables for improved readability
+
+-- Add symbol column to all candle tables
+ALTER TABLE market.candles_1m ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.candles_5m ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.candles_15m ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.candles_1h ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.candles_4h ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.candles_1d ADD COLUMN IF NOT EXISTS symbol TEXT;
+-- Also add to the live candles table
+ALTER TABLE market.candles_live ADD COLUMN IF NOT EXISTS symbol TEXT;
+
+-- Add symbol column to all indicator tables
+ALTER TABLE market.indicators_1m ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.indicators_5m ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.indicators_15m ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.indicators_1h ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.indicators_4h ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.indicators_1d ADD COLUMN IF NOT EXISTS symbol TEXT;
+
+-- Add symbol column to raw_signals table
+ALTER TABLE market.raw_signals ADD COLUMN IF NOT EXISTS symbol TEXT;
+
+-- Update the sync functions to populate the symbol column automatically
+CREATE OR REPLACE FUNCTION market.sync_candle_time()
 RETURNS TRIGGER AS $$
+DECLARE
+    sym TEXT;
 BEGIN
     -- Основное время
     NEW.time := to_timestamp(NEW.time_ms / 1000.0);
-    
+
+    -- Автоматически заполняем символ, если его нет
+    IF NEW.symbol IS NULL OR NEW.symbol = '' THEN
+        SELECT symbol INTO sym FROM market.pairs WHERE symbol_id = NEW.symbol_id;
+        IF FOUND THEN
+            NEW.symbol := sym;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION market.sync_indicator_time()
+RETURNS TRIGGER AS $$
+DECLARE
+    sym TEXT;
+BEGIN
+    -- Основное время
+    NEW.time := to_timestamp(NEW.time_ms / 1000.0);
+
     -- Логика для updated_at
     IF NEW.updated_at_ms IS NULL THEN
         NEW.updated_at := now();
     ELSE
         NEW.updated_at := to_timestamp(NEW.updated_at_ms / 1000.0);
     END IF;
-    
+
+    -- Автоматически заполняем символ, если его нет
+    IF NEW.symbol IS NULL OR NEW.symbol = '' THEN
+        SELECT symbol INTO sym FROM market.pairs WHERE symbol_id = NEW.symbol_id;
+        IF FOUND THEN
+            NEW.symbol := sym;
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- 2. Создаем таблицу с обычными колонками (НЕ GENERATED)
-CREATE TABLE IF NOT EXISTS market.indicators_1m (
-    time_ms   BIGINT NOT NULL,
-    time      TIMESTAMPTZ NOT NULL, -- Обычная колонка
-
-    symbol_id BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
-
-    ema20  REAL, ema50 REAL, ema200 REAL,
-    sma    REAL,
-    rsi    REAL,
-    macd       REAL,
-    macd_signal REAL,
-    macd_hist   REAL,
-    atr REAL,
-    adx REAL,
-    bb_upper REAL, bb_mid REAL, bb_lower REAL,
-    stoch_k REAL, stoch_d REAL,
-    vwap REAL,
-    obv  REAL,
-    cci  REAL,
-    williams REAL,
-    alli_jaw REAL, alli_teeth REAL, alli_lips REAL,
-    sr_levels JSONB,
-    poc REAL,
-
-    features_version TEXT NOT NULL DEFAULT 'v1',
-    updated_at_ms BIGINT,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), -- Обычная колонка
-
-    -- ВАЖНО: time включен в PK для TimescaleDB
-    PRIMARY KEY(symbol_id, time)
-);
-
--- 3. Клонируем структуру
-CREATE TABLE IF NOT EXISTS market.indicators_5m  (LIKE market.indicators_1m INCLUDING ALL);
-CREATE TABLE IF NOT EXISTS market.indicators_15m (LIKE market.indicators_1m INCLUDING ALL);
-CREATE TABLE IF NOT EXISTS market.indicators_1h  (LIKE market.indicators_1m INCLUDING ALL);
-CREATE TABLE IF NOT EXISTS market.indicators_4h  (LIKE market.indicators_1m INCLUDING ALL);
-CREATE TABLE IF NOT EXISTS market.indicators_1d  (LIKE market.indicators_1m INCLUDING ALL);
-
--- 4. Вешаем триггеры
-CREATE TRIGGER trg_ind_sync_1m BEFORE INSERT OR UPDATE ON market.indicators_1m FOR EACH ROW EXECUTE FUNCTION market.sync_indicator_time();
-CREATE TRIGGER trg_ind_sync_5m BEFORE INSERT OR UPDATE ON market.indicators_5m FOR EACH ROW EXECUTE FUNCTION market.sync_indicator_time();
-CREATE TRIGGER trg_ind_sync_15m BEFORE INSERT OR UPDATE ON market.indicators_15m FOR EACH ROW EXECUTE FUNCTION market.sync_indicator_time();
-CREATE TRIGGER trg_ind_sync_1h BEFORE INSERT OR UPDATE ON market.indicators_1h FOR EACH ROW EXECUTE FUNCTION market.sync_indicator_time();
-CREATE TRIGGER trg_ind_sync_4h BEFORE INSERT OR UPDATE ON market.indicators_4h FOR EACH ROW EXECUTE FUNCTION market.sync_indicator_time();
-CREATE TRIGGER trg_ind_sync_1d BEFORE INSERT OR UPDATE ON market.indicators_1d FOR EACH ROW EXECUTE FUNCTION market.sync_indicator_time();
-
--- 5. Превращаем в гипертаблицы
-SELECT create_hypertable('market.indicators_1m', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '1 day');
-SELECT create_hypertable('market.indicators_5m', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '2 days');
-SELECT create_hypertable('market.indicators_15m','time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '7 days');
-SELECT create_hypertable('market.indicators_1h', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '30 days');
-SELECT create_hypertable('market.indicators_4h', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '60 days');
-SELECT create_hypertable('market.indicators_1d', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '90 days');
-
--- Индексы (используем time_ms для совместимости с вашими выборками)
-CREATE INDEX IF NOT EXISTS ix_ind_1m_symbol_time_desc  ON market.indicators_1m (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_ind_5m_symbol_time_desc  ON market.indicators_5m (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_ind_15m_symbol_time_desc ON market.indicators_15m(symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_ind_1h_symbol_time_desc  ON market.indicators_1h (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_ind_4h_symbol_time_desc  ON market.indicators_4h (symbol_id, time_ms DESC);
-CREATE INDEX IF NOT EXISTS ix_ind_1d_symbol_time_desc  ON market.indicators_1d (symbol_id, time_ms DESC);
-
-
-# database/ddl/040_market_raw_signals.sql
-
--- 040_market_raw_signals.sql (HARDCORE: time_ms BIGINT + generated time)
-
--- 1. Создаем функцию синхронизации (если она не была создана ранее или создаем уникальную)
 CREATE OR REPLACE FUNCTION market.sync_raw_signals_time()
 RETURNS TRIGGER AS $$
+DECLARE
+    sym TEXT;
 BEGIN
     -- Основное время
     NEW.time := to_timestamp(NEW.time_ms / 1000.0);
-    
+
     -- Логика для created_at
     IF NEW.created_at_ms IS NULL THEN
         NEW.created_at := now();
     ELSE
         NEW.created_at := to_timestamp(NEW.created_at_ms / 1000.0);
     END IF;
-    
+
+    -- Автоматически заполняем символ, если его нет
+    IF NEW.symbol IS NULL OR NEW.symbol = '' THEN
+        SELECT symbol INTO sym FROM market.pairs WHERE symbol_id = NEW.symbol_id;
+        IF FOUND THEN
+            NEW.symbol := sym;
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- 2. Создаем таблицу с обычными колонками
-CREATE TABLE IF NOT EXISTS market.raw_signals (
-    time_ms   BIGINT NOT NULL,
-    time      TIMESTAMPTZ NOT NULL, -- Обычная колонка
+-- Create a sync function for live candles
+CREATE OR REPLACE FUNCTION market.sync_candles_live_time()
+RETURNS TRIGGER AS $$
+DECLARE
+    sym TEXT;
+BEGIN
+    -- Automatically populate symbol if it's not provided
+    IF NEW.symbol IS NULL OR NEW.symbol = '' THEN
+        SELECT symbol INTO sym FROM market.pairs WHERE symbol = NEW.symbol; -- NEW.symbol should already be provided
+        IF FOUND THEN
+            NEW.symbol := sym;
+        END IF;
+    END IF;
 
-    symbol_id BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
-    tf_minutes SMALLINT NOT NULL,
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
-    indicator_id SMALLINT NOT NULL,
-    signal_kind  SMALLINT NOT NULL,
+-- Populate the symbol column with values from the pairs table
+-- For candles tables
+UPDATE market.candles_1m SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.candles_1m.symbol_id = p.symbol_id AND (market.candles_1m.symbol IS NULL OR market.candles_1m.symbol = '');
 
-    side   SMALLINT NOT NULL,          -- 1 long, -1 short, 0 neutral
-    score  REAL NOT NULL,              -- 0..1
-    value  REAL,
-    details JSONB,
+UPDATE market.candles_5m SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.candles_5m.symbol_id = p.symbol_id AND (market.candles_5m.symbol IS NULL OR market.candles_5m.symbol = '');
 
-    created_at_ms BIGINT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), -- Обычная колонка
+UPDATE market.candles_15m SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.candles_15m.symbol_id = p.symbol_id AND (market.candles_15m.symbol IS NULL OR market.candles_15m.symbol = '');
 
-    -- ВАЖНО: Добавляем 'time' в PRIMARY KEY для TimescaleDB
-    PRIMARY KEY(symbol_id, tf_minutes, indicator_id, signal_kind, time)
-);
+UPDATE market.candles_1h SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.candles_1h.symbol_id = p.symbol_id AND (market.candles_1h.symbol IS NULL OR market.candles_1h.symbol = '');
 
--- 3. Вешаем триггер
-DROP TRIGGER IF EXISTS trg_sync_raw_signals ON market.raw_signals;
-CREATE TRIGGER trg_sync_raw_signals 
-    BEFORE INSERT OR UPDATE ON market.raw_signals 
-    FOR EACH ROW EXECUTE FUNCTION market.sync_raw_signals_time();
+UPDATE market.candles_4h SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.candles_4h.symbol_id = p.symbol_id AND (market.candles_4h.symbol IS NULL OR market.candles_4h.symbol = '');
 
--- 4. Создаем гипертаблицу
-SELECT create_hypertable('market.raw_signals', 'time', if_not_exists=>TRUE, chunk_time_interval=>INTERVAL '7 days');
+UPDATE market.candles_1d SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.candles_1d.symbol_id = p.symbol_id AND (market.candles_1d.symbol IS NULL OR market.candles_1d.symbol = '');
 
--- 5. Индексы
-CREATE INDEX IF NOT EXISTS ix_raw_signals_time_desc ON market.raw_signals(time DESC);
-CREATE INDEX IF NOT EXISTS ix_raw_signals_symbol_tf_time_desc ON market.raw_signals(symbol_id, tf_minutes, time DESC);
-CREATE INDEX IF NOT EXISTS ix_raw_signals_score_desc ON market.raw_signals(score DESC);
+-- For live candles table (symbol is already part of the data)
+UPDATE market.candles_live SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.candles_live.symbol = p.symbol AND (market.candles_live.symbol IS NULL OR market.candles_live.symbol = '');
+
+-- For indicators tables
+UPDATE market.indicators_1m SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.indicators_1m.symbol_id = p.symbol_id AND (market.indicators_1m.symbol IS NULL OR market.indicators_1m.symbol = '');
+
+UPDATE market.indicators_5m SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.indicators_5m.symbol_id = p.symbol_id AND (market.indicators_5m.symbol IS NULL OR market.indicators_5m.symbol = '');
+
+UPDATE market.indicators_15m SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.indicators_15m.symbol_id = p.symbol_id AND (market.indicators_15m.symbol IS NULL OR market.indicators_15m.symbol = '');
+
+UPDATE market.indicators_1h SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.indicators_1h.symbol_id = p.symbol_id AND (market.indicators_1h.symbol IS NULL OR market.indicators_1h.symbol = '');
+
+UPDATE market.indicators_4h SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.indicators_4h.symbol_id = p.symbol_id AND (market.indicators_4h.symbol IS NULL OR market.indicators_4h.symbol = '');
+
+UPDATE market.indicators_1d SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.indicators_1d.symbol_id = p.symbol_id AND (market.indicators_1d.symbol IS NULL OR market.indicators_1d.symbol = '');
+
+-- For raw_signals table
+UPDATE market.raw_signals SET symbol = p.symbol
+FROM market.pairs p
+WHERE market.raw_signals.symbol_id = p.symbol_id AND (market.raw_signals.symbol IS NULL OR market.raw_signals.symbol = '');
+
+-- Create indexes for the new symbol column to improve query performance
+CREATE INDEX IF NOT EXISTS ix_candles_1m_symbol ON market.candles_1m (symbol);
+CREATE INDEX IF NOT EXISTS ix_candles_5m_symbol ON market.candles_5m (symbol);
+CREATE INDEX IF NOT EXISTS ix_candles_15m_symbol ON market.candles_15m (symbol);
+CREATE INDEX IF NOT EXISTS ix_candles_1h_symbol ON market.candles_1h (symbol);
+CREATE INDEX IF NOT EXISTS ix_candles_4h_symbol ON market.candles_4h (symbol);
+CREATE INDEX IF NOT EXISTS ix_candles_1d_symbol ON market.candles_1d (symbol);
+CREATE INDEX IF NOT EXISTS ix_candles_live_symbol ON market.candles_live (symbol);
+
+CREATE INDEX IF NOT EXISTS ix_indicators_1m_symbol ON market.indicators_1m (symbol);
+CREATE INDEX IF NOT EXISTS ix_indicators_5m_symbol ON market.indicators_5m (symbol);
+CREATE INDEX IF NOT EXISTS ix_indicators_15m_symbol ON market.indicators_15m (symbol);
+CREATE INDEX IF NOT EXISTS ix_indicators_1h_symbol ON market.indicators_1h (symbol);
+CREATE INDEX IF NOT EXISTS ix_indicators_4h_symbol ON market.indicators_4h (symbol);
+CREATE INDEX IF NOT EXISTS ix_indicators_1d_symbol ON market.indicators_1d (symbol);
+
+CREATE INDEX IF NOT EXISTS ix_raw_signals_symbol ON market.raw_signals (symbol);
 
 
 # database/ddl/050_trade_tables.sql
@@ -5773,6 +6066,7 @@ pub struct PairInfo {
 pub struct CandleRow {
     pub time_ms: i64, // close time ms
     pub symbol_id: i64,
+    pub symbol: String, // Add symbol field for direct access
     pub open: f64,
     pub high: f64,
     pub low: f64,
@@ -6183,6 +6477,7 @@ pub async fn rest_backfill_one(
             out.push(CandleRow {
                 time_ms: close_time,
                 symbol_id: pair.symbol_id,
+                symbol: pair.symbol.clone(),
                 open: str_f64(k.1.as_ref()),
                 high: str_f64(k.2.as_ref()),
                 low: str_f64(k.3.as_ref()),
@@ -6591,6 +6886,7 @@ pub async fn run_candles_ingest() -> Result<()> {
                         results.push(CandleRow {
                             time_ms: k.6, // close_time
                             symbol_id: pair_clone.symbol_id,
+                            symbol: pair_clone.symbol.clone(),
                             open: str_f64(k.1.as_ref()),
                             high: str_f64(k.2.as_ref()),
                             low: str_f64(k.3.as_ref()),
@@ -7533,6 +7829,7 @@ pub async fn ws_worker(
                     let row = CandleRow {
                         time_ms: k.close_time,
                         symbol_id: sid,
+                        symbol: ev.symbol.clone(),
                         open: str_f64(&k.open),
                         high: str_f64(&k.high),
                         low: str_f64(&k.low),
@@ -15656,12 +15953,19 @@ impl ComputeBackend for CudaBackend {
 
 # compute/src/indicator_persistor.rs
 
+// compute/src/indicator_persistor.rs
+
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use tokio::sync::{RwLock, mpsc};
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use sqlx::{PgPool, Postgres, QueryBuilder, Row};
+use tokio::sync::{mpsc, RwLock};
+use tracing::{error, warn};
+
 use common::{Symbol, Timeframe};
-use sqlx::PgPool;
-use chrono::{Utc, TimeZone};
-use std::collections::HashMap;
+
 use crate::FeatureValue;
 
 #[derive(Debug, Clone)]
@@ -15674,10 +15978,12 @@ pub struct IndicatorRecord {
 }
 
 pub struct IndicatorPersistor {
-    db_pool: PgPool,
-    persist_queue: Arc<RwLock<Vec<IndicatorRecord>>>,
-    batch_size: usize,
-    flush_interval_ms: u64,
+    pub db_pool: PgPool,
+    pub persist_queue: Arc<RwLock<Vec<IndicatorRecord>>>,
+    pub batch_size: usize,
+    pub flush_interval_ms: u64,
+
+    pub symbol_id_cache: Arc<RwLock<HashMap<Symbol, i64>>>,
 }
 
 impl IndicatorPersistor {
@@ -15686,143 +15992,220 @@ impl IndicatorPersistor {
         batch_size: usize,
         flush_interval_ms: u64,
     ) -> (Self, mpsc::UnboundedSender<IndicatorRecord>) {
-        let (sender, _) = mpsc::unbounded_channel();
+        let persist_queue = Arc::new(RwLock::new(Vec::new()));
+        let symbol_id_cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Канал (если где-то захочешь отправлять по одному record)
+        let (sender, mut receiver) = mpsc::unbounded_channel::<IndicatorRecord>();
+
+        // Receiver -> persist_queue
+        {
+            let q = Arc::clone(&persist_queue);
+            tokio::spawn(async move {
+                while let Some(r) = receiver.recv().await {
+                    q.write().await.push(r);
+                }
+            });
+        }
+
         (
             Self {
                 db_pool,
-                persist_queue: Arc::new(RwLock::new(Vec::new())),
+                persist_queue,
                 batch_size,
                 flush_interval_ms,
+                symbol_id_cache,
             },
             sender,
         )
     }
 
-    pub async fn start_persistence_loop(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut last_flush = tokio::time::Instant::now();
-        let interval = tokio::time::Duration::from_millis(self.flush_interval_ms);
+    pub async fn queue_records(&self, records: Vec<IndicatorRecord>) {
+        if records.is_empty() {
+            return;
+        }
+        self.persist_queue.write().await.extend(records);
+    }
+
+    pub async fn start_persistence_loop(self: Arc<Self>) {
+        let mut interval = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
 
         loop {
-            let should_flush_size;
-            {
-                let queue = self.persist_queue.read().await;
-                should_flush_size = queue.len() >= self.batch_size;
-            }
+            interval.tick().await;
 
-            let should_flush_time = last_flush.elapsed() >= interval;
-
-            if should_flush_size || should_flush_time {
-                if let Err(e) = self.flush_batch().await {
-                    eprintln!("Error flushing indicators batch: {}", e);
-                }
-                last_flush = tokio::time::Instant::now();
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
-    }
-
-    async fn flush_batch(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let records_to_flush = {
-            let mut queue = self.persist_queue.write().await;
-            if queue.is_empty() {
-                return Ok(());
-            }
-            queue.drain(..).collect::<Vec<_>>()
-        };
-
-        let mut grouped_records: HashMap<(Symbol, Timeframe, i64), HashMap<String, FeatureValue>> = HashMap::new();
-        
-        for record in records_to_flush {
-            let key = (record.symbol.clone(), record.timeframe, record.timestamp);
-            grouped_records.entry(key).or_insert_with(HashMap::new)
-                .insert(record.indicator_name, record.value);
-        }
-
-        for ((symbol, timeframe, timestamp), indicators_map) in grouped_records {
-            let symbol_id: i64 = match sqlx::query_scalar("SELECT symbol_id FROM market.pairs WHERE symbol = $1")
-                .bind(symbol.as_str())
-                .fetch_optional(&self.db_pool)
-                .await? {
-                    Some(id) => id,
-                    None => {
-                        eprintln!("Unknown symbol for indicator persist: {}", symbol);
-                        continue;
-                    }
-                };
-
-            let table_name = format!("market.indicators_{}", timeframe.as_str());
-            let time_utc = Utc.timestamp_millis_opt(timestamp).single().unwrap_or(Utc::now());
-
-            let mut indicator_names = Vec::new();
-            let mut indicator_values: Vec<&FeatureValue> = Vec::new();
-
-            for (indicator_name, value) in &indicators_map {
-                if !indicator_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            let batch: Vec<IndicatorRecord> = {
+                let mut q = self.persist_queue.write().await;
+                if q.is_empty() {
                     continue;
                 }
-                indicator_names.push(indicator_name.as_str());
-                indicator_values.push(value);
-            }
+                let take = self.batch_size.min(q.len());
+                q.drain(0..take).collect()
+            };
 
-            if indicator_names.is_empty() {
+            if let Err(e) = self.flush_batch(batch).await {
+                error!("Error flushing indicators batch: {}", e);
+            }
+        }
+    }
+
+    async fn flush_batch(&self, records: Vec<IndicatorRecord>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if records.is_empty() {
+            return Ok(());
+        }
+
+        // 1) Подгружаем symbol_id в кэш (батчом)
+        self.prefill_symbol_cache(&records).await?;
+
+        // 2) Resolve symbol_id для каждой записи
+        let mut resolved: Vec<(i64, IndicatorRecord)> = Vec::with_capacity(records.len());
+        {
+            let cache = self.symbol_id_cache.read().await;
+            for r in records {
+                if let Some(&sid) = cache.get(&r.symbol) {
+                    resolved.push((sid, r));
+                } else {
+                    warn!("IndicatorPersistor: symbol_id not found for {}", r.symbol);
+                }
+            }
+        }
+        if resolved.is_empty() {
+            return Ok(());
+        }
+
+        // 3) Дедуп (чтобы не получить ON CONFLICT ... row a second time)
+        #[derive(Hash, Eq, PartialEq)]
+        struct Key {
+            symbol_id: i64,
+            time_ms: i64,
+            tf: String,
+            name: String,
+        }
+
+        let mut best: HashMap<Key, (i64, IndicatorRecord)> = HashMap::new();
+        for (sid, r) in resolved {
+            let k = Key {
+                symbol_id: sid,
+                time_ms: r.timestamp,
+                tf: r.timeframe.as_str().to_string(),
+                name: r.indicator_name.clone(),
+            };
+            // просто “последний победил”
+            best.insert(k, (sid, r));
+        }
+        let deduped: Vec<(i64, IndicatorRecord)> = best.into_values().collect();
+
+        // 4) Группируем по table_name = market.indicators_{tf}
+        let mut by_table: HashMap<String, Vec<(i64, IndicatorRecord)>> = HashMap::new();
+        for (sid, r) in deduped {
+            let tf = r.timeframe.as_str();
+            if !is_safe_ident(tf) {
+                warn!("IndicatorPersistor: unsafe timeframe ident: {}", tf);
                 continue;
             }
+            let table = format!("market.indicators_{}", tf);
+            by_table.entry(table).or_default().push((sid, r));
+        }
 
-            let mut query_builder = sqlx::QueryBuilder::new(format!("INSERT INTO {} (time_ms, time, symbol_id", table_name));
-            for indicator_name in &indicator_names {
-                query_builder.push(format!(", {}", indicator_name));
-            }
+        // 5) UPSERT чанками
+        let mut tx = self.db_pool.begin().await?;
+        let now = Utc::now();
+        let now_ms = now.timestamp_millis();
 
-            query_builder.push(") VALUES (");
-            query_builder.push_bind(timestamp);
-            query_builder.push(", ");
-            query_builder.push_bind(time_utc);
-            query_builder.push(", ");
-            query_builder.push_bind(symbol_id);
+        const CHUNK: usize = 1500; // 1 строка ~ 15 bind => далеко до лимита 65535
 
-            for value in &indicator_values {
-                query_builder.push(", ");
-                match value {
-                    FeatureValue::Float(f) => query_builder.push_bind(f),
-                    FeatureValue::Json(j) => query_builder.push_bind(j),
-                };
-            }
+        for (table, rows) in by_table {
+            for chunk in rows.chunks(CHUNK) {
+                let mut qb = QueryBuilder::<Postgres>::new(format!(
+                    "INSERT INTO {} \
+                    (time, time_ms, symbol_id, symbol, tf_minutes, indicator_name, value_float, value_json, candle_is_final, calc_source, event_time_ms, created_at, created_at_ms, updated_at, updated_at_ms) ",
+                    table
+                ));
 
-            query_builder.push(") ON CONFLICT (symbol_id, time) DO UPDATE SET ");
-            
-            let mut first_set_item = true;
-            for indicator_name in &indicator_names {
-                if !first_set_item {
-                    query_builder.push(", ");
-                }
-                query_builder.push(format!("{} = EXCLUDED.{}", indicator_name, indicator_name));
-                first_set_item = false;
-            }
+                qb.push_values(chunk, |mut b, (symbol_id, r)| {
+                    let dt: DateTime<Utc> = DateTime::<Utc>::from_timestamp_millis(r.timestamp)
+                        .unwrap_or_else(|| Utc::now());
 
-            query_builder.push(", updated_at_ms = EXCLUDED.time_ms, updated_at = NOW()");
-            
-            if let Err(e) = query_builder.build().execute(&self.db_pool).await {
-                eprintln!("Failed to insert indicators for {}: {}", symbol, e);
+                    let (vf, vj) = match &r.value {
+                        FeatureValue::Float(v) => (Some(*v), None),
+                        FeatureValue::Json(j) => (None, Some(j.clone())),
+                    };
+
+                    b.push_bind(dt);
+                    b.push_bind(r.timestamp);
+                    b.push_bind(*symbol_id);
+                    b.push_bind(r.symbol.to_string());
+                    b.push_bind(r.timeframe.to_minutes() as i16);
+                    b.push_bind(r.indicator_name.as_str());
+                    b.push_bind(vf);
+                    b.push_bind(vj.map(sqlx::types::Json));
+
+                    // мета пока дефолт
+                    b.push_bind(true);          // candle_is_final
+                    b.push_bind(1_i16);         // calc_source
+                    b.push_bind(Option::<i64>::None); // event_time_ms
+
+                    b.push_bind(now);
+                    b.push_bind(now_ms);
+                    b.push_bind(now);
+                    b.push_bind(now_ms);
+                });
+
+                qb.push(
+                    " ON CONFLICT (symbol_id, time, indicator_name) DO UPDATE SET \
+                      time_ms = EXCLUDED.time_ms, \
+                      symbol = EXCLUDED.symbol, \
+                      tf_minutes = EXCLUDED.tf_minutes, \
+                      value_float = EXCLUDED.value_float, \
+                      value_json = EXCLUDED.value_json, \
+                      candle_is_final = EXCLUDED.candle_is_final, \
+                      calc_source = EXCLUDED.calc_source, \
+                      event_time_ms = EXCLUDED.event_time_ms, \
+                      updated_at = EXCLUDED.updated_at, \
+                      updated_at_ms = EXCLUDED.updated_at_ms"
+                );
+
+                qb.build().execute(&mut *tx).await?;
             }
         }
 
+        tx.commit().await?;
         Ok(())
     }
 
-    pub async fn queue_record(&self, record: IndicatorRecord) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut queue = self.persist_queue.write().await;
-        queue.push(record);
-        Ok(())
-    }
+    async fn prefill_symbol_cache(&self, records: &[IndicatorRecord]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut missing: HashSet<String> = HashSet::new();
+        {
+            let cache = self.symbol_id_cache.read().await;
+            for r in records {
+                if !cache.contains_key(&r.symbol) {
+                    missing.insert(r.symbol.to_string());
+                }
+            }
+        }
+        if missing.is_empty() {
+            return Ok(());
+        }
 
-    pub async fn queue_records(&self, records: Vec<IndicatorRecord>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut queue = self.persist_queue.write().await;
-        queue.extend(records);
+        let symbols: Vec<String> = missing.into_iter().collect();
+        let rows = sqlx::query("SELECT symbol_id, symbol FROM market.pairs WHERE symbol = ANY($1)")
+            .bind(&symbols)
+            .fetch_all(&self.db_pool)
+            .await?;
+
+        let mut cache = self.symbol_id_cache.write().await;
+        for row in rows {
+            let sid: i64 = row.get("symbol_id");
+            let sym: String = row.get("symbol");
+            cache.insert(Symbol::from(sym), sid);
+        }
+
         Ok(())
     }
 }
 
+fn is_safe_ident(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
 
 
 # compute/src/job_scheduler.rs
@@ -16019,12 +16402,19 @@ use common::{Symbol, Timeframe};
 use compute_lib::*;
 use sqlx::Row;
 use dotenvy::dotenv;
+use raw_signals::thresholds::SignalConfig;
 
 fn env_usize(key: &str, default: usize) -> usize {
     std::env::var(key)
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(default)
+}
+
+fn env_bool(key: &str, default: bool) -> bool { std::env::var(key).ok() .and_then(|v| match v.to_lowercase().as_str() { "1" | "true" | "yes" | "y" => Some(true), "0" | "false" | "no" | "n" => Some(false), _ => None }) .unwrap_or(default)
+}
+
+fn env_f64(key: &str, default: f64) -> f64 { std::env::var(key).ok() .and_then(|v| v.parse::<f64>().ok()) .unwrap_or(default)
 }
 
 #[tokio::main]
@@ -16136,9 +16526,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn persistence loop
     let persistor_clone = persistor.clone();
     tokio::spawn(async move {
-        if let Err(e) = persistor_clone.start_persistence_loop().await {
-            eprintln!("Persistence loop error: {}", e);
-        }
+        persistor_clone.start_persistence_loop().await;
     });
 
     // Initialize RawSignal persistor
@@ -16150,14 +16538,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw_signal_persistor = Arc::new(raw_signal_persistor);
 
     // Initialize RawSignal processor
-    let raw_signal_processor = Arc::new(RawSignalProcessor::new(Default::default()));
+    let raw_cfg = SignalConfig {
+        enable_filtering: env_bool("RAW_SIGNALS_ENABLE_FILTERING", false),
+        min_interesting_score: env_f64("RAW_SIGNALS_MIN_SCORE", 0.0),
+        ..Default::default()
+    };
+    let raw_signal_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
     // Spawn RawSignal persistence loop
     let raw_signal_persistor_clone = raw_signal_persistor.clone();
     tokio::spawn(async move {
-        if let Err(e) = raw_signal_persistor_clone.start_persistence_loop().await {
-            eprintln!("RawSignal persistence loop error: {}", e);
-        }
+        raw_signal_persistor_clone.start_persistence_loop().await;
     });
 
     // Spawn result processor to handle computed indicators and raw signals
@@ -16182,9 +16573,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if !records.is_empty() {
-                if let Err(e) = persistor_clone2.queue_records(records).await {
-                    eprintln!("Error queuing records for persistence: {}", e);
-                }
+                persistor_clone2.queue_records(records).await;
             }
             
             // Handle raw signals
@@ -16567,23 +16956,28 @@ async fn start_kafka_consumer(
 
 # compute/src/raw_signal_persistor.rs
 
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+// compute/src/raw_signal_persistor.rs
 
-use chrono::{TimeZone, Utc};
-use common::Symbol;
-use sqlx::{PgPool, Postgres, QueryBuilder};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 use tokio::sync::{mpsc, RwLock};
+use tracing::{error, warn};
+
+use common::Symbol;
 
 use crate::raw_signal_types::RawSignal;
 
 pub struct RawSignalPersistor {
-    db_pool: PgPool,
-    persist_queue: Arc<RwLock<Vec<RawSignal>>>,
-    batch_size: usize,
-    flush_interval_ms: u64,
+    pub db_pool: PgPool,
+    pub persist_queue: Arc<RwLock<Vec<RawSignal>>>,
+    pub batch_size: usize,
+    pub flush_interval_ms: u64,
 
-    // кеш symbol -> symbol_id чтобы не долбить БД каждый flush
-    symbol_id_cache: Arc<RwLock<HashMap<Symbol, i64>>>,
+    pub symbol_id_cache: Arc<RwLock<HashMap<Symbol, i64>>>,
 }
 
 impl RawSignalPersistor {
@@ -16592,95 +16986,63 @@ impl RawSignalPersistor {
         batch_size: usize,
         flush_interval_ms: u64,
     ) -> (Self, mpsc::UnboundedSender<RawSignal>) {
-        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let persist_queue = Arc::new(RwLock::new(Vec::new()));
+        let symbol_id_cache = Arc::new(RwLock::new(HashMap::new()));
 
-        let persistor = Self {
-            db_pool,
-            persist_queue: Arc::new(RwLock::new(Vec::new())),
-            batch_size,
-            flush_interval_ms,
-            symbol_id_cache: Arc::new(RwLock::new(HashMap::new())),
-        };
+        let (sender, mut receiver) = mpsc::unbounded_channel::<RawSignal>();
 
-        let queue = persistor.persist_queue.clone();
-        tokio::spawn(async move {
-            while let Some(record) = receiver.recv().await {
-                let mut q = queue.write().await;
-                q.push(record);
-            }
-        });
+        // Receiver -> queue
+        {
+            let q = Arc::clone(&persist_queue);
+            tokio::spawn(async move {
+                while let Some(s) = receiver.recv().await {
+                    q.write().await.push(s);
+                }
+            });
+        }
 
-        (persistor, sender)
+        (
+            Self {
+                db_pool,
+                persist_queue,
+                batch_size,
+                flush_interval_ms,
+                symbol_id_cache,
+            },
+            sender,
+        )
     }
 
-    pub async fn start_persistence_loop(
-        &self,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut last_flush = tokio::time::Instant::now();
-        let interval = tokio::time::Duration::from_millis(self.flush_interval_ms);
+    pub async fn start_persistence_loop(self: Arc<Self>) {
+        let mut interval = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
 
         loop {
-            let should_flush_size = {
-                let q = self.persist_queue.read().await;
-                q.len() >= self.batch_size
+            interval.tick().await;
+
+            let batch: Vec<RawSignal> = {
+                let mut q = self.persist_queue.write().await;
+                if q.is_empty() {
+                    continue;
+                }
+                let take = self.batch_size.min(q.len());
+                q.drain(0..take).collect()
             };
 
-            let should_flush_time = last_flush.elapsed() >= interval;
-
-            if should_flush_size || should_flush_time {
-                if let Err(e) = self.flush_batch().await {
-                    eprintln!("Error flushing raw signals batch: {}", e);
-                }
-                last_flush = tokio::time::Instant::now();
+            if let Err(e) = self.flush_batch(batch).await {
+                error!("Error flushing raw signals batch: {}", e);
             }
-
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     }
 
-    async fn flush_batch(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let records = {
-            let mut q = self.persist_queue.write().await;
-            if q.is_empty() {
-                return Ok(());
-            }
-            q.drain(..).collect::<Vec<_>>()
-        };
-
-        // 1) Собираем уникальные symbols, которые не в кеше
-        let mut need_fetch: HashSet<String> = HashSet::new();
-        {
-            let cache = self.symbol_id_cache.read().await;
-            for r in &records {
-                if !cache.contains_key(&r.symbol) {
-                    need_fetch.insert(r.symbol.as_str().to_string());
-                }
-            }
+    async fn flush_batch(&self, records: Vec<RawSignal>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if records.is_empty() {
+            return Ok(());
         }
 
-        // 2) Догружаем symbol_id одним запросом
-        if !need_fetch.is_empty() {
-            let symbols: Vec<String> = need_fetch.into_iter().collect();
-            let rows = sqlx::query!(
-                r#"
-                SELECT symbol, symbol_id
-                FROM market.pairs
-                WHERE symbol = ANY($1)
-                "#,
-                &symbols
-            )
-            .fetch_all(&self.db_pool)
-            .await?;
+        // 1) cache symbol_id батчом
+        self.prefill_symbol_cache(&records).await?;
 
-            let mut cache = self.symbol_id_cache.write().await;
-            for row in rows {
-                // Symbol у тебя типизированный, поэтому создаём через Symbol::from если он есть.
-                let sym = Symbol::from(row.symbol);
-                cache.insert(sym, row.symbol_id);
-            }
-        }
-
-        // 3) Превращаем RawSignal -> (symbol_id, signal)
+        // 2) resolve
         let mut resolved: Vec<(i64, RawSignal)> = Vec::with_capacity(records.len());
         {
             let cache = self.symbol_id_cache.read().await;
@@ -16688,75 +17050,116 @@ impl RawSignalPersistor {
                 if let Some(&sid) = cache.get(&r.symbol) {
                     resolved.push((sid, r));
                 } else {
-                    eprintln!("RawSignalPersistor: symbol_id not found for {}", r.symbol);
+                    warn!("RawSignalPersistor: symbol_id not found for {}", r.symbol);
                 }
             }
         }
-
         if resolved.is_empty() {
             return Ok(());
         }
 
-        // 4) Bulk UPSERT чанками
-        self.upsert_bulk(&resolved).await?;
+        // 3) DEDUP по точному ключу upsert (включая signal_sub_id!)
+        #[derive(Hash, Eq, PartialEq)]
+        struct Key {
+            symbol_id: i64,
+            tf_minutes: i16,
+            time_ms: i64,
+            indicator_id: i16,
+            signal_kind: i16,
+            signal_sub_id: i16,
+        }
 
-        Ok(())
-    }
+        let mut best: HashMap<Key, (i64, RawSignal)> = HashMap::new();
+        for (sid, s) in resolved {
+            let k = Key {
+                symbol_id: sid,
+                tf_minutes: s.timeframe.to_minutes() as i16,
+                time_ms: s.timestamp,
+                indicator_id: s.indicator_id,
+                signal_kind: s.signal_kind,
+                signal_sub_id: s.signal_sub_id,
+            };
 
-    async fn upsert_bulk(
-        &self,
-        rows: &[(i64, RawSignal)],
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Важно: лимит параметров Postgres ~ 65535. У нас 12 bind'ов на строку.
-        // 1000 строк = 12000 параметров — норм.
-        const CHUNK: usize = 1000;
+            match best.get(&k) {
+                None => {
+                    best.insert(k, (sid, s));
+                }
+                Some((_, prev)) => {
+                    // оставляем более “сильный” score
+                    if s.score.abs() > prev.score.abs() {
+                        best.insert(k, (sid, s));
+                    }
+                }
+            }
+        }
 
+        let deduped: Vec<(i64, RawSignal)> = best.into_values().collect();
+
+        // 4) UPSERT чанками
+        const CHUNK: usize = 1200; // строка ~ 20 bind
+
+        let mut tx = self.db_pool.begin().await?;
         let now = Utc::now();
         let now_ms = now.timestamp_millis();
 
-        let mut tx = self.db_pool.begin().await?;
-
-        for chunk in rows.chunks(CHUNK) {
-            let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
-                r#"
-                INSERT INTO market.raw_signals
-                  (time_ms, time, symbol_id, tf_minutes, indicator_id, signal_kind,
-                   side, score, value, details, created_at_ms, created_at)
-                "#
+        for chunk in deduped.chunks(CHUNK) {
+            let mut qb = QueryBuilder::<Postgres>::new(
+                "INSERT INTO market.raw_signals \
+                (time, time_ms, symbol_id, symbol, tf_minutes, indicator_id, signal_kind, signal_sub_id, side, score, value, details, \
+                 candle_is_final, calc_source, event_time_ms, features_json, scores_json, predictions_json, \
+                 created_at, created_at_ms, updated_at, updated_at_ms) "
             );
 
             qb.push_values(chunk, |mut b, (symbol_id, s)| {
-                let time_value = Utc
-                    .timestamp_millis_opt(s.timestamp)
-                    .single()
-                    .unwrap_or(now);
+                let dt: DateTime<Utc> = DateTime::<Utc>::from_timestamp_millis(s.timestamp)
+                    .unwrap_or_else(|| Utc::now());
 
-                b.push_bind(s.timestamp)
-                    .push_bind(time_value)
-                    .push_bind(*symbol_id)
-                    .push_bind(s.timeframe.to_minutes() as i16)
-                    .push_bind(s.indicator_id)
-                    .push_bind(s.signal_kind)
-                    .push_bind(s.side)
-                    .push_bind(s.score)
-                    .push_bind(s.value)
-                    .push_bind(&s.details)
-                    .push_bind(now_ms)
-                    .push_bind(now);
+                b.push_bind(dt);
+                b.push_bind(s.timestamp);
+                b.push_bind(*symbol_id);
+                b.push_bind(s.symbol.to_string());
+                b.push_bind(s.timeframe.to_minutes() as i16);
+
+                b.push_bind(s.indicator_id);
+                b.push_bind(s.signal_kind);
+                b.push_bind(s.signal_sub_id);
+
+                b.push_bind(s.side);
+                b.push_bind(s.score);
+                b.push_bind(s.value);
+
+                b.push_bind(s.details.clone().map(sqlx::types::Json));
+
+                b.push_bind(s.candle_is_final);
+                b.push_bind(s.calc_source);
+                b.push_bind(s.event_time_ms);
+
+                b.push_bind(s.features_json.clone().map(sqlx::types::Json));
+                b.push_bind(s.scores_json.clone().map(sqlx::types::Json));
+                b.push_bind(s.predictions_json.clone().map(sqlx::types::Json));
+
+                b.push_bind(now);
+                b.push_bind(now_ms);
+                b.push_bind(now);
+                b.push_bind(now_ms);
             });
 
-            // Ключ берём по имени constraint (идеально для timescale chunks)
             qb.push(
-                r#"
-                ON CONFLICT ON CONSTRAINT raw_signals_pkey
-                DO UPDATE SET
-                  side          = EXCLUDED.side,
-                  score         = EXCLUDED.score,
-                  value         = EXCLUDED.value,
-                  details       = EXCLUDED.details,
-                  created_at_ms = EXCLUDED.created_at_ms,
-                  created_at    = EXCLUDED.created_at
-                "#
+                " ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET \
+                  time_ms = EXCLUDED.time_ms, \
+                  symbol = EXCLUDED.symbol, \
+                  side = EXCLUDED.side, \
+                  score = EXCLUDED.score, \
+                  value = EXCLUDED.value, \
+                  details = EXCLUDED.details, \
+                  candle_is_final = EXCLUDED.candle_is_final, \
+                  calc_source = EXCLUDED.calc_source, \
+                  event_time_ms = EXCLUDED.event_time_ms, \
+                  features_json = EXCLUDED.features_json, \
+                  scores_json = EXCLUDED.scores_json, \
+                  predictions_json = EXCLUDED.predictions_json, \
+                  updated_at = EXCLUDED.updated_at, \
+                  updated_at_ms = EXCLUDED.updated_at_ms"
             );
 
             qb.build().execute(&mut *tx).await?;
@@ -16765,19 +17168,56 @@ impl RawSignalPersistor {
         tx.commit().await?;
         Ok(())
     }
-}
 
+    async fn prefill_symbol_cache(&self, records: &[RawSignal]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut missing: HashSet<String> = HashSet::new();
+        {
+            let cache = self.symbol_id_cache.read().await;
+            for r in records {
+                if !cache.contains_key(&r.symbol) {
+                    missing.insert(r.symbol.to_string());
+                }
+            }
+        }
+        if missing.is_empty() {
+            return Ok(());
+        }
+
+        let symbols: Vec<String> = missing.into_iter().collect();
+        let rows = sqlx::query("SELECT symbol_id, symbol FROM market.pairs WHERE symbol = ANY($1)")
+            .bind(&symbols)
+            .fetch_all(&self.db_pool)
+            .await?;
+
+        let mut cache = self.symbol_id_cache.write().await;
+        for row in rows {
+            let sid: i64 = row.get("symbol_id");
+            let sym: String = row.get("symbol");
+            cache.insert(Symbol::from(sym), sid);
+        }
+
+        Ok(())
+    }
+}
 
 
 # compute/src/raw_signal_processor.rs
 
-use crate::{FeatureWindow, RawSignal as ComputeRawSignal};
-use raw_signals::thresholds::{SignalConfig, RawSignal as RawSignalsRawSignal};
+// compute/src/raw_signal_processor.rs
+
+use std::collections::HashMap;
+
 use common::{Symbol, Timeframe};
-use std::vec::Vec;
+use serde_json::{json, Map, Value as JsonValue};
+
+use crate::compute_backend::FeatureWindow;
+use crate::raw_signal_types::RawSignal as ComputeRawSignal;
+use crate::types::FeatureValue;
+
+use raw_signals::thresholds::{RawSignal as RawSignalsRawSignal, SignalConfig};
 
 pub struct RawSignalProcessor {
-    config: SignalConfig,
+    pub config: SignalConfig,
 }
 
 impl RawSignalProcessor {
@@ -16786,102 +17226,198 @@ impl RawSignalProcessor {
     }
 
     pub fn process_feature_window(&self, feature_window: &FeatureWindow) -> Vec<ComputeRawSignal> {
-        let mut raw_signals = Vec::new();
-
-        if feature_window.features.is_empty() {
-            return raw_signals;
-        }
-
         let candle_window = match &feature_window.candle_window {
-            Some(cw) => cw,
-            None => return raw_signals,
+            Some(w) => w,
+            None => return vec![],
         };
 
-        let timestamps: Vec<i64> = candle_window.timestamps.clone();
-        let symbols: Vec<Symbol> = vec![feature_window.features[0].symbol.clone(); timestamps.len()];
-        let timeframes: Vec<Timeframe> = vec![feature_window.features[0].timeframe; timestamps.len()];
+        let n = candle_window.timestamps.len();
+        if n == 0 {
+            return vec![];
+        }
 
-        // poc
-        let poc_values = feature_window.get_indicator_values("poc");
-        let poc_raw_signals = raw_signals::poc_raw::calculate_poc_raw_signals(&candle_window.close, &poc_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(poc_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        // Assuming a single symbol/timeframe per feature window for now.
+        let Some(first_feature) = feature_window.features.get(0) else {
+            return vec![]; // No features, no signals
+        };
+        let symbol = first_feature.symbol.clone();
+        let timeframe = first_feature.timeframe;
+
+        let timestamps = &candle_window.timestamps;
+        // Create vectors for symbol and timeframe for each candle
+        let symbols = vec![symbol.clone(); n];
+        let timeframes = vec![timeframe; n];
+
+        // Индекс для вытягивания features по (symbol, timeframe, timestamp)
+        let mut feat_idx: HashMap<(common::Symbol, common::Timeframe, i64), usize> =
+            HashMap::with_capacity(feature_window.features.len());
+        for (i, r) in feature_window.features.iter().enumerate() {
+            feat_idx.insert((r.symbol.clone(), r.timeframe, r.timestamp), i);
+        }
+
+        // Вытаскиваем значения одним проходом, длины всегда == n (иначе raw_signals режет массивы).
+        let mut adx = vec![f64::NAN; n];
+        let mut atr = vec![f64::NAN; n];
+        let mut bb_upper = vec![f64::NAN; n];
+        let mut bb_mid = vec![f64::NAN; n];
+        let mut bb_lower = vec![f64::NAN; n];
+        let mut cci = vec![f64::NAN; n];
+        let mut ema20 = vec![f64::NAN; n];
+        let mut ema50 = vec![f64::NAN; n];
+        let mut ema200 = vec![f64::NAN; n];
+        let mut macd = vec![f64::NAN; n];
+        let mut macd_signal = vec![f64::NAN; n];
+        let mut macd_hist = vec![f64::NAN; n];
+        let mut obv = vec![f64::NAN; n];
+        let mut rsi = vec![f64::NAN; n];
+        let mut sma = vec![f64::NAN; n];
+        let mut stoch_k = vec![f64::NAN; n];
+        let mut stoch_d = vec![f64::NAN; n];
+        let mut vwap = vec![f64::NAN; n];
+        let mut williams = vec![f64::NAN; n];
+
+        for i in 0..n {
+            let key = (symbols[i].clone(), timeframes[i], timestamps[i]);
+            let Some(&j) = feat_idx.get(&key) else { continue; };
+            let feats = &feature_window.features[j].features;
+
+            adx[i] = get_f64(feats, "adx");
+            atr[i] = get_f64(feats, "atr");
+            bb_upper[i] = get_f64(feats, "bb_upper");
+            bb_mid[i] = get_f64(feats, "bb_mid");
+            bb_lower[i] = get_f64(feats, "bb_lower");
+            cci[i] = get_f64(feats, "cci");
+            ema20[i] = get_f64(feats, "ema20");
+            ema50[i] = get_f64(feats, "ema50");
+            ema200[i] = get_f64(feats, "ema200");
+            macd[i] = get_f64(feats, "macd");
+            macd_signal[i] = get_f64(feats, "macd_signal");
+            macd_hist[i] = get_f64(feats, "macd_hist");
+            obv[i] = get_f64(feats, "obv");
+            rsi[i] = get_f64(feats, "rsi");
+            sma[i] = get_f64(feats, "sma");
+            stoch_k[i] = get_f64(feats, "stoch_k");
+            stoch_d[i] = get_f64(feats, "stoch_d");
+            vwap[i] = get_f64(feats, "vwap");
+            williams[i] = get_f64(feats, "williams");
+        }
+
+        let mut raw_signals: Vec<ComputeRawSignal> = Vec::new();
 
         // adx
-        let adx_values = feature_window.get_indicator_values("adx");
-        let adx_raw_signals = raw_signals::adx_raw::calculate_adx_raw_signals(&adx_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(adx_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::adx_raw::calculate_adx_raw_signals(&adx, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // atr
-        let atr_values = feature_window.get_indicator_values("atr");
-        let atr_raw_signals = raw_signals::atr_raw::calculate_atr_raw_signals(&atr_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(atr_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::atr_raw::calculate_atr_raw_signals(&atr, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // bb
-        let bb_upper = feature_window.get_indicator_values("bb_upper");
-        let bb_mid = feature_window.get_indicator_values("bb_mid");
-        let bb_lower = feature_window.get_indicator_values("bb_lower");
-        let bb_raw_signals = raw_signals::bb_raw::calculate_bb_raw_signals(&candle_window.close, &bb_upper, &bb_mid, &bb_lower, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(bb_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::bb_raw::calculate_bb_raw_signals(
+                &candle_window.close,
+                &bb_upper,
+                &bb_mid,
+                &bb_lower,
+                timestamps,
+                &symbols,
+                &timeframes,
+                &self.config,
+            )
+            .into_iter()
+            .map(|s| self.convert_raw_signal(s)),
+        );
 
         // cci
-        let cci_values = feature_window.get_indicator_values("cci");
-        let cci_raw_signals = raw_signals::cci_raw::calculate_cci_raw_signals(&cci_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(cci_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::cci_raw::calculate_cci_raw_signals(&cci, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
-        // ema20
-        let ema20 = feature_window.get_indicator_values("ema20");
-        let ema20_raw_signals = raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema20, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(ema20_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
-
-        // ema50
-        let ema50 = feature_window.get_indicator_values("ema50");
-        let ema50_raw_signals = raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema50, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(ema50_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
-
-        // ema200
-        let ema200 = feature_window.get_indicator_values("ema200");
-        let ema200_raw_signals = raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema200, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(ema200_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        // ema20/50/200
+        raw_signals.extend(
+            raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema20, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal_with_sub_id(s, 20)),
+        );
+        raw_signals.extend(
+            raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema50, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal_with_sub_id(s, 50)),
+        );
+        raw_signals.extend(
+            raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema200, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal_with_sub_id(s, 200)),
+        );
 
         // macd
-        let macd_line = feature_window.get_indicator_values("macd");
-        let macd_signal = feature_window.get_indicator_values("macd_signal");
-        let macd_hist = feature_window.get_indicator_values("macd_hist");
-        let macd_cross_signals = raw_signals::macd_raw::calculate_macd_crossover_signals(&macd_line, &macd_signal, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(macd_cross_signals.into_iter().map(|s| self.convert_raw_signal(s)));
-        let macd_hist_signals = raw_signals::macd_raw::calculate_macd_histogram_signals(&macd_hist, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(macd_hist_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::macd_raw::calculate_macd_raw_signals(&macd_hist, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // obv
-        let obv_values = feature_window.get_indicator_values("obv");
-        let obv_raw_signals = raw_signals::obv_raw::calculate_obv_raw_signals(&obv_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(obv_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::obv_raw::calculate_obv_raw_signals(&obv, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // rsi
-        let rsi_values = feature_window.get_indicator_values("rsi");
-        let rsi_raw_signals = raw_signals::rsi_raw::calculate_rsi_raw_signals(&rsi_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(rsi_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::rsi_raw::calculate_rsi_raw_signals(&rsi, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // sma
-        let sma_values = feature_window.get_indicator_values("sma");
-        let sma_raw_signals = raw_signals::sma_raw::calculate_sma_raw_signals(&candle_window.close, &sma_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(sma_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::sma_raw::calculate_sma_raw_signals(&candle_window.close, &sma, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // stoch
-        let k_values = feature_window.get_indicator_values("stoch_k");
-        let d_values = feature_window.get_indicator_values("stoch_d");
-        let stoch_raw_signals = raw_signals::stoch_raw::calculate_stoch_raw_signals(&k_values, &d_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(stoch_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::stoch_raw::calculate_stoch_raw_signals(&stoch_k, &stoch_d, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // vwap
-        let vwap_values = feature_window.get_indicator_values("vwap");
-        let vwap_raw_signals = raw_signals::vwap_raw::calculate_vwap_raw_signals(&candle_window.close, &vwap_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(vwap_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::vwap_raw::calculate_vwap_raw_signals(&candle_window.close, &vwap, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
 
         // williams
-        let williams_values = feature_window.get_indicator_values("williams");
-        let williams_raw_signals = raw_signals::williams_raw::calculate_williams_raw_signals(&williams_values, &timestamps, &symbols, &timeframes, &self.config);
-        raw_signals.extend(williams_raw_signals.into_iter().map(|s| self.convert_raw_signal(s)));
+        raw_signals.extend(
+            raw_signals::williams_raw::calculate_williams_raw_signals(&williams, timestamps, &symbols, &timeframes, &self.config)
+                .into_iter()
+                .map(|s| self.convert_raw_signal(s)),
+        );
+
+        // Приклеиваем контекст (features_json + scores_json) по свече.
+        attach_context(
+            &mut raw_signals,
+            candle_window,
+            &symbols,
+            &timeframes,
+            &adx, &atr, &bb_upper, &bb_mid, &bb_lower, &cci,
+            &ema20, &ema50, &ema200,
+            &macd, &macd_signal, &macd_hist,
+            &obv, &rsi, &sma, &stoch_k, &stoch_d, &vwap, &williams,
+        );
 
         raw_signals
     }
@@ -16893,17 +17429,131 @@ impl RawSignalProcessor {
             timestamp: raw_signal.timestamp,
             indicator_id: raw_signal.indicator_id,
             signal_kind: raw_signal.signal_kind,
+            signal_sub_id: 0, // default (если захочешь - можно маппить по details)
             side: raw_signal.side,
             score: raw_signal.score,
             value: raw_signal.value,
             details: raw_signal.details,
+
+            candle_is_final: true,
+            calc_source: 1,
+            event_time_ms: None,
+
+            features_json: None,
+            scores_json: None,
+            predictions_json: None,
+        }
+    }
+
+    fn convert_raw_signal_with_sub_id(&self, raw_signal: RawSignalsRawSignal, sub_id: i16) -> ComputeRawSignal {
+        let mut s = self.convert_raw_signal(raw_signal);
+        s.signal_sub_id = sub_id;
+        s
+    }
+}
+
+fn get_f64(feats: &HashMap<String, FeatureValue>, key: &str) -> f64 {
+    match feats.get(key) {
+        Some(FeatureValue::Float(v)) => *v,
+        _ => f64::NAN,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn attach_context(
+    signals: &mut [ComputeRawSignal],
+    cw: &crate::CandleWindow,
+    symbols: &[Symbol],
+    timeframes: &[Timeframe],
+    adx: &[f64], atr: &[f64], bb_upper: &[f64], bb_mid: &[f64], bb_lower: &[f64], cci: &[f64],
+    ema20: &[f64], ema50: &[f64], ema200: &[f64],
+    macd: &[f64], macd_signal: &[f64], macd_hist: &[f64],
+    obv: &[f64], rsi: &[f64], sma: &[f64], stoch_k: &[f64], stoch_d: &[f64], vwap: &[f64], williams: &[f64],
+) {
+    // индекс свечи по ключу (symbol, tf, ts)
+    let mut candle_idx: HashMap<(common::Symbol, common::Timeframe, i64), usize> = HashMap::with_capacity(cw.timestamps.len());
+    for i in 0..cw.timestamps.len() {
+        candle_idx.insert((symbols[i].clone(), timeframes[i], cw.timestamps[i]), i);
+    }
+
+    // группируем сигналы по свече
+    let mut groups: HashMap<(common::Symbol, common::Timeframe, i64), Vec<usize>> = HashMap::new();
+    for (i, s) in signals.iter().enumerate() {
+        groups.entry((s.symbol.clone(), s.timeframe, s.timestamp)).or_default().push(i);
+    }
+
+    for (k, idxs) in groups {
+        let Some(&ci) = candle_idx.get(&k) else { continue; };
+
+        // features_json
+        let mut fm = Map::new();
+        fm.insert("symbol".into(), json!(symbols[ci].to_string()));
+        fm.insert("tf".into(), json!(timeframes[ci].as_str()));
+        fm.insert("time_ms".into(), json!(cw.timestamps[ci]));
+        fm.insert("close".into(), json!(cw.close[ci]));
+        fm.insert("high".into(), json!(cw.high[ci]));
+        fm.insert("low".into(), json!(cw.low[ci]));
+        fm.insert("volume".into(), json!(cw.volume[ci]));
+
+        put_num(&mut fm, "adx", adx[ci]);
+        put_num(&mut fm, "atr", atr[ci]);
+        put_num(&mut fm, "bb_upper", bb_upper[ci]);
+        put_num(&mut fm, "bb_mid", bb_mid[ci]);
+        put_num(&mut fm, "bb_lower", bb_lower[ci]);
+        put_num(&mut fm, "cci", cci[ci]);
+
+        put_num(&mut fm, "ema20", ema20[ci]);
+        put_num(&mut fm, "ema50", ema50[ci]);
+        put_num(&mut fm, "ema200", ema200[ci]);
+
+        put_num(&mut fm, "macd", macd[ci]);
+        put_num(&mut fm, "macd_signal", macd_signal[ci]);
+        put_num(&mut fm, "macd_hist", macd_hist[ci]);
+
+        put_num(&mut fm, "obv", obv[ci]);
+        put_num(&mut fm, "rsi", rsi[ci]);
+        put_num(&mut fm, "sma", sma[ci]);
+        put_num(&mut fm, "stoch_k", stoch_k[ci]);
+        put_num(&mut fm, "stoch_d", stoch_d[ci]);
+        put_num(&mut fm, "vwap", vwap[ci]);
+        put_num(&mut fm, "williams", williams[ci]);
+
+        let features_json = JsonValue::Object(fm);
+
+        // scores_json (все сигналы по свече)
+        let mut arr = Vec::with_capacity(idxs.len());
+        for &si in &idxs {
+            let s = &signals[si];
+            arr.push(json!({
+                "indicator_id": s.indicator_id,
+                "signal_kind": s.signal_kind,
+                "signal_sub_id": s.signal_sub_id,
+                "side": s.side,
+                "score": s.score,
+                "value": s.value
+            }));
+        }
+        let scores_json = json!({ "signals": arr });
+
+        for &si in &idxs {
+            signals[si].features_json = Some(features_json.clone());
+            signals[si].scores_json = Some(scores_json.clone());
+            signals[si].candle_is_final = true;
+            signals[si].calc_source = 1;
         }
     }
 }
 
+fn put_num(m: &mut Map<String, JsonValue>, k: &str, v: f64) {
+    if v.is_finite() {
+        m.insert(k.to_string(), json!(v));
+    }
+}
 
 
 # compute/src/raw_signal_types.rs
+
+// compute/src/raw_signal_types.rs
 
 use common::{Symbol, Timeframe};
 use serde_json::Value as JsonValue;
@@ -16913,14 +17563,27 @@ pub struct RawSignal {
     pub symbol: Symbol,
     pub timeframe: Timeframe,
     pub timestamp: i64,
+
     pub indicator_id: i16,
     pub signal_kind: i16,
+    pub signal_sub_id: i16, // NEW: чтобы не биться за один ключ при upsert
+
     pub side: i16,
     pub score: f32,
     pub value: f32,
-    pub details: Option<JsonValue>,
-}
 
+    pub details: Option<JsonValue>,
+
+    // NEW: мета и контекст (пока default в processor)
+    pub candle_is_final: bool,
+    pub calc_source: i16,
+    pub event_time_ms: Option<i64>,
+
+    // NEW: снапшоты для последующего анализа / отладки
+    pub features_json: Option<JsonValue>,
+    pub scores_json: Option<JsonValue>,
+    pub predictions_json: Option<JsonValue>,
+}
 
 
 # compute/src/types.rs

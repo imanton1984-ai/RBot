@@ -31,7 +31,7 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/020_market_candles_tf.sql"),
             include_str!("../../database/ddl/021_market_candles_live.sql"),
             include_str!("../../database/ddl/025_market_staging.sql"),
-            include_str!("../../database/ddl/030_market_indicators_tf.sql"),
+            include_str!("../../database/ddl/030_market_indicators.sql"),
             include_str!("../../database/ddl/040_market_raw_signals.sql"),
             include_str!("../../database/ddl/045_add_symbol_column.sql"),  // Add symbol column to all tables
             include_str!("../../database/ddl/050_trade_tables.sql"),

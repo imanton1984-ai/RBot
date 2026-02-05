@@ -1,20 +1,25 @@
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+// compute/src/raw_signal_persistor.rs
 
-use chrono::{TimeZone, Utc};
-use common::Symbol;
-use sqlx::{PgPool, Postgres, QueryBuilder};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 use tokio::sync::{mpsc, RwLock};
+use tracing::{error, warn};
+
+use common::Symbol;
 
 use crate::raw_signal_types::RawSignal;
 
 pub struct RawSignalPersistor {
-    db_pool: PgPool,
-    persist_queue: Arc<RwLock<Vec<RawSignal>>>,
-    batch_size: usize,
-    flush_interval_ms: u64,
+    pub db_pool: PgPool,
+    pub persist_queue: Arc<RwLock<Vec<RawSignal>>>,
+    pub batch_size: usize,
+    pub flush_interval_ms: u64,
 
-    // кеш symbol -> symbol_id чтобы не долбить БД каждый flush
-    symbol_id_cache: Arc<RwLock<HashMap<Symbol, i64>>>,
+    pub symbol_id_cache: Arc<RwLock<HashMap<Symbol, i64>>>,
 }
 
 impl RawSignalPersistor {
@@ -23,95 +28,63 @@ impl RawSignalPersistor {
         batch_size: usize,
         flush_interval_ms: u64,
     ) -> (Self, mpsc::UnboundedSender<RawSignal>) {
-        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let persist_queue = Arc::new(RwLock::new(Vec::new()));
+        let symbol_id_cache = Arc::new(RwLock::new(HashMap::new()));
 
-        let persistor = Self {
-            db_pool,
-            persist_queue: Arc::new(RwLock::new(Vec::new())),
-            batch_size,
-            flush_interval_ms,
-            symbol_id_cache: Arc::new(RwLock::new(HashMap::new())),
-        };
+        let (sender, mut receiver) = mpsc::unbounded_channel::<RawSignal>();
 
-        let queue = persistor.persist_queue.clone();
-        tokio::spawn(async move {
-            while let Some(record) = receiver.recv().await {
-                let mut q = queue.write().await;
-                q.push(record);
-            }
-        });
+        // Receiver -> queue
+        {
+            let q = Arc::clone(&persist_queue);
+            tokio::spawn(async move {
+                while let Some(s) = receiver.recv().await {
+                    q.write().await.push(s);
+                }
+            });
+        }
 
-        (persistor, sender)
+        (
+            Self {
+                db_pool,
+                persist_queue,
+                batch_size,
+                flush_interval_ms,
+                symbol_id_cache,
+            },
+            sender,
+        )
     }
 
-    pub async fn start_persistence_loop(
-        &self,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut last_flush = tokio::time::Instant::now();
-        let interval = tokio::time::Duration::from_millis(self.flush_interval_ms);
+    pub async fn start_persistence_loop(self: Arc<Self>) {
+        let mut interval = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
 
         loop {
-            let should_flush_size = {
-                let q = self.persist_queue.read().await;
-                q.len() >= self.batch_size
+            interval.tick().await;
+
+            let batch: Vec<RawSignal> = {
+                let mut q = self.persist_queue.write().await;
+                if q.is_empty() {
+                    continue;
+                }
+                let take = self.batch_size.min(q.len());
+                q.drain(0..take).collect()
             };
 
-            let should_flush_time = last_flush.elapsed() >= interval;
-
-            if should_flush_size || should_flush_time {
-                if let Err(e) = self.flush_batch().await {
-                    eprintln!("Error flushing raw signals batch: {}", e);
-                }
-                last_flush = tokio::time::Instant::now();
+            if let Err(e) = self.flush_batch(batch).await {
+                error!("Error flushing raw signals batch: {}", e);
             }
-
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     }
 
-    async fn flush_batch(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let records = {
-            let mut q = self.persist_queue.write().await;
-            if q.is_empty() {
-                return Ok(());
-            }
-            q.drain(..).collect::<Vec<_>>()
-        };
-
-        // 1) Собираем уникальные symbols, которые не в кеше
-        let mut need_fetch: HashSet<String> = HashSet::new();
-        {
-            let cache = self.symbol_id_cache.read().await;
-            for r in &records {
-                if !cache.contains_key(&r.symbol) {
-                    need_fetch.insert(r.symbol.as_str().to_string());
-                }
-            }
+    async fn flush_batch(&self, records: Vec<RawSignal>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if records.is_empty() {
+            return Ok(());
         }
 
-        // 2) Догружаем symbol_id одним запросом
-        if !need_fetch.is_empty() {
-            let symbols: Vec<String> = need_fetch.into_iter().collect();
-            let rows = sqlx::query!(
-                r#"
-                SELECT symbol, symbol_id
-                FROM market.pairs
-                WHERE symbol = ANY($1)
-                "#,
-                &symbols
-            )
-            .fetch_all(&self.db_pool)
-            .await?;
+        // 1) cache symbol_id батчом
+        self.prefill_symbol_cache(&records).await?;
 
-            let mut cache = self.symbol_id_cache.write().await;
-            for row in rows {
-                // Symbol у тебя типизированный, поэтому создаём через Symbol::from если он есть.
-                let sym = Symbol::from(row.symbol);
-                cache.insert(sym, row.symbol_id);
-            }
-        }
-
-        // 3) Превращаем RawSignal -> (symbol_id, signal)
+        // 2) resolve
         let mut resolved: Vec<(i64, RawSignal)> = Vec::with_capacity(records.len());
         {
             let cache = self.symbol_id_cache.read().await;
@@ -119,149 +92,152 @@ impl RawSignalPersistor {
                 if let Some(&sid) = cache.get(&r.symbol) {
                     resolved.push((sid, r));
                 } else {
-                    eprintln!("RawSignalPersistor: symbol_id not found for {}", r.symbol);
+                    warn!("RawSignalPersistor: symbol_id not found for {}", r.symbol);
                 }
             }
         }
-
         if resolved.is_empty() {
             return Ok(());
         }
 
-        // 4) Bulk UPSERT чанками
-        self.upsert_bulk(&resolved).await?;
-
-        Ok(())
-    }
-
-    async fn upsert_bulk(
-        &self,
-        rows: &[(i64, RawSignal)],
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Важно: лимит параметров Postgres ~ 65535. У нас 12 bind'ов на строку.
-        // 1000 строк = 12000 параметров — норм.
-        const CHUNK: usize = 1000;
-
-        // Дедупликация сигналов перед вставкой, чтобы избежать ошибки
-        // "ON CONFLICT cannot affect row a second time"
-        #[derive(Hash, Eq, PartialEq, Clone)]
-        struct RsKey {
-            time_ms: i64,
+        // 3) DEDUP по точному ключу upsert (включая signal_sub_id!)
+        #[derive(Hash, Eq, PartialEq)]
+        struct Key {
             symbol_id: i64,
             tf_minutes: i16,
+            time_ms: i64,
             indicator_id: i16,
             signal_kind: i16,
+            signal_sub_id: i16,
         }
 
-        let mut best: HashMap<RsKey, (i64, RawSignal)> = HashMap::new();
-        for &(symbol_id, ref signal) in rows.iter() {
-            let k = RsKey {
-                time_ms: signal.timestamp,
-                symbol_id,
-                tf_minutes: signal.timeframe.to_minutes() as i16,
-                indicator_id: signal.indicator_id,
-                signal_kind: signal.signal_kind,
+        let mut best: HashMap<Key, (i64, RawSignal)> = HashMap::new();
+        for (sid, s) in resolved {
+            let k = Key {
+                symbol_id: sid,
+                tf_minutes: s.timeframe.to_minutes() as i16,
+                time_ms: s.timestamp,
+                indicator_id: s.indicator_id,
+                signal_kind: s.signal_kind,
+                signal_sub_id: s.signal_sub_id,
             };
 
             match best.get(&k) {
-                None => { best.insert(k, (symbol_id, signal.clone())); }
-                Some((_, ref prev)) => {
-                    // оставляем тот, у кого сильнее score
-                    if signal.score.abs() > prev.score.abs() {
-                        best.insert(k, (symbol_id, signal.clone()));
+                None => {
+                    best.insert(k, (sid, s));
+                }
+                Some((_, prev)) => {
+                    // оставляем более “сильный” score
+                    if s.score.abs() > prev.score.abs() {
+                        best.insert(k, (sid, s));
                     }
                 }
             }
         }
 
-        let deduped_rows: Vec<(i64, RawSignal)> = best.into_values().collect();
+        let deduped: Vec<(i64, RawSignal)> = best.into_values().collect();
 
+        // 4) UPSERT чанками
+        const CHUNK: usize = 1200; // строка ~ 20 bind
+
+        let mut tx = self.db_pool.begin().await?;
         let now = Utc::now();
         let now_ms = now.timestamp_millis();
 
-        let mut tx = self.db_pool.begin().await?;
-
-        // Create a map of symbol_ids to symbols to avoid repeated DB queries
-        let mut symbol_map: HashMap<i64, String> = HashMap::new();
-
-        // Fetch all unique symbols in one query
-        let unique_symbol_ids: Vec<i64> = deduped_rows
-            .iter()
-            .map(|(symbol_id, _)| *symbol_id)
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect();
-
-        if !unique_symbol_ids.is_empty() {
-            let symbols: Vec<(i64, String)> = sqlx::query_as(
-                "SELECT symbol_id, symbol FROM market.pairs WHERE symbol_id = ANY($1)"
-            )
-            .bind(&unique_symbol_ids)
-            .fetch_all(&self.db_pool)
-            .await?;
-
-            for (symbol_id, symbol) in symbols {
-                symbol_map.insert(symbol_id, symbol);
-            }
-        }
-
-        for chunk in deduped_rows.chunks(CHUNK) {
-            let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
-                r#"
-                INSERT INTO market.raw_signals
-                  (time_ms, time, symbol_id, symbol, tf_minutes, indicator_id, signal_kind,
-                   side, score, value, details, created_at_ms, created_at)
-                "#
+        for chunk in deduped.chunks(CHUNK) {
+            let mut qb = QueryBuilder::<Postgres>::new(
+                "INSERT INTO market.raw_signals \
+                (time, time_ms, symbol_id, symbol, tf_minutes, indicator_id, signal_kind, signal_sub_id, side, score, value, details, \
+                 candle_is_final, calc_source, event_time_ms, features_json, scores_json, predictions_json, \
+                 created_at, created_at_ms, updated_at, updated_at_ms) "
             );
 
             qb.push_values(chunk, |mut b, (symbol_id, s)| {
-                let time_value = Utc
-                    .timestamp_millis_opt(s.timestamp)
-                    .single()
-                    .unwrap_or(now);
+                let dt: DateTime<Utc> = DateTime::<Utc>::from_timestamp_millis(s.timestamp)
+                    .unwrap_or_else(|| Utc::now());
 
-                // Get the symbol from the map, fallback to the symbol in the signal if not found
-                let symbol_from_map = symbol_map.get(symbol_id);
-                let symbol_to_use = if let Some(symbol_val) = symbol_from_map {
-                    symbol_val.as_str()
-                } else {
-                    s.symbol.as_str()
-                };
+                b.push_bind(dt);
+                b.push_bind(s.timestamp);
+                b.push_bind(*symbol_id);
+                b.push_bind(s.symbol.to_string());
+                b.push_bind(s.timeframe.to_minutes() as i16);
 
-                b.push_bind(s.timestamp)
-                    .push_bind(time_value)
-                    .push_bind(*symbol_id)
-                    .push_bind(symbol_to_use)
-                    .push_bind(s.timeframe.to_minutes() as i16)
-                    .push_bind(s.indicator_id)
-                    .push_bind(s.signal_kind)
-                    .push_bind(s.side)
-                    .push_bind(s.score)
-                    .push_bind(s.value)
-                    .push_bind(&s.details)
-                    .push_bind(now_ms)
-                    .push_bind(now);
+                b.push_bind(s.indicator_id);
+                b.push_bind(s.signal_kind);
+                b.push_bind(s.signal_sub_id);
+
+                b.push_bind(s.side);
+                b.push_bind(s.score);
+                b.push_bind(s.value);
+
+                b.push_bind(s.details.clone().map(sqlx::types::Json));
+
+                b.push_bind(s.candle_is_final);
+                b.push_bind(s.calc_source);
+                b.push_bind(s.event_time_ms);
+
+                b.push_bind(s.features_json.clone().map(sqlx::types::Json));
+                b.push_bind(s.scores_json.clone().map(sqlx::types::Json));
+                b.push_bind(s.predictions_json.clone().map(sqlx::types::Json));
+
+                b.push_bind(now);
+                b.push_bind(now_ms);
+                b.push_bind(now);
+                b.push_bind(now_ms);
             });
 
-            // Ключ берём по имени constraint (идеально для timescale chunks)
             qb.push(
-                r#"
-                ON CONFLICT ON CONSTRAINT raw_signals_pkey
-                DO UPDATE SET
-                  side          = EXCLUDED.side,
-                  score         = EXCLUDED.score,
-                  value         = EXCLUDED.value,
-                  details       = EXCLUDED.details,
-                  symbol        = EXCLUDED.symbol,
-                  created_at_ms = EXCLUDED.created_at_ms,
-                  created_at    = EXCLUDED.created_at
-                "#
+                " ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET \
+                  time_ms = EXCLUDED.time_ms, \
+                  symbol = EXCLUDED.symbol, \
+                  side = EXCLUDED.side, \
+                  score = EXCLUDED.score, \
+                  value = EXCLUDED.value, \
+                  details = EXCLUDED.details, \
+                  candle_is_final = EXCLUDED.candle_is_final, \
+                  calc_source = EXCLUDED.calc_source, \
+                  event_time_ms = EXCLUDED.event_time_ms, \
+                  features_json = EXCLUDED.features_json, \
+                  scores_json = EXCLUDED.scores_json, \
+                  predictions_json = EXCLUDED.predictions_json, \
+                  updated_at = EXCLUDED.updated_at, \
+                  updated_at_ms = EXCLUDED.updated_at_ms"
             );
 
             qb.build().execute(&mut *tx).await?;
         }
 
         tx.commit().await?;
+        Ok(())
+    }
+
+    async fn prefill_symbol_cache(&self, records: &[RawSignal]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut missing: HashSet<String> = HashSet::new();
+        {
+            let cache = self.symbol_id_cache.read().await;
+            for r in records {
+                if !cache.contains_key(&r.symbol) {
+                    missing.insert(r.symbol.to_string());
+                }
+            }
+        }
+        if missing.is_empty() {
+            return Ok(());
+        }
+
+        let symbols: Vec<String> = missing.into_iter().collect();
+        let rows = sqlx::query("SELECT symbol_id, symbol FROM market.pairs WHERE symbol = ANY($1)")
+            .bind(&symbols)
+            .fetch_all(&self.db_pool)
+            .await?;
+
+        let mut cache = self.symbol_id_cache.write().await;
+        for row in rows {
+            let sid: i64 = row.get("symbol_id");
+            let sym: String = row.get("symbol");
+            cache.insert(Symbol::from(sym), sid);
+        }
+
         Ok(())
     }
 }
