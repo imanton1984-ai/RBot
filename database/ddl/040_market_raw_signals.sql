@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS market.raw_signals (
     updated_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
 
     CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id)
+    PRIMARY KEY (symbol_id, tf_minutes, time)
 );
 
 -- Превращаем в гипертаблицу TimescaleDB

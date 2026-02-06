@@ -10,14 +10,10 @@ ALTER TABLE market.candles_4h ADD COLUMN IF NOT EXISTS symbol TEXT;
 ALTER TABLE market.candles_1d ADD COLUMN IF NOT EXISTS symbol TEXT;
 -- Also add to the live candles table
 ALTER TABLE market.candles_live ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.indicators_wide ADD COLUMN IF NOT EXISTS symbol TEXT;
 
 -- Add symbol column to all indicator tables
-ALTER TABLE market.indicators_1m ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_5m ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_15m ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_1h ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_4h ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_1d ADD COLUMN IF NOT EXISTS symbol TEXT;
+
 
 -- Add symbol column to raw_signals table
 ALTER TABLE market.raw_signals ADD COLUMN IF NOT EXISTS symbol TEXT;
@@ -147,29 +143,10 @@ FROM market.pairs p
 WHERE market.candles_live.symbol = p.symbol AND (market.candles_live.symbol IS NULL OR market.candles_live.symbol = '');
 
 -- For indicators tables
-UPDATE market.indicators_1m SET symbol = p.symbol
+UPDATE market.indicators_wide SET symbol = p.symbol
 FROM market.pairs p
-WHERE market.indicators_1m.symbol_id = p.symbol_id AND (market.indicators_1m.symbol IS NULL OR market.indicators_1m.symbol = '');
+WHERE market.indicators_wide.symbol_id = p.symbol_id AND (market.indicators_wide.symbol IS NULL OR market.indicators_wide.symbol = '');
 
-UPDATE market.indicators_5m SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_5m.symbol_id = p.symbol_id AND (market.indicators_5m.symbol IS NULL OR market.indicators_5m.symbol = '');
-
-UPDATE market.indicators_15m SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_15m.symbol_id = p.symbol_id AND (market.indicators_15m.symbol IS NULL OR market.indicators_15m.symbol = '');
-
-UPDATE market.indicators_1h SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_1h.symbol_id = p.symbol_id AND (market.indicators_1h.symbol IS NULL OR market.indicators_1h.symbol = '');
-
-UPDATE market.indicators_4h SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_4h.symbol_id = p.symbol_id AND (market.indicators_4h.symbol IS NULL OR market.indicators_4h.symbol = '');
-
-UPDATE market.indicators_1d SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_1d.symbol_id = p.symbol_id AND (market.indicators_1d.symbol IS NULL OR market.indicators_1d.symbol = '');
 
 -- For raw_signals table
 UPDATE market.raw_signals SET symbol = p.symbol
@@ -185,11 +162,6 @@ CREATE INDEX IF NOT EXISTS ix_candles_4h_symbol ON market.candles_4h (symbol);
 CREATE INDEX IF NOT EXISTS ix_candles_1d_symbol ON market.candles_1d (symbol);
 CREATE INDEX IF NOT EXISTS ix_candles_live_symbol ON market.candles_live (symbol);
 
-CREATE INDEX IF NOT EXISTS ix_indicators_1m_symbol ON market.indicators_1m (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_5m_symbol ON market.indicators_5m (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_15m_symbol ON market.indicators_15m (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_1h_symbol ON market.indicators_1h (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_4h_symbol ON market.indicators_4h (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_1d_symbol ON market.indicators_1d (symbol);
+CREATE INDEX IF NOT EXISTS ix_indicators_wide_symbol ON market.indicators_wide (symbol);
 
 CREATE INDEX IF NOT EXISTS ix_raw_signals_symbol ON market.raw_signals (symbol);

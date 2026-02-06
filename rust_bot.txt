@@ -1244,9 +1244,9 @@ pub struct ComputeConfig {
 pub struct IndicatorFlags {
     pub rsi: bool,
     pub macd: bool,
-    pub ema20: bool,
-    pub ema50: bool,
-    pub ema200: bool,
+    pub ema_20: bool,
+    pub ema_50: bool,
+    pub ema_200: bool,
     pub sma: bool,
     pub bollinger: bool,
     pub stoch: bool,
@@ -3637,12 +3637,7 @@ DROP TABLE IF EXISTS market.candles_1d CASCADE;
 DROP TABLE IF EXISTS market.candles_live CASCADE;
 
 -- Drop all indicator tables
-DROP TABLE IF EXISTS market.indicators_1m CASCADE;
-DROP TABLE IF EXISTS market.indicators_5m CASCADE;
-DROP TABLE IF EXISTS market.indicators_15m CASCADE;
-DROP TABLE IF EXISTS market.indicators_1h CASCADE;
-DROP TABLE IF EXISTS market.indicators_4h CASCADE;
-DROP TABLE IF EXISTS market.indicators_1d CASCADE;
+DROP TABLE IF EXISTS market.indicators_wide CASCADE;
 
 -- Drop pairs table
 DROP TABLE IF EXISTS market.pairs CASCADE;
@@ -6225,7 +6220,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS market.indicators_staging (
   time_ms BIGINT NOT NULL,
   symbol_id BIGINT NOT NULL,
 
-  ema20 REAL, ema50 REAL, ema200 REAL,
+  ema_20 REAL, ema_50 REAL, ema_200 REAL,
   sma REAL,
   rsi REAL,
   macd REAL, macd_signal REAL, macd_hist REAL,
@@ -6282,6 +6277,32 @@ CREATE TABLE IF NOT EXISTS market.indicators_wide (
     ema_20          REAL,
     ema_50          REAL,
     ema_200         REAL,
+    rsi             REAL,
+    macd            REAL,
+    macd_signal     REAL,
+    macd_hist       REAL,
+    bb_upper        REAL,
+    bb_mid          REAL,
+    bb_lower        REAL,
+    stoch_k         REAL,
+    stoch_d         REAL,
+    adx             REAL,
+    atr             REAL,
+    cci             REAL,
+    obv             DOUBLE PRECISION,
+    vwap            DOUBLE PRECISION,
+    ema_20          REAL,
+    ema_50          REAL,
+    ema_200         REAL,   
+    sma             REAL,
+    williams        REAL,
+    alligator_jaw   REAL,
+    alligator_teeth REAL,
+    alligator_lips  REAL,
+    trend           SMALLINT,
+    trend_short     SMALLINT,
+    volume_spike    REAL,
+    poc             REAL,
     
     -- Complex/JSON data stays in JSONB
     sr_levels       JSONB,
@@ -6327,40 +6348,44 @@ CREATE INDEX IF NOT EXISTS idx_indicators_wide_time_ms_desc ON market.indicators
 CREATE SCHEMA IF NOT EXISTS market;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
+-- database/ddl/040_market_raw_signals.sql
 CREATE TABLE IF NOT EXISTS market.raw_signals (
-  time            TIMESTAMPTZ NOT NULL,
-  time_ms         BIGINT      NOT NULL,
-  symbol_id       BIGINT      NOT NULL,
-  symbol          TEXT        NOT NULL,
-  tf_minutes      SMALLINT    NOT NULL,
+    time            TIMESTAMPTZ NOT NULL,
+    time_ms         BIGINT      NOT NULL,
+    symbol_id       BIGINT      NOT NULL,
+    symbol          TEXT        NOT NULL,
+    tf_minutes      SMALLINT    NOT NULL,
 
-  indicator_id    SMALLINT    NOT NULL,
-  signal_kind     SMALLINT    NOT NULL,
-  signal_sub_id   SMALLINT    NOT NULL,
+    indicator_id    SMALLINT    NOT NULL,
+    signal_kind     SMALLINT    NOT NULL,
+    signal_sub_id   SMALLINT    NOT NULL,
 
-  side            SMALLINT    NOT NULL,
-  score           REAL        NOT NULL,
-  value           REAL        NOT NULL,
-  details         JSONB,
+    side            SMALLINT    NOT NULL,
+    score           REAL        NOT NULL,
+    value           REAL        NOT NULL,
+    details         JSONB,
 
-  candle_is_final BOOLEAN     NOT NULL DEFAULT TRUE,
-  calc_source     SMALLINT    NOT NULL DEFAULT 1,
-  event_time_ms   BIGINT,
+    candle_is_final BOOLEAN     NOT NULL DEFAULT TRUE,
+    calc_source     SMALLINT    NOT NULL DEFAULT 1,
+    event_time_ms   BIGINT,
 
-  features_json   JSONB,
-  scores_json     JSONB,
-  predictions_json JSONB,
+    features_json   JSONB,
+    scores_json     JSONB,
+    predictions_json JSONB,
 
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
 
-  CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id)
+    CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id)
+    PRIMARY KEY (symbol_id, tf_minutes, time)
 );
 
+-- Превращаем в гипертаблицу TimescaleDB
 SELECT create_hypertable('market.raw_signals', 'time', if_not_exists => TRUE);
 
+-- Индексы для быстрой выборки последних сигналов
 CREATE INDEX IF NOT EXISTS ix_raw_signals_sym_tf_time_desc ON market.raw_signals(symbol_id, tf_minutes, time DESC);
 CREATE INDEX IF NOT EXISTS ix_raw_signals_time_ms ON market.raw_signals(time_ms);
 
@@ -6379,14 +6404,10 @@ ALTER TABLE market.candles_4h ADD COLUMN IF NOT EXISTS symbol TEXT;
 ALTER TABLE market.candles_1d ADD COLUMN IF NOT EXISTS symbol TEXT;
 -- Also add to the live candles table
 ALTER TABLE market.candles_live ADD COLUMN IF NOT EXISTS symbol TEXT;
+ALTER TABLE market.indicators_wide ADD COLUMN IF NOT EXISTS symbol TEXT;
 
 -- Add symbol column to all indicator tables
-ALTER TABLE market.indicators_1m ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_5m ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_15m ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_1h ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_4h ADD COLUMN IF NOT EXISTS symbol TEXT;
-ALTER TABLE market.indicators_1d ADD COLUMN IF NOT EXISTS symbol TEXT;
+
 
 -- Add symbol column to raw_signals table
 ALTER TABLE market.raw_signals ADD COLUMN IF NOT EXISTS symbol TEXT;
@@ -6516,29 +6537,10 @@ FROM market.pairs p
 WHERE market.candles_live.symbol = p.symbol AND (market.candles_live.symbol IS NULL OR market.candles_live.symbol = '');
 
 -- For indicators tables
-UPDATE market.indicators_1m SET symbol = p.symbol
+UPDATE market.indicators_wide SET symbol = p.symbol
 FROM market.pairs p
-WHERE market.indicators_1m.symbol_id = p.symbol_id AND (market.indicators_1m.symbol IS NULL OR market.indicators_1m.symbol = '');
+WHERE market.indicators_wide.symbol_id = p.symbol_id AND (market.indicators_wide.symbol IS NULL OR market.indicators_wide.symbol = '');
 
-UPDATE market.indicators_5m SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_5m.symbol_id = p.symbol_id AND (market.indicators_5m.symbol IS NULL OR market.indicators_5m.symbol = '');
-
-UPDATE market.indicators_15m SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_15m.symbol_id = p.symbol_id AND (market.indicators_15m.symbol IS NULL OR market.indicators_15m.symbol = '');
-
-UPDATE market.indicators_1h SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_1h.symbol_id = p.symbol_id AND (market.indicators_1h.symbol IS NULL OR market.indicators_1h.symbol = '');
-
-UPDATE market.indicators_4h SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_4h.symbol_id = p.symbol_id AND (market.indicators_4h.symbol IS NULL OR market.indicators_4h.symbol = '');
-
-UPDATE market.indicators_1d SET symbol = p.symbol
-FROM market.pairs p
-WHERE market.indicators_1d.symbol_id = p.symbol_id AND (market.indicators_1d.symbol IS NULL OR market.indicators_1d.symbol = '');
 
 -- For raw_signals table
 UPDATE market.raw_signals SET symbol = p.symbol
@@ -6554,12 +6556,7 @@ CREATE INDEX IF NOT EXISTS ix_candles_4h_symbol ON market.candles_4h (symbol);
 CREATE INDEX IF NOT EXISTS ix_candles_1d_symbol ON market.candles_1d (symbol);
 CREATE INDEX IF NOT EXISTS ix_candles_live_symbol ON market.candles_live (symbol);
 
-CREATE INDEX IF NOT EXISTS ix_indicators_1m_symbol ON market.indicators_1m (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_5m_symbol ON market.indicators_5m (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_15m_symbol ON market.indicators_15m (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_1h_symbol ON market.indicators_1h (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_4h_symbol ON market.indicators_4h (symbol);
-CREATE INDEX IF NOT EXISTS ix_indicators_1d_symbol ON market.indicators_1d (symbol);
+CREATE INDEX IF NOT EXISTS ix_indicators_wide_symbol ON market.indicators_wide (symbol);
 
 CREATE INDEX IF NOT EXISTS ix_raw_signals_symbol ON market.raw_signals (symbol);
 
@@ -6748,7 +6745,7 @@ ALTER TABLE market.raw_signals
 ALTER TABLE market.raw_signals DROP CONSTRAINT IF EXISTS raw_signals_pkey;
 
 -- Primary Key must include 'time' for TimescaleDB partitioning
--- Primary Key must include 'signal_sub_id' for logic correctness (EMA20 vs EMA50)
+-- Primary Key must include 'signal_sub_id' for logic correctness (EMA_20 vs EMA_50)
 ALTER TABLE market.raw_signals ADD CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id);
 
 -- Create index for time_ms if needed for queries, but not strictly required for the PK constraint
@@ -6776,13 +6773,7 @@ SELECT add_retention_policy('market.candles_4h', INTERVAL '240 days',if_not_exis
 SELECT add_retention_policy('market.candles_1d', INTERVAL '1095 days', if_not_exists=>TRUE);
 
 -- индикаторы snapshot (тот же retention)
-SELECT add_retention_policy('market.indicators_1m', INTERVAL '2 days',  if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_5m', INTERVAL '7 days',  if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_15m',INTERVAL '21 days', if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_1h', INTERVAL '90 days', if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_4h', INTERVAL '240 days',if_not_exists=>TRUE);
--- индикаторы 1d тоже подтянем для консистентности
-SELECT add_retention_policy('market.indicators_1d', INTERVAL '1095 days', if_not_exists=>TRUE);
+SELECT add_retention_policy('market.indicators_wide', INTERVAL '500 days',if_not_exists=>TRUE);
 
 -- raw_signals (храним меньше, чтобы не пухло)
 SELECT add_retention_policy('market.raw_signals', INTERVAL '60 days', if_not_exists=>TRUE);
@@ -6811,19 +6802,10 @@ SELECT add_compression_policy('market.candles_4h', INTERVAL '14 days',  if_not_e
 SELECT add_compression_policy('market.candles_1d', INTERVAL '30 days',  if_not_exists=>TRUE);
 
 -- indicators
-ALTER TABLE market.indicators_1m SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_5m SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_15m SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_1h SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_4h SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_1d SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
+ALTER TABLE market.indicators_wide SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
 
-SELECT add_compression_policy('market.indicators_1m', INTERVAL '6 hours',  if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_5m', INTERVAL '1 day',    if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_15m',INTERVAL '2 days',   if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_1h', INTERVAL '7 days',   if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_4h', INTERVAL '14 days',  if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_1d', INTERVAL '30 days',  if_not_exists=>TRUE);
+
+SELECT add_compression_policy('market.indicators_wide', INTERVAL '20 days',  if_not_exists=>TRUE);
 
 
 
@@ -6851,12 +6833,12 @@ SELECT 1440::SMALLINT AS tf_minutes, time_ms, time, symbol_id, open, high, low, 
 FROM market.candles_1d;
 
 CREATE OR REPLACE VIEW market.indicators AS
-SELECT 1::SMALLINT AS tf_minutes, * FROM market.indicators_1m
-UNION ALL SELECT 5::SMALLINT AS tf_minutes, * FROM market.indicators_5m
-UNION ALL SELECT 15::SMALLINT AS tf_minutes, * FROM market.indicators_15m
-UNION ALL SELECT 60::SMALLINT AS tf_minutes, * FROM market.indicators_1h
-UNION ALL SELECT 240::SMALLINT AS tf_minutes, * FROM market.indicators_4h
-UNION ALL SELECT 1440::SMALLINT AS tf_minutes, * FROM market.indicators_1d;
+SELECT 1::SMALLINT AS tf_minutes, * FROM market.indicators_wide
+UNION ALL SELECT 5::SMALLINT AS tf_minutes, * FROM market.indicators_wide
+UNION ALL SELECT 15::SMALLINT AS tf_minutes, * FROM market.indicators_wide
+UNION ALL SELECT 60::SMALLINT AS tf_minutes, * FROM market.indicators_wide
+UNION ALL SELECT 240::SMALLINT AS tf_minutes, * FROM market.indicators_wide
+UNION ALL SELECT 1440::SMALLINT AS tf_minutes, * FROM market.indicators_wide;
 
 
 
@@ -7030,9 +7012,9 @@ hot_indicator_window = 1200
 [compute.indicators]
 rsi = true
 macd = true
-ema20 = true
-ema50 = true
-ema200 = true
+ema_20 = true
+ema_50 = true
+ema_200 = true
 sma = true
 bollinger = true
 stoch = true
@@ -16814,9 +16796,9 @@ impl ComputeBackend for CpuBackend {
                         let v = Self::calculate_cci(&candle_window.high, &candle_window.low, &candle_window.close, 20);
                         batch.push_f64("cci", v);
                     }
-                    "ema20" => batch.push_f64("ema20", Self::calculate_ema(&candle_window.close, 20)),
-                    "ema50" => batch.push_f64("ema50", Self::calculate_ema(&candle_window.close, 50)),
-                    "ema200" => batch.push_f64("ema200", Self::calculate_ema(&candle_window.close, 200)),
+                    "ema_20" => batch.push_f64("ema_20", Self::calculate_ema(&candle_window.close, 20)),
+                    "ema_50" => batch.push_f64("ema_50", Self::calculate_ema(&candle_window.close, 50)),
+                    "ema_200" => batch.push_f64("ema_200", Self::calculate_ema(&candle_window.close, 200)),
                     "sma" => batch.push_f64("sma", Self::calculate_sma(&candle_window.close, 20)),
                     "rsi" => batch.push_f64("rsi", Self::calculate_rsi(&candle_window.close, 14)),
                     "obv" => batch.push_f64("obv", Self::calculate_obv(&candle_window.close, &candle_window.volume)),
@@ -17164,9 +17146,9 @@ impl ComputeBackend for CudaBackend {
                         batch.push_f64("cci", v);
                     }
                     "ema" => { // Assuming "ema" implies multiple EMAs
-                        batch.push_f64("ema20", self.run_ema_kernel(&candle_window.close, 20)?);
-                        batch.push_f64("ema50", self.run_ema_kernel(&candle_window.close, 50)?);
-                        batch.push_f64("ema200", self.run_ema_kernel(&candle_window.close, 200)?);
+                        batch.push_f64("ema_20", self.run_ema_kernel(&candle_window.close, 20)?);
+                        batch.push_f64("ema_50", self.run_ema_kernel(&candle_window.close, 50)?);
+                        batch.push_f64("ema_200", self.run_ema_kernel(&candle_window.close, 200)?);
                     }
                     "rsi" => batch.push_f64("rsi", self.run_rsi_kernel(&candle_window.close, 14)?),
                     "obv" => batch.push_f64("obv", self.run_obv_kernel(&candle_window.close, &candle_window.volume)?),
@@ -18451,9 +18433,9 @@ impl RawSignalProcessor {
         let atr = feature_window.batch.get_f64("atr").unwrap_or(&[]);
         let rsi = feature_window.batch.get_f64("rsi").unwrap_or(&[]);
         let cci = feature_window.batch.get_f64("cci").unwrap_or(&[]);
-        let ema20 = feature_window.batch.get_f64("ema20").unwrap_or(&[]);
-        let ema50 = feature_window.batch.get_f64("ema50").unwrap_or(&[]);
-        let ema200 = feature_window.batch.get_f64("ema200").unwrap_or(&[]);
+        let ema_20 = feature_window.batch.get_f64("ema_20").unwrap_or(&[]);
+        let ema_50 = feature_window.batch.get_f64("ema_50").unwrap_or(&[]);
+        let ema_200 = feature_window.batch.get_f64("ema_200").unwrap_or(&[]);
         let sma = feature_window.batch.get_f64("sma").unwrap_or(&[]);
         let obv = feature_window.batch.get_f64("obv").unwrap_or(&[]);
         let vwap = feature_window.batch.get_f64("vwap").unwrap_or(&[]);
@@ -18506,17 +18488,17 @@ impl RawSignalProcessor {
         );
 
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema20, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema_20, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 20)),
         );
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema50, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema_50, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 50)),
         );
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema200, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema_200, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 200)),
         );
@@ -18616,9 +18598,9 @@ impl RawSignalProcessor {
             put_num(&mut fm, "bb_mid", col("bb_mid", ci));
             put_num(&mut fm, "bb_lower", col("bb_lower", ci));
             put_num(&mut fm, "cci", col("cci", ci));
-            put_num(&mut fm, "ema20", col("ema20", ci));
-            put_num(&mut fm, "ema50", col("ema50", ci));
-            put_num(&mut fm, "ema200", col("ema200", ci));
+            put_num(&mut fm, "ema_20", col("ema_20", ci));
+            put_num(&mut fm, "ema_50", col("ema_50", ci));
+            put_num(&mut fm, "ema_200", col("ema_200", ci));
             put_num(&mut fm, "macd", col("macd", ci));
             put_num(&mut fm, "macd_signal", col("macd_signal", ci));
             put_num(&mut fm, "macd_hist", col("macd_hist", ci));

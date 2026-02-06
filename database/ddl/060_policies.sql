@@ -17,13 +17,7 @@ SELECT add_retention_policy('market.candles_4h', INTERVAL '240 days',if_not_exis
 SELECT add_retention_policy('market.candles_1d', INTERVAL '1095 days', if_not_exists=>TRUE);
 
 -- индикаторы snapshot (тот же retention)
-SELECT add_retention_policy('market.indicators_1m', INTERVAL '2 days',  if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_5m', INTERVAL '7 days',  if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_15m',INTERVAL '21 days', if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_1h', INTERVAL '90 days', if_not_exists=>TRUE);
-SELECT add_retention_policy('market.indicators_4h', INTERVAL '240 days',if_not_exists=>TRUE);
--- индикаторы 1d тоже подтянем для консистентности
-SELECT add_retention_policy('market.indicators_1d', INTERVAL '1095 days', if_not_exists=>TRUE);
+SELECT add_retention_policy('market.indicators_wide', INTERVAL '500 days',if_not_exists=>TRUE);
 
 -- raw_signals (храним меньше, чтобы не пухло)
 SELECT add_retention_policy('market.raw_signals', INTERVAL '60 days', if_not_exists=>TRUE);
@@ -52,16 +46,7 @@ SELECT add_compression_policy('market.candles_4h', INTERVAL '14 days',  if_not_e
 SELECT add_compression_policy('market.candles_1d', INTERVAL '30 days',  if_not_exists=>TRUE);
 
 -- indicators
-ALTER TABLE market.indicators_1m SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_5m SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_15m SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_1h SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_4h SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
-ALTER TABLE market.indicators_1d SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
+ALTER TABLE market.indicators_wide SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol_id');
 
-SELECT add_compression_policy('market.indicators_1m', INTERVAL '6 hours',  if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_5m', INTERVAL '1 day',    if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_15m',INTERVAL '2 days',   if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_1h', INTERVAL '7 days',   if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_4h', INTERVAL '14 days',  if_not_exists=>TRUE);
-SELECT add_compression_policy('market.indicators_1d', INTERVAL '30 days',  if_not_exists=>TRUE);
+
+SELECT add_compression_policy('market.indicators_wide', INTERVAL '20 days',  if_not_exists=>TRUE);

@@ -32,3 +32,23 @@
 [2m2026-02-06T17:46:44.621027Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
 [2m2026-02-06T17:46:45.827476Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
 [2m2026-02-06T17:46:47.990552Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=36139, last_size=161 bytes
+[2m2026-02-06T18:01:37.480255Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m Starting Kafka forwarder... topic=market.ws.raw
+[2m2026-02-06T18:01:37.480266Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m Server starting on 0.0.0.0:18080
+[2m2026-02-06T18:01:37.480284Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-06T18:01:37.956948Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m db_ok -> true
+[2m2026-02-06T18:01:37.956972Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m rp_ok -> true
+[2m2026-02-06T18:01:37.956979Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m api_ok -> true
+[2m2026-02-06T18:01:38.682674Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-06T18:01:38.754275Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=1, last_size=162 bytes
+[2m2026-02-06T18:01:48.755644Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=1843, last_size=161 bytes
+[2m2026-02-06T18:01:57.743994Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m ws_connected -> true
+[2m2026-02-06T18:01:58.756101Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=3747, last_size=161 bytes
+[2m2026-02-06T18:02:08.758410Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=5646, last_size=160 bytes
+[2m2026-02-06T18:02:18.761021Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=7542, last_size=160 bytes
+[2m2026-02-06T18:02:28.762966Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=9443, last_size=162 bytes
+[2m2026-02-06T18:02:32.651823Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-06T18:02:33.653337Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-06T18:02:34.867273Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-06T18:02:38.766737Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=11346, last_size=161 bytes
+[2m2026-02-06T18:02:48.768536Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=13250, last_size=161 bytes
+[2m2026-02-06T18:02:58.770847Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=15155, last_size=160 bytes

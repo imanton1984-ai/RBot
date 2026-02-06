@@ -28,12 +28,7 @@ DROP TABLE IF EXISTS market.candles_1d CASCADE;
 DROP TABLE IF EXISTS market.candles_live CASCADE;
 
 -- Drop all indicator tables
-DROP TABLE IF EXISTS market.indicators_1m CASCADE;
-DROP TABLE IF EXISTS market.indicators_5m CASCADE;
-DROP TABLE IF EXISTS market.indicators_15m CASCADE;
-DROP TABLE IF EXISTS market.indicators_1h CASCADE;
-DROP TABLE IF EXISTS market.indicators_4h CASCADE;
-DROP TABLE IF EXISTS market.indicators_1d CASCADE;
+DROP TABLE IF EXISTS market.indicators_wide CASCADE;
 
 -- Drop pairs table
 DROP TABLE IF EXISTS market.pairs CASCADE;
