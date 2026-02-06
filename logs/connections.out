@@ -1,0 +1,209 @@
+[2m2026-02-06T09:49:10.163577Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m Starting Kafka forwarder... topic=market.ws.raw
+[2m2026-02-06T09:49:10.163595Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-06T09:49:10.163588Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m Server starting on 0.0.0.0:18080
+[2m2026-02-06T09:49:10.612002Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m db_ok -> true
+[2m2026-02-06T09:49:10.612029Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m rp_ok -> true
+[2m2026-02-06T09:49:10.612035Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m api_ok -> true
+[2m2026-02-06T09:49:11.371698Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-06T09:49:11.442855Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=1, last_size=162 bytes
+[2m2026-02-06T09:49:21.446675Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=1897, last_size=161 bytes
+[2m2026-02-06T09:49:30.431803Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m ws_connected -> true
+[2m2026-02-06T09:49:31.450926Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=3802, last_size=161 bytes
+[2m2026-02-06T09:49:41.451999Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=5703, last_size=160 bytes
+[2m2026-02-06T09:49:51.454032Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=7600, last_size=160 bytes
+[2m2026-02-06T09:50:01.457225Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=9497, last_size=161 bytes
+[2m2026-02-06T09:50:11.458007Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=11394, last_size=162 bytes
+[2m2026-02-06T09:50:21.458049Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=13279, last_size=160 bytes
+[2m2026-02-06T09:50:31.458979Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=15166, last_size=160 bytes
+[2m2026-02-06T09:50:41.461719Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=17060, last_size=161 bytes
+[2m2026-02-06T09:50:51.466691Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=18955, last_size=161 bytes
+[2m2026-02-06T09:51:01.470807Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=20849, last_size=161 bytes
+[2m2026-02-06T09:51:11.473519Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=22744, last_size=162 bytes
+[2m2026-02-06T09:51:21.475003Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=24638, last_size=161 bytes
+[2m2026-02-06T09:51:31.476290Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=26529, last_size=162 bytes
+[2m2026-02-06T09:51:32.541548Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-06T09:51:33.542421Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-06T09:51:34.731271Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-06T09:51:41.478766Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=28427, last_size=161 bytes
+[2m2026-02-06T09:51:51.480554Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=30325, last_size=160 bytes
+[2m2026-02-06T09:52:01.484380Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=32221, last_size=160 bytes
+[2m2026-02-06T09:52:11.487497Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=34116, last_size=160 bytes
+[2m2026-02-06T09:52:21.489717Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=36011, last_size=161 bytes
+[2m2026-02-06T09:52:31.490449Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=37895, last_size=161 bytes
+[2m2026-02-06T09:52:41.495224Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=39787, last_size=161 bytes
+[2m2026-02-06T09:52:51.499156Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=41684, last_size=162 bytes
+[2m2026-02-06T09:53:01.500753Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=43580, last_size=160 bytes
+[2m2026-02-06T09:53:11.505787Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=45467, last_size=161 bytes
+[2m2026-02-06T09:53:21.508491Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=47357, last_size=161 bytes
+[2m2026-02-06T09:53:31.511950Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=49255, last_size=160 bytes
+[2m2026-02-06T09:53:41.513805Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=51147, last_size=161 bytes
+[2m2026-02-06T09:53:51.513869Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=53048, last_size=160 bytes
+[2m2026-02-06T09:54:01.516485Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=54941, last_size=161 bytes
+[2m2026-02-06T09:54:11.519606Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=56834, last_size=161 bytes
+[2m2026-02-06T09:54:17.310519Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-06T09:54:18.311699Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-06T09:54:19.503838Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-06T09:54:21.524604Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=58724, last_size=162 bytes
+[2m2026-02-06T09:54:31.526701Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=60620, last_size=161 bytes
+[2m2026-02-06T09:54:41.531364Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=62523, last_size=161 bytes
+[2m2026-02-06T09:54:51.534132Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=64429, last_size=160 bytes
+[2m2026-02-06T09:55:01.534165Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=66330, last_size=161 bytes
+[2m2026-02-06T09:55:11.536170Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=68233, last_size=161 bytes
+[2m2026-02-06T09:55:21.539014Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=70136, last_size=161 bytes
+[2m2026-02-06T09:55:31.540502Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=72042, last_size=160 bytes
+[2m2026-02-06T09:55:41.544398Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=73948, last_size=161 bytes
+[2m2026-02-06T09:55:51.546569Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=75851, last_size=160 bytes
+[2m2026-02-06T09:56:01.551114Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=77747, last_size=160 bytes
+[2m2026-02-06T09:56:11.554444Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=79648, last_size=161 bytes
+[2m2026-02-06T09:56:21.557649Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=81552, last_size=162 bytes
+[2m2026-02-06T09:56:31.561855Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=83457, last_size=160 bytes
+[2m2026-02-06T09:56:41.564030Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=85355, last_size=162 bytes
+[2m2026-02-06T09:56:51.567031Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=87249, last_size=161 bytes
+[2m2026-02-06T09:57:01.571282Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=89149, last_size=162 bytes
+[2m2026-02-06T09:57:11.576251Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=91055, last_size=160 bytes
+[2m2026-02-06T09:57:21.576767Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=92960, last_size=160 bytes
+[2m2026-02-06T09:57:31.580907Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=94868, last_size=161 bytes
+[2m2026-02-06T09:57:41.583646Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=96772, last_size=161 bytes
+[2m2026-02-06T09:57:51.584938Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=98670, last_size=161 bytes
+[2m2026-02-06T09:58:01.588403Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=100570, last_size=162 bytes
+[2m2026-02-06T09:58:10.983492Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-06T09:58:11.591695Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=102474, last_size=161 bytes
+[2m2026-02-06T09:58:11.984000Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-06T09:58:13.161844Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-06T09:58:21.592721Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=104377, last_size=162 bytes
+[2m2026-02-06T09:58:31.595153Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=106281, last_size=160 bytes
+[2m2026-02-06T09:58:41.595376Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=108179, last_size=161 bytes
+[2m2026-02-06T09:58:51.598924Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=110081, last_size=160 bytes
+[2m2026-02-06T09:59:01.600615Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=111982, last_size=162 bytes
+[2m2026-02-06T09:59:11.605294Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=113890, last_size=160 bytes
+[2m2026-02-06T09:59:21.608641Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=115796, last_size=161 bytes
+[2m2026-02-06T09:59:31.612473Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=117704, last_size=160 bytes
+[2m2026-02-06T09:59:41.613018Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=119611, last_size=161 bytes
+[2m2026-02-06T09:59:51.616768Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=121518, last_size=160 bytes
+[2m2026-02-06T10:00:01.621098Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=123425, last_size=161 bytes
+[2m2026-02-06T10:00:11.623384Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=125330, last_size=161 bytes
+[2m2026-02-06T10:00:21.626242Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=127227, last_size=160 bytes
+[2m2026-02-06T10:00:31.630757Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=129130, last_size=161 bytes
+[2m2026-02-06T10:00:41.637108Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=130908, last_size=160 bytes
+[2m2026-02-06T10:00:55.416314Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=131887, last_size=162 bytes
+[2m2026-02-06T10:01:05.426570Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=132889, last_size=161 bytes
+[2m2026-02-06T10:01:15.432076Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=134645, last_size=160 bytes
+[2m2026-02-06T10:01:25.439514Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=136318, last_size=162 bytes
+[2m2026-02-06T10:01:35.600186Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=136496, last_size=162 bytes
+[2m2026-02-06T10:01:45.560088Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ProduceRequest in flight (after 5512ms, timeout #0)
+[2m2026-02-06T10:01:45.884348Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:01:46.361203Z[0m [31mERROR[0m [2mconnections_lib::redpanda[0m[2m:[0m Failed to deliver message: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:01:46.737669Z[0m [31mERROR[0m [2mconnections[0m[2m:[0m Kafka forward error: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:01:47.050445Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=136504, last_size=162 bytes
+[2m2026-02-06T10:01:53.590541Z[0m [31mERROR[0m [2mconnections_lib::redpanda[0m[2m:[0m Failed to deliver message: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:01:54.518321Z[0m [31mERROR[0m [2mconnections[0m[2m:[0m Kafka forward error: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:01:54.329694Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"SELECT 1" [3mdb.statement[0m[2m=[0m"" [3mrows_affected[0m[2m=[0m1 [3mrows_returned[0m[2m=[0m1 [3melapsed[0m[2m=[0m2.362829391s [3melapsed_secs[0m[2m=[0m2.362829391 [3mslow_threshold[0m[2m=[0m1s
+[2m2026-02-06T10:01:57.107706Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 10504ms, timeout #0)
+[2m2026-02-06T10:01:58.301444Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 11106ms in state APIVERSION_QUERY)
+[2m2026-02-06T10:01:59.900636Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 1/1 brokers are down
+[2m2026-02-06T10:02:03.544437Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 1/1 brokers are down
+[2m2026-02-06T10:02:08.802876Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:02:41.837376Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 11107ms, timeout #0)
+[2m2026-02-06T10:02:59.816540Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 9692ms, timeout #0)
+[2m2026-02-06T10:03:09.363092Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14715ms in state APIVERSION_QUERY)
+[2m2026-02-06T10:03:19.749790Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14035ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:03:49.491253Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:04:39.204084Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:04:58.646965Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 10205ms, timeout #0)
+[2m2026-02-06T10:05:10.742593Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 15489ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:05:19.647786Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:05:29.599703Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 8346ms, timeout #0)
+[2m2026-02-06T10:05:34.950753Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14201ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:05:40.113873Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:05:47.145452Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 9442ms, timeout #0)
+[2m2026-02-06T10:05:55.193795Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:02.181773Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 9970ms, timeout #0)
+[2m2026-02-06T10:06:11.379961Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14709ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:06:18.523521Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 10423ms, timeout #0)
+[2m2026-02-06T10:06:25.867830Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556760Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14479ms in state APIVERSION_QUERY, 2 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556791Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556799Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 9998ms, timeout #0)
+[2m2026-02-06T10:06:29.556811Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 9596ms, timeout #0)
+[2m2026-02-06T10:06:29.556816Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 13675ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556820Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556825Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556829Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 8701ms, timeout #0)
+[2m2026-02-06T10:06:29.556833Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 8019ms, timeout #0)
+[2m2026-02-06T10:06:29.556837Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 16191ms in state APIVERSION_QUERY, 2 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556842Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 13942ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556855Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556863Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556867Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 9791ms, timeout #0)
+[2m2026-02-06T10:06:29.556871Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556875Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 10100ms, timeout #0)
+[2m2026-02-06T10:06:29.556879Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14921ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556884Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556888Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 9817ms, timeout #0)
+[2m2026-02-06T10:06:29.556895Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14280ms in state APIVERSION_QUERY, 2 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556899Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556903Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 9706ms, timeout #0)
+[2m2026-02-06T10:06:29.556907Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 15087ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556912Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556915Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 9908ms, timeout #0)
+[2m2026-02-06T10:06:29.556920Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556924Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out ApiVersionRequest in flight (after 8840ms, timeout #0)
+[2m2026-02-06T10:06:29.556928Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:localhost:19092/0]: localhost:19092/0: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 15318ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556933Z[0m [32m INFO[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out ApiVersionRequest in flight (after 9475ms, timeout #0)
+[2m2026-02-06T10:06:29.556937Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:localhost:19092/0]: localhost:19092/0: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.556941Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: FAIL [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: ApiVersionRequest failed: Local: Timed out: probably due to broker version < 0.10 (see api.version.request configuration) (after 14440ms in state APIVERSION_QUERY, 2 identical error(s) suppressed)
+[2m2026-02-06T10:06:29.556946Z[0m [33m WARN[0m [2mlibrdkafka[0m[2m:[0m librdkafka: REQTMOUT [thrd:127.0.0.1:19092/bootstrap]: 127.0.0.1:19092/bootstrap: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+[2m2026-02-06T10:06:29.563275Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565672Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565680Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565684Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565691Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565695Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565699Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565703Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565707Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565710Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565714Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565718Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565724Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565730Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565736Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.565740Z[0m [31mERROR[0m [2mrdkafka::client[0m[2m:[0m librdkafka: Global error: AllBrokersDown (Local: All broker connections are down): 2/2 brokers are down
+[2m2026-02-06T10:06:29.574222Z[0m [31mERROR[0m [2mconnections_lib::redpanda[0m[2m:[0m Failed to deliver message: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:06:29.576437Z[0m [31mERROR[0m [2mconnections_lib::redpanda[0m[2m:[0m Failed to deliver message: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:06:29.577005Z[0m [33m WARN[0m [2mconnections[0m[2m:[0m rp_ok -> false
+[2m2026-02-06T10:06:29.577012Z[0m [33m WARN[0m [2mconnections[0m[2m:[0m last_error: RP: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:06:29.579634Z[0m [31mERROR[0m [2mconnections[0m[2m:[0m Kafka forward error: Message production error: MessageTimedOut (Local: Message timed out)
+[2m2026-02-06T10:06:29.579656Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=136506, last_size=162 bytes
+[2m2026-02-06T10:06:30.027042Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m rp_ok -> true
+[2m2026-02-06T10:06:39.582859Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=138379, last_size=161 bytes
+[2m2026-02-06T10:06:49.586051Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=140286, last_size=160 bytes
+[2m2026-02-06T10:06:59.588345Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=142181, last_size=162 bytes
+[2m2026-02-06T10:07:09.593535Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=144079, last_size=162 bytes
+[2m2026-02-06T10:07:19.596922Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=145967, last_size=161 bytes
+[2m2026-02-06T10:07:29.597205Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=147867, last_size=161 bytes
+[2m2026-02-06T10:07:39.196196Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-06T10:07:39.600919Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=149769, last_size=161 bytes
+[2m2026-02-06T10:07:40.197046Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-06T10:07:41.391161Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-06T10:07:49.603617Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=151673, last_size=161 bytes
+[2m2026-02-06T10:07:59.605939Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=153579, last_size=160 bytes
+[2m2026-02-06T10:08:09.610725Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=155486, last_size=161 bytes
+[2m2026-02-06T10:08:19.612529Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=157392, last_size=161 bytes
+[2m2026-02-06T10:08:29.616077Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=159297, last_size=160 bytes
+[2m2026-02-06T10:08:39.618549Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=161202, last_size=161 bytes
+[2m2026-02-06T10:08:49.622737Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=163109, last_size=161 bytes
+[2m2026-02-06T10:08:59.625093Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=165017, last_size=161 bytes
+[2m2026-02-06T10:09:09.625421Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=166923, last_size=160 bytes
+[2m2026-02-06T10:09:19.627296Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=168826, last_size=161 bytes
+[2m2026-02-06T10:09:29.630370Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=170732, last_size=160 bytes
+[2m2026-02-06T10:09:39.630424Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=172638, last_size=161 bytes
+[2m2026-02-06T10:09:49.634394Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=174543, last_size=161 bytes
+[2m2026-02-06T10:09:59.638404Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=176449, last_size=161 bytes
+[2m2026-02-06T10:10:09.640551Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=178355, last_size=161 bytes
+[2m2026-02-06T10:10:19.641486Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=180259, last_size=160 bytes
+[2m2026-02-06T10:10:29.642291Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=182164, last_size=160 bytes
+[2m2026-02-06T10:10:39.644366Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=184070, last_size=160 bytes
+[2m2026-02-06T10:10:49.648496Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=185976, last_size=161 bytes
+[2m2026-02-06T10:10:59.653578Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=187881, last_size=160 bytes
+[2m2026-02-06T10:11:09.655311Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=189786, last_size=161 bytes

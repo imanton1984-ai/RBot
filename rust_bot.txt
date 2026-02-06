@@ -1104,6 +1104,11 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 config = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
+twox-hash = "2.1"
+rdkafka = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+bincode = "1.3"
 
 
 
@@ -1439,18 +1444,498 @@ pub struct HealthConfig {
 pub mod config;
 pub mod timeframe;
 pub mod data_types;
+pub mod health;
+pub mod sharding;
+pub mod msg_queue;
+pub mod processor;
 
 // Реэкспортируем config для удобства
 pub use config::*;
 pub use timeframe::*;
 pub use data_types::*;
-pub mod health;
+pub use sharding::*;
+pub use msg_queue::*;
+pub use processor::*;
+
+
+# common/src/msg_queue.rs
+
+use anyhow::{anyhow, Result};
+use futures::{Stream, StreamExt};
+use rdkafka::{
+    consumer::{Consumer, StreamConsumer},
+    message::{OwnedMessage, Message},
+    producer::{FutureProducer, FutureRecord},
+    ClientConfig,
+};
+use serde::{de::DeserializeOwned, Serialize};
+use std::{pin::Pin, sync::Arc, time::Duration};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+
+#[derive(Clone, Debug)]
+pub struct MessageBusConfig {
+    pub brokers: String,
+    pub topic_prefix: String,
+
+    // producer
+    pub message_timeout_ms: u64,
+    pub retry_backoff_ms: u64,
+    pub max_in_flight: usize,
+    pub flush_interval_ms: u64,
+    pub batch_max_messages: usize,
+
+    // consumer
+    pub auto_offset_reset: String,
+    pub enable_auto_commit: bool,
+}
+
+impl MessageBusConfig {
+    pub fn from_env() -> Self {
+        let brokers = std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
+        let message_timeout_ms = std::env::var("KAFKA_MESSAGE_TIMEOUT_MS").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(5_000);
+        let retry_backoff_ms = std::env::var("KAFKA_RETRY_BACKOFF_MS").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(100);
+        let max_in_flight = std::env::var("KAFKA_MAX_IN_FLIGHT").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(10_000);
+        let flush_interval_ms = std::env::var("KAFKA_FLUSH_INTERVAL_MS").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(25);
+        let batch_max_messages = std::env::var("KAFKA_BATCH_MAX_MESSAGES").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(5_000);
+
+        let topic_prefix = std::env::var("KAFKA_TOPIC_PREFIX").unwrap_or_else(|_| "whitelist".to_string());
+
+        let auto_offset_reset = std::env::var("KAFKA_AUTO_OFFSET_RESET").unwrap_or_else(|_| "latest".to_string());
+        let enable_auto_commit = std::env::var("KAFKA_ENABLE_AUTO_COMMIT").ok()
+            .map(|v| v == "true" || v == "1").unwrap_or(true);
+
+        Self {
+            brokers,
+            topic_prefix,
+            message_timeout_ms,
+            retry_backoff_ms,
+            max_in_flight,
+            flush_interval_ms,
+            batch_max_messages,
+            auto_offset_reset,
+            enable_auto_commit,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MessageBus {
+    config: Arc<MessageBusConfig>,
+    publisher: MessagePublisher,
+}
+
+#[derive(Clone)]
+struct MessagePublisher {
+    tx: mpsc::Sender<OutboundMessage>,
+}
+
+struct OutboundMessage {
+    topic: String,
+    key: Vec<u8>,
+    payload: Vec<u8>,
+    partition: Option<i32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IncomingMessage<T> {
+    pub key: Vec<u8>,
+    pub payload: T,
+    pub topic: String,
+    pub partition: i32,
+    pub offset: i64,
+    pub timestamp: Option<i64>,
+}
+
+impl MessageBus {
+    pub fn new(config: MessageBusConfig) -> Result<Self> {
+        let config = Arc::new(config);
+
+        let producer: FutureProducer = ClientConfig::new()
+            .set("bootstrap.servers", &config.brokers)
+            .set("message.timeout.ms", &config.message_timeout_ms.to_string())
+            .set("retry.backoff.ms", &config.retry_backoff_ms.to_string())
+            // throughput knobs (без фанатизма)
+            .set("linger.ms", "5")
+            .set("batch.num.messages", "10000")
+            .set("compression.type", "lz4")
+            .create()
+            .map_err(|e| anyhow!("Failed to create Kafka producer: {}", e))?;
+
+        let (tx, mut rx) = mpsc::channel::<OutboundMessage>(config.max_in_flight);
+
+        // publisher loop
+        let cfg = config.clone();
+        tokio::spawn(async move {
+            let flush_every = Duration::from_millis(cfg.flush_interval_ms);
+            let timeout = Duration::from_millis(cfg.message_timeout_ms);
+            let mut tick = tokio::time::interval(flush_every);
+
+            let mut batch: Vec<OutboundMessage> = Vec::with_capacity(cfg.batch_max_messages);
+
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => {
+                        if !batch.is_empty() {
+                            let _ = flush_batch(&producer, &mut batch, timeout).await;
+                        }
+                    }
+                    msg = rx.recv() => {
+                        match msg {
+                            Some(m) => {
+                                batch.push(m);
+                                if batch.len() >= cfg.batch_max_messages {
+                                    let _ = flush_batch(&producer, &mut batch, timeout).await;
+                                }
+                            }
+                            None => {
+                                if !batch.is_empty() {
+                                    let _ = flush_batch(&producer, &mut batch, timeout).await;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok(Self {
+            config,
+            publisher: MessagePublisher { tx },
+        })
+    }
+
+    pub fn new_from_env() -> Result<Self> {
+        Self::new(MessageBusConfig::from_env())
+    }
+
+    #[inline]
+    pub fn topic(&self, name: &str) -> String {
+        format!("{}.{}", self.config.topic_prefix, name)
+    }
+
+    pub async fn publish<T: Serialize>(&self, topic: &str, key: &[u8], message: &T) -> Result<()> {
+        self.publish_partitioned(topic, key, message, None).await
+    }
+
+    pub async fn publish_partitioned<T: Serialize>(
+        &self,
+        topic: &str,
+        key: &[u8],
+        message: &T,
+        partition: Option<i32>,
+    ) -> Result<()> {
+        let payload = bincode::serialize(message)?;
+        let msg = OutboundMessage {
+            topic: self.topic(topic),
+            key: key.to_vec(),
+            payload,
+            partition,
+        };
+        self.publisher.tx.send(msg).await.map_err(|e| anyhow!("Publish channel closed: {}", e))
+    }
+
+    pub async fn subscribe<T: DeserializeOwned + Send + 'static>(
+        &self,
+        topic: &str,
+        group_id: &str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<IncomingMessage<T>>> + Send>>> {
+        let consumer: StreamConsumer = ClientConfig::new()
+            .set("bootstrap.servers", &self.config.brokers)
+            .set("group.id", group_id)
+            .set("enable.auto.commit", if self.config.enable_auto_commit { "true" } else { "false" })
+            .set("auto.offset.reset", &self.config.auto_offset_reset)
+            .create()
+            .map_err(|e| anyhow!("Failed to create Kafka consumer: {}", e))?;
+
+        consumer
+            .subscribe(&[&self.topic(topic)])
+            .map_err(|e| anyhow!("Failed to subscribe: {}", e))?;
+
+        let (tx, rx) = mpsc::channel::<Result<IncomingMessage<T>>>(1024);
+
+        tokio::spawn(async move {
+            let mut stream = consumer.stream();
+            while let Some(msg) = stream.next().await {
+                match msg {
+                    Ok(m) => {
+                        let owned: OwnedMessage = m.detach();
+                        let payload = match owned.payload() {
+                            Some(p) => p,
+                            None => continue,
+                        };
+                        let decoded: Result<T> = bincode::deserialize(payload).map_err(|e| anyhow!("Deserialize error: {}", e));
+                        let item = decoded.map(|payload| IncomingMessage {
+                            key: owned.key().unwrap_or(&[]).to_vec(),
+                            payload,
+                            topic: owned.topic().to_string(),
+                            partition: owned.partition(),
+                            offset: owned.offset(),
+                            timestamp: owned.timestamp().to_millis(),
+                        });
+
+                        if tx.send(item).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Err(anyhow!("Kafka consume error: {}", e))).await;
+                    }
+                }
+            }
+        });
+
+        Ok(Box::pin(ReceiverStream::new(rx)))
+    }
+}
+
+async fn flush_batch(producer: &FutureProducer, batch: &mut Vec<OutboundMessage>, timeout: Duration) -> Result<()> {
+    // Process each message individually to avoid lifetime issues
+    for m in batch.drain(..) {
+        let topic = &m.topic;
+        let payload = &m.payload;
+        let key = &m.key;
+        
+        let mut rec = FutureRecord::to(topic).payload(payload).key(key);
+        if let Some(p) = m.partition {
+            rec = rec.partition(p);
+        }
+        
+        match producer.send(rec, timeout).await {
+            Ok(_) => {},
+            Err((e, _)) => {
+                // не паникуем: один fail не должен убить весь сервис
+                return Err(anyhow!("Kafka produce error: {}", e));
+            }
+        }
+    }
+    Ok(())
+}
+
+
+
+# common/src/processor.rs
+
+use crate::{Candle, Symbol, Timeframe};
+use anyhow::Result;
+use std::{collections::HashMap, collections::VecDeque, hash::Hash};
+use tokio::sync::RwLock;
+
+#[derive(Clone, Debug)]
+pub struct ProcessorConfig {
+    pub max_candles_per_series: usize,
+}
+
+impl Default for ProcessorConfig {
+    fn default() -> Self {
+        Self { max_candles_per_series: 1500 }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CandleBatch {
+    pub time_ms: Vec<i64>,
+    pub open: Vec<f64>,
+    pub high: Vec<f64>,
+    pub low: Vec<f64>,
+    pub close: Vec<f64>,
+    pub volume: Vec<f64>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CandleLite {
+    time_ms: i64,
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+    volume: f64,
+}
+
+#[derive(Clone, Debug)]
+struct SeriesState {
+    buf: VecDeque<CandleLite>,
+    last_time_ms: Option<i64>,
+}
+
+#[derive(Clone, Debug, Eq)]
+struct SeriesKey {
+    symbol: Symbol,
+    timeframe: Timeframe,
+}
+
+impl PartialEq for SeriesKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol == other.symbol && self.timeframe.to_minutes() == other.timeframe.to_minutes()
+    }
+}
+
+impl Hash for SeriesKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.symbol.hash(state);
+        self.timeframe.to_minutes().hash(state);
+    }
+}
+
+pub struct CandleProcessor {
+    config: ProcessorConfig,
+    state: RwLock<HashMap<SeriesKey, SeriesState>>,
+}
+
+impl CandleProcessor {
+    pub fn new(config: ProcessorConfig) -> Self {
+        Self {
+            config,
+            state: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Добавляет свечу в серию (symbol+tf). Дубликаты по time_ms игнорируются.
+    pub async fn push(&self, candle: Candle) -> Result<()> {
+        let key = SeriesKey { symbol: candle.symbol.clone(), timeframe: candle.timeframe };
+        let mut state = self.state.write().await;
+
+        let s = state.entry(key).or_insert_with(|| SeriesState {
+            buf: VecDeque::with_capacity(self.config.max_candles_per_series),
+            last_time_ms: None,
+        });
+
+        if s.last_time_ms == Some(candle.timestamp) {
+            return Ok(());
+        }
+
+        s.buf.push_back(CandleLite {
+            time_ms: candle.timestamp,
+            open: candle.open,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close,
+            volume: candle.volume,
+        });
+
+        s.last_time_ms = Some(candle.timestamp);
+
+        while s.buf.len() > self.config.max_candles_per_series {
+            s.buf.pop_front();
+        }
+
+        Ok(())
+    }
+
+    pub async fn len(&self, symbol: &Symbol, timeframe: Timeframe) -> usize {
+        let key = SeriesKey { symbol: symbol.clone(), timeframe };
+        let state = self.state.read().await;
+        state.get(&key).map(|s| s.buf.len()).unwrap_or(0)
+    }
+
+    pub async fn is_ready(&self, symbol: &Symbol, timeframe: Timeframe, min_bars: usize) -> bool {
+        self.len(symbol, timeframe).await >= min_bars
+    }
+
+    /// Снимок последних N баров в columnar виде.
+    pub async fn snapshot_last(&self, symbol: &Symbol, timeframe: Timeframe, last_n: usize) -> Option<CandleBatch> {
+        let key = SeriesKey { symbol: symbol.clone(), timeframe };
+        let state = self.state.read().await;
+        let s = state.get(&key)?;
+
+        let n = last_n.min(s.buf.len());
+        let start = s.buf.len().saturating_sub(n);
+
+        let mut time_ms = Vec::with_capacity(n);
+        let mut open = Vec::with_capacity(n);
+        let mut high = Vec::with_capacity(n);
+        let mut low = Vec::with_capacity(n);
+        let mut close = Vec::with_capacity(n);
+        let mut volume = Vec::with_capacity(n);
+
+        for c in s.buf.iter().skip(start) {
+            time_ms.push(c.time_ms);
+            open.push(c.open);
+            high.push(c.high);
+            low.push(c.low);
+            close.push(c.close);
+            volume.push(c.volume);
+        }
+
+        Some(CandleBatch { time_ms, open, high, low, close, volume })
+    }
+}
+
+
+
+# common/src/sharding.rs
+
+use std::hash::Hasher;
+use twox_hash::XxHash64;
+
+use crate::{Symbol, Timeframe};
+
+#[derive(Clone, Copy, Debug)]
+pub enum ShardStrategy {
+    /// Быстро, но при изменении shard_count “перетасовывает” почти всё.
+    Mod,
+    /// Стабильно при изменении shard_count (минимум миграций ключей).
+    Jump,
+}
+
+#[inline]
+pub fn shard_key(stream: &str, symbol: &Symbol, timeframe: Timeframe) -> String {
+    // стабильный ключ: один symbol+tf всегда в одну партицию
+    format!("{}|{}|{}", stream, symbol.as_str(), timeframe.as_str())
+}
+
+#[inline]
+pub fn hash64(s: &str) -> u64 {
+    let mut h = XxHash64::with_seed(0);
+    h.write(s.as_bytes());
+    h.finish()
+}
+
+/// Jump Consistent Hash (Lamping, Veach).
+/// Возвращает bucket [0..buckets-1].
+#[inline]
+pub fn jump_consistent_hash(mut key: u64, buckets: i32) -> i32 {
+    // buckets must be > 0
+    let mut b: i64 = -1;
+    let mut j: i64 = 0;
+    while j < buckets as i64 {
+        b = j;
+        key = key.wrapping_mul(2862933555777941757).wrapping_add(1);
+        let inv = ((key >> 33) + 1) as f64;
+        j = (((b + 1) as f64) * ((1u64 << 31) as f64 / inv)) as i64;
+    }
+    b as i32
+}
+
+#[inline]
+pub fn get_shard_id(key: &str, shard_count: usize) -> usize {
+    if shard_count == 0 {
+        return 0;
+    }
+    // По умолчанию — Jump (стабильнее для распределенных кешей/окон).
+    let h = hash64(key);
+    jump_consistent_hash(h, shard_count as i32) as usize
+}
+
+#[inline]
+pub fn get_series_shard(symbol: &Symbol, timeframe: Timeframe, shard_count: usize) -> usize {
+    let k = shard_key("default", symbol, timeframe);
+    get_shard_id(&k, shard_count)
+}
+
 
 
 # common/src/timeframe.rs
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum TimeFrame {
@@ -1500,6 +1985,22 @@ impl TimeFrame {
 impl fmt::Display for TimeFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+impl FromStr for TimeFrame {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_lowercase().as_str() {
+            "1m" | "m1" => Ok(TimeFrame::M1),
+            "5m" | "m5" => Ok(TimeFrame::M5),
+            "15m" | "m15" => Ok(TimeFrame::M15),
+            "1h" | "h1" => Ok(TimeFrame::H1),
+            "4h" | "h4" => Ok(TimeFrame::H4),
+            "1d" | "d1" => Ok(TimeFrame::D1),
+            _ => Err(()),
+        }
     }
 }
 
@@ -4201,6 +4702,551 @@ tracing-subscriber = { workspace = true }
 dotenvy = { workspace = true }
 
 
+# database/src/bulk_persistor.rs
+
+use anyhow::{anyhow, Result};
+use chrono::{DateTime, Utc};
+use serde_json::Value;
+use sqlx::{PgPool, Row};
+use sqlx::types::Json;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::sync::mpsc;
+
+#[derive(Clone, Debug)]
+pub struct BulkPersistorConfig {
+    pub database_url: String,
+    pub flush_interval_ms: u64,
+    pub max_batch: usize,
+    pub chunk_size: usize,
+}
+
+impl BulkPersistorConfig {
+    pub fn from_env() -> Result<Self> {
+        let database_url = std::env::var("DATABASE_URL")
+            .map_err(|_| anyhow!("DATABASE_URL is not set"))?;
+        let flush_interval_ms = std::env::var("DB_PERSIST_FLUSH_MS").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(50);
+        let max_batch = std::env::var("DB_PERSIST_MAX_BATCH").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(10_000);
+        let chunk_size = std::env::var("DB_PERSIST_CHUNK_SIZE").ok()
+            .and_then(|v| v.parse().ok()).unwrap_or(2_000);
+
+        Ok(Self { database_url, flush_interval_ms, max_batch, chunk_size })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PersistRecord {
+    Indicator {
+        symbol: common::Symbol,
+        timeframe: i16,        // tf_minutes
+        time_ms: i64,
+
+        indicator_name: String,
+        value_float: Option<f64>,
+        value_json: Option<Value>,
+
+        candle_is_final: bool,
+        calc_source: String,   // indicators DDL: TEXT
+        event_time_ms: Option<i64>,
+    },
+
+    RawSignal {
+        symbol: common::Symbol,
+        timeframe: i16, // tf_minutes
+        time_ms: i64,
+
+        indicator_id: i16,
+        signal_kind: i16,
+        signal_sub_id: i16,
+
+        side: i16,
+        score: f32,
+        value: f32,
+
+        details_json: Option<Value>,
+        candle_is_final: bool,
+        calc_source: i16,      // raw_signals DDL: SMALLINT
+        event_time_ms: Option<i64>,
+
+        features_json: Option<Value>,
+        scores_json: Option<Value>,
+        predictions_json: Option<Value>,
+    },
+}
+
+pub struct BulkPersistor {
+    tx: mpsc::Sender<PersistRecord>,
+}
+
+impl BulkPersistor {
+    pub async fn new_from_env() -> Result<Self> {
+        Self::new(BulkPersistorConfig::from_env()?).await
+    }
+
+    pub async fn new(cfg: BulkPersistorConfig) -> Result<Self> {
+        let pool = PgPool::connect(&cfg.database_url).await?;
+        let (tx, mut rx) = mpsc::channel::<PersistRecord>(cfg.max_batch * 2);
+
+        // persistence loop
+        let mut tick = tokio::time::interval(Duration::from_millis(cfg.flush_interval_ms));
+        let pool2 = pool.clone();
+        let cfg2 = cfg.clone();
+        tokio::spawn(async move {
+            let mut batch: Vec<PersistRecord> = Vec::with_capacity(cfg2.max_batch);
+            let cache = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+            // Pre-fill the cache
+            {
+                let rows = sqlx::query("SELECT id, symbol FROM market.pairs")
+                    .fetch_all(&pool2)
+                    .await;
+                if let Ok(rows) = rows {
+                    let mut cache_write = cache.write().await;
+                    for r in rows {
+                        if let (Ok(id), Ok(sym)) = (r.try_get("id"), r.try_get("symbol")) {
+                             let id: i64 = id;
+                             let sym: String = sym;
+                            cache_write.insert(sym, id);
+                        }
+                    }
+                }
+            }
+
+
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => {
+                        if !batch.is_empty() {
+                            if let Err(e) = flush_all(&pool2, &cache, &cfg2, &mut batch).await {
+                                tracing::error!("BulkPersistor flush error: {}", e);
+                            }
+                        }
+                    }
+                    rec = rx.recv() => {
+                        match rec {
+                            Some(r) => {
+                                batch.push(r);
+                                if batch.len() >= cfg2.max_batch {
+                                    if let Err(e) = flush_all(&pool2, &cache, &cfg2, &mut batch).await {
+                                        tracing::error!("BulkPersistor flush error: {}", e);
+                                    }
+                                }
+                            }
+                            None => {
+                                if !batch.is_empty() {
+                                    let _ = flush_all(&pool2, &cache, &cfg2, &mut batch).await;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok(Self {
+            tx,
+        })
+    }
+
+    pub fn sender(&self) -> mpsc::Sender<PersistRecord> {
+        self.tx.clone()
+    }
+
+    pub async fn enqueue(&self, record: PersistRecord) -> Result<()> {
+        self.tx.send(record).await.map_err(|e| anyhow!("persist queue closed: {}", e))
+    }
+
+
+}
+
+async fn get_symbol_id(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    symbol: &str,
+) -> Result<i64> {
+    if let Some(id) = cache.read().await.get(symbol).copied() {
+        return Ok(id);
+    }
+
+    let row = sqlx::query("SELECT id FROM market.pairs WHERE symbol = $1")
+        .bind(symbol)
+        .fetch_optional(pool)
+        .await?;
+
+    let id = match row {
+        Some(r) => r.try_get::<i64, _>("id")?,
+        None => return Err(anyhow!("symbol not found in market.pairs: {}", symbol)),
+    };
+
+    cache.write().await.insert(symbol.to_string(), id);
+    Ok(id)
+}
+
+fn tf_to_suffix(tf_minutes: i16) -> &'static str {
+    match tf_minutes {
+        1 => "1m",
+        5 => "5m",
+        15 => "15m",
+        30 => "30m",
+        60 => "1h",
+        240 => "4h",
+        1440 => "1d",
+        _ => "1m",
+    }
+}
+
+async fn flush_all(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    batch: &mut Vec<PersistRecord>,
+) -> Result<()> {
+    // Разделяем по типам
+    let mut indicators: Vec<PersistRecord> = Vec::new();
+    let mut signals: Vec<PersistRecord> = Vec::new();
+
+    for r in batch.drain(..) {
+        match r {
+            PersistRecord::Indicator { .. } => indicators.push(r),
+            PersistRecord::RawSignal { .. } => signals.push(r),
+        }
+    }
+
+    if !indicators.is_empty() {
+        flush_indicators(pool, cache, cfg, &indicators).await?;
+    }
+    if !signals.is_empty() {
+        flush_raw_signals(pool, cache, cfg, &signals).await?;
+    }
+    Ok(())
+}
+
+async fn flush_indicators(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    items: &[PersistRecord],
+) -> Result<()> {
+    // Дедуп внутри батча
+    // key: (symbol_id, tf, time_ms, indicator_name)
+    let mut dedup: HashMap<(i64, i16, i64, String), (PersistRecord, i64)> = HashMap::new();
+
+    for it in items {
+        if let PersistRecord::Indicator { symbol, timeframe, time_ms, indicator_name, .. } = it {
+            let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
+            let k = (sym_id, *timeframe, *time_ms, indicator_name.clone());
+            dedup.insert(k, (it.clone(), sym_id));
+        }
+    }
+
+    // Группируем по tf -> table suffix
+    let mut by_tf: HashMap<i16, Vec<(PersistRecord, i64)>> = HashMap::new();
+    for (_k, (rec, sym_id)) in dedup {
+        if let PersistRecord::Indicator { timeframe, .. } = &rec {
+            by_tf.entry(*timeframe).or_default().push((rec, sym_id));
+        }
+    }
+
+    for (tf, mut vec) in by_tf {
+        let suffix = tf_to_suffix(tf);
+        while !vec.is_empty() {
+            let take = vec.len().min(cfg.chunk_size);
+            let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
+            flush_indicators_chunk(pool, tf, suffix, chunk).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn flush_indicators_chunk(
+    pool: &PgPool,
+    tf: i16,
+    suffix: &str,
+    chunk: Vec<(PersistRecord, i64)>,
+) -> Result<()> {
+    let table = format!("market.indicators_{}", suffix);
+
+    let now: DateTime<Utc> = Utc::now();
+
+    let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut indicator_name: Vec<String> = Vec::with_capacity(chunk.len());
+    let mut value_float: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut value_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
+    let mut calc_source: Vec<String> = Vec::with_capacity(chunk.len());
+    let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
+    let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    for (rec, sym_id) in chunk {
+        if let PersistRecord::Indicator {
+            symbol: sym,
+            timeframe: _,
+            time_ms: tms,
+            indicator_name: name,
+            value_float: vf,
+            value_json: vj,
+            candle_is_final: final_flag,
+            calc_source: cs,
+            event_time_ms: etm,
+        } = rec {
+            time.push(ms_to_ts(tms));
+            time_ms.push(tms);
+            symbol_id.push(sym_id);
+            symbol.push(sym.0);
+            tf_minutes.push(tf);
+            indicator_name.push(name);
+            value_float.push(vf);
+            value_json.push(vj.map(Json));
+            candle_is_final.push(final_flag);
+            calc_source.push(cs);
+            event_time_ms.push(etm);
+            created_at.push(now);
+            updated_at.push(now);
+        }
+    }
+
+    let sql = format!(
+        r#"
+        INSERT INTO {table}
+        (time, time_ms, symbol_id, symbol, tf_minutes, indicator_name, value_float, value_json,
+         candle_is_final, calc_source, event_time_ms, created_at, updated_at)
+        SELECT * FROM UNNEST(
+            $1::timestamptz[],
+            $2::bigint[],
+            $3::bigint[],
+            $4::text[],
+            $5::smallint[],
+            $6::text[],
+            $7::double precision[],
+            $8::jsonb[],
+            $9::boolean[],
+            $10::text[],
+            $11::bigint[],
+            $12::timestamptz[],
+            $13::timestamptz[]
+        )
+        ON CONFLICT (symbol_id, tf_minutes, time_ms, indicator_name)
+        DO UPDATE SET
+            value_float = EXCLUDED.value_float,
+            value_json = EXCLUDED.value_json,
+            candle_is_final = EXCLUDED.candle_is_final,
+            calc_source = EXCLUDED.calc_source,
+            event_time_ms = EXCLUDED.event_time_ms,
+            updated_at = now()
+        "#
+    );
+
+    sqlx::query(&sql)
+        .bind(time)
+        .bind(time_ms)
+        .bind(symbol_id)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .bind(indicator_name)
+        .bind(value_float)
+        .bind(value_json)
+        .bind(candle_is_final)
+        .bind(calc_source)
+        .bind(event_time_ms)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+async fn flush_raw_signals(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    items: &[PersistRecord],
+) -> Result<()> {
+    // dedup: (symbol_id, tf, time_ms, indicator_id, kind, sub)
+    let mut dedup: HashMap<(i64, i16, i64, i16, i16, i16), (PersistRecord, i64)> = HashMap::new();
+
+    for it in items {
+        if let PersistRecord::RawSignal { symbol, timeframe, time_ms, indicator_id, signal_kind, signal_sub_id, .. } = it {
+            let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
+            let k = (sym_id, *timeframe, *time_ms, *indicator_id, *signal_kind, *signal_sub_id);
+            dedup.insert(k, (it.clone(), sym_id));
+        }
+    }
+
+    let mut vec: Vec<(PersistRecord, i64)> = dedup.into_values().collect();
+
+    while !vec.is_empty() {
+        let take = vec.len().min(cfg.chunk_size);
+        let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
+        flush_raw_signals_chunk(pool, chunk).await?;
+    }
+
+    Ok(())
+}
+
+async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>) -> Result<()> {
+    let now: DateTime<Utc> = Utc::now();
+
+    let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+
+    let mut indicator_id: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut signal_kind: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut signal_sub_id: Vec<i16> = Vec::with_capacity(chunk.len());
+
+    let mut side: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut score: Vec<f32> = Vec::with_capacity(chunk.len());
+    let mut value: Vec<f32> = Vec::with_capacity(chunk.len());
+
+    let mut details_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
+    let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
+
+    let mut features_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut scores_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut predictions_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+
+    let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    for (rec, sym_id) in chunk {
+        if let PersistRecord::RawSignal {
+            symbol: sym,
+            timeframe: tf,
+            time_ms: tms,
+            indicator_id: iid,
+            signal_kind: sk,
+            signal_sub_id: ssid,
+            side: sd,
+            score: sc,
+            value: val,
+            details_json: dj,
+            candle_is_final: fin,
+            calc_source: cs,
+            event_time_ms: etm,
+            features_json: fj,
+            scores_json: sj,
+            predictions_json: pj,
+        } = rec {
+            time.push(ms_to_ts(tms));
+            time_ms.push(tms);
+            symbol_id.push(sym_id);
+            symbol.push(sym.0);
+            tf_minutes.push(tf);
+
+            indicator_id.push(iid);
+            signal_kind.push(sk);
+            signal_sub_id.push(ssid);
+
+            side.push(sd);
+            score.push(sc);
+            value.push(val);
+
+            details_json.push(dj.map(Json));
+            candle_is_final.push(fin);
+            calc_source.push(cs);
+            event_time_ms.push(etm);
+
+            features_json.push(fj.map(Json));
+            scores_json.push(sj.map(Json));
+            predictions_json.push(pj.map(Json));
+
+            created_at.push(now);
+            updated_at.push(now);
+        }
+    }
+
+    let sql = r#"
+        INSERT INTO market.raw_signals
+        (time, time_ms, symbol_id, symbol, tf_minutes,
+         indicator_id, signal_kind, signal_sub_id,
+         side, score, value,
+         details_json, candle_is_final, calc_source, event_time_ms,
+         features_json, scores_json, predictions_json,
+         created_at, updated_at)
+        SELECT * FROM UNNEST(
+            $1::timestamptz[],
+            $2::bigint[],
+            $3::bigint[],
+            $4::text[],
+            $5::smallint[],
+            $6::smallint[],
+            $7::smallint[],
+            $8::smallint[],
+            $9::smallint[],
+            $10::real[],
+            $11::real[],
+            $12::jsonb[],
+            $13::boolean[],
+            $14::smallint[],
+            $15::bigint[],
+            $16::jsonb[],
+            $17::jsonb[],
+            $18::jsonb[],
+            $19::timestamptz[],
+            $20::timestamptz[]
+        )
+        ON CONFLICT (symbol_id, tf_minutes, time_ms, indicator_id, signal_kind, signal_sub_id)
+        DO UPDATE SET
+            side = EXCLUDED.side,
+            score = EXCLUDED.score,
+            value = EXCLUDED.value,
+            details_json = EXCLUDED.details_json,
+            candle_is_final = EXCLUDED.candle_is_final,
+            calc_source = EXCLUDED.calc_source,
+            event_time_ms = EXCLUDED.event_time_ms,
+            features_json = EXCLUDED.features_json,
+            scores_json = EXCLUDED.scores_json,
+            predictions_json = EXCLUDED.predictions_json,
+            updated_at = now()
+    "#;
+
+    sqlx::query(sql)
+        .bind(time)
+        .bind(time_ms)
+        .bind(symbol_id)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .bind(indicator_id)
+        .bind(signal_kind)
+        .bind(signal_sub_id)
+        .bind(side)
+        .bind(score)
+        .bind(value)
+        .bind(details_json)
+        .bind(candle_is_final)
+        .bind(calc_source)
+        .bind(event_time_ms)
+        .bind(features_json)
+        .bind(scores_json)
+        .bind(predictions_json)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+fn ms_to_ts(ms: i64) -> DateTime<Utc> {
+    let secs = ms / 1000;
+    let nsec = ((ms % 1000).max(0) as u32) * 1_000_000;
+    DateTime::<Utc>::from_timestamp(secs, nsec).unwrap_or_else(|| Utc::now())
+}
+
+
+
 # database/src/db_logger.rs
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -4487,8 +5533,10 @@ mod tests {
 # database/src/lib.rs
 
 pub mod init_db;
+pub mod bulk_persistor;
 
 pub use init_db::*;
+pub use bulk_persistor::*;
 
 
 # database/src/bin/svc_db_init.rs
@@ -5258,13 +6306,17 @@ ALTER TABLE market.raw_signals
 
 # database/ddl/056_raw_signals_pk_update.sql
 
--- 056_raw_signals_pk_update.sql: Update primary key constraint for raw_signals table to support UPSERT operations
--- This allows updating existing signals instead of throwing duplicate key errors
+-- 056_raw_signals_pk_update.sql: Fix PK to match Rust ON CONFLICT clause
+-- We MUST include signal_sub_id, otherwise we cannot store multiple EMAs (20, 50, 200) for the same candle.
 
--- Drop and recreate the primary key constraint to include time_ms in the correct order for UPSERT operations
--- Note: We keep 'time' in the constraint as it's required for TimescaleDB hypertable partitioning
 ALTER TABLE market.raw_signals DROP CONSTRAINT IF EXISTS raw_signals_pkey;
-ALTER TABLE market.raw_signals ADD CONSTRAINT raw_signals_pkey PRIMARY KEY (time_ms, symbol_id, tf_minutes, indicator_id, signal_kind, time);
+
+-- Primary Key must include 'time' for TimescaleDB partitioning
+-- Primary Key must include 'signal_sub_id' for logic correctness (EMA20 vs EMA50)
+ALTER TABLE market.raw_signals ADD CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id);
+
+-- Create index for time_ms if needed for queries, but not strictly required for the PK constraint
+CREATE INDEX IF NOT EXISTS idx_raw_signals_time_ms ON market.raw_signals(time_ms);
 
 
 # database/ddl/060_policies.sql
@@ -7605,7 +8657,7 @@ pub async fn writer_task_copy(
 use crate::market::candles::candle_common::*;
 use crate::market::candles::candle_writer::{TypedWriterMsg, DataSource, LiveCandle};
 use anyhow::{Context, Result};
-use common::timeframe::TimeFrame;
+use common::{timeframe::TimeFrame, MessageBus, Candle as CommonCandle, Symbol};
 use common::AppConfig;
 use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
@@ -7613,49 +8665,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::Message;
 use tracing::info;
-use rdkafka::config::ClientConfig;
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use std::time::Duration;
 
-// Define the candle close event structure that matches what the compute service expects
-#[derive(serde::Serialize)]
-struct CandleCloseEvent {
-    symbol: String,
-    timeframe: String,
-    close_time: i64,
-}
-
-// Create a Kafka producer for publishing candle close events
-async fn create_kafka_producer() -> Result<FutureProducer> {
-    let brokers = std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "127.0.0.1:19092".to_string());
-    let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", &brokers)
-        .set("message.timeout.ms", "5000")
-        .create()
-        .context("Producer creation failed")?;
-
-    Ok(producer)
-}
-
-// Publish a candle close event to the Kafka topic
-async fn publish_candle_close_event(producer: &FutureProducer, event: &CandleCloseEvent) -> Result<()> {
-    let topic = std::env::var("KAFKA_CANDLES_CLOSE_TOPIC").unwrap_or_else(|_| "candles.close".to_string());
-    let payload = serde_json::to_string(event).context("Failed to serialize candle close event")?;
-
-    // Send the message and handle the result
-    match producer
-        .send(
-            FutureRecord::to(&topic)
-                .key(&event.symbol)  // Use symbol as key for partitioning
-                .payload(&payload),
-            Duration::from_secs(1),
-        )
-        .await
-    {
-        Ok(_) => Ok(()),  // Message sent successfully
-        Err((err, _)) => Err(anyhow::anyhow!("Kafka send error: {}", err)),
-    }
-}
 
 
 
@@ -7727,8 +8737,8 @@ pub async fn ws_worker(
     let mut backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
     let ping_every = tokio::time::Duration::from_secs(cfg.binance.ws_ping_interval_sec.max(5) as u64);
 
-    // Create Kafka producer for publishing candle close events
-    let kafka_producer = create_kafka_producer().await.context("Failed to create Kafka producer")?;
+    // Create message bus for publishing raw candles
+    let message_bus = MessageBus::new_from_env().context("Failed to create message bus")?;
 
     loop {
         if *shutdown.borrow() {
@@ -7826,38 +8836,47 @@ pub async fn ws_worker(
                         }
                     }
 
-                    let row = CandleRow {
-                        time_ms: k.close_time,
-                        symbol_id: sid,
-                        symbol: ev.symbol.clone(),
+                    // Create a common candle structure to send via message bus
+                    let common_candle = CommonCandle {
                         open: str_f64(&k.open),
                         high: str_f64(&k.high),
                         low: str_f64(&k.low),
                         close: str_f64(&k.close),
                         volume: str_f64(&k.volume),
+                        timestamp: k.close_time,
+                        symbol: Symbol::new(ev.symbol.clone()),
+                        timeframe: tf,
                     };
 
+                    // Publish raw candle to message bus instead of direct DB write
+                    let message_bus_clone = message_bus.clone();
+                    let symbol_clone = ev.symbol.clone(); // Clone the symbol before moving
+                    let common_candle_clone = common_candle.clone(); // Clone the candle before moving
+                    let interval_clone = k.interval.clone();
+                    let close_time_clone = k.close_time;
+                    let _ = tokio::spawn(async move {
+                        if let Err(e) = message_bus_clone.publish("raw_candles", symbol_clone.as_bytes(), &common_candle_clone).await {
+                            tracing::error!("Failed to publish raw candle to message bus: {}", e);
+                        } else {
+                            tracing::debug!("Published raw candle: {} {} at {}", symbol_clone, interval_clone, close_time_clone);
+                        }
+                    });
+
+                    // Optionally still send to legacy writers if needed for other purposes
                     if let Some(tx) = writers.get(&tf) {
+                        let row = CandleRow {
+                            time_ms: k.close_time,
+                            symbol_id: sid,
+                            symbol: ev.symbol.clone(),
+                            open: str_f64(&k.open),
+                            high: str_f64(&k.high),
+                            low: str_f64(&k.low),
+                            close: str_f64(&k.close),
+                            volume: str_f64(&k.volume),
+                        };
                         tracing::trace!("writer({}) received message: {:?}", tf.as_str(), row);
                         let _ = tx.send(TypedWriterMsg { rows: vec![row], source: DataSource::WebSocket });
                     }
-
-                    // Publish candle close event to Kafka topic
-                    let close_event = CandleCloseEvent {
-                        symbol: ev.symbol.clone(),
-                        timeframe: k.interval.clone(),
-                        close_time: k.close_time,
-                    };
-
-                    // Publish the event asynchronously without blocking the main loop
-                    let producer_clone = kafka_producer.clone();
-                    let _ = tokio::spawn(async move {
-                        if let Err(e) = publish_candle_close_event(&producer_clone, &close_event).await {
-                            tracing::error!("Failed to publish candle close event to Kafka: {}", e);
-                        } else {
-                            tracing::debug!("Published candle close event: {} {} at {}", close_event.symbol, close_event.timeframe, close_event.close_time);
-                        }
-                    });
                 }
             }
         }
@@ -8437,15 +9456,18 @@ anyhow = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
 common = { path = "../common" }
+database_lib = { package = "database", path = "../database" }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 compute_indicators = { path = "./indicators" }
 raw_signals = { path = "./raw_signals" }
 cuda = { path = "../cuda", optional = true }
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-connections = { path = "../connections" }
+connections_lib = { package = "connections", path = "../connections" }
 rdkafka = { version = "0.39.0", features = ["tokio"] }
 dotenvy = "0.15"
+futures-util = "0.3"
+tokio-stream = "0.1"
 
 [features]
 default = []
@@ -14893,7 +15915,7 @@ impl BootstrapCoordinator {
 use common::{Symbol, Timeframe};
 use sqlx::{PgPool, Row};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CandleWindow {
     pub open: Vec<f64>,
     pub high: Vec<f64>,
@@ -15001,16 +16023,19 @@ impl CandleWindowFetcher {
     pub async fn build_batch_tensors(
         &self,
         windows: std::collections::HashMap<Symbol, CandleWindow>,
+        timeframe: common::Timeframe,  // Pass the actual timeframe instead of using placeholder
     ) -> Result<crate::BatchTensor, Box<dyn std::error::Error + Send + Sync>> {
         let mut close = Vec::new();
         let mut high = Vec::new();
         let mut low = Vec::new();
         let mut volume = Vec::new();
         let mut timestamps = Vec::new();
-        let mut symbols = Vec::new();
-        let mut timeframes = Vec::new();
+        let mut symbol_ids = Vec::new();
 
         for (symbol, window) in windows {
+            // Get the symbol_id from the database
+            let symbol_id = self.get_symbol_id(&symbol).await?;
+            
             // Store the length before moving the vectors
             let window_len = window.close.len();
 
@@ -15021,10 +16046,9 @@ impl CandleWindowFetcher {
             volume.extend(window.volume);
             timestamps.extend(window.timestamps);
 
-            // Add symbol/timeframe for each data point
+            // Add symbol_id for each data point
             for _ in 0..window_len {
-                symbols.push(symbol.clone());
-                timeframes.push(common::Timeframe::M1); // Placeholder
+                symbol_ids.push(symbol_id as u32);
             }
         }
 
@@ -15034,9 +16058,18 @@ impl CandleWindowFetcher {
             low,
             volume,
             timestamps,
-            symbols,
-            timeframes,
+            symbol_ids,
+            timeframe,
         })
+    }
+    
+    async fn get_symbol_id(&self, symbol: &Symbol) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
+        let row = sqlx::query("SELECT symbol_id FROM market.pairs WHERE symbol = $1")
+            .bind(symbol.as_str())
+            .fetch_one(self.get_db_pool())
+            .await?;
+            
+        Ok(row.get("symbol_id"))
     }
 }
 
@@ -15044,8 +16077,9 @@ impl CandleWindowFetcher {
 # compute/src/compute_backend.rs
 
 use std::sync::Arc;
+use std::collections::HashMap;
 use common::{Symbol, Timeframe};
-use crate::{CandleWindow, FeatureValue};
+use crate::{CandleWindow, FeatureBatch, FeatureValue};
 
 #[derive(Debug, Clone)]
 pub struct ComputeJob {
@@ -15057,42 +16091,63 @@ pub struct ComputeJob {
     pub candle_window: Option<CandleWindow>,
 }
 
-#[derive(Debug, Clone)]
+/// Legacy (оставляем для совместимости, но в fast-path больше НЕ создаём)
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ComputeResult {
     pub symbol: Symbol,
     pub timeframe: Timeframe,
     pub timestamp: i64,
-    pub features: std::collections::HashMap<String, FeatureValue>,
+    pub features: HashMap<String, FeatureValue>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct FeatureWindow {
-    pub features: Vec<ComputeResult>,
+    pub symbol: Symbol,
+    pub timeframe: Timeframe,
     pub start_time: i64,
     pub end_time: i64,
+
+    /// Держим свечи как раньше (это ок). Но НЕ держим per-bar feature maps.
     pub candle_window: Option<CandleWindow>,
+
+    /// Новое columnar-хранилище фич
+    pub batch: FeatureBatch,
+
+    /// Legacy: по умолчанию None (не заполняем, чтобы не жрать RAM)
+    pub legacy_features: Option<Vec<ComputeResult>>,
 }
 
 impl FeatureWindow {
     pub fn new(start_time: i64, end_time: i64, candle_window: Option<CandleWindow>) -> Self {
         Self {
-            features: Vec::new(),
+            symbol: Symbol::new(""), // Will be set appropriately
+            timeframe: Timeframe::M1, // Will be set appropriately
             start_time,
             end_time,
             candle_window,
+            batch: FeatureBatch::new(Vec::new()), // Empty batch initially
+            legacy_features: None,
         }
     }
 
     pub fn get_indicator_values(&self, indicator_name: &str) -> Vec<f64> {
-        let mut values = Vec::new();
-        for result in &self.features {
-            if let Some(feature_value) = result.features.get(indicator_name) {
-                if let FeatureValue::Float(val) = feature_value {
-                    values.push(*val);
+        // Try to get from the new columnar format first
+        if let Some(values) = self.batch.get_f64(indicator_name) {
+            values.to_vec()
+        } else {
+            // Fallback to legacy format if needed
+            let mut values = Vec::new();
+            if let Some(legacy_features) = &self.legacy_features {
+                for result in legacy_features {
+                    if let Some(feature_value) = result.features.get(indicator_name) {
+                        if let FeatureValue::Float(val) = feature_value {
+                            values.push(*val);
+                        }
+                    }
                 }
             }
+            values
         }
-        values
     }
 }
 
@@ -15150,9 +16205,7 @@ impl ComputeBackendManager {
 
 use std::sync::Arc;
 use common::{Symbol, Timeframe};
-use crate::{
-    ComputeBackend, ComputeJob, ComputeResult, FeatureWindow, FeatureValue
-};
+use crate::{ComputeBackend, ComputeJob, FeatureWindow, FeatureBatch};
 use crate::compute_indicators; // Используем модуль напрямую, без wildcard
 
 pub struct CpuBackend {
@@ -15276,205 +16329,103 @@ impl ComputeBackend for CpuBackend {
                 continue; // Skip if data arrays have inconsistent lengths
             }
 
+            // === NEW: build columnar FeatureBatch instead of per-bar hashmaps ===
 
-            // Create a map to group features by timestamp
-            let mut timestamp_features: std::collections::HashMap<i64, std::collections::HashMap<String, FeatureValue>> = std::collections::HashMap::new();
+            let timestamps = candle_window.timestamps.clone();
+            let n = timestamps.len();
+            let mut batch = FeatureBatch::new(timestamps);
 
+            // Кеши, чтобы не пересчитывать одно и то же 3 раза (bb/macd/stoch/alligator)
+            let mut bb_cache: Option<(Vec<f64>, Vec<f64>, Vec<f64>)> = None;
+            let mut macd_cache: Option<(Vec<f64>, Vec<f64>, Vec<f64>)> = None;
+            let mut stoch_cache: Option<(Vec<f64>, Vec<f64>)> = None;
+            let mut alligator_cache: Option<(Vec<f64>, Vec<f64>, Vec<f64>)> = None;
+
+            // Важно: не создаём никаких HashMap на каждый бар.
+            // Добавляем колонки (строка-имя 1 раз на колонку).
             for indicator in &job.indicators {
                 match indicator.as_str() {
                     "adx" => {
-                        let adx_values = Self::calculate_adx(&candle_window.high, &candle_window.low, &candle_window.close, 14);
-                        for (i, &adx_val) in adx_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !adx_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("adx".to_string(), FeatureValue::Float(adx_val));
-                            }
-                        }
+                        let v = Self::calculate_adx(&candle_window.high, &candle_window.low, &candle_window.close, 14);
+                        batch.push_f64("adx", v);
                     }
                     "atr" => {
-                        let atr_values = Self::calculate_atr(&candle_window.high, &candle_window.low, &candle_window.close, 14);
-                        for (i, &atr_val) in atr_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !atr_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("atr".to_string(), FeatureValue::Float(atr_val));
-                            }
-                        }
-                    }
-                    "bb" => {
-                        let (upper, middle, lower) = Self::calculate_bollinger_bands(&candle_window.close, 20, 2.0);
-                        for i in 0..std::cmp::min(upper.len(), candle_window.timestamps.len()) {
-                            if !upper[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("bb_upper".to_string(), FeatureValue::Float(upper[i]));
-                                features_map.insert("bb_mid".to_string(), FeatureValue::Float(middle[i]));
-                                features_map.insert("bb_lower".to_string(), FeatureValue::Float(lower[i]));
-                            }
-                        }
+                        let v = Self::calculate_atr(&candle_window.high, &candle_window.low, &candle_window.close, 14);
+                        batch.push_f64("atr", v);
                     }
                     "cci" => {
-                        let cci_values = Self::calculate_cci(&candle_window.high, &candle_window.low, &candle_window.close, 20);
-                        for (i, &cci_val) in cci_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !cci_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("cci".to_string(), FeatureValue::Float(cci_val));
-                            }
-                        }
+                        let v = Self::calculate_cci(&candle_window.high, &candle_window.low, &candle_window.close, 20);
+                        batch.push_f64("cci", v);
                     }
-                    "ema" => {
-                        let ema20 = Self::calculate_ema(&candle_window.close, 20);
-                        let ema50 = Self::calculate_ema(&candle_window.close, 50);
-                        let ema200 = Self::calculate_ema(&candle_window.close, 200);
-                        for i in 0..std::cmp::min(ema20.len(), candle_window.timestamps.len()) {
-                            if !ema20[i].is_nan() || !ema50[i].is_nan() || !ema200[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                if !ema20[i].is_nan() {
-                                    features_map.insert("ema20".to_string(), FeatureValue::Float(ema20[i]));
-                                }
-                                if !ema50[i].is_nan() {
-                                    features_map.insert("ema50".to_string(), FeatureValue::Float(ema50[i]));
-                                }
-                                if !ema200[i].is_nan() {
-                                    features_map.insert("ema200".to_string(), FeatureValue::Float(ema200[i]));
-                                }
-                            }
-                        }
-                    }
-                    "macd" => {
-                        let (macd_line, signal_line, histogram) = Self::calculate_macd(&candle_window.close, 12, 26, 9);
+                    "ema20" => batch.push_f64("ema20", Self::calculate_ema(&candle_window.close, 20)),
+                    "ema50" => batch.push_f64("ema50", Self::calculate_ema(&candle_window.close, 50)),
+                    "ema200" => batch.push_f64("ema200", Self::calculate_ema(&candle_window.close, 200)),
+                    "sma" => batch.push_f64("sma", Self::calculate_sma(&candle_window.close, 20)),
+                    "rsi" => batch.push_f64("rsi", Self::calculate_rsi(&candle_window.close, 14)),
+                    "obv" => batch.push_f64("obv", Self::calculate_obv(&candle_window.close, &candle_window.volume)),
+                    "vwap" => batch.push_f64("vwap", Self::calculate_vwap(&candle_window.high, &candle_window.low, &candle_window.close, &candle_window.volume)),
+                    "williams" => batch.push_f64("williams", Self::calculate_williams_r(&candle_window.high, &candle_window.low, &candle_window.close, 14)),
 
-                        for i in 0..std::cmp::min(macd_line.len(), candle_window.timestamps.len()) {
-                            if !macd_line[i].is_nan() && !signal_line[i].is_nan() && !histogram[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("macd".to_string(), FeatureValue::Float(macd_line[i]));
-                                features_map.insert("macd_signal".to_string(), FeatureValue::Float(signal_line[i]));
-                                features_map.insert("macd_hist".to_string(), FeatureValue::Float(histogram[i]));
-                            }
+                    "bb_upper" | "bb_mid" | "bb_lower" => {
+                        if bb_cache.is_none() {
+                            bb_cache = Some(Self::calculate_bollinger_bands(&candle_window.close, 20, 2.0));
                         }
+                        let (upper, mid, lower) = bb_cache.as_ref().unwrap();
+                        // пушим все 3 колонки один раз (не важно, на каком из 3 индикаторов мы сюда попали)
+                        if batch.get_f64("bb_upper").is_none() { batch.push_f64("bb_upper", upper.clone()); }
+                        if batch.get_f64("bb_mid").is_none() { batch.push_f64("bb_mid", mid.clone()); }
+                        if batch.get_f64("bb_lower").is_none() { batch.push_f64("bb_lower", lower.clone()); }
                     }
-                    "obv" => {
-                        let obv_values = Self::calculate_obv(&candle_window.close, &candle_window.volume);
-                        for (i, &obv_val) in obv_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !obv_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("obv".to_string(), FeatureValue::Float(obv_val));
-                            }
+
+                    "macd" | "macd_signal" | "macd_hist" => {
+                        if macd_cache.is_none() {
+                            macd_cache = Some(Self::calculate_macd(&candle_window.close, 12, 26, 9));
                         }
+                        let (macd, signal, hist) = macd_cache.as_ref().unwrap();
+                        if batch.get_f64("macd").is_none() { batch.push_f64("macd", macd.clone()); }
+                        if batch.get_f64("macd_signal").is_none() { batch.push_f64("macd_signal", signal.clone()); }
+                        if batch.get_f64("macd_hist").is_none() { batch.push_f64("macd_hist", hist.clone()); }
                     }
-                    "rsi" => {
-                        let rsi_values = Self::calculate_rsi(&candle_window.close, 14);
-                        for (i, &rsi_val) in rsi_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !rsi_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("rsi".to_string(), FeatureValue::Float(rsi_val));
-                            }
+
+                    "stoch_k" | "stoch_d" => {
+                        if stoch_cache.is_none() {
+                            stoch_cache = Some(Self::calculate_stochastic(&candle_window.high, &candle_window.low, &candle_window.close, 14, 3));
                         }
+                        let (k, d) = stoch_cache.as_ref().unwrap();
+                        if batch.get_f64("stoch_k").is_none() { batch.push_f64("stoch_k", k.clone()); }
+                        if batch.get_f64("stoch_d").is_none() { batch.push_f64("stoch_d", d.clone()); }
                     }
-                    "sma" => {
-                        let sma_values = Self::calculate_sma(&candle_window.close, 20);
-                        for (i, &sma_val) in sma_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !sma_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("sma".to_string(), FeatureValue::Float(sma_val));
-                            }
+
+                    "alligator_jaw" | "alligator_teeth" | "alligator_lips" => {
+                        if alligator_cache.is_none() {
+                            alligator_cache = Some(Self::calculate_alligator(&candle_window.close, 13, 8, 5, 8, 5, 3));
                         }
+                        let (jaw, teeth, lips) = alligator_cache.as_ref().unwrap();
+                        if batch.get_f64("alligator_jaw").is_none() { batch.push_f64("alligator_jaw", jaw.clone()); }
+                        if batch.get_f64("alligator_teeth").is_none() { batch.push_f64("alligator_teeth", teeth.clone()); }
+                        if batch.get_f64("alligator_lips").is_none() { batch.push_f64("alligator_lips", lips.clone()); }
                     }
-                    "stoch" => {
-                        let (k, d) = Self::calculate_stochastic(&candle_window.high, &candle_window.low, &candle_window.close, 14, 3);
-                        for i in 0..std::cmp::min(k.len(), candle_window.timestamps.len()) {
-                            if !k[i].is_nan() && !d[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("stoch_k".to_string(), FeatureValue::Float(k[i]));
-                                features_map.insert("stoch_d".to_string(), FeatureValue::Float(d[i]));
-                            }
-                        }
-                    }
-                    "vwap" => {
-                        let vwap_values = Self::calculate_vwap(&candle_window.high, &candle_window.low, &candle_window.close, &candle_window.volume);
-                        for (i, &vwap_val) in vwap_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !vwap_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("vwap".to_string(), FeatureValue::Float(vwap_val));
-                            }
-                        }
-                    }
-                    "williams" => {
-                        let williams_values = Self::calculate_williams_r(&candle_window.high, &candle_window.low, &candle_window.close, 14);
-                        for (i, &williams_val) in williams_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !williams_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("williams".to_string(), FeatureValue::Float(williams_val));
-                            }
-                        }
-                    }
-                    "alligator" => {
-                        let (jaw, teeth, lips) = Self::calculate_alligator(&candle_window.close, 13, 8, 5, 8, 5, 3);
-                        for i in 0..std::cmp::min(jaw.len(), candle_window.timestamps.len()) {
-                            if !jaw[i].is_nan() && !teeth[i].is_nan() && !lips[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("alli_jaw".to_string(), FeatureValue::Float(jaw[i]));
-                                features_map.insert("alli_teeth".to_string(), FeatureValue::Float(teeth[i]));
-                                features_map.insert("alli_lips".to_string(), FeatureValue::Float(lips[i]));
-                            }
-                        }
-                    }
+
+                    // sr_levels — лучше писать 1 запись на последний timestamp (чтобы не плодить JSON на каждый бар)
                     "sr_levels" => {
                         let levels = compute_indicators::calculate_sr_levels(&candle_window.high, &candle_window.low, &candle_window.close, 0.5);
-                        if let Ok(json_levels) = serde_json::to_value(&levels) {
-                            // Use the last timestamp or the job's window end for SR levels
-                            let timestamp = candle_window.timestamps.last().cloned().unwrap_or(job.window_end);
-                            timestamp_features.entry(timestamp)
-                                .or_insert_with(std::collections::HashMap::new)
-                                .insert("sr_levels".to_string(), FeatureValue::Json(json_levels));
-                        }
+                        let mut v = vec![serde_json::Value::Null; n];
+                        v[n - 1] = serde_json::to_value(levels).unwrap_or(serde_json::Value::Null);
+                        batch.push_json("sr_levels", v);
                     }
-                    _ => {
-                        // For other indicators, we could add more cases
-                    }
+
+                    _ => { /* unknown indicator — игнор */ }
                 }
             }
 
-            // Convert the grouped features into ComputeResult objects
-            let mut features: Vec<ComputeResult> = Vec::new();
-            for (timestamp, features_map) in timestamp_features {
-                features.push(ComputeResult {
-                    symbol: job.symbol.clone(),
-                    timeframe: job.timeframe,
-                    timestamp,
-                    features: features_map,
-                });
-            }
-
             let feature_window = Arc::new(FeatureWindow {
-                features,
+                symbol: job.symbol.clone(),
+                timeframe: job.timeframe,
                 start_time: job.window_start,
                 end_time: job.window_end,
-                candle_window: job.candle_window.clone(),
+                candle_window: Some(candle_window.clone()), // ВАЖНО: без clone()
+                batch,
+                legacy_features: None,
             });
 
             results.push(feature_window);
@@ -15914,8 +16865,13 @@ impl ComputeBackend for CudaBackend {
                 });
             }
 
+            let mut batch = crate::FeatureBatch::new(Vec::new());
+
             let feature_window = Arc::new(FeatureWindow {
-                features,
+                symbol: job.symbol.clone(),
+                timeframe: job.timeframe,
+                legacy_features: Some(features),
+                batch,
                 start_time: job.window_start,
                 end_time: job.window_end,
                 candle_window: job.candle_window.clone(),
@@ -15955,14 +16911,9 @@ impl ComputeBackend for CudaBackend {
 
 // compute/src/indicator_persistor.rs
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Duration;
-
-use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Postgres, QueryBuilder, Row};
-use tokio::sync::{mpsc, RwLock};
-use tracing::{error, warn};
+use database_lib::PersistRecord;
+use tokio::sync::mpsc;
+use tracing::error;
 
 use common::{Symbol, Timeframe};
 
@@ -15978,233 +16929,79 @@ pub struct IndicatorRecord {
 }
 
 pub struct IndicatorPersistor {
-    pub db_pool: PgPool,
-    pub persist_queue: Arc<RwLock<Vec<IndicatorRecord>>>,
-    pub batch_size: usize,
-    pub flush_interval_ms: u64,
-
-    pub symbol_id_cache: Arc<RwLock<HashMap<Symbol, i64>>>,
+    bulk_persistor_sender: mpsc::Sender<PersistRecord>,
 }
 
 impl IndicatorPersistor {
     pub fn new(
-        db_pool: PgPool,
-        batch_size: usize,
-        flush_interval_ms: u64,
+        bulk_persistor_sender: mpsc::Sender<PersistRecord>,
     ) -> (Self, mpsc::UnboundedSender<IndicatorRecord>) {
-        let persist_queue = Arc::new(RwLock::new(Vec::new()));
-        let symbol_id_cache = Arc::new(RwLock::new(HashMap::new()));
-
-        // Канал (если где-то захочешь отправлять по одному record)
         let (sender, mut receiver) = mpsc::unbounded_channel::<IndicatorRecord>();
+        
+        let bulk_sender = bulk_persistor_sender.clone();
+        
+        // Forward incoming records to the bulk persistor
+        tokio::spawn(async move {
+            while let Some(record) = receiver.recv().await {
+                let tf_minutes: i16 = record.timeframe.to_minutes() as i16;
 
-        // Receiver -> persist_queue
-        {
-            let q = Arc::clone(&persist_queue);
-            tokio::spawn(async move {
-                while let Some(r) = receiver.recv().await {
-                    q.write().await.push(r);
+                let (value_float, value_json) = match record.value {
+                    FeatureValue::Float(v) => (Some(v), None),
+                    FeatureValue::Json(v) => (None, Some(serde_json::to_value(v).unwrap_or_default())),
+                };
+
+                let persist_record = PersistRecord::Indicator {
+                    symbol: record.symbol,
+                    timeframe: tf_minutes,
+                    time_ms: record.timestamp,
+                    indicator_name: record.indicator_name.clone(),
+                    value_float,
+                    value_json,
+                    candle_is_final: true, // Assuming true for now, adjust if needed
+                    calc_source: "1".to_string(),      // 1 for "compute"
+                    event_time_ms: None, // Adjust if available
+                };
+
+                if let Err(e) = bulk_sender.send(persist_record).await {
+                    error!("Failed to send indicator record to bulk persistor: {}", e);
                 }
-            });
-        }
+            }
+        });
 
         (
             Self {
-                db_pool,
-                persist_queue,
-                batch_size,
-                flush_interval_ms,
-                symbol_id_cache,
+                bulk_persistor_sender,
             },
             sender,
         )
     }
 
     pub async fn queue_records(&self, records: Vec<IndicatorRecord>) {
-        if records.is_empty() {
-            return;
-        }
-        self.persist_queue.write().await.extend(records);
-    }
+        for record in records {
+            let tf_minutes: i16 = record.timeframe.to_minutes() as i16;
 
-    pub async fn start_persistence_loop(self: Arc<Self>) {
-        let mut interval = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
-
-        loop {
-            interval.tick().await;
-
-            let batch: Vec<IndicatorRecord> = {
-                let mut q = self.persist_queue.write().await;
-                if q.is_empty() {
-                    continue;
-                }
-                let take = self.batch_size.min(q.len());
-                q.drain(0..take).collect()
+            let (value_float, value_json) = match record.value {
+                FeatureValue::Float(v) => (Some(v), None),
+                FeatureValue::Json(v) => (None, Some(serde_json::to_value(v).unwrap_or_default())),
             };
 
-            if let Err(e) = self.flush_batch(batch).await {
-                error!("Error flushing indicators batch: {}", e);
-            }
-        }
-    }
-
-    async fn flush_batch(&self, records: Vec<IndicatorRecord>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if records.is_empty() {
-            return Ok(());
-        }
-
-        // 1) Подгружаем symbol_id в кэш (батчом)
-        self.prefill_symbol_cache(&records).await?;
-
-        // 2) Resolve symbol_id для каждой записи
-        let mut resolved: Vec<(i64, IndicatorRecord)> = Vec::with_capacity(records.len());
-        {
-            let cache = self.symbol_id_cache.read().await;
-            for r in records {
-                if let Some(&sid) = cache.get(&r.symbol) {
-                    resolved.push((sid, r));
-                } else {
-                    warn!("IndicatorPersistor: symbol_id not found for {}", r.symbol);
-                }
-            }
-        }
-        if resolved.is_empty() {
-            return Ok(());
-        }
-
-        // 3) Дедуп (чтобы не получить ON CONFLICT ... row a second time)
-        #[derive(Hash, Eq, PartialEq)]
-        struct Key {
-            symbol_id: i64,
-            time_ms: i64,
-            tf: String,
-            name: String,
-        }
-
-        let mut best: HashMap<Key, (i64, IndicatorRecord)> = HashMap::new();
-        for (sid, r) in resolved {
-            let k = Key {
-                symbol_id: sid,
-                time_ms: r.timestamp,
-                tf: r.timeframe.as_str().to_string(),
-                name: r.indicator_name.clone(),
+            let persist_record = PersistRecord::Indicator {
+                symbol: record.symbol,
+                timeframe: tf_minutes,
+                time_ms: record.timestamp,
+                indicator_name: record.indicator_name.clone(),
+                value_float,
+                value_json,
+                candle_is_final: true, // Assuming true for now
+                calc_source: "1".to_string(),      // 1 for "compute"
+                event_time_ms: None,
             };
-            // просто “последний победил”
-            best.insert(k, (sid, r));
-        }
-        let deduped: Vec<(i64, IndicatorRecord)> = best.into_values().collect();
 
-        // 4) Группируем по table_name = market.indicators_{tf}
-        let mut by_table: HashMap<String, Vec<(i64, IndicatorRecord)>> = HashMap::new();
-        for (sid, r) in deduped {
-            let tf = r.timeframe.as_str();
-            if !is_safe_ident(tf) {
-                warn!("IndicatorPersistor: unsafe timeframe ident: {}", tf);
-                continue;
-            }
-            let table = format!("market.indicators_{}", tf);
-            by_table.entry(table).or_default().push((sid, r));
-        }
-
-        // 5) UPSERT чанками
-        let mut tx = self.db_pool.begin().await?;
-        let now = Utc::now();
-        let now_ms = now.timestamp_millis();
-
-        const CHUNK: usize = 1500; // 1 строка ~ 15 bind => далеко до лимита 65535
-
-        for (table, rows) in by_table {
-            for chunk in rows.chunks(CHUNK) {
-                let mut qb = QueryBuilder::<Postgres>::new(format!(
-                    "INSERT INTO {} \
-                    (time, time_ms, symbol_id, symbol, tf_minutes, indicator_name, value_float, value_json, candle_is_final, calc_source, event_time_ms, created_at, created_at_ms, updated_at, updated_at_ms) ",
-                    table
-                ));
-
-                qb.push_values(chunk, |mut b, (symbol_id, r)| {
-                    let dt: DateTime<Utc> = DateTime::<Utc>::from_timestamp_millis(r.timestamp)
-                        .unwrap_or_else(|| Utc::now());
-
-                    let (vf, vj) = match &r.value {
-                        FeatureValue::Float(v) => (Some(*v), None),
-                        FeatureValue::Json(j) => (None, Some(j.clone())),
-                    };
-
-                    b.push_bind(dt);
-                    b.push_bind(r.timestamp);
-                    b.push_bind(*symbol_id);
-                    b.push_bind(r.symbol.to_string());
-                    b.push_bind(r.timeframe.to_minutes() as i16);
-                    b.push_bind(r.indicator_name.as_str());
-                    b.push_bind(vf);
-                    b.push_bind(vj.map(sqlx::types::Json));
-
-                    // мета пока дефолт
-                    b.push_bind(true);          // candle_is_final
-                    b.push_bind(1_i16);         // calc_source
-                    b.push_bind(Option::<i64>::None); // event_time_ms
-
-                    b.push_bind(now);
-                    b.push_bind(now_ms);
-                    b.push_bind(now);
-                    b.push_bind(now_ms);
-                });
-
-                qb.push(
-                    " ON CONFLICT (symbol_id, time, indicator_name) DO UPDATE SET \
-                      time_ms = EXCLUDED.time_ms, \
-                      symbol = EXCLUDED.symbol, \
-                      tf_minutes = EXCLUDED.tf_minutes, \
-                      value_float = EXCLUDED.value_float, \
-                      value_json = EXCLUDED.value_json, \
-                      candle_is_final = EXCLUDED.candle_is_final, \
-                      calc_source = EXCLUDED.calc_source, \
-                      event_time_ms = EXCLUDED.event_time_ms, \
-                      updated_at = EXCLUDED.updated_at, \
-                      updated_at_ms = EXCLUDED.updated_at_ms"
-                );
-
-                qb.build().execute(&mut *tx).await?;
+            if let Err(e) = self.bulk_persistor_sender.send(persist_record).await {
+                error!("Failed to send indicator record to bulk persistor: {}", e);
             }
         }
-
-        tx.commit().await?;
-        Ok(())
     }
-
-    async fn prefill_symbol_cache(&self, records: &[IndicatorRecord]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut missing: HashSet<String> = HashSet::new();
-        {
-            let cache = self.symbol_id_cache.read().await;
-            for r in records {
-                if !cache.contains_key(&r.symbol) {
-                    missing.insert(r.symbol.to_string());
-                }
-            }
-        }
-        if missing.is_empty() {
-            return Ok(());
-        }
-
-        let symbols: Vec<String> = missing.into_iter().collect();
-        let rows = sqlx::query("SELECT symbol_id, symbol FROM market.pairs WHERE symbol = ANY($1)")
-            .bind(&symbols)
-            .fetch_all(&self.db_pool)
-            .await?;
-
-        let mut cache = self.symbol_id_cache.write().await;
-        for row in rows {
-            let sid: i64 = row.get("symbol_id");
-            let sym: String = row.get("symbol");
-            cache.insert(Symbol::from(sym), sid);
-        }
-
-        Ok(())
-    }
-}
-
-fn is_safe_ident(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 
@@ -16381,6 +17178,7 @@ pub mod raw_signal_persistor;
 pub mod raw_signal_processor;
 pub mod raw_signal_types;
 
+
 pub use compute_backend::{ComputeBackend, ComputeBackendType, ComputeBackendManager, ComputeJob, ComputeResult, FeatureWindow};
 pub use job_scheduler::*;
 pub use types::*;
@@ -16457,12 +17255,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
+    // Initialize BulkPersistor
+    let bulk_persistor =
+        database_lib::bulk_persistor::BulkPersistor::new(database_lib::bulk_persistor::BulkPersistorConfig::from_env()?).await?;
+    let bulk_persistor_sender = bulk_persistor.sender();
+
     // Initialize indicator persistor
-    let (persistor, _persist_sender) = IndicatorPersistor::new(
-        db_pool.clone(), // Clone the pool to use in persistor
-        1000, // batch size
-        5000, // flush every 5 seconds
-    );
+    let (persistor, _persist_sender) = IndicatorPersistor::new(bulk_persistor_sender.clone());
     let persistor = Arc::new(persistor);
 
     // Initialize bootstrap coordinator
@@ -16523,19 +17322,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Spawn persistence loop
-    let persistor_clone = persistor.clone();
-    tokio::spawn(async move {
-        persistor_clone.start_persistence_loop().await;
-    });
-
     // Initialize RawSignal persistor
-    let (raw_signal_persistor, raw_signal_sender) = RawSignalPersistor::new(
-        db_pool.clone(),
-        1000,
-        5000,
-    );
-    let raw_signal_persistor = Arc::new(raw_signal_persistor);
+    let (raw_signal_persistor, raw_signal_sender) = RawSignalPersistor::new(bulk_persistor_sender);
+    let _raw_signal_persistor = Arc::new(raw_signal_persistor);
 
     // Initialize RawSignal processor
     let raw_cfg = SignalConfig {
@@ -16545,37 +17334,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let raw_signal_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
-    // Spawn RawSignal persistence loop
-    let raw_signal_persistor_clone = raw_signal_persistor.clone();
-    tokio::spawn(async move {
-        raw_signal_persistor_clone.start_persistence_loop().await;
-    });
+
 
     // Spawn result processor to handle computed indicators and raw signals
     let persistor_clone2 = persistor.clone();
     let raw_signal_processor_clone = raw_signal_processor.clone();
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
-            println!("Processing {} computed features", feature_window.features.len());
+            println!(
+                "Processing feature batch with {} columns for symbol {} and timeframe {}",
+                feature_window.batch.columns.len(),
+                feature_window.symbol,
+                feature_window.timeframe
+            );
 
             // Handle indicators
             let mut records = Vec::new();
-            for result in &feature_window.features {
-                for (indicator_name, value) in &result.features {
-                    records.push(IndicatorRecord {
-                        symbol: result.symbol.clone(),
-                        timeframe: result.timeframe,
-                        timestamp: result.timestamp,
-                        indicator_name: indicator_name.clone(),
-                        value: value.clone(),
-                    });
+            for (i, &timestamp) in feature_window.batch.timestamps.iter().enumerate() {
+                for column in &feature_window.batch.columns {
+                    match column {
+                        FeatureColumn::F64 { name, values } => {
+                            if let Some(value) = values.get(i) {
+                                if value.is_finite() {
+                                    records.push(IndicatorRecord {
+                                        symbol: feature_window.symbol.clone(),
+                                        timeframe: feature_window.timeframe,
+                                        timestamp,
+                                        indicator_name: name.clone(),
+                                        value: FeatureValue::Float(*value),
+                                    });
+                                }
+                            }
+                        }
+                        FeatureColumn::Json { name, values } => {
+                            if let Some(value) = values.get(i) {
+                                if !value.is_null() {
+                                    records.push(IndicatorRecord {
+                                        symbol: feature_window.symbol.clone(),
+                                        timeframe: feature_window.timeframe,
+                                        timestamp,
+                                        indicator_name: name.clone(),
+                                        value: FeatureValue::Json(value.clone()),
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             if !records.is_empty() {
                 persistor_clone2.queue_records(records).await;
             }
-            
+
             // Handle raw signals
             let raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
             for signal in raw_signals {
@@ -16958,245 +17769,87 @@ async fn start_kafka_consumer(
 
 // compute/src/raw_signal_persistor.rs
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Duration;
-
-use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Postgres, QueryBuilder, Row};
-use tokio::sync::{mpsc, RwLock};
-use tracing::{error, warn};
-
-use common::Symbol;
+use database_lib::PersistRecord;
+use tokio::sync::mpsc;
+use tracing::error;
 
 use crate::raw_signal_types::RawSignal;
 
 pub struct RawSignalPersistor {
-    pub db_pool: PgPool,
-    pub persist_queue: Arc<RwLock<Vec<RawSignal>>>,
-    pub batch_size: usize,
-    pub flush_interval_ms: u64,
-
-    pub symbol_id_cache: Arc<RwLock<HashMap<Symbol, i64>>>,
+    bulk_persistor_sender: mpsc::Sender<PersistRecord>,
 }
 
 impl RawSignalPersistor {
     pub fn new(
-        db_pool: PgPool,
-        batch_size: usize,
-        flush_interval_ms: u64,
+        bulk_persistor_sender: mpsc::Sender<PersistRecord>,
     ) -> (Self, mpsc::UnboundedSender<RawSignal>) {
-        let persist_queue = Arc::new(RwLock::new(Vec::new()));
-        let symbol_id_cache = Arc::new(RwLock::new(HashMap::new()));
-
         let (sender, mut receiver) = mpsc::unbounded_channel::<RawSignal>();
-
-        // Receiver -> queue
-        {
-            let q = Arc::clone(&persist_queue);
-            tokio::spawn(async move {
-                while let Some(s) = receiver.recv().await {
-                    q.write().await.push(s);
+        
+        let bulk_sender = bulk_persistor_sender.clone();
+        
+        // Forward incoming signals to the bulk persistor
+        tokio::spawn(async move {
+            while let Some(signal) = receiver.recv().await {
+                let tf_minutes: i16 = signal.timeframe.to_minutes() as i16;
+                let persist_record = PersistRecord::RawSignal {
+                    symbol: signal.symbol.clone(),
+                    timeframe: tf_minutes,
+                    time_ms: signal.timestamp,
+                    indicator_id: signal.indicator_id,
+                    signal_kind: signal.signal_kind,
+                    signal_sub_id: signal.signal_sub_id,
+                    side: signal.side,
+                    score: signal.score,
+                    value: signal.value,
+                    details_json: signal.details.clone(),
+                    candle_is_final: signal.candle_is_final,
+                    calc_source: signal.calc_source,
+                    event_time_ms: signal.event_time_ms,
+                    features_json: signal.features_json.clone(),
+                    scores_json: signal.scores_json.clone(),
+                    predictions_json: signal.predictions_json.clone(),
+                };
+                
+                if let Err(e) = bulk_sender.send(persist_record).await {
+                    error!("Failed to send raw signal to bulk persistor: {}", e);
                 }
-            });
-        }
+            }
+        });
 
         (
             Self {
-                db_pool,
-                persist_queue,
-                batch_size,
-                flush_interval_ms,
-                symbol_id_cache,
+                bulk_persistor_sender,
             },
             sender,
         )
     }
 
-    pub async fn start_persistence_loop(self: Arc<Self>) {
-        let mut interval = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
-
-        loop {
-            interval.tick().await;
-
-            let batch: Vec<RawSignal> = {
-                let mut q = self.persist_queue.write().await;
-                if q.is_empty() {
-                    continue;
-                }
-                let take = self.batch_size.min(q.len());
-                q.drain(0..take).collect()
+    pub async fn queue_records(&self, records: Vec<RawSignal>) {
+        for signal in records {
+            let tf_minutes: i16 = signal.timeframe.to_minutes() as i16;
+            let persist_record = PersistRecord::RawSignal {
+                symbol: signal.symbol.clone(),
+                timeframe: tf_minutes,
+                time_ms: signal.timestamp,
+                indicator_id: signal.indicator_id,
+                signal_kind: signal.signal_kind,
+                signal_sub_id: signal.signal_sub_id,
+                side: signal.side,
+                score: signal.score,
+                value: signal.value,
+                details_json: signal.details.clone(),
+                candle_is_final: signal.candle_is_final,
+                calc_source: signal.calc_source,
+                event_time_ms: signal.event_time_ms,
+                features_json: signal.features_json.clone(),
+                scores_json: signal.scores_json.clone(),
+                predictions_json: signal.predictions_json.clone(),
             };
-
-            if let Err(e) = self.flush_batch(batch).await {
-                error!("Error flushing raw signals batch: {}", e);
+            
+            if let Err(e) = self.bulk_persistor_sender.send(persist_record).await {
+                error!("Failed to send raw signal to bulk persistor: {}", e);
             }
         }
-    }
-
-    async fn flush_batch(&self, records: Vec<RawSignal>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if records.is_empty() {
-            return Ok(());
-        }
-
-        // 1) cache symbol_id батчом
-        self.prefill_symbol_cache(&records).await?;
-
-        // 2) resolve
-        let mut resolved: Vec<(i64, RawSignal)> = Vec::with_capacity(records.len());
-        {
-            let cache = self.symbol_id_cache.read().await;
-            for r in records {
-                if let Some(&sid) = cache.get(&r.symbol) {
-                    resolved.push((sid, r));
-                } else {
-                    warn!("RawSignalPersistor: symbol_id not found for {}", r.symbol);
-                }
-            }
-        }
-        if resolved.is_empty() {
-            return Ok(());
-        }
-
-        // 3) DEDUP по точному ключу upsert (включая signal_sub_id!)
-        #[derive(Hash, Eq, PartialEq)]
-        struct Key {
-            symbol_id: i64,
-            tf_minutes: i16,
-            time_ms: i64,
-            indicator_id: i16,
-            signal_kind: i16,
-            signal_sub_id: i16,
-        }
-
-        let mut best: HashMap<Key, (i64, RawSignal)> = HashMap::new();
-        for (sid, s) in resolved {
-            let k = Key {
-                symbol_id: sid,
-                tf_minutes: s.timeframe.to_minutes() as i16,
-                time_ms: s.timestamp,
-                indicator_id: s.indicator_id,
-                signal_kind: s.signal_kind,
-                signal_sub_id: s.signal_sub_id,
-            };
-
-            match best.get(&k) {
-                None => {
-                    best.insert(k, (sid, s));
-                }
-                Some((_, prev)) => {
-                    // оставляем более “сильный” score
-                    if s.score.abs() > prev.score.abs() {
-                        best.insert(k, (sid, s));
-                    }
-                }
-            }
-        }
-
-        let deduped: Vec<(i64, RawSignal)> = best.into_values().collect();
-
-        // 4) UPSERT чанками
-        const CHUNK: usize = 1200; // строка ~ 20 bind
-
-        let mut tx = self.db_pool.begin().await?;
-        let now = Utc::now();
-        let now_ms = now.timestamp_millis();
-
-        for chunk in deduped.chunks(CHUNK) {
-            let mut qb = QueryBuilder::<Postgres>::new(
-                "INSERT INTO market.raw_signals \
-                (time, time_ms, symbol_id, symbol, tf_minutes, indicator_id, signal_kind, signal_sub_id, side, score, value, details, \
-                 candle_is_final, calc_source, event_time_ms, features_json, scores_json, predictions_json, \
-                 created_at, created_at_ms, updated_at, updated_at_ms) "
-            );
-
-            qb.push_values(chunk, |mut b, (symbol_id, s)| {
-                let dt: DateTime<Utc> = DateTime::<Utc>::from_timestamp_millis(s.timestamp)
-                    .unwrap_or_else(|| Utc::now());
-
-                b.push_bind(dt);
-                b.push_bind(s.timestamp);
-                b.push_bind(*symbol_id);
-                b.push_bind(s.symbol.to_string());
-                b.push_bind(s.timeframe.to_minutes() as i16);
-
-                b.push_bind(s.indicator_id);
-                b.push_bind(s.signal_kind);
-                b.push_bind(s.signal_sub_id);
-
-                b.push_bind(s.side);
-                b.push_bind(s.score);
-                b.push_bind(s.value);
-
-                b.push_bind(s.details.clone().map(sqlx::types::Json));
-
-                b.push_bind(s.candle_is_final);
-                b.push_bind(s.calc_source);
-                b.push_bind(s.event_time_ms);
-
-                b.push_bind(s.features_json.clone().map(sqlx::types::Json));
-                b.push_bind(s.scores_json.clone().map(sqlx::types::Json));
-                b.push_bind(s.predictions_json.clone().map(sqlx::types::Json));
-
-                b.push_bind(now);
-                b.push_bind(now_ms);
-                b.push_bind(now);
-                b.push_bind(now_ms);
-            });
-
-            qb.push(
-                " ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET \
-                  time_ms = EXCLUDED.time_ms, \
-                  symbol = EXCLUDED.symbol, \
-                  side = EXCLUDED.side, \
-                  score = EXCLUDED.score, \
-                  value = EXCLUDED.value, \
-                  details = EXCLUDED.details, \
-                  candle_is_final = EXCLUDED.candle_is_final, \
-                  calc_source = EXCLUDED.calc_source, \
-                  event_time_ms = EXCLUDED.event_time_ms, \
-                  features_json = EXCLUDED.features_json, \
-                  scores_json = EXCLUDED.scores_json, \
-                  predictions_json = EXCLUDED.predictions_json, \
-                  updated_at = EXCLUDED.updated_at, \
-                  updated_at_ms = EXCLUDED.updated_at_ms"
-            );
-
-            qb.build().execute(&mut *tx).await?;
-        }
-
-        tx.commit().await?;
-        Ok(())
-    }
-
-    async fn prefill_symbol_cache(&self, records: &[RawSignal]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut missing: HashSet<String> = HashSet::new();
-        {
-            let cache = self.symbol_id_cache.read().await;
-            for r in records {
-                if !cache.contains_key(&r.symbol) {
-                    missing.insert(r.symbol.to_string());
-                }
-            }
-        }
-        if missing.is_empty() {
-            return Ok(());
-        }
-
-        let symbols: Vec<String> = missing.into_iter().collect();
-        let rows = sqlx::query("SELECT symbol_id, symbol FROM market.pairs WHERE symbol = ANY($1)")
-            .bind(&symbols)
-            .fetch_all(&self.db_pool)
-            .await?;
-
-        let mut cache = self.symbol_id_cache.write().await;
-        for row in rows {
-            let sid: i64 = row.get("symbol_id");
-            let sym: String = row.get("symbol");
-            cache.insert(Symbol::from(sym), sid);
-        }
-
-        Ok(())
     }
 }
 
@@ -17212,7 +17865,7 @@ use serde_json::{json, Map, Value as JsonValue};
 
 use crate::compute_backend::FeatureWindow;
 use crate::raw_signal_types::RawSignal as ComputeRawSignal;
-use crate::types::FeatureValue;
+
 
 use raw_signals::thresholds::{RawSignal as RawSignalsRawSignal, SignalConfig};
 
@@ -17226,105 +17879,61 @@ impl RawSignalProcessor {
     }
 
     pub fn process_feature_window(&self, feature_window: &FeatureWindow) -> Vec<ComputeRawSignal> {
-        let candle_window = match &feature_window.candle_window {
-            Some(w) => w,
-            None => return vec![],
-        };
+        // раньше ты строил feat_idx по feature_window.features
+        // теперь читаем сразу из feature_window.batch + свечей
 
-        let n = candle_window.timestamps.len();
-        if n == 0 {
-            return vec![];
-        }
+        let cw = feature_window.candle_window.as_ref().expect("No candle window available");
+        let n = feature_window.batch.len();
+        if n == 0 { return vec![]; }
 
-        // Assuming a single symbol/timeframe per feature window for now.
-        let Some(first_feature) = feature_window.features.get(0) else {
-            return vec![]; // No features, no signals
-        };
-        let symbol = first_feature.symbol.clone();
-        let timeframe = first_feature.timeframe;
+        // Эти два вектора создаём ОДИН раз на окно (raw_signals API пока требует массивы)
+        let symbols = vec![feature_window.symbol.clone(); n];
+        let timeframes = vec![feature_window.timeframe; n];
 
-        let timestamps = &candle_window.timestamps;
-        // Create vectors for symbol and timeframe for each candle
-        let symbols = vec![symbol.clone(); n];
-        let timeframes = vec![timeframe; n];
+        // Вытаскиваем колонки без выделений/хешмап на бар
+        let adx = feature_window.batch.get_f64("adx").unwrap_or(&[]);
+        let atr = feature_window.batch.get_f64("atr").unwrap_or(&[]);
+        let rsi = feature_window.batch.get_f64("rsi").unwrap_or(&[]);
+        let cci = feature_window.batch.get_f64("cci").unwrap_or(&[]);
+        let ema20 = feature_window.batch.get_f64("ema20").unwrap_or(&[]);
+        let ema50 = feature_window.batch.get_f64("ema50").unwrap_or(&[]);
+        let ema200 = feature_window.batch.get_f64("ema200").unwrap_or(&[]);
+        let sma = feature_window.batch.get_f64("sma").unwrap_or(&[]);
+        let obv = feature_window.batch.get_f64("obv").unwrap_or(&[]);
+        let vwap = feature_window.batch.get_f64("vwap").unwrap_or(&[]);
+        let williams = feature_window.batch.get_f64("williams").unwrap_or(&[]);
+        let bb_upper = feature_window.batch.get_f64("bb_upper").unwrap_or(&[]);
+        let bb_mid = feature_window.batch.get_f64("bb_mid").unwrap_or(&[]);
+        let bb_lower = feature_window.batch.get_f64("bb_lower").unwrap_or(&[]);
+        let _macd = feature_window.batch.get_f64("macd").unwrap_or(&[]);
+        let _macd_signal = feature_window.batch.get_f64("macd_signal").unwrap_or(&[]);
+        let macd_hist = feature_window.batch.get_f64("macd_hist").unwrap_or(&[]);
+        let stoch_k = feature_window.batch.get_f64("stoch_k").unwrap_or(&[]);
+        let stoch_d = feature_window.batch.get_f64("stoch_d").unwrap_or(&[]);
 
-        // Индекс для вытягивания features по (symbol, timeframe, timestamp)
-        let mut feat_idx: HashMap<(common::Symbol, common::Timeframe, i64), usize> =
-            HashMap::with_capacity(feature_window.features.len());
-        for (i, r) in feature_window.features.iter().enumerate() {
-            feat_idx.insert((r.symbol.clone(), r.timeframe, r.timestamp), i);
-        }
-
-        // Вытаскиваем значения одним проходом, длины всегда == n (иначе raw_signals режет массивы).
-        let mut adx = vec![f64::NAN; n];
-        let mut atr = vec![f64::NAN; n];
-        let mut bb_upper = vec![f64::NAN; n];
-        let mut bb_mid = vec![f64::NAN; n];
-        let mut bb_lower = vec![f64::NAN; n];
-        let mut cci = vec![f64::NAN; n];
-        let mut ema20 = vec![f64::NAN; n];
-        let mut ema50 = vec![f64::NAN; n];
-        let mut ema200 = vec![f64::NAN; n];
-        let mut macd = vec![f64::NAN; n];
-        let mut macd_signal = vec![f64::NAN; n];
-        let mut macd_hist = vec![f64::NAN; n];
-        let mut obv = vec![f64::NAN; n];
-        let mut rsi = vec![f64::NAN; n];
-        let mut sma = vec![f64::NAN; n];
-        let mut stoch_k = vec![f64::NAN; n];
-        let mut stoch_d = vec![f64::NAN; n];
-        let mut vwap = vec![f64::NAN; n];
-        let mut williams = vec![f64::NAN; n];
-
-        for i in 0..n {
-            let key = (symbols[i].clone(), timeframes[i], timestamps[i]);
-            let Some(&j) = feat_idx.get(&key) else { continue; };
-            let feats = &feature_window.features[j].features;
-
-            adx[i] = get_f64(feats, "adx");
-            atr[i] = get_f64(feats, "atr");
-            bb_upper[i] = get_f64(feats, "bb_upper");
-            bb_mid[i] = get_f64(feats, "bb_mid");
-            bb_lower[i] = get_f64(feats, "bb_lower");
-            cci[i] = get_f64(feats, "cci");
-            ema20[i] = get_f64(feats, "ema20");
-            ema50[i] = get_f64(feats, "ema50");
-            ema200[i] = get_f64(feats, "ema200");
-            macd[i] = get_f64(feats, "macd");
-            macd_signal[i] = get_f64(feats, "macd_signal");
-            macd_hist[i] = get_f64(feats, "macd_hist");
-            obv[i] = get_f64(feats, "obv");
-            rsi[i] = get_f64(feats, "rsi");
-            sma[i] = get_f64(feats, "sma");
-            stoch_k[i] = get_f64(feats, "stoch_k");
-            stoch_d[i] = get_f64(feats, "stoch_d");
-            vwap[i] = get_f64(feats, "vwap");
-            williams[i] = get_f64(feats, "williams");
-        }
+        let timestamps = feature_window.batch.timestamps.as_slice();
 
         let mut raw_signals: Vec<ComputeRawSignal> = Vec::new();
 
-        // adx
+        // Process each indicator separately to minimize memory usage
         raw_signals.extend(
-            raw_signals::adx_raw::calculate_adx_raw_signals(&adx, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::adx_raw::calculate_adx_raw_signals(adx, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // atr
         raw_signals.extend(
-            raw_signals::atr_raw::calculate_atr_raw_signals(&atr, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::atr_raw::calculate_atr_raw_signals(atr, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // bb
         raw_signals.extend(
             raw_signals::bb_raw::calculate_bb_raw_signals(
-                &candle_window.close,
-                &bb_upper,
-                &bb_mid,
-                &bb_lower,
+                &cw.close,
+                bb_upper,
+                bb_mid,
+                bb_lower,
                 timestamps,
                 &symbols,
                 &timeframes,
@@ -17334,92 +17943,168 @@ impl RawSignalProcessor {
             .map(|s| self.convert_raw_signal(s)),
         );
 
-        // cci
         raw_signals.extend(
-            raw_signals::cci_raw::calculate_cci_raw_signals(&cci, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::cci_raw::calculate_cci_raw_signals(cci, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // ema20/50/200
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema20, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema20, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 20)),
         );
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema50, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema50, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 50)),
         );
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&candle_window.close, &ema200, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema200, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 200)),
         );
 
-        // macd
         raw_signals.extend(
-            raw_signals::macd_raw::calculate_macd_raw_signals(&macd_hist, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::macd_raw::calculate_macd_raw_signals(macd_hist, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // obv
         raw_signals.extend(
-            raw_signals::obv_raw::calculate_obv_raw_signals(&obv, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::obv_raw::calculate_obv_raw_signals(obv, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // rsi
         raw_signals.extend(
-            raw_signals::rsi_raw::calculate_rsi_raw_signals(&rsi, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::rsi_raw::calculate_rsi_raw_signals(rsi, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // sma
         raw_signals.extend(
-            raw_signals::sma_raw::calculate_sma_raw_signals(&candle_window.close, &sma, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::sma_raw::calculate_sma_raw_signals(&cw.close, sma, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // stoch
         raw_signals.extend(
-            raw_signals::stoch_raw::calculate_stoch_raw_signals(&stoch_k, &stoch_d, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::stoch_raw::calculate_stoch_raw_signals(stoch_k, stoch_d, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // vwap
         raw_signals.extend(
-            raw_signals::vwap_raw::calculate_vwap_raw_signals(&candle_window.close, &vwap, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::vwap_raw::calculate_vwap_raw_signals(&cw.close, vwap, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
-        // williams
         raw_signals.extend(
-            raw_signals::williams_raw::calculate_williams_raw_signals(&williams, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::williams_raw::calculate_williams_raw_signals(williams, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
 
         // Приклеиваем контекст (features_json + scores_json) по свече.
-        attach_context(
+        self.attach_context(
             &mut raw_signals,
-            candle_window,
+            cw,
+            &feature_window.batch,
             &symbols,
             &timeframes,
-            &adx, &atr, &bb_upper, &bb_mid, &bb_lower, &cci,
-            &ema20, &ema50, &ema200,
-            &macd, &macd_signal, &macd_hist,
-            &obv, &rsi, &sma, &stoch_k, &stoch_d, &vwap, &williams,
         );
 
         raw_signals
+    }
+
+    // Updated attach_context function without (Symbol,Timeframe,ts) keys
+    fn attach_context(
+        &self,
+        signals: &mut [ComputeRawSignal],
+        cw: &crate::CandleWindow,
+        batch: &crate::FeatureBatch,
+        symbols: &[Symbol],
+        timeframes: &[Timeframe],
+    ) {
+        // timestamp -> idx (один HashMap по i64, без Symbol/Timeframe)
+        let mut idx = std::collections::HashMap::<i64, usize>::with_capacity(cw.timestamps.len());
+        for (i, &ts) in cw.timestamps.iter().enumerate() {
+            idx.insert(ts, i);
+        }
+
+        // helper: column f64 by name (если нет — NaN)
+        let col = |name: &str, i: usize| -> f64 {
+            batch.get_f64(name).and_then(|v| v.get(i).copied()).unwrap_or(f64::NAN)
+        };
+
+        // группируем сигналы по свече
+        let mut groups: HashMap<(common::Symbol, common::Timeframe, i64), Vec<usize>> = HashMap::new();
+        for (i, s) in signals.iter().enumerate() {
+            groups.entry((s.symbol.clone(), s.timeframe, s.timestamp)).or_default().push(i);
+        }
+
+        for (k, idxs) in groups {
+            let Some(&ci) = idx.get(&k.2) else { continue; }; // k.2 is timestamp
+
+            // features_json
+            let mut fm = Map::new();
+            fm.insert("symbol".into(), json!(symbols[ci].to_string()));
+            fm.insert("tf".into(), json!(timeframes[ci].as_str()));
+            fm.insert("time_ms".into(), json!(cw.timestamps[ci]));
+            fm.insert("close".into(), json!(cw.close[ci]));
+            fm.insert("high".into(), json!(cw.high[ci]));
+            fm.insert("low".into(), json!(cw.low[ci]));
+            fm.insert("volume".into(), json!(cw.volume[ci]));
+
+            put_num(&mut fm, "adx", col("adx", ci));
+            put_num(&mut fm, "atr", col("atr", ci));
+            put_num(&mut fm, "bb_upper", col("bb_upper", ci));
+            put_num(&mut fm, "bb_mid", col("bb_mid", ci));
+            put_num(&mut fm, "bb_lower", col("bb_lower", ci));
+            put_num(&mut fm, "cci", col("cci", ci));
+
+            put_num(&mut fm, "ema20", col("ema20", ci));
+            put_num(&mut fm, "ema50", col("ema50", ci));
+            put_num(&mut fm, "ema200", col("ema200", ci));
+
+            put_num(&mut fm, "macd", col("macd", ci));
+            put_num(&mut fm, "macd_signal", col("macd_signal", ci));
+            put_num(&mut fm, "macd_hist", col("macd_hist", ci));
+
+            put_num(&mut fm, "obv", col("obv", ci));
+            put_num(&mut fm, "rsi", col("rsi", ci));
+            put_num(&mut fm, "sma", col("sma", ci));
+            put_num(&mut fm, "stoch_k", col("stoch_k", ci));
+            put_num(&mut fm, "stoch_d", col("stoch_d", ci));
+            put_num(&mut fm, "vwap", col("vwap", ci));
+            put_num(&mut fm, "williams", col("williams", ci));
+
+            let features_json = JsonValue::Object(fm);
+
+            // scores_json (все сигналы по свече)
+            let mut arr = Vec::with_capacity(idxs.len());
+            for &si in &idxs {
+                let s = &signals[si];
+                arr.push(json!({
+                    "indicator_id": s.indicator_id,
+                    "signal_kind": s.signal_kind,
+                    "signal_sub_id": s.signal_sub_id,
+                    "side": s.side,
+                    "score": s.score,
+                    "value": s.value
+                }));
+            }
+            let scores_json = json!({ "signals": arr });
+
+            for &si in &idxs {
+                signals[si].features_json = Some(features_json.clone());
+                signals[si].scores_json = Some(scores_json.clone());
+                signals[si].candle_is_final = true;
+                signals[si].calc_source = 1;
+            }
+        }
     }
 
     fn convert_raw_signal(&self, raw_signal: RawSignalsRawSignal) -> ComputeRawSignal {
@@ -17449,98 +18134,6 @@ impl RawSignalProcessor {
         let mut s = self.convert_raw_signal(raw_signal);
         s.signal_sub_id = sub_id;
         s
-    }
-}
-
-fn get_f64(feats: &HashMap<String, FeatureValue>, key: &str) -> f64 {
-    match feats.get(key) {
-        Some(FeatureValue::Float(v)) => *v,
-        _ => f64::NAN,
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn attach_context(
-    signals: &mut [ComputeRawSignal],
-    cw: &crate::CandleWindow,
-    symbols: &[Symbol],
-    timeframes: &[Timeframe],
-    adx: &[f64], atr: &[f64], bb_upper: &[f64], bb_mid: &[f64], bb_lower: &[f64], cci: &[f64],
-    ema20: &[f64], ema50: &[f64], ema200: &[f64],
-    macd: &[f64], macd_signal: &[f64], macd_hist: &[f64],
-    obv: &[f64], rsi: &[f64], sma: &[f64], stoch_k: &[f64], stoch_d: &[f64], vwap: &[f64], williams: &[f64],
-) {
-    // индекс свечи по ключу (symbol, tf, ts)
-    let mut candle_idx: HashMap<(common::Symbol, common::Timeframe, i64), usize> = HashMap::with_capacity(cw.timestamps.len());
-    for i in 0..cw.timestamps.len() {
-        candle_idx.insert((symbols[i].clone(), timeframes[i], cw.timestamps[i]), i);
-    }
-
-    // группируем сигналы по свече
-    let mut groups: HashMap<(common::Symbol, common::Timeframe, i64), Vec<usize>> = HashMap::new();
-    for (i, s) in signals.iter().enumerate() {
-        groups.entry((s.symbol.clone(), s.timeframe, s.timestamp)).or_default().push(i);
-    }
-
-    for (k, idxs) in groups {
-        let Some(&ci) = candle_idx.get(&k) else { continue; };
-
-        // features_json
-        let mut fm = Map::new();
-        fm.insert("symbol".into(), json!(symbols[ci].to_string()));
-        fm.insert("tf".into(), json!(timeframes[ci].as_str()));
-        fm.insert("time_ms".into(), json!(cw.timestamps[ci]));
-        fm.insert("close".into(), json!(cw.close[ci]));
-        fm.insert("high".into(), json!(cw.high[ci]));
-        fm.insert("low".into(), json!(cw.low[ci]));
-        fm.insert("volume".into(), json!(cw.volume[ci]));
-
-        put_num(&mut fm, "adx", adx[ci]);
-        put_num(&mut fm, "atr", atr[ci]);
-        put_num(&mut fm, "bb_upper", bb_upper[ci]);
-        put_num(&mut fm, "bb_mid", bb_mid[ci]);
-        put_num(&mut fm, "bb_lower", bb_lower[ci]);
-        put_num(&mut fm, "cci", cci[ci]);
-
-        put_num(&mut fm, "ema20", ema20[ci]);
-        put_num(&mut fm, "ema50", ema50[ci]);
-        put_num(&mut fm, "ema200", ema200[ci]);
-
-        put_num(&mut fm, "macd", macd[ci]);
-        put_num(&mut fm, "macd_signal", macd_signal[ci]);
-        put_num(&mut fm, "macd_hist", macd_hist[ci]);
-
-        put_num(&mut fm, "obv", obv[ci]);
-        put_num(&mut fm, "rsi", rsi[ci]);
-        put_num(&mut fm, "sma", sma[ci]);
-        put_num(&mut fm, "stoch_k", stoch_k[ci]);
-        put_num(&mut fm, "stoch_d", stoch_d[ci]);
-        put_num(&mut fm, "vwap", vwap[ci]);
-        put_num(&mut fm, "williams", williams[ci]);
-
-        let features_json = JsonValue::Object(fm);
-
-        // scores_json (все сигналы по свече)
-        let mut arr = Vec::with_capacity(idxs.len());
-        for &si in &idxs {
-            let s = &signals[si];
-            arr.push(json!({
-                "indicator_id": s.indicator_id,
-                "signal_kind": s.signal_kind,
-                "signal_sub_id": s.signal_sub_id,
-                "side": s.side,
-                "score": s.score,
-                "value": s.value
-            }));
-        }
-        let scores_json = json!({ "signals": arr });
-
-        for &si in &idxs {
-            signals[si].features_json = Some(features_json.clone());
-            signals[si].scores_json = Some(scores_json.clone());
-            signals[si].candle_is_final = true;
-            signals[si].calc_source = 1;
-        }
     }
 }
 
@@ -17589,7 +18182,7 @@ pub struct RawSignal {
 # compute/src/types.rs
 
 use serde::{Deserialize, Serialize};
-use common::{Symbol, Timeframe};
+use common::Timeframe;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FeatureValue {
@@ -17610,8 +18203,8 @@ pub struct BatchTensor {
     pub low: Vec<f64>,
     pub volume: Vec<f64>,
     pub timestamps: Vec<i64>,
-    pub symbols: Vec<Symbol>,
-    pub timeframes: Vec<Timeframe>,
+    pub symbol_ids: Vec<u32>,  // Changed from Vec<Symbol> to Vec<u32> for efficiency
+    pub timeframe: Timeframe,  // Changed from Vec<Timeframe> to single Timeframe enum
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17641,6 +18234,63 @@ pub struct InputBuffer {
     pub close: Vec<f64>,
     pub volume: Vec<f64>,
     pub timestamps: Vec<i64>,
+}
+
+// === ADD BELOW your existing types in compute/src/types.rs ===
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum FeatureColumn {
+    F64 { name: String, values: Vec<f64> },
+    Json { name: String, values: Vec<serde_json::Value> },
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FeatureBatch {
+    pub timestamps: Vec<i64>,
+    pub columns: Vec<FeatureColumn>,
+}
+
+impl FeatureBatch {
+    pub fn new(timestamps: Vec<i64>) -> Self {
+        Self { timestamps, columns: Vec::new() }
+    }
+
+    pub fn len(&self) -> usize {
+        self.timestamps.len()
+    }
+
+    pub fn push_f64(&mut self, name: impl Into<String>, values: Vec<f64>) {
+        debug_assert_eq!(values.len(), self.timestamps.len(), "column len != timestamps len");
+        self.columns.push(FeatureColumn::F64 { name: name.into(), values });
+    }
+
+    pub fn push_json(&mut self, name: impl Into<String>, values: Vec<serde_json::Value>) {
+        debug_assert_eq!(values.len(), self.timestamps.len(), "column len != timestamps len");
+        self.columns.push(FeatureColumn::Json { name: name.into(), values });
+    }
+
+    /// O(cols) lookup — cols мало (20-40), это нормально и НЕ выделяет память.
+    pub fn get_f64(&self, name: &str) -> Option<&[f64]> {
+        for c in &self.columns {
+            if let FeatureColumn::F64 { name: n, values } = c {
+                if n == name {
+                    return Some(values.as_slice());
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_json(&self, name: &str) -> Option<&[serde_json::Value]> {
+        for c in &self.columns {
+            if let FeatureColumn::Json { name: n, values } = c {
+                if n == name {
+                    return Some(values.as_slice());
+                }
+            }
+        }
+        None
+    }
 }
 
 

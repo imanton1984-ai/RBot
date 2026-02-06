@@ -410,8 +410,13 @@ impl ComputeBackend for CudaBackend {
                 });
             }
 
+            let batch = crate::FeatureBatch::new(Vec::new());
+
             let feature_window = Arc::new(FeatureWindow {
-                features,
+                symbol: job.symbol.clone(),
+                timeframe: job.timeframe,
+                legacy_features: Some(features),
+                batch,
                 start_time: job.window_start,
                 end_time: job.window_end,
                 candle_window: job.candle_window.clone(),

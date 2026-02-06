@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum TimeFrame {
@@ -49,5 +50,21 @@ impl TimeFrame {
 impl fmt::Display for TimeFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+impl FromStr for TimeFrame {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_lowercase().as_str() {
+            "1m" | "m1" => Ok(TimeFrame::M1),
+            "5m" | "m5" => Ok(TimeFrame::M5),
+            "15m" | "m15" => Ok(TimeFrame::M15),
+            "1h" | "h1" => Ok(TimeFrame::H1),
+            "4h" | "h4" => Ok(TimeFrame::H4),
+            "1d" | "d1" => Ok(TimeFrame::D1),
+            _ => Err(()),
+        }
     }
 }

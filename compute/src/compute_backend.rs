@@ -1,6 +1,7 @@
 use std::sync::Arc;
+use std::collections::HashMap;
 use common::{Symbol, Timeframe};
-use crate::{CandleWindow, FeatureValue};
+use crate::{CandleWindow, FeatureBatch, FeatureValue};
 
 #[derive(Debug, Clone)]
 pub struct ComputeJob {
@@ -12,42 +13,63 @@ pub struct ComputeJob {
     pub candle_window: Option<CandleWindow>,
 }
 
-#[derive(Debug, Clone)]
+/// Legacy (оставляем для совместимости, но в fast-path больше НЕ создаём)
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ComputeResult {
     pub symbol: Symbol,
     pub timeframe: Timeframe,
     pub timestamp: i64,
-    pub features: std::collections::HashMap<String, FeatureValue>,
+    pub features: HashMap<String, FeatureValue>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct FeatureWindow {
-    pub features: Vec<ComputeResult>,
+    pub symbol: Symbol,
+    pub timeframe: Timeframe,
     pub start_time: i64,
     pub end_time: i64,
+
+    /// Держим свечи как раньше (это ок). Но НЕ держим per-bar feature maps.
     pub candle_window: Option<CandleWindow>,
+
+    /// Новое columnar-хранилище фич
+    pub batch: FeatureBatch,
+
+    /// Legacy: по умолчанию None (не заполняем, чтобы не жрать RAM)
+    pub legacy_features: Option<Vec<ComputeResult>>,
 }
 
 impl FeatureWindow {
     pub fn new(start_time: i64, end_time: i64, candle_window: Option<CandleWindow>) -> Self {
         Self {
-            features: Vec::new(),
+            symbol: Symbol::new(""), // Will be set appropriately
+            timeframe: Timeframe::M1, // Will be set appropriately
             start_time,
             end_time,
             candle_window,
+            batch: FeatureBatch::new(Vec::new()), // Empty batch initially
+            legacy_features: None,
         }
     }
 
     pub fn get_indicator_values(&self, indicator_name: &str) -> Vec<f64> {
-        let mut values = Vec::new();
-        for result in &self.features {
-            if let Some(feature_value) = result.features.get(indicator_name) {
-                if let FeatureValue::Float(val) = feature_value {
-                    values.push(*val);
+        // Try to get from the new columnar format first
+        if let Some(values) = self.batch.get_f64(indicator_name) {
+            values.to_vec()
+        } else {
+            // Fallback to legacy format if needed
+            let mut values = Vec::new();
+            if let Some(legacy_features) = &self.legacy_features {
+                for result in legacy_features {
+                    if let Some(feature_value) = result.features.get(indicator_name) {
+                        if let FeatureValue::Float(val) = feature_value {
+                            values.push(*val);
+                        }
+                    }
                 }
             }
+            values
         }
-        values
     }
 }
 

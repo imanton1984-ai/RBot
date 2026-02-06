@@ -18,15 +18,18 @@ anyhow = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
 common = { path = "../common" }
+database_lib = { package = "database", path = "../database" }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 compute_indicators = { path = "./indicators" }
 raw_signals = { path = "./raw_signals" }
 cuda = { path = "../cuda", optional = true }
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-connections = { path = "../connections" }
+connections_lib = { package = "connections", path = "../connections" }
 rdkafka = { version = "0.39.0", features = ["tokio"] }
 dotenvy = "0.15"
+futures-util = "0.3"
+tokio-stream = "0.1"
 
 [features]
 default = []

@@ -25,7 +25,7 @@
 use crate::market::candles::candle_common::*;
 use crate::market::candles::candle_writer::{TypedWriterMsg, DataSource, LiveCandle};
 use anyhow::{Context, Result};
-use common::timeframe::TimeFrame;
+use common::{timeframe::TimeFrame, MessageBus, Candle as CommonCandle, Symbol};
 use common::AppConfig;
 use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
@@ -33,49 +33,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::Message;
 use tracing::info;
-use rdkafka::config::ClientConfig;
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use std::time::Duration;
 
-// Define the candle close event structure that matches what the compute service expects
-#[derive(serde::Serialize)]
-struct CandleCloseEvent {
-    symbol: String,
-    timeframe: String,
-    close_time: i64,
-}
-
-// Create a Kafka producer for publishing candle close events
-async fn create_kafka_producer() -> Result<FutureProducer> {
-    let brokers = std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "127.0.0.1:19092".to_string());
-    let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", &brokers)
-        .set("message.timeout.ms", "5000")
-        .create()
-        .context("Producer creation failed")?;
-
-    Ok(producer)
-}
-
-// Publish a candle close event to the Kafka topic
-async fn publish_candle_close_event(producer: &FutureProducer, event: &CandleCloseEvent) -> Result<()> {
-    let topic = std::env::var("KAFKA_CANDLES_CLOSE_TOPIC").unwrap_or_else(|_| "candles.close".to_string());
-    let payload = serde_json::to_string(event).context("Failed to serialize candle close event")?;
-
-    // Send the message and handle the result
-    match producer
-        .send(
-            FutureRecord::to(&topic)
-                .key(&event.symbol)  // Use symbol as key for partitioning
-                .payload(&payload),
-            Duration::from_secs(1),
-        )
-        .await
-    {
-        Ok(_) => Ok(()),  // Message sent successfully
-        Err((err, _)) => Err(anyhow::anyhow!("Kafka send error: {}", err)),
-    }
-}
 
 
 
@@ -147,8 +105,8 @@ pub async fn ws_worker(
     let mut backoff = cfg.binance.ws_reconnect_backoff_ms.max(200);
     let ping_every = tokio::time::Duration::from_secs(cfg.binance.ws_ping_interval_sec.max(5) as u64);
 
-    // Create Kafka producer for publishing candle close events
-    let kafka_producer = create_kafka_producer().await.context("Failed to create Kafka producer")?;
+    // Create message bus for publishing raw candles
+    let message_bus = MessageBus::new_from_env().context("Failed to create message bus")?;
 
     loop {
         if *shutdown.borrow() {
@@ -246,38 +204,47 @@ pub async fn ws_worker(
                         }
                     }
 
-                    let row = CandleRow {
-                        time_ms: k.close_time,
-                        symbol_id: sid,
-                        symbol: ev.symbol.clone(),
+                    // Create a common candle structure to send via message bus
+                    let common_candle = CommonCandle {
                         open: str_f64(&k.open),
                         high: str_f64(&k.high),
                         low: str_f64(&k.low),
                         close: str_f64(&k.close),
                         volume: str_f64(&k.volume),
+                        timestamp: k.close_time,
+                        symbol: Symbol::new(ev.symbol.clone()),
+                        timeframe: tf,
                     };
 
+                    // Publish raw candle to message bus instead of direct DB write
+                    let message_bus_clone = message_bus.clone();
+                    let symbol_clone = ev.symbol.clone(); // Clone the symbol before moving
+                    let common_candle_clone = common_candle.clone(); // Clone the candle before moving
+                    let interval_clone = k.interval.clone();
+                    let close_time_clone = k.close_time;
+                    let _ = tokio::spawn(async move {
+                        if let Err(e) = message_bus_clone.publish("raw_candles", symbol_clone.as_bytes(), &common_candle_clone).await {
+                            tracing::error!("Failed to publish raw candle to message bus: {}", e);
+                        } else {
+                            tracing::debug!("Published raw candle: {} {} at {}", symbol_clone, interval_clone, close_time_clone);
+                        }
+                    });
+
+                    // Optionally still send to legacy writers if needed for other purposes
                     if let Some(tx) = writers.get(&tf) {
+                        let row = CandleRow {
+                            time_ms: k.close_time,
+                            symbol_id: sid,
+                            symbol: ev.symbol.clone(),
+                            open: str_f64(&k.open),
+                            high: str_f64(&k.high),
+                            low: str_f64(&k.low),
+                            close: str_f64(&k.close),
+                            volume: str_f64(&k.volume),
+                        };
                         tracing::trace!("writer({}) received message: {:?}", tf.as_str(), row);
                         let _ = tx.send(TypedWriterMsg { rows: vec![row], source: DataSource::WebSocket });
                     }
-
-                    // Publish candle close event to Kafka topic
-                    let close_event = CandleCloseEvent {
-                        symbol: ev.symbol.clone(),
-                        timeframe: k.interval.clone(),
-                        close_time: k.close_time,
-                    };
-
-                    // Publish the event asynchronously without blocking the main loop
-                    let producer_clone = kafka_producer.clone();
-                    let _ = tokio::spawn(async move {
-                        if let Err(e) = publish_candle_close_event(&producer_clone, &close_event).await {
-                            tracing::error!("Failed to publish candle close event to Kafka: {}", e);
-                        } else {
-                            tracing::debug!("Published candle close event: {} {} at {}", close_event.symbol, close_event.timeframe, close_event.close_time);
-                        }
-                    });
                 }
             }
         }

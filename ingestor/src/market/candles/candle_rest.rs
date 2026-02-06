@@ -296,7 +296,7 @@ pub async fn copy_direct_empty_db(
     rows.dedup_by(|a, b| a.symbol_id == b.symbol_id && a.time_ms == b.time_ms);
 
     let stmt = format!(
-        "COPY {} (time_ms, time, symbol_id, open, high, low, close, volume) FROM STDIN BINARY",
+        "COPY {} (time_ms, time, symbol_id, symbol, open, high, low, close, volume) FROM STDIN BINARY",
         table
     );
 
@@ -306,14 +306,15 @@ pub async fn copy_direct_empty_db(
     let writer = BinaryCopyInWriter::new(
         sink,
         &[
-            Type::INT8,      // time_ms
+            Type::INT8,        // time_ms
             Type::TIMESTAMPTZ, // time
-            Type::INT8,      // symbol_id
-            Type::FLOAT8,    // open
-            Type::FLOAT8,    // high
-            Type::FLOAT8,    // low
-            Type::FLOAT8,    // close
-            Type::FLOAT8,    // volume
+            Type::INT8,        // symbol_id
+            Type::TEXT,        // <--- ДОБАВЛЕНО: symbol
+            Type::FLOAT8,      // open
+            Type::FLOAT8,      // high
+            Type::FLOAT8,      // low
+            Type::FLOAT8,      // close
+            Type::FLOAT8,      // volume
         ],
     );
     let mut writer = std::pin::pin!(writer);
@@ -327,6 +328,7 @@ pub async fn copy_direct_empty_db(
                 &r.time_ms,
                 &ts,
                 &r.symbol_id,
+                &r.symbol,     // <--- ДОБАВЛЕНО: передаем строку символа
                 &r.open,
                 &r.high,
                 &r.low,

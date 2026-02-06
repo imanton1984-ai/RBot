@@ -1,7 +1,7 @@
 use common::{Symbol, Timeframe};
 use sqlx::{PgPool, Row};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CandleWindow {
     pub open: Vec<f64>,
     pub high: Vec<f64>,
@@ -109,16 +109,19 @@ impl CandleWindowFetcher {
     pub async fn build_batch_tensors(
         &self,
         windows: std::collections::HashMap<Symbol, CandleWindow>,
+        timeframe: common::Timeframe,  // Pass the actual timeframe instead of using placeholder
     ) -> Result<crate::BatchTensor, Box<dyn std::error::Error + Send + Sync>> {
         let mut close = Vec::new();
         let mut high = Vec::new();
         let mut low = Vec::new();
         let mut volume = Vec::new();
         let mut timestamps = Vec::new();
-        let mut symbols = Vec::new();
-        let mut timeframes = Vec::new();
+        let mut symbol_ids = Vec::new();
 
         for (symbol, window) in windows {
+            // Get the symbol_id from the database
+            let symbol_id = self.get_symbol_id(&symbol).await?;
+            
             // Store the length before moving the vectors
             let window_len = window.close.len();
 
@@ -129,10 +132,9 @@ impl CandleWindowFetcher {
             volume.extend(window.volume);
             timestamps.extend(window.timestamps);
 
-            // Add symbol/timeframe for each data point
+            // Add symbol_id for each data point
             for _ in 0..window_len {
-                symbols.push(symbol.clone());
-                timeframes.push(common::Timeframe::M1); // Placeholder
+                symbol_ids.push(symbol_id as u32);
             }
         }
 
@@ -142,8 +144,17 @@ impl CandleWindowFetcher {
             low,
             volume,
             timestamps,
-            symbols,
-            timeframes,
+            symbol_ids,
+            timeframe,
         })
+    }
+    
+    async fn get_symbol_id(&self, symbol: &Symbol) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
+        let row = sqlx::query("SELECT symbol_id FROM market.pairs WHERE symbol = $1")
+            .bind(symbol.as_str())
+            .fetch_one(self.get_db_pool())
+            .await?;
+            
+        Ok(row.get("symbol_id"))
     }
 }

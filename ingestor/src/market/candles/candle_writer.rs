@@ -220,23 +220,24 @@ pub async fn flush_copy(
     }
 
     let table_name = build_table_name(tf);
+    // Добавляем symbol
     let stmt = format!(
-        "COPY {} (time_ms, time, symbol_id, open, high, low, close, volume) FROM STDIN BINARY",
+        "COPY {} (time_ms, time, symbol_id, symbol, open, high, low, close, volume) FROM STDIN BINARY",
         table_name
     );
-
     let sink = client.copy_in(&stmt).await.context("copy_in failed")?;
     let writer = BinaryCopyInWriter::new(
         sink,
         &[
-            Type::INT8,   // time_ms
-            Type::TIMESTAMPTZ, // time
-            Type::INT8,   // symbol_id
-            Type::FLOAT8, // open
-            Type::FLOAT8, // high
-            Type::FLOAT8, // low
-            Type::FLOAT8, // close
-            Type::FLOAT8, // volume
+            Type::INT8,
+            Type::TIMESTAMPTZ,
+            Type::INT8,
+            Type::TEXT,       // <--- ДОБАВЛЕНО
+            Type::FLOAT8,
+            Type::FLOAT8,
+            Type::FLOAT8,
+            Type::FLOAT8,
+            Type::FLOAT8,
         ],
     );
     let mut writer = std::pin::pin!(writer);
@@ -249,6 +250,7 @@ pub async fn flush_copy(
                 &r.time_ms,
                 &ts,
                 &r.symbol_id,
+                &r.symbol,    // <--- ДОБАВЛЕНО
                 &r.open,
                 &r.high,
                 &r.low,

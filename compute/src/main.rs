@@ -58,12 +58,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
+    // Initialize BulkPersistor
+    let bulk_persistor =
+        database_lib::bulk_persistor::BulkPersistor::new(database_lib::bulk_persistor::BulkPersistorConfig::from_env()?).await?;
+    let bulk_persistor_sender = bulk_persistor.sender();
+
     // Initialize indicator persistor
-    let (persistor, _persist_sender) = IndicatorPersistor::new(
-        db_pool.clone(), // Clone the pool to use in persistor
-        5000, // batch size INCREASED from 1000 to 5000
-        2000, // flush every 2 seconds (was 5000)
-    );
+    let (persistor, _persist_sender) = IndicatorPersistor::new(bulk_persistor_sender.clone());
     let persistor = Arc::new(persistor);
 
     // Initialize bootstrap coordinator
@@ -124,19 +125,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Spawn persistence loop
-    let persistor_clone = persistor.clone();
-    tokio::spawn(async move {
-        persistor_clone.start_persistence_loop().await;
-    });
-
     // Initialize RawSignal persistor
-    let (raw_signal_persistor, raw_signal_sender) = RawSignalPersistor::new(
-        db_pool.clone(),
-        5000, // batch size INCREASED from 1000 to 5000
-        2000, // flush every 2 seconds
-    );
-    let raw_signal_persistor = Arc::new(raw_signal_persistor);
+    let (raw_signal_persistor, raw_signal_sender) = RawSignalPersistor::new(bulk_persistor_sender);
+    let _raw_signal_persistor = Arc::new(raw_signal_persistor);
 
     // Initialize RawSignal processor
     let raw_cfg = SignalConfig {
@@ -146,37 +137,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let raw_signal_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
-    // Spawn RawSignal persistence loop
-    let raw_signal_persistor_clone = raw_signal_persistor.clone();
-    tokio::spawn(async move {
-        raw_signal_persistor_clone.start_persistence_loop().await;
-    });
+
 
     // Spawn result processor to handle computed indicators and raw signals
     let persistor_clone2 = persistor.clone();
     let raw_signal_processor_clone = raw_signal_processor.clone();
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
-            println!("Processing {} computed features", feature_window.features.len());
+            println!(
+                "Processing feature batch with {} columns for symbol {} and timeframe {}",
+                feature_window.batch.columns.len(),
+                feature_window.symbol,
+                feature_window.timeframe
+            );
 
             // Handle indicators
             let mut records = Vec::new();
-            for result in &feature_window.features {
-                for (indicator_name, value) in &result.features {
-                    records.push(IndicatorRecord {
-                        symbol: result.symbol.clone(),
-                        timeframe: result.timeframe,
-                        timestamp: result.timestamp,
-                        indicator_name: indicator_name.clone(),
-                        value: value.clone(),
-                    });
+            for (i, &timestamp) in feature_window.batch.timestamps.iter().enumerate() {
+                for column in &feature_window.batch.columns {
+                    match column {
+                        FeatureColumn::F64 { name, values } => {
+                            if let Some(value) = values.get(i) {
+                                if value.is_finite() {
+                                    records.push(IndicatorRecord {
+                                        symbol: feature_window.symbol.clone(),
+                                        timeframe: feature_window.timeframe,
+                                        timestamp,
+                                        indicator_name: name.clone(),
+                                        value: FeatureValue::Float(*value),
+                                    });
+                                }
+                            }
+                        }
+                        FeatureColumn::Json { name, values } => {
+                            if let Some(value) = values.get(i) {
+                                if !value.is_null() {
+                                    records.push(IndicatorRecord {
+                                        symbol: feature_window.symbol.clone(),
+                                        timeframe: feature_window.timeframe,
+                                        timestamp,
+                                        indicator_name: name.clone(),
+                                        value: FeatureValue::Json(value.clone()),
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             if !records.is_empty() {
                 persistor_clone2.queue_records(records).await;
             }
-            
+
             // Handle raw signals
             let raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
             for signal in raw_signals {

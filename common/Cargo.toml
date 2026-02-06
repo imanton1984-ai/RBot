@@ -11,4 +11,9 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 config = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
+twox-hash = "2.1"
+rdkafka = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+bincode = "1.3"
 
