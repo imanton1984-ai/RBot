@@ -67,6 +67,43 @@ pub enum PersistRecord {
         scores_json: Option<Value>,
         predictions_json: Option<Value>,
     },
+
+    // NEW VARIANT for wide indicators
+    IndicatorsWide {
+        symbol: common::Symbol,
+        timeframe: i16,
+        time_ms: i64,
+        // Using a Map for flexibility in the persistor, or a struct if strictly typed
+        indicators: std::collections::HashMap<String, f64>, 
+        json_data: std::collections::HashMap<String, serde_json::Value>,
+        candle_is_final: bool,
+        calc_source: i16,
+        event_time_ms: Option<i64>,
+    },
+
+    // NEW VARIANT for aggregated signals
+    AggregatedSignal {
+        symbol: common::Symbol,
+        timeframe: i16,
+        time_ms: i64,
+        signals: Vec<AggregatedSignalItem>,
+        features_json: Option<Value>,
+        scores_json: Option<Value>,
+        predictions_json: Option<Value>,
+        candle_is_final: bool,
+        calc_source: i16,
+        event_time_ms: Option<i64>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct AggregatedSignalItem {
+    pub indicator_id: i16,
+    pub signal_kind: i16,
+    pub side: i16,
+    pub score: f32,
+    pub value: f32,
+    pub details: Option<Value>,
 }
 
 pub struct BulkPersistor {
@@ -199,11 +236,15 @@ async fn flush_all(
     // Разделяем по типам
     let mut indicators: Vec<PersistRecord> = Vec::new();
     let mut signals: Vec<PersistRecord> = Vec::new();
+    let mut wide_indicators: Vec<PersistRecord> = Vec::new();
+    let mut aggregated_signals: Vec<PersistRecord> = Vec::new();
 
     for r in batch.drain(..) {
         match r {
             PersistRecord::Indicator { .. } => indicators.push(r),
             PersistRecord::RawSignal { .. } => signals.push(r),
+            PersistRecord::IndicatorsWide { .. } => wide_indicators.push(r),
+            PersistRecord::AggregatedSignal { .. } => aggregated_signals.push(r),
         }
     }
 
@@ -212,6 +253,12 @@ async fn flush_all(
     }
     if !signals.is_empty() {
         flush_raw_signals(pool, cache, cfg, &signals).await?;
+    }
+    if !wide_indicators.is_empty() {
+        flush_wide_indicators(pool, cache, cfg, &wide_indicators).await?;
+    }
+    if !aggregated_signals.is_empty() {
+        flush_aggregated_signals(pool, cache, cfg, &aggregated_signals).await?;
     }
     Ok(())
 }
@@ -540,6 +587,398 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
         .execute(pool)
         .await {
             tracing::error!("CRITICAL: Failed to insert signals: {:?}", e);
+            return Err(e.into());
+        }
+
+    Ok(())
+}
+
+async fn flush_wide_indicators(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    items: &[PersistRecord],
+) -> Result<()> {
+    // Group by symbol_id and time to merge indicators for the same candle
+    let mut grouped: HashMap<(i64, i16, i64), (String, String, i16, i64, std::collections::HashMap<String, f64>, std::collections::HashMap<String, serde_json::Value>, bool, i16, Option<i64>)> = HashMap::new();
+
+    for item in items {
+        if let PersistRecord::IndicatorsWide { symbol, timeframe, time_ms, indicators, json_data, candle_is_final, calc_source, event_time_ms } = item {
+            let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
+            let key = (sym_id, *timeframe, *time_ms);
+            
+            match grouped.entry(key) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    // Merge indicators
+                    let (_, _, _, _, existing_indicators, existing_json, _, _, _) = entry.get_mut();
+                    for (k, v) in indicators {
+                        existing_indicators.insert(k.clone(), *v);
+                    }
+                    for (k, v) in json_data {
+                        existing_json.insert(k.clone(), v.clone());
+                    }
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    let mut new_indicators = std::collections::HashMap::new();
+                    let mut new_json_data = std::collections::HashMap::new();
+                    for (k, v) in indicators {
+                        new_indicators.insert(k.clone(), *v);
+                    }
+                    for (k, v) in json_data {
+                        new_json_data.insert(k.clone(), v.clone());
+                    }
+                    entry.insert((symbol.0.clone(), symbol.0.clone(), *timeframe, *time_ms, new_indicators, new_json_data, *candle_is_final, *calc_source, *event_time_ms));
+                }
+            }
+        }
+    }
+
+    // Convert grouped data to vectors for bulk insert
+    let mut records: Vec<_> = grouped.into_values().collect();
+    
+    while !records.is_empty() {
+        let take = records.len().min(cfg.chunk_size);
+        let chunk: Vec<_> = records.drain(0..take).collect();
+        flush_wide_indicators_chunk(pool, cache, chunk).await?;
+    }
+
+    Ok(())
+}
+
+async fn flush_wide_indicators_chunk(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    chunk: Vec<(String, String, i16, i64, std::collections::HashMap<String, f64>, std::collections::HashMap<String, serde_json::Value>, bool, i16, Option<i64>)>,
+) -> Result<()> {
+    if chunk.is_empty() {
+        return Ok(());
+    }
+    tracing::info!("Persistor: Flushing {} wide indicators...", chunk.len());
+    let now: DateTime<Utc> = Utc::now();
+
+    let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+    
+    // Individual indicator columns
+    let mut rsi: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut macd: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut macd_signal: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut macd_hist: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut bb_upper: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut bb_mid: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut bb_lower: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut stoch_k: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut stoch_d: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut adx: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut atr: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut cci: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut obv: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut vwap: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut ema_20: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut ema_50: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut ema_200: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    
+    // JSON data column
+    let mut sr_levels: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    
+    let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
+    let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
+    let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    for (sym_id_str, sym_str, tf, tms, indicators, json_data, final_flag, cs, etm) in chunk {
+        // Get symbol_id from the database using the shared cache
+        let sym_id = get_symbol_id(pool, cache, &sym_id_str).await?;
+        
+        time.push(ms_to_ts(tms));
+        time_ms.push(tms);
+        symbol_id.push(sym_id);
+        symbol.push(sym_str);
+        tf_minutes.push(tf);
+        
+        // Extract individual indicators
+        rsi.push(extract_indicator_value(&indicators, "rsi"));
+        macd.push(extract_indicator_value(&indicators, "macd"));
+        macd_signal.push(extract_indicator_value(&indicators, "macd_signal"));
+        macd_hist.push(extract_indicator_value(&indicators, "macd_hist"));
+        bb_upper.push(extract_indicator_value(&indicators, "bb_upper"));
+        bb_mid.push(extract_indicator_value(&indicators, "bb_mid"));
+        bb_lower.push(extract_indicator_value(&indicators, "bb_lower"));
+        stoch_k.push(extract_indicator_value(&indicators, "stoch_k"));
+        stoch_d.push(extract_indicator_value(&indicators, "stoch_d"));
+        adx.push(extract_indicator_value(&indicators, "adx"));
+        atr.push(extract_indicator_value(&indicators, "atr"));
+        cci.push(extract_indicator_value(&indicators, "cci"));
+        obv.push(extract_indicator_value_as_double(&indicators, "obv"));
+        vwap.push(extract_indicator_value_as_double(&indicators, "vwap"));
+        ema_20.push(extract_indicator_value(&indicators, "ema_20"));
+        ema_50.push(extract_indicator_value(&indicators, "ema_50"));
+        ema_200.push(extract_indicator_value(&indicators, "ema_200"));
+        
+        // Extract SR levels from JSON data
+        sr_levels.push(json_data.get("sr_levels").cloned().map(Json));
+        
+        candle_is_final.push(final_flag);
+        calc_source.push(cs);
+        event_time_ms.push(etm);
+        created_at.push(now);
+        updated_at.push(now);
+    }
+
+    let sql = r#"
+        INSERT INTO market.indicators_wide
+        (time, time_ms, symbol_id, symbol, tf_minutes,
+         rsi, macd, macd_signal, macd_hist, bb_upper, bb_mid, bb_lower,
+         stoch_k, stoch_d, adx, atr, cci, obv, vwap, ema_20, ema_50, ema_200,
+         sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
+        SELECT * FROM UNNEST(
+            $1::timestamptz[],
+            $2::bigint[],
+            $3::bigint[],
+            $4::text[],
+            $5::smallint[],
+            $6::real[],
+            $7::real[],
+            $8::real[],
+            $9::real[],
+            $10::real[],
+            $11::real[],
+            $12::real[],
+            $13::real[],
+            $14::real[],
+            $15::real[],
+            $16::real[],
+            $17::real[],
+            $18::double precision[],
+            $19::double precision[],
+            $20::real[],
+            $21::real[],
+            $22::real[],
+            $23::jsonb[],
+            $24::boolean[],
+            $25::smallint[],
+            $26::bigint[],
+            $27::timestamptz[],
+            $28::timestamptz[]
+        )
+        ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+            rsi = COALESCE(EXCLUDED.rsi, market.indicators_wide.rsi),
+            macd = COALESCE(EXCLUDED.macd, market.indicators_wide.macd),
+            macd_signal = COALESCE(EXCLUDED.macd_signal, market.indicators_wide.macd_signal),
+            macd_hist = COALESCE(EXCLUDED.macd_hist, market.indicators_wide.macd_hist),
+            bb_upper = COALESCE(EXCLUDED.bb_upper, market.indicators_wide.bb_upper),
+            bb_mid = COALESCE(EXCLUDED.bb_mid, market.indicators_wide.bb_mid),
+            bb_lower = COALESCE(EXCLUDED.bb_lower, market.indicators_wide.bb_lower),
+            stoch_k = COALESCE(EXCLUDED.stoch_k, market.indicators_wide.stoch_k),
+            stoch_d = COALESCE(EXCLUDED.stoch_d, market.indicators_wide.stoch_d),
+            adx = COALESCE(EXCLUDED.adx, market.indicators_wide.adx),
+            atr = COALESCE(EXCLUDED.atr, market.indicators_wide.atr),
+            cci = COALESCE(EXCLUDED.cci, market.indicators_wide.cci),
+            obv = COALESCE(EXCLUDED.obv, market.indicators_wide.obv),
+            vwap = COALESCE(EXCLUDED.vwap, market.indicators_wide.vwap),
+            ema_20 = COALESCE(EXCLUDED.ema_20, market.indicators_wide.ema_20),
+            ema_50 = COALESCE(EXCLUDED.ema_50, market.indicators_wide.ema_50),
+            ema_200 = COALESCE(EXCLUDED.ema_200, market.indicators_wide.ema_200),
+            sr_levels = COALESCE(EXCLUDED.sr_levels, market.indicators_wide.sr_levels),
+            candle_is_final = EXCLUDED.candle_is_final,
+            calc_source = EXCLUDED.calc_source,
+            event_time_ms = EXCLUDED.event_time_ms,
+            updated_at = now()
+    "#;
+
+    if let Err(e) = sqlx::query(sql)
+        .bind(time)
+        .bind(time_ms)
+        .bind(symbol_id)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .bind(rsi)
+        .bind(macd)
+        .bind(macd_signal)
+        .bind(macd_hist)
+        .bind(bb_upper)
+        .bind(bb_mid)
+        .bind(bb_lower)
+        .bind(stoch_k)
+        .bind(stoch_d)
+        .bind(adx)
+        .bind(atr)
+        .bind(cci)
+        .bind(obv)
+        .bind(vwap)
+        .bind(ema_20)
+        .bind(ema_50)
+        .bind(ema_200)
+        .bind(sr_levels)
+        .bind(candle_is_final)
+        .bind(calc_source)
+        .bind(event_time_ms)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(pool)
+        .await {
+            tracing::error!("CRITICAL: Failed to insert wide indicators: {:?}", e);
+            return Err(e.into());
+        }
+
+    Ok(())
+}
+
+// Helper functions to extract indicator values
+fn extract_indicator_value(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<f32> {
+    indicators.get(key).copied().map(|v| v as f32)
+}
+
+fn extract_indicator_value_as_double(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<f64> {
+    indicators.get(key).copied()
+}
+
+async fn flush_aggregated_signals(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    items: &[PersistRecord],
+) -> Result<()> {
+    // Group by symbol, timeframe, and time
+    let mut grouped: HashMap<(i64, i16, i64), (String, i16, i64, Vec<AggregatedSignalItem>, Option<Value>, Option<Value>, Option<Value>, bool, i16, Option<i64>)> = HashMap::new();
+
+    for item in items {
+        if let PersistRecord::AggregatedSignal { symbol, timeframe, time_ms, signals, features_json, scores_json, predictions_json, candle_is_final, calc_source, event_time_ms } = item {
+            let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
+            let key = (sym_id, *timeframe, *time_ms);
+            
+            grouped.insert(key, (symbol.0.clone(), *timeframe, *time_ms, signals.clone(), features_json.clone(), scores_json.clone(), predictions_json.clone(), *candle_is_final, *calc_source, *event_time_ms));
+        }
+    }
+
+    // Convert to vector for processing
+    let mut records: Vec<_> = grouped.into_values().collect();
+    
+    while !records.is_empty() {
+        let take = records.len().min(cfg.chunk_size);
+        let chunk: Vec<_> = records.drain(0..take).collect();
+        flush_aggregated_signals_chunk(pool, cache, chunk).await?;
+    }
+
+    Ok(())
+}
+
+async fn flush_aggregated_signals_chunk(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    chunk: Vec<(String, i16, i64, Vec<AggregatedSignalItem>, Option<Value>, Option<Value>, Option<Value>, bool, i16, Option<i64>)>,
+) -> Result<()> {
+    if chunk.is_empty() {
+        return Ok(());
+    }
+    tracing::info!("Persistor: Flushing {} aggregated signals...", chunk.len());
+    let now: DateTime<Utc> = Utc::now();
+
+    let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+    
+    // Convert signals to JSONB array
+    let mut signals: Vec<Json<Value>> = Vec::with_capacity(chunk.len());
+    let mut features_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut scores_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut predictions_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    
+    let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
+    let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
+    let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    for (sym_str, tf, tms, signal_items, feats_json, scores_j, preds_json, final_flag, cs, etm) in chunk {
+        let sym_id = get_symbol_id(pool, cache, &sym_str).await?;
+        
+        time.push(ms_to_ts(tms));
+        time_ms.push(tms);
+        symbol_id.push(sym_id);
+        symbol.push(sym_str);
+        tf_minutes.push(tf);
+        
+        // Convert signal items to JSON array
+        let signals_json = signal_items.iter().map(|item| {
+            serde_json::json!({
+                "indicator_id": item.indicator_id,
+                "signal_kind": item.signal_kind,
+                "side": item.side,
+                "score": item.score,
+                "value": item.value,
+                "details": item.details
+            })
+        }).collect::<Vec<_>>();
+        
+        signals.push(Json(serde_json::Value::Array(signals_json)));
+        features_json.push(feats_json.map(Json));
+        scores_json.push(scores_j.map(Json));
+        predictions_json.push(preds_json.map(Json));
+        
+        candle_is_final.push(final_flag);
+        calc_source.push(cs);
+        event_time_ms.push(etm);
+        created_at.push(now);
+        updated_at.push(now);
+    }
+
+    let sql = r#"
+        INSERT INTO market.candle_signals
+        (time, time_ms, symbol_id, symbol, tf_minutes,
+         signals, features_json, scores_json, predictions_json,
+         candle_is_final, calc_source, event_time_ms, created_at, updated_at)
+        SELECT * FROM UNNEST(
+            $1::timestamptz[],
+            $2::bigint[],
+            $3::bigint[],
+            $4::text[],
+            $5::smallint[],
+            $6::jsonb[],
+            $7::jsonb[],
+            $8::jsonb[],
+            $9::jsonb[],
+            $10::boolean[],
+            $11::smallint[],
+            $12::bigint[],
+            $13::timestamptz[],
+            $14::timestamptz[]
+        )
+        ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+            signals = EXCLUDED.signals,
+            features_json = EXCLUDED.features_json,
+            scores_json = EXCLUDED.scores_json,
+            predictions_json = EXCLUDED.predictions_json,
+            candle_is_final = EXCLUDED.candle_is_final,
+            calc_source = EXCLUDED.calc_source,
+            event_time_ms = EXCLUDED.event_time_ms,
+            updated_at = now()
+    "#;
+
+    if let Err(e) = sqlx::query(sql)
+        .bind(time)
+        .bind(time_ms)
+        .bind(symbol_id)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .bind(signals)
+        .bind(features_json)
+        .bind(scores_json)
+        .bind(predictions_json)
+        .bind(candle_is_final)
+        .bind(calc_source)
+        .bind(event_time_ms)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(pool)
+        .await {
+            tracing::error!("CRITICAL: Failed to insert aggregated signals: {:?}", e);
             return Err(e.into());
         }
 

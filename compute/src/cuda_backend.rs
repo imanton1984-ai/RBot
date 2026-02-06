@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use common::{Symbol, Timeframe};
 use crate::{
-    ComputeBackend, ComputeJob, ComputeResult, FeatureWindow,
-    BatchTensor, FeatureValue
+    ComputeBackend, ComputeJob, FeatureWindow,
+    BatchTensor
 };
 
 pub struct CudaBackend {
@@ -214,212 +214,112 @@ impl ComputeBackend for CudaBackend {
                 None => continue,
             };
 
-            // Validate that the candle window has sufficient data for calculations
             if candle_window.close.is_empty() || candle_window.timestamps.is_empty() {
-                continue; // Skip if no data
+                continue;
             }
 
-            // Ensure all arrays have the same length
             let expected_len = candle_window.close.len();
             if candle_window.open.len() != expected_len ||
                candle_window.high.len() != expected_len ||
                candle_window.low.len() != expected_len ||
                candle_window.volume.len() != expected_len ||
                candle_window.timestamps.len() != expected_len {
-                continue; // Skip if data arrays have inconsistent lengths
+                continue;
             }
 
-            // Create a map to group features by timestamp
-            let mut timestamp_features: std::collections::HashMap<i64, std::collections::HashMap<String, FeatureValue>> = std::collections::HashMap::new();
+            let timestamps = candle_window.timestamps.clone();
+            let n = timestamps.len();
+            let mut batch = crate::FeatureBatch::new(timestamps);
+
+            let mut bb_cache: Option<(Vec<f64>, Vec<f64>, Vec<f64>)> = None;
+            let mut macd_cache: Option<(Vec<f64>, Vec<f64>, Vec<f64>)> = None;
+            let mut stoch_cache: Option<(Vec<f64>, Vec<f64>)> = None;
+            let mut alligator_cache: Option<(Vec<f64>, Vec<f64>, Vec<f64>)> = None;
 
             for indicator in &job.indicators {
                 match indicator.as_str() {
                     "adx" => {
-                        let adx_values = self.run_adx_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
-                        for (i, &adx_val) in adx_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !adx_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("adx".to_string(), FeatureValue::Float(adx_val));
-                            }
-                        }
+                        let v = self.run_adx_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
+                        batch.push_f64("adx", v);
                     }
                     "atr" => {
-                        let atr_values = self.run_atr_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
-                        for (i, &atr_val) in atr_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !atr_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("atr".to_string(), FeatureValue::Float(atr_val));
-                            }
-                        }
-                    }
-                    "bb" => {
-                        let (upper, middle, lower) = self.run_bollinger_bands_kernel(&candle_window.close, 20, 2.0)?;
-                        for i in 0..std::cmp::min(upper.len(), candle_window.timestamps.len()) {
-                            if !upper[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("bb_upper".to_string(), FeatureValue::Float(upper[i]));
-                                features_map.insert("bb_mid".to_string(), FeatureValue::Float(middle[i]));
-                                features_map.insert("bb_lower".to_string(), FeatureValue::Float(lower[i]));
-                            }
-                        }
+                        let v = self.run_atr_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
+                        batch.push_f64("atr", v);
                     }
                     "cci" => {
-                        let cci_values = self.run_cci_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 20)?;
-                        for (i, &cci_val) in cci_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !cci_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("cci".to_string(), FeatureValue::Float(cci_val));
-                            }
-                        }
+                        let v = self.run_cci_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 20)?;
+                        batch.push_f64("cci", v);
                     }
-                    "ema" => {
-                        let ema20 = self.run_ema_kernel(&candle_window.close, 20)?;
-                        let ema50 = self.run_ema_kernel(&candle_window.close, 50)?;
-                        let ema200 = self.run_ema_kernel(&candle_window.close, 200)?;
-                        for i in 0..std::cmp::min(ema20.len(), candle_window.timestamps.len()) {
-                            if !ema20[i].is_nan() || !ema50[i].is_nan() || !ema200[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                if !ema20[i].is_nan() {
-                                    features_map.insert("ema20".to_string(), FeatureValue::Float(ema20[i]));
-                                }
-                                if !ema50[i].is_nan() {
-                                    features_map.insert("ema50".to_string(), FeatureValue::Float(ema50[i]));
-                                }
-                                if !ema200[i].is_nan() {
-                                    features_map.insert("ema200".to_string(), FeatureValue::Float(ema200[i]));
-                                }
-                            }
-                        }
+                    "ema" => { // Assuming "ema" implies multiple EMAs
+                        batch.push_f64("ema20", self.run_ema_kernel(&candle_window.close, 20)?);
+                        batch.push_f64("ema50", self.run_ema_kernel(&candle_window.close, 50)?);
+                        batch.push_f64("ema200", self.run_ema_kernel(&candle_window.close, 200)?);
                     }
-                    "macd" => {
-                        let (macd_line, signal_line, histogram) = self.run_macd_kernel(&candle_window.close, 12, 26, 9)?;
+                    "rsi" => batch.push_f64("rsi", self.run_rsi_kernel(&candle_window.close, 14)?),
+                    "obv" => batch.push_f64("obv", self.run_obv_kernel(&candle_window.close, &candle_window.volume)?),
+                    "vwap" => batch.push_f64("vwap", self.run_vwap_kernel(&candle_window.high, &candle_window.low, &candle_window.close, &candle_window.volume)?),
+                    "williams" => batch.push_f64("williams", self.run_williams_r_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?),
 
-                        for i in 0..std::cmp::min(macd_line.len(), candle_window.timestamps.len()) {
-                            if !macd_line[i].is_nan() && !signal_line[i].is_nan() && !histogram[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("macd".to_string(), FeatureValue::Float(macd_line[i]));
-                                features_map.insert("macd_signal".to_string(), FeatureValue::Float(signal_line[i]));
-                                features_map.insert("macd_hist".to_string(), FeatureValue::Float(histogram[i]));
-                            }
+                    "bb" | "bb_upper" | "bb_mid" | "bb_lower" => {
+                        if bb_cache.is_none() {
+                            bb_cache = Some(self.run_bollinger_bands_kernel(&candle_window.close, 20, 2.0)?);
                         }
+                        let (upper, mid, lower) = bb_cache.as_ref().unwrap();
+                        if batch.get_f64("bb_upper").is_none() { batch.push_f64("bb_upper", upper.clone()); }
+                        if batch.get_f64("bb_mid").is_none() { batch.push_f64("bb_mid", mid.clone()); }
+                        if batch.get_f64("bb_lower").is_none() { batch.push_f64("bb_lower", lower.clone()); }
                     }
-                    "obv" => {
-                        let obv_values = self.run_obv_kernel(&candle_window.close, &candle_window.volume)?;
-                        for (i, &obv_val) in obv_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !obv_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("obv".to_string(), FeatureValue::Float(obv_val));
-                            }
+
+                    "macd" | "macd_signal" | "macd_hist" => {
+                        if macd_cache.is_none() {
+                            macd_cache = Some(self.run_macd_kernel(&candle_window.close, 12, 26, 9)?);
                         }
+                        let (macd, signal, hist) = macd_cache.as_ref().unwrap();
+                        if batch.get_f64("macd").is_none() { batch.push_f64("macd", macd.clone()); }
+                        if batch.get_f64("macd_signal").is_none() { batch.push_f64("macd_signal", signal.clone()); }
+                        if batch.get_f64("macd_hist").is_none() { batch.push_f64("macd_hist", hist.clone()); }
                     }
-                    "rsi" => {
-                        let rsi_values = self.run_rsi_kernel(&candle_window.close, 14)?;
-                        for (i, &rsi_val) in rsi_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !rsi_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("rsi".to_string(), FeatureValue::Float(rsi_val));
-                            }
+
+                    "stoch" | "stoch_k" | "stoch_d" => {
+                        if stoch_cache.is_none() {
+                            stoch_cache = Some(self.run_stochastic_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14, 3)?);
                         }
+                        let (k, d) = stoch_cache.as_ref().unwrap();
+                        if batch.get_f64("stoch_k").is_none() { batch.push_f64("stoch_k", k.clone()); }
+                        if batch.get_f64("stoch_d").is_none() { batch.push_f64("stoch_d", d.clone()); }
                     }
-                    "stoch" => {
-                        let (k, d) = self.run_stochastic_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14, 3)?;
-                        for i in 0..std::cmp::min(k.len(), candle_window.timestamps.len()) {
-                            if !k[i].is_nan() && !d[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("stoch_k".to_string(), FeatureValue::Float(k[i]));
-                                features_map.insert("stoch_d".to_string(), FeatureValue::Float(d[i]));
-                            }
+
+                    "alligator" | "alligator_jaw" | "alligator_teeth" | "alligator_lips" => {
+                        if alligator_cache.is_none() {
+                            alligator_cache = Some(self.run_alligator_kernel(&candle_window.close, 13, 8, 5, 8, 5, 3)?);
                         }
+                        let (jaw, teeth, lips) = alligator_cache.as_ref().unwrap();
+                        if batch.get_f64("alligator_jaw").is_none() { batch.push_f64("alligator_jaw", jaw.clone()); }
+                        if batch.get_f64("alligator_teeth").is_none() { batch.push_f64("alligator_teeth", teeth.clone()); }
+                        if batch.get_f64("alligator_lips").is_none() { batch.push_f64("alligator_lips", lips.clone()); }
                     }
-                    "vwap" => {
-                        let vwap_values = self.run_vwap_kernel(&candle_window.high, &candle_window.low, &candle_window.close, &candle_window.volume)?;
-                        for (i, &vwap_val) in vwap_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !vwap_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("vwap".to_string(), FeatureValue::Float(vwap_val));
-                            }
-                        }
-                    }
-                    "williams" => {
-                        let williams_values = self.run_williams_r_kernel(&candle_window.high, &candle_window.low, &candle_window.close, 14)?;
-                        for (i, &williams_val) in williams_values.iter().enumerate() {
-                            if i < candle_window.timestamps.len() && !williams_val.is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new)
-                                    .insert("williams".to_string(), FeatureValue::Float(williams_val));
-                            }
-                        }
-                    }
-                    "alligator" => {
-                        let (jaw, teeth, lips) = self.run_alligator_kernel(&candle_window.close, 13, 8, 5, 8, 5, 3)?;
-                        for i in 0..std::cmp::min(jaw.len(), candle_window.timestamps.len()) {
-                            if !jaw[i].is_nan() && !teeth[i].is_nan() && !lips[i].is_nan() {
-                                let timestamp = candle_window.timestamps[i];
-                                let features_map = timestamp_features.entry(timestamp)
-                                    .or_insert_with(std::collections::HashMap::new);
-                                features_map.insert("alli_jaw".to_string(), FeatureValue::Float(jaw[i]));
-                                features_map.insert("alli_teeth".to_string(), FeatureValue::Float(teeth[i]));
-                                features_map.insert("alli_lips".to_string(), FeatureValue::Float(lips[i]));
-                            }
-                        }
-                    }
+
                     "sr_levels" => {
                         let levels = compute_indicators::calculate_sr_levels(&candle_window.high, &candle_window.low, &candle_window.close, 0.5);
-                        if let Ok(json_levels) = serde_json::to_value(&levels) {
-                            // Use the last timestamp or the job's window end for SR levels
-                            let timestamp = candle_window.timestamps.last().cloned().unwrap_or(job.window_end);
-                            timestamp_features.entry(timestamp)
-                                .or_insert_with(std::collections::HashMap::new)
-                                .insert("sr_levels".to_string(), FeatureValue::Json(json_levels));
+                        let mut v = vec![serde_json::Value::Null; n];
+                        if n > 0 {
+                            v[n - 1] = serde_json::to_value(levels).unwrap_or(serde_json::Value::Null);
                         }
+                        batch.push_json("sr_levels", v);
                     }
-                    _ => {
-                    }
+                    _ => {}
                 }
             }
-
-            // Convert the grouped features into ComputeResult objects
-            let mut features = Vec::new();
-            for (timestamp, features_map) in timestamp_features {
-                features.push(ComputeResult {
-                    symbol: job.symbol.clone(),
-                    timeframe: job.timeframe,
-                    timestamp,
-                    features: features_map,
-                });
-            }
-
-            let batch = crate::FeatureBatch::new(Vec::new());
 
             let feature_window = Arc::new(FeatureWindow {
                 symbol: job.symbol.clone(),
                 timeframe: job.timeframe,
-                legacy_features: Some(features),
-                batch,
                 start_time: job.window_start,
                 end_time: job.window_end,
+                is_realtime: job.is_realtime,
                 candle_window: job.candle_window.clone(),
+                batch,
+                legacy_features: None,
             });
 
             results.push(feature_window);

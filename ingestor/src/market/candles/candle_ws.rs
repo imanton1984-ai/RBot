@@ -25,7 +25,7 @@
 use crate::market::candles::candle_common::*;
 use crate::market::candles::candle_writer::{TypedWriterMsg, DataSource, LiveCandle};
 use anyhow::{Context, Result};
-use common::{timeframe::TimeFrame, MessageBus, Candle as CommonCandle, Symbol};
+use common::{timeframe::TimeFrame, MessageBus};
 use common::AppConfig;
 use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
@@ -204,29 +204,42 @@ pub async fn ws_worker(
                         }
                     }
 
-                    // Create a common candle structure to send via message bus
-                    let common_candle = CommonCandle {
+                    // Create the specific event structure Compute expects
+                    #[derive(serde::Serialize)]
+                    struct CandleCloseEvent {
+                        symbol: String,
+                        timeframe: String,
+                        close_time: i64,
+                        open: f64,
+                        high: f64,
+                        low: f64,
+                        close: f64,
+                        volume: f64,
+                    }
+
+                    let close_event = CandleCloseEvent {
+                        symbol: ev.symbol.clone(),
+                        timeframe: k.interval.clone(),
+                        close_time: k.close_time,
                         open: str_f64(&k.open),
                         high: str_f64(&k.high),
                         low: str_f64(&k.low),
                         close: str_f64(&k.close),
                         volume: str_f64(&k.volume),
-                        timestamp: k.close_time,
-                        symbol: Symbol::new(ev.symbol.clone()),
-                        timeframe: tf,
                     };
 
-                    // Publish raw candle to message bus instead of direct DB write
+                    // Publish to the correct topic that Compute service listens to
+                    let topic_name = std::env::var("TOPIC_CANDLES_CLOSE").unwrap_or_else(|_| "candles.close".to_string());
                     let message_bus_clone = message_bus.clone();
-                    let symbol_clone = ev.symbol.clone(); // Clone the symbol before moving
-                    let common_candle_clone = common_candle.clone(); // Clone the candle before moving
-                    let interval_clone = k.interval.clone();
-                    let close_time_clone = k.close_time;
+                    let symbol_key = ev.symbol.clone();
+
                     let _ = tokio::spawn(async move {
-                        if let Err(e) = message_bus_clone.publish("raw_candles", symbol_clone.as_bytes(), &common_candle_clone).await {
-                            tracing::error!("Failed to publish raw candle to message bus: {}", e);
+                        // Note: We use the topic name directly, assuming message_bus handles prefixes if configured
+                        // or pass the raw topic name found in config/rust_bot.toml
+                        if let Err(e) = message_bus_clone.publish(&topic_name, symbol_key.as_bytes(), &close_event).await {
+                            tracing::error!("Failed to publish candle close event: {}", e);
                         } else {
-                            tracing::debug!("Published raw candle: {} {} at {}", symbol_clone, interval_clone, close_time_clone);
+                            tracing::debug!("Published close event: {} {}", symbol_key, k.interval);
                         }
                     });
 

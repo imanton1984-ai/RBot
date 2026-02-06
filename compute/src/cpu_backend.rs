@@ -218,7 +218,8 @@ impl ComputeBackend for CpuBackend {
                 timeframe: job.timeframe,
                 start_time: job.window_start,
                 end_time: job.window_end,
-                candle_window: Some(candle_window.clone()), // ВАЖНО: без clone()
+                is_realtime: job.is_realtime,
+                candle_window: Some(candle_window.clone()),
                 batch,
                 legacy_features: None,
             });

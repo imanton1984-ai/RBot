@@ -11,6 +11,7 @@ pub struct ComputeJob {
     pub window_end: i64,
     pub indicators: Vec<String>,
     pub candle_window: Option<CandleWindow>,
+    pub is_realtime: bool,
 }
 
 /// Legacy (оставляем для совместимости, но в fast-path больше НЕ создаём)
@@ -28,9 +29,11 @@ pub struct FeatureWindow {
     pub timeframe: Timeframe,
     pub start_time: i64,
     pub end_time: i64,
+    pub is_realtime: bool,
 
     /// Держим свечи как раньше (это ок). Но НЕ держим per-bar feature maps.
     pub candle_window: Option<CandleWindow>,
+
 
     /// Новое columnar-хранилище фич
     pub batch: FeatureBatch,
@@ -46,6 +49,7 @@ impl FeatureWindow {
             timeframe: Timeframe::M1, // Will be set appropriately
             start_time,
             end_time,
+            is_realtime: false, // Default to false
             candle_window,
             batch: FeatureBatch::new(Vec::new()), // Empty batch initially
             legacy_features: None,

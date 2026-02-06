@@ -94,6 +94,7 @@ impl JobScheduler {
                     "alligator".to_string(),
                 ],
                 candle_window,
+                is_realtime: false,
             };
             jobs.push(job);
         }

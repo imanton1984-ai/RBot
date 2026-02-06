@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS market.candles_1m (
     time      TIMESTAMPTZ NOT NULL, -- Rust will send this field filled
 
     symbol_id BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
+    symbol    TEXT,
 
     open   DOUBLE PRECISION NOT NULL,
     high   DOUBLE PRECISION NOT NULL,

@@ -170,18 +170,15 @@ impl RawSignalProcessor {
         symbols: &[Symbol],
         timeframes: &[Timeframe],
     ) {
-        // timestamp -> idx (один HashMap по i64, без Symbol/Timeframe)
         let mut idx = std::collections::HashMap::<i64, usize>::with_capacity(cw.timestamps.len());
         for (i, &ts) in cw.timestamps.iter().enumerate() {
             idx.insert(ts, i);
         }
 
-        // helper: column f64 by name (если нет — NaN)
         let col = |name: &str, i: usize| -> f64 {
             batch.get_f64(name).and_then(|v| v.get(i).copied()).unwrap_or(f64::NAN)
         };
 
-        // группируем сигналы по свече
         let mut groups: HashMap<(common::Symbol, common::Timeframe, i64), Vec<usize>> = HashMap::new();
         for (i, s) in signals.iter().enumerate() {
             groups.entry((s.symbol.clone(), s.timeframe, s.timestamp)).or_default().push(i);
@@ -190,7 +187,6 @@ impl RawSignalProcessor {
         for (k, idxs) in groups {
             let Some(&ci) = idx.get(&k.2) else { continue; }; // k.2 is timestamp
 
-            // features_json
             let mut fm = Map::new();
             fm.insert("symbol".into(), json!(symbols[ci].to_string()));
             fm.insert("tf".into(), json!(timeframes[ci].as_str()));
@@ -206,15 +202,12 @@ impl RawSignalProcessor {
             put_num(&mut fm, "bb_mid", col("bb_mid", ci));
             put_num(&mut fm, "bb_lower", col("bb_lower", ci));
             put_num(&mut fm, "cci", col("cci", ci));
-
             put_num(&mut fm, "ema20", col("ema20", ci));
             put_num(&mut fm, "ema50", col("ema50", ci));
             put_num(&mut fm, "ema200", col("ema200", ci));
-
             put_num(&mut fm, "macd", col("macd", ci));
             put_num(&mut fm, "macd_signal", col("macd_signal", ci));
             put_num(&mut fm, "macd_hist", col("macd_hist", ci));
-
             put_num(&mut fm, "obv", col("obv", ci));
             put_num(&mut fm, "rsi", col("rsi", ci));
             put_num(&mut fm, "sma", col("sma", ci));
@@ -225,7 +218,6 @@ impl RawSignalProcessor {
 
             let features_json = JsonValue::Object(fm);
 
-            // scores_json (все сигналы по свече)
             let mut arr = Vec::with_capacity(idxs.len());
             for &si in &idxs {
                 let s = &signals[si];
@@ -240,9 +232,14 @@ impl RawSignalProcessor {
             }
             let scores_json = json!({ "signals": arr });
 
+            // Attach JSON only to the first signal of the candle group
+            if let Some(&first_si) = idxs.get(0) {
+                signals[first_si].features_json = Some(features_json);
+                signals[first_si].scores_json = Some(scores_json);
+            }
+
+            // Set metadata for all signals in the group
             for &si in &idxs {
-                signals[si].features_json = Some(features_json.clone());
-                signals[si].scores_json = Some(scores_json.clone());
                 signals[si].candle_is_final = true;
                 signals[si].calc_source = 1;
             }

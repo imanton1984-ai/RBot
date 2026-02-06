@@ -145,18 +145,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
             println!(
-                "Processing feature batch with {} columns for symbol {} and timeframe {}",
-                feature_window.batch.columns.len(),
+                "Processing feature batch for {} on {}, realtime: {}",
                 feature_window.symbol,
-                feature_window.timeframe
+                feature_window.timeframe,
+                feature_window.is_realtime
             );
+
+            let n = feature_window.batch.timestamps.len();
+            if n == 0 {
+                continue;
+            }
+
+            // For real-time, only process the last 2 bars. For history, process all.
+            let start_idx = if feature_window.is_realtime && n > 2 {
+                n - 2
+            } else {
+                0
+            };
 
             // Handle indicators
             let mut records = Vec::new();
-            for (i, &timestamp) in feature_window.batch.timestamps.iter().enumerate() {
+            let ignored_names: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
+            for (i, &timestamp) in feature_window.batch.timestamps.iter().enumerate().skip(start_idx) {
                 for column in &feature_window.batch.columns {
                     match column {
                         FeatureColumn::F64 { name, values } => {
+                            if ignored_names.contains(&name.as_str()) {
+                                continue; // Skip basic candle data
+                            }
                             if let Some(value) = values.get(i) {
                                 if value.is_finite() {
                                     records.push(IndicatorRecord {
@@ -170,6 +186,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                         FeatureColumn::Json { name, values } => {
+                            if ignored_names.contains(&name.as_str()) { // Should not happen for JSON, but for consistency
+                                continue;
+                            }
                             if let Some(value) = values.get(i) {
                                 if !value.is_null() {
                                     records.push(IndicatorRecord {
@@ -191,10 +210,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Handle raw signals
-            let raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
-            for signal in raw_signals {
-                if let Err(e) = raw_signal_sender.send(signal) {
-                    eprintln!("Error sending raw signal for processing: {}", e);
+            let all_raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
+
+            let signals_to_persist = if feature_window.is_realtime {
+                let last_timestamps: Vec<i64> = feature_window.batch.timestamps.iter().rev().take(2).cloned().collect();
+                all_raw_signals
+                    .into_iter()
+                    .filter(|s| last_timestamps.contains(&s.timestamp))
+                    .collect::<Vec<_>>()
+            } else {
+                all_raw_signals
+            };
+
+            // Group signals by timestamp (since process_feature_window returns a flat list)
+            let mut signals_by_ts: std::collections::HashMap<i64, Vec<RawSignal>> = std::collections::HashMap::new();
+            for sig in signals_to_persist {
+                signals_by_ts.entry(sig.timestamp).or_default().push(sig);
+            }
+
+            for (ts, signals) in signals_by_ts {
+                // Send ONE aggregated record to persistor
+                if let Err(e) = raw_signal_sender.send(crate::raw_signal_persistor::AggregatedSignalRecord {
+                    symbol: feature_window.symbol.clone(),
+                    time_ms: ts,
+                    timeframe: feature_window.timeframe,
+                    signals,
+                    features_json: None, // Will be set by the persistor from the first signal
+                    scores_json: None,   // Will be set by the persistor from the first signal
+                    predictions_json: None, // Will be set by the persistor from the first signal
+                }) {
+                    eprintln!("Error sending aggregated signal for processing: {}", e);
                 }
             }
         }
@@ -213,7 +258,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         println!("Historical data processing completed. Starting real-time processing...");
 
-        if let Err(e) = start_kafka_consumer(kafka_job_scheduler).await {
+        if let Err(e) = start_kafka_consumer(kafka_job_scheduler, required_lookback).await {
             eprintln!("Kafka consumer error: {}", e);
         }
     });
@@ -452,111 +497,125 @@ async fn trigger_historical_compute(
 
 async fn start_kafka_consumer(
     job_scheduler: Arc<JobScheduler>,
+    required_lookback: usize,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use rdkafka::{
         config::ClientConfig,
-        consumer::{Consumer, StreamConsumer, DefaultConsumerContext},
+        consumer::{CommitMode, Consumer, StreamConsumer, DefaultConsumerContext},
         message::Message,
+        types::RDKafkaErrorCode,
+        error::KafkaError,
     };
+    use std::time::Duration;
 
     let brokers = std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "127.0.0.1:19092".to_string());
     let topic = std::env::var("KAFKA_CANDLES_CLOSE_TOPIC").unwrap_or_else(|_| "candles.close".to_string());
     let group_id = std::env::var("COMPUTE_CONSUMER_GROUP").unwrap_or_else(|_| "compute_group".to_string());
+    
+    let mut backoff = Duration::from_secs(1);
+    const MAX_BACKOFF: Duration = Duration::from_secs(64);
 
-    let consumer: StreamConsumer<DefaultConsumerContext> = ClientConfig::new()
-        .set("bootstrap.servers", &brokers)
-        .set("group.id", &group_id)
-        .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "6000")
-        .set("enable.auto.commit", "true")
-        .set("auto.commit.interval.ms", "1000")
-        .set("auto.offset.reset", "latest")
-        .create()
-        .expect("Consumer creation failed");
+    loop {
+        let consumer: StreamConsumer<DefaultConsumerContext> = match ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("group.id", &group_id)
+            .set("enable.partition.eof", "false")
+            .set("session.timeout.ms", "6000")
+            .set("enable.auto.commit", "false") // Disable auto-commit
+            .set("auto.offset.reset", "latest")
+            .create() {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to create Kafka consumer: {}. Retrying in {:?}...", e, backoff);
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(MAX_BACKOFF);
+                    continue;
+                }
+            };
 
-    let result = consumer.subscribe(&[&topic]);
-    match result {
-        Ok(_) => {
-            println!("Started Kafka consumer, listening on topic: {}", topic);
+        match consumer.subscribe(&[&topic]) {
+            Ok(_) => {
+                println!("Started Kafka consumer, listening on topic: {}", topic);
+                backoff = Duration::from_secs(1); // Reset backoff on successful connection
 
-            loop {
-                match consumer.recv().await {
-                    Err(e) => {
-                        eprintln!("Kafka consumer error: {}", e);
-                    }
-                    Ok(msg) => {
-                        match msg.payload() {
-                            None => {
-                                println!("Received message with no payload");
+                loop {
+                    match consumer.recv().await {
+                        Err(e) => {
+                            eprintln!("Kafka consumer error: {}", e);
+                            if let KafkaError::MessageConsumption(RDKafkaErrorCode::AllBrokersDown) = e {
+                                eprintln!("All brokers down. Breaking to reconnect...");
+                                tokio::time::sleep(Duration::from_secs(5)).await; // Wait before reconnecting
+                                break; // Break from inner loop to recreate consumer
                             }
-                            Some(payload) => {
-                                match serde_json::from_slice::<CandleCloseEvent>(payload) {
-                                    Ok(event) => {
-                                        println!("Received candle close event: {} {} at {}", event.symbol, event.timeframe, event.close_time);
+                        }
+                        Ok(msg) => {
+                            match msg.payload() {
+                                None => {
+                                    println!("Received message with no payload");
+                                }
+                                Some(payload) => {
+                                    match serde_json::from_slice::<CandleCloseEvent>(payload) {
+                                        Ok(event) => {
+                                            println!("Received candle close event: {} {} at {}", event.symbol, event.timeframe, event.close_time);
 
-                                        // Convert timeframe string to Timeframe enum
-                                        let timeframe = match event.timeframe.as_str() {
-                                            "1m" => Timeframe::M1,
-                                            "5m" => Timeframe::M5,
-                                            "15m" => Timeframe::M15,
-                                            "1h" => Timeframe::H1,
-                                            "4h" => Timeframe::H4,
-                                            "1d" => Timeframe::D1,
-                                            _ => {
-                                                eprintln!("Unknown timeframe: {}", event.timeframe);
-                                                continue;
+                                            let timeframe = match event.timeframe.as_str() {
+                                                "1m" => Timeframe::M1,
+                                                "5m" => Timeframe::M5,
+                                                "15m" => Timeframe::M15,
+                                                "1h" => Timeframe::H1,
+                                                "4h" => Timeframe::H4,
+                                                "1d" => Timeframe::D1,
+                                                _ => {
+                                                    eprintln!("Unknown timeframe: {}", event.timeframe);
+                                                    continue;
+                                                }
+                                            };
+
+                                            let tf_ms = timeframe.to_minutes() as i64 * 60_000;
+                                            let window_end = event.close_time;
+                                            let window_start = window_end - (required_lookback as i64) * tf_ms;
+
+                                            let job = ComputeJob {
+                                                symbol: Symbol::from(event.symbol),
+                                                timeframe,
+                                                window_start,
+                                                window_end,
+                                                indicators: vec![
+                                                    "adx".to_string(), "atr".to_string(), "bb".to_string(),
+                                                    "cci".to_string(), "ema".to_string(), "macd".to_string(),
+                                                    "obv".to_string(), "rsi".to_string(), "sma".to_string(),
+                                                    "stoch".to_string(), "vwap".to_string(), "williams".to_string(),
+                                                    "alligator".to_string(), "sr_levels".to_string(),
+                                                ],
+                                                candle_window: None,
+                                                is_realtime: true,
+                                            };
+
+                                            if let Err(e) = job_scheduler.process_single_job(job).await {
+                                                eprintln!("Error processing job: {}", e);
+                                                // Do not commit if processing fails
+                                            } else {
+                                                // Manually commit the offset after successful processing
+                                                if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
+                                                    eprintln!("Failed to commit Kafka offset: {}", e);
+                                                }
                                             }
-                                        };
-
-                                        // Create a compute job based on the received candle close event
-                                        // Fetch a window of historical data to calculate indicators properly
-                                        let window_lookback_minutes = 1000; // Look back 1000 minutes
-                                        let window_end = event.close_time;
-                                        let window_start = event.close_time - (window_lookback_minutes * 60000); // Convert minutes to milliseconds
-
-                                        let job = ComputeJob {
-                                            symbol: Symbol::from(event.symbol),
-                                            timeframe,
-                                            window_start,
-                                            window_end,
-                                            indicators: vec![
-                                                "adx".to_string(),
-                                                "atr".to_string(),
-                                                "bb".to_string(),
-                                                "cci".to_string(),
-                                                "ema".to_string(),
-                                                "macd".to_string(),
-                                                "obv".to_string(),
-                                                "rsi".to_string(),
-                                                "sma".to_string(),
-                                                "stoch".to_string(),
-                                                "vwap".to_string(),
-                                                "williams".to_string(),
-                                                "alligator".to_string(),
-                                                "sr_levels".to_string(),
-                                            ],
-                                            candle_window: None, // Will be filled in by process_single_job
-                                        };
-
-                                        // Submit the job to the scheduler
-                                        if let Err(e) = job_scheduler.process_single_job(job).await {
-                                            eprintln!("Error processing job: {}", e);
                                         }
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Failed to deserialize candle close event: {}", e);
+                                        Err(e) => {
+                                            eprintln!("Failed to deserialize candle close event: {}", e);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+            },
+            Err(e) => {
+                eprintln!("Failed to subscribe to topic '{}': {}. Retrying in {:?}...", topic, e, backoff);
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(MAX_BACKOFF);
             }
-        },
-        Err(e) => {
-            eprintln!("Failed to subscribe to topic '{}': {}. This may happen if the topic doesn't exist yet. The service will continue running but won't process candle close events from Kafka.", topic, e);
-            // Just return to continue with other functionality
-            return Ok(());
-        }
-    };
+        };
+    }
 }

@@ -3,3 +3,4 @@ pub mod bulk_persistor;
 
 pub use init_db::*;
 pub use bulk_persistor::*;
+pub use bulk_persistor::AggregatedSignalItem;
