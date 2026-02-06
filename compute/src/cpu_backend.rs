@@ -152,9 +152,9 @@ impl ComputeBackend for CpuBackend {
                         let v = Self::calculate_cci(&candle_window.high, &candle_window.low, &candle_window.close, 20);
                         batch.push_f64("cci", v);
                     }
-                    "ema20" => batch.push_f64("ema20", Self::calculate_ema(&candle_window.close, 20)),
-                    "ema50" => batch.push_f64("ema50", Self::calculate_ema(&candle_window.close, 50)),
-                    "ema200" => batch.push_f64("ema200", Self::calculate_ema(&candle_window.close, 200)),
+                    "ema_20" => batch.push_f64("ema_20", Self::calculate_ema(&candle_window.close, 20)),
+                    "ema_50" => batch.push_f64("ema_50", Self::calculate_ema(&candle_window.close, 50)),
+                    "ema_200" => batch.push_f64("ema_200", Self::calculate_ema(&candle_window.close, 200)),
                     "sma" => batch.push_f64("sma", Self::calculate_sma(&candle_window.close, 20)),
                     "rsi" => batch.push_f64("rsi", Self::calculate_rsi(&candle_window.close, 14)),
                     "obv" => batch.push_f64("obv", Self::calculate_obv(&candle_window.close, &candle_window.volume)),

@@ -15,9 +15,9 @@ hot_indicator_window = 1200
 [compute.indicators]
 rsi = true
 macd = true
-ema20 = true
-ema50 = true
-ema200 = true
+ema_20 = true
+ema_50 = true
+ema_200 = true
 sma = true
 bollinger = true
 stoch = true

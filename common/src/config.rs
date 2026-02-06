@@ -127,9 +127,9 @@ pub struct ComputeConfig {
 pub struct IndicatorFlags {
     pub rsi: bool,
     pub macd: bool,
-    pub ema20: bool,
-    pub ema50: bool,
-    pub ema200: bool,
+    pub ema_20: bool,
+    pub ema_50: bool,
+    pub ema_200: bool,
     pub sma: bool,
     pub bollinger: bool,
     pub stoch: bool,

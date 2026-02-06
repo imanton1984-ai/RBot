@@ -16,7 +16,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS market.indicators_staging (
   time_ms BIGINT NOT NULL,
   symbol_id BIGINT NOT NULL,
 
-  ema20 REAL, ema50 REAL, ema200 REAL,
+  ema_20 REAL, ema_50 REAL, ema_200 REAL,
   sma REAL,
   rsi REAL,
   macd REAL, macd_signal REAL, macd_hist REAL,

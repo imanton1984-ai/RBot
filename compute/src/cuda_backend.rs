@@ -251,9 +251,9 @@ impl ComputeBackend for CudaBackend {
                         batch.push_f64("cci", v);
                     }
                     "ema" => { // Assuming "ema" implies multiple EMAs
-                        batch.push_f64("ema20", self.run_ema_kernel(&candle_window.close, 20)?);
-                        batch.push_f64("ema50", self.run_ema_kernel(&candle_window.close, 50)?);
-                        batch.push_f64("ema200", self.run_ema_kernel(&candle_window.close, 200)?);
+                        batch.push_f64("ema_20", self.run_ema_kernel(&candle_window.close, 20)?);
+                        batch.push_f64("ema_50", self.run_ema_kernel(&candle_window.close, 50)?);
+                        batch.push_f64("ema_200", self.run_ema_kernel(&candle_window.close, 200)?);
                     }
                     "rsi" => batch.push_f64("rsi", self.run_rsi_kernel(&candle_window.close, 14)?),
                     "obv" => batch.push_f64("obv", self.run_obv_kernel(&candle_window.close, &candle_window.volume)?),

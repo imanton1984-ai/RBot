@@ -37,9 +37,9 @@ impl RawSignalProcessor {
         let atr = feature_window.batch.get_f64("atr").unwrap_or(&[]);
         let rsi = feature_window.batch.get_f64("rsi").unwrap_or(&[]);
         let cci = feature_window.batch.get_f64("cci").unwrap_or(&[]);
-        let ema20 = feature_window.batch.get_f64("ema20").unwrap_or(&[]);
-        let ema50 = feature_window.batch.get_f64("ema50").unwrap_or(&[]);
-        let ema200 = feature_window.batch.get_f64("ema200").unwrap_or(&[]);
+        let ema_20 = feature_window.batch.get_f64("ema_20").unwrap_or(&[]);
+        let ema_50 = feature_window.batch.get_f64("ema_50").unwrap_or(&[]);
+        let ema_200 = feature_window.batch.get_f64("ema_200").unwrap_or(&[]);
         let sma = feature_window.batch.get_f64("sma").unwrap_or(&[]);
         let obv = feature_window.batch.get_f64("obv").unwrap_or(&[]);
         let vwap = feature_window.batch.get_f64("vwap").unwrap_or(&[]);
@@ -92,17 +92,17 @@ impl RawSignalProcessor {
         );
 
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema20, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema_20, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 20)),
         );
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema50, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema_50, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 50)),
         );
         raw_signals.extend(
-            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema200, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::ema_raw::calculate_ema_raw_signals(&cw.close, ema_200, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal_with_sub_id(s, 200)),
         );
@@ -202,9 +202,9 @@ impl RawSignalProcessor {
             put_num(&mut fm, "bb_mid", col("bb_mid", ci));
             put_num(&mut fm, "bb_lower", col("bb_lower", ci));
             put_num(&mut fm, "cci", col("cci", ci));
-            put_num(&mut fm, "ema20", col("ema20", ci));
-            put_num(&mut fm, "ema50", col("ema50", ci));
-            put_num(&mut fm, "ema200", col("ema200", ci));
+            put_num(&mut fm, "ema_20", col("ema_20", ci));
+            put_num(&mut fm, "ema_50", col("ema_50", ci));
+            put_num(&mut fm, "ema_200", col("ema_200", ci));
             put_num(&mut fm, "macd", col("macd", ci));
             put_num(&mut fm, "macd_signal", col("macd_signal", ci));
             put_num(&mut fm, "macd_hist", col("macd_hist", ci));
