@@ -299,11 +299,72 @@ impl ComputeBackend for CudaBackend {
                         if batch.get_f64("alligator_lips").is_none() { batch.push_f64("alligator_lips", lips.clone()); }
                     }
 
+                    "volume_spike" => {
+                        // Fall back to CPU implementation for volume_spike
+                        let spikes = compute_indicators::calculate_volume_spike(&candle_window.volume, 20, 2.0);
+                        // Convert boolean vector to f64 vector (true -> 1.0, false -> 0.0)
+                        let spike_values: Vec<f64> = spikes.iter().map(|&b| if b { 1.0 } else { 0.0 }).collect();
+                        batch.push_f64("volume_spike", spike_values);
+                    }
+
+                    "trend" => {
+                        // Fall back to CPU implementation for trend
+                        let trends = compute_indicators::calculate_long_term_trend(&candle_window.close, 20, 50);
+                        // Convert i8 vector to f64 vector for storage
+                        let trend_values: Vec<f64> = trends.iter().map(|&t| t as f64).collect();
+                        batch.push_f64("trend", trend_values);
+                    }
+
+                    "trend_short" => {
+                        // Fall back to CPU implementation for trend_short
+                        let trends = compute_indicators::calculate_short_term_trend(&candle_window.close, 5, 10);
+                        // Convert i8 vector to f64 vector for storage
+                        let trend_values: Vec<f64> = trends.iter().map(|&t| t as f64).collect();
+                        batch.push_f64("trend_short", trend_values);
+                    }
+
+                    "poc" => {
+                        // Calculate POC (Point of Control) based on volume-weighted price
+                        // This is a simplified approach using the close price of the candle with highest volume
+                        let mut poc_values = Vec::with_capacity(n);
+                        
+                        for i in 0..n {
+                            // Use a rolling window to calculate POC
+                            let lookback = std::cmp::min(i + 1, 50); // Look at most recent 50 candles
+                            let start_idx = i + 1 - lookback;
+                            
+                            let window_volumes = &candle_window.volume[start_idx..=i];
+                            let window_closes = &candle_window.close[start_idx..=i];
+                            
+                            // Find the index of the candle with the highest volume in the window
+                            let max_vol_idx = window_volumes
+                                .iter()
+                                .enumerate()
+                                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                                .map(|(idx, _)| idx)
+                                .unwrap_or(0);
+                                
+                            // Use the close price of the candle with highest volume as POC
+                            poc_values.push(window_closes[max_vol_idx]);
+                        }
+                        
+                        batch.push_f64("poc", poc_values);
+                    }
+
                     "sr_levels" => {
-                        let levels = compute_indicators::calculate_sr_levels(&candle_window.high, &candle_window.low, &candle_window.close, 0.5);
-                        let mut v = vec![serde_json::Value::Null; n];
-                        if n > 0 {
-                            v[n - 1] = serde_json::to_value(levels).unwrap_or(serde_json::Value::Null);
+                        // Calculate sr_levels for each candle using rolling window approach
+                        let mut v = Vec::with_capacity(n);
+                        for i in 0..n {
+                            // Use a lookback window for calculating sr_levels up to current candle
+                            let lookback = std::cmp::min(i + 1, 100); // Use up to 100 candles for calculation
+                            let start_idx = i + 1 - lookback;
+                            
+                            let high_slice = &candle_window.high[start_idx..=i];
+                            let low_slice = &candle_window.low[start_idx..=i];
+                            let close_slice = &candle_window.close[start_idx..=i];
+                            
+                            let levels = compute_indicators::calculate_sr_levels(high_slice, low_slice, close_slice, 0.5);
+                            v.push(serde_json::to_value(levels).unwrap_or(serde_json::Value::Null));
                         }
                         batch.push_json("sr_levels", v);
                     }
@@ -343,6 +404,9 @@ impl ComputeBackend for CudaBackend {
         match indicator_name {
             "rsi" => self.run_rsi_kernel(prices, 14),
             "ema" => self.run_ema_kernel(prices, 20),
+            "ema_20" => self.run_ema_kernel(prices, 20),
+            "ema_50" => self.run_ema_kernel(prices, 50),
+            "ema_200" => self.run_ema_kernel(prices, 200),
             _ => {
                 let cpu_backend = super::cpu_backend::CpuBackend::new();
                 cpu_backend.compute_single_indicator(symbol, timeframe, prices, indicator_name).await
