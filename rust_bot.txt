@@ -814,7 +814,7 @@ async fn main() -> Result<()> {
             }
 
             // Отправляем байты в Kafka
-            if let Err(e) = rp_for_ws.send_message(&ws_topic, msg).await {
+            if let Err(e) = rp_for_ws.send_message(&ws_topic, "", msg).await {
                 // Ошибка отправки — это важно, но тоже без спама: WARN/ERROR
                 // Если будет сыпаться — ты сразу увидишь.
                 error!("Kafka forward error: {e}");
@@ -1057,12 +1057,12 @@ impl RedpandaConnection {
         Ok(())
     }
 
-    pub async fn send_message(&self, key: &str, payload: impl AsRef<[u8]>) -> Result<()> {
+    pub async fn send_message(&self, topic: &str, key: &str, payload: impl AsRef<[u8]>) -> Result<()> {
         if let Some(ref producer) = self.producer {
             // В новых версиях rdkafka возвращает Result<Delivery, ...>
             let delivery = producer
                 .send(
-                    FutureRecord::to(&self.config.topic)
+                    FutureRecord::to(topic)
                         .key(key)
                         .payload(payload.as_ref()),
                     Duration::from_secs(1),
@@ -1082,7 +1082,7 @@ impl RedpandaConnection {
     }
 
     pub async fn ping(&self) -> Result<()> {
-        self.send_message("ping", b"test").await
+        self.send_message(&self.config.topic, "ping", b"test").await
     }
 }
 
@@ -1472,6 +1472,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tracing::error;
 
 #[derive(Clone, Debug)]
 pub struct MessageBusConfig {
@@ -1582,7 +1583,9 @@ impl MessageBus {
                 tokio::select! {
                     _ = tick.tick() => {
                         if !batch.is_empty() {
-                            let _ = flush_batch(&producer, &mut batch, timeout).await;
+                            if let Err(e) = flush_batch(&producer, &mut batch, timeout).await {
+                                error!("MessageBus: failed to flush batch: {}", e);
+                            }
                         }
                     }
                     msg = rx.recv() => {
@@ -1590,12 +1593,16 @@ impl MessageBus {
                             Some(m) => {
                                 batch.push(m);
                                 if batch.len() >= cfg.batch_max_messages {
-                                    let _ = flush_batch(&producer, &mut batch, timeout).await;
+                                    if let Err(e) = flush_batch(&producer, &mut batch, timeout).await {
+                                        error!("MessageBus: failed to flush batch: {}", e);
+                                    }
                                 }
                             }
                             None => {
                                 if !batch.is_empty() {
-                                    let _ = flush_batch(&producer, &mut batch, timeout).await;
+                                    if let Err(e) = flush_batch(&producer, &mut batch, timeout).await {
+                                        error!("MessageBus: failed to flush batch: {}", e);
+                                    }
                                 }
                                 break;
                             }
@@ -1617,7 +1624,11 @@ impl MessageBus {
 
     #[inline]
     pub fn topic(&self, name: &str) -> String {
-        format!("{}.{}", self.config.topic_prefix, name)
+        if self.config.topic_prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}.{}", self.config.topic_prefix, name)
+        }
     }
 
     pub async fn publish<T: Serialize>(&self, topic: &str, key: &[u8], message: &T) -> Result<()> {
@@ -1631,7 +1642,7 @@ impl MessageBus {
         message: &T,
         partition: Option<i32>,
     ) -> Result<()> {
-        let payload = bincode::serialize(message)?;
+        let payload = serde_json::to_vec(message)?;
         let msg = OutboundMessage {
             topic: self.topic(topic),
             key: key.to_vec(),
@@ -1670,7 +1681,7 @@ impl MessageBus {
                             Some(p) => p,
                             None => continue,
                         };
-                        let decoded: Result<T> = bincode::deserialize(payload).map_err(|e| anyhow!("Deserialize error: {}", e));
+                        let decoded: Result<T> = serde_json::from_slice(payload).map_err(|e| anyhow!("Deserialize error: {}", e));
                         let item = decoded.map(|payload| IncomingMessage {
                             key: owned.key().unwrap_or(&[]).to_vec(),
                             payload,
@@ -5192,7 +5203,7 @@ async fn flush_wide_indicators_chunk(
 ) -> Result<()> {
     if chunk.is_empty() { return Ok(()); }
     
-    // tracing::info!("Persistor: Flushing {} wide indicators...", chunk.len());
+    tracing::info!("Persistor: Flushing {} wide indicator rows...", chunk.len());
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -5242,11 +5253,19 @@ async fn flush_wide_indicators_chunk(
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
 
+    // Log indicator fill stats for first row in chunk (diagnostic)
+    if let Some((_, _, _, _, ref first_indicators, _, _, _, _)) = chunk.first() {
+        let non_null_count = first_indicators.len();
+        tracing::debug!(
+            "Wide indicator sample: {} non-null indicators in first row (keys: {:?})",
+            non_null_count,
+            first_indicators.keys().collect::<Vec<_>>()
+        );
+    }
+
     for (sym_id_str, sym_str, tf, tms, indicators, json_data, final_flag, cs, etm) in chunk {
         // Resolve symbol_id (reuse cache logic)
-        // Note: You might need to make get_symbol_id visible or inline its logic if it's private
-        // Assuming get_symbol_id handles the cache correctly:
-        let sym_id = get_symbol_id(pool, cache, &sym_id_str).await?; 
+        let sym_id = get_symbol_id(pool, cache, &sym_id_str).await?;
 
         time.push(ms_to_ts(tms));
         time_ms.push(tms);
@@ -15998,12 +16017,15 @@ impl BootstrapCoordinator {
         Ok(submitted)
     }
 
-    /// Ждём пока будет хотя бы min_symbols ready (для запуска realtime)
+    /// Ждём пока будет хотя бы min_symbols ready (для запуска realtime).
+    /// Таймаут 5 минут — если за это время не набралось min_symbols,
+    /// всё равно стартуем realtime (Kafka consumer), чтобы не зависнуть навсегда.
     pub async fn wait_for_readiness_threshold(
         &self,
         min_symbols: usize,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut last_log = Instant::now();
+        let deadline = Instant::now() + Duration::from_secs(300); // 5 min max wait
 
         loop {
             let (ready_count, total) = {
@@ -16012,18 +16034,31 @@ impl BootstrapCoordinator {
             };
 
             if ready_count >= min_symbols {
+                println!(
+                    "Readiness threshold reached: ready={}/{} (min_symbols={})",
+                    ready_count, total, min_symbols
+                );
                 return Ok(());
             }
 
-            if last_log.elapsed() >= Duration::from_secs(5) {
+            if Instant::now() >= deadline {
                 println!(
-                    "Waiting readiness: ready={}/{} (min_symbols={}, min_bars_ready={})",
-                    ready_count, total, min_symbols, self.min_bars_ready
+                    "Readiness timeout after 5 min: ready={}/{} (min_symbols={}). Starting real-time anyway.",
+                    ready_count, total, min_symbols
+                );
+                return Ok(());
+            }
+
+            if last_log.elapsed() >= Duration::from_secs(10) {
+                println!(
+                    "Waiting readiness: ready={}/{} (min_symbols={}, min_bars_ready={}, timeout in {:.0}s)",
+                    ready_count, total, min_symbols, self.min_bars_ready,
+                    (deadline - Instant::now()).as_secs_f64()
                 );
                 last_log = Instant::now();
             }
 
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
     }
 }
@@ -16468,6 +16503,39 @@ impl ComputeBackend for CpuBackend {
             // Добавляем колонки (строка-имя 1 раз на колонку).
             for indicator in &job.indicators {
                 match indicator.as_str() {
+                    // ALIASES for grouped indicators
+                    "ema" => {
+                        if batch.get_f64("ema_20").is_none() { batch.push_f64("ema_20", Self::calculate_ema(&candle_window.close, 20)); }
+                        if batch.get_f64("ema_50").is_none() { batch.push_f64("ema_50", Self::calculate_ema(&candle_window.close, 50)); }
+                        if batch.get_f64("ema_200").is_none() { batch.push_f64("ema_200", Self::calculate_ema(&candle_window.close, 200)); }
+                    }
+                    "bb" | "bollinger" => {
+                        if bb_cache.is_none() {
+                            bb_cache = Some(Self::calculate_bollinger_bands(&candle_window.close, 20, 2.0));
+                        }
+                        let (upper, mid, lower) = bb_cache.as_ref().unwrap();
+                        if batch.get_f64("bb_upper").is_none() { batch.push_f64("bb_upper", upper.clone()); }
+                        if batch.get_f64("bb_mid").is_none() { batch.push_f64("bb_mid", mid.clone()); }
+                        if batch.get_f64("bb_lower").is_none() { batch.push_f64("bb_lower", lower.clone()); }
+                    }
+                    "stoch" | "stochastic" => {
+                        if stoch_cache.is_none() {
+                            stoch_cache = Some(Self::calculate_stochastic(&candle_window.high, &candle_window.low, &candle_window.close, 14, 3));
+                        }
+                        let (k, d) = stoch_cache.as_ref().unwrap();
+                        if batch.get_f64("stoch_k").is_none() { batch.push_f64("stoch_k", k.clone()); }
+                        if batch.get_f64("stoch_d").is_none() { batch.push_f64("stoch_d", d.clone()); }
+                    }
+                    "alligator" => {
+                        if alligator_cache.is_none() {
+                            alligator_cache = Some(Self::calculate_alligator(&candle_window.close, 13, 8, 5, 8, 5, 3));
+                        }
+                        let (jaw, teeth, lips) = alligator_cache.as_ref().unwrap();
+                        if batch.get_f64("alligator_jaw").is_none() { batch.push_f64("alligator_jaw", jaw.clone()); }
+                        if batch.get_f64("alligator_teeth").is_none() { batch.push_f64("alligator_teeth", teeth.clone()); }
+                        if batch.get_f64("alligator_lips").is_none() { batch.push_f64("alligator_lips", lips.clone()); }
+                    }
+
                     "adx" => {
                         let v = Self::calculate_adx(&candle_window.high, &candle_window.low, &candle_window.close, 14);
                         batch.push_f64("adx", v);
@@ -17402,27 +17470,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_pool_clone = db_pool.clone();
     
     tokio::spawn(async move {
-        // IMPROVED: Wait loop logic
+        // Wait for ingestor to populate candles.
+        // Initial load can take 20-60+ seconds depending on network and rate limits.
+        // We poll every 2 seconds, no fixed retry limit — just wait until data appears.
         println!("Waiting for historical data to be ingested...");
-        let max_retries = 30; // Try for ~60 seconds
         let mut data_found = false;
+        let start = std::time::Instant::now();
         
-        for i in 0..max_retries {
+        loop {
             // Check if we have any candles in M1 table
             let row = sqlx::query("SELECT 1 FROM market.candles_1m LIMIT 1")
                 .fetch_optional(&db_pool_clone)
                 .await;
                 
             if let Ok(Some(_)) = row {
-                println!("Data detected in DB. Starting historical compute...");
+                println!("Data detected in DB after {:.1}s. Starting historical compute...",
+                    start.elapsed().as_secs_f64());
                 data_found = true;
-                // Give a little more grace time for bulk copy to fully commit/index
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                // Brief grace time for bulk copy to fully commit
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 break;
             }
             
-            if i % 5 == 0 {
-                println!("Waiting for ingestor... (attempt {}/{})", i+1, max_retries);
+            let elapsed = start.elapsed().as_secs();
+            if elapsed % 10 == 0 && elapsed > 0 {
+                println!("Waiting for ingestor... ({:.0}s elapsed)", start.elapsed().as_secs_f64());
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
@@ -17431,8 +17503,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(e) = trigger_historical_compute(&bootstrap_coordinator_clone, &db_pool_clone).await {
                 eprintln!("Error triggering historical compute: {}", e);
             }
-        } else {
-            eprintln!("TIMEOUT: No historical data found after waiting. Historical compute skipped.");
         }
     });
 
@@ -17456,24 +17526,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw_signal_persistor_clone = Arc::clone(&raw_signal_persistor);
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
+            let n = feature_window.batch.timestamps.len();
             println!(
-                "Processing feature batch for {} on {}, realtime: {}",
+                "Processing feature batch for {} on {}, bars={}, cols={}, realtime: {}",
                 feature_window.symbol,
                 feature_window.timeframe,
+                n,
+                feature_window.batch.columns.len(),
                 feature_window.is_realtime
             );
 
-            let n = feature_window.batch.timestamps.len();
             if n == 0 {
                 continue;
             }
 
-            // For real-time, only process the last 2 bars. For history, process all.
+            // Determine the effective start index for persistence:
+            // - Real-time: only the last 2 bars
+            // - Historical: skip warmup bars where most indicators are NaN.
+            //   We find the first bar where at least half of the f64 columns
+            //   have finite (non-NaN) values. This avoids persisting rows
+            //   that would be mostly NULL in the wide table.
             let start_idx = if feature_window.is_realtime && n > 2 {
                 n - 2
             } else {
-                0
+                // For historical: find the first bar where enough indicators are valid
+                let f64_columns: Vec<&Vec<f64>> = feature_window.batch.columns.iter()
+                    .filter_map(|c| match c {
+                        FeatureColumn::F64 { name, values } => {
+                            // Skip candle data columns
+                            let ignored: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
+                            if ignored.contains(&name.as_str()) { None } else { Some(values) }
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                let total_cols = f64_columns.len();
+                let threshold = (total_cols as f64 * 0.5).ceil() as usize; // At least 50% of indicators must be valid
+
+                let mut effective_start = 0;
+                for bar_idx in 0..n {
+                    let valid_count = f64_columns.iter()
+                        .filter(|col| col.get(bar_idx).map_or(false, |v| v.is_finite()))
+                        .count();
+                    if valid_count >= threshold {
+                        effective_start = bar_idx;
+                        break;
+                    }
+                    // If we reach the end without finding a valid bar, start from 0
+                    if bar_idx == n - 1 {
+                        effective_start = n; // Will skip all bars
+                    }
+                }
+                effective_start
             };
+
+            if start_idx >= n {
+                println!(
+                    "Skipping feature batch for {} on {} - no bars with enough valid indicators",
+                    feature_window.symbol, feature_window.timeframe
+                );
+                continue;
+            }
 
             // Handle indicators
             let mut records = Vec::new();
@@ -17518,11 +17631,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if !records.is_empty() {
+                println!(
+                    "  Persisting {} indicator records for {} on {} (bars {}..{}, skipped {} warmup bars)",
+                    records.len(),
+                    feature_window.symbol,
+                    feature_window.timeframe,
+                    start_idx,
+                    n - 1,
+                    start_idx
+                );
                 persistor_clone2.queue_records(records).await;
             }
 
             // Handle raw signals
             let all_raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
+            let all_raw_signals_count = all_raw_signals.len();
+
+            // Filter raw signals: skip warmup bars (same logic as indicators)
+            let min_valid_timestamp = if start_idx < n {
+                feature_window.batch.timestamps[start_idx]
+            } else {
+                i64::MAX // No valid bars → skip all signals
+            };
 
             let signals_to_persist = if feature_window.is_realtime {
                 let last_timestamps: Vec<i64> = feature_window.batch.timestamps.iter().rev().take(2).cloned().collect();
@@ -17531,11 +17661,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .filter(|s| last_timestamps.contains(&s.timestamp))
                     .collect::<Vec<_>>()
             } else {
+                // For historical: only persist signals for bars past the warmup period
                 all_raw_signals
+                    .into_iter()
+                    .filter(|s| s.timestamp >= min_valid_timestamp)
+                    .collect::<Vec<_>>()
             };
 
             // Send signals directly to persistor (no aggregation needed)
             if !signals_to_persist.is_empty() {
+                println!(
+                    "  Persisting {} raw signals for {} on {} (filtered from {} total)",
+                    signals_to_persist.len(),
+                    feature_window.symbol,
+                    feature_window.timeframe,
+                    all_raw_signals_count
+                );
                 raw_signal_persistor_clone.queue_records(signals_to_persist).await;
             }
         }

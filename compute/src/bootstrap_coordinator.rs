@@ -132,12 +132,15 @@ impl BootstrapCoordinator {
         Ok(submitted)
     }
 
-    /// Ждём пока будет хотя бы min_symbols ready (для запуска realtime)
+    /// Ждём пока будет хотя бы min_symbols ready (для запуска realtime).
+    /// Таймаут 5 минут — если за это время не набралось min_symbols,
+    /// всё равно стартуем realtime (Kafka consumer), чтобы не зависнуть навсегда.
     pub async fn wait_for_readiness_threshold(
         &self,
         min_symbols: usize,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut last_log = Instant::now();
+        let deadline = Instant::now() + Duration::from_secs(300); // 5 min max wait
 
         loop {
             let (ready_count, total) = {
@@ -146,18 +149,31 @@ impl BootstrapCoordinator {
             };
 
             if ready_count >= min_symbols {
+                println!(
+                    "Readiness threshold reached: ready={}/{} (min_symbols={})",
+                    ready_count, total, min_symbols
+                );
                 return Ok(());
             }
 
-            if last_log.elapsed() >= Duration::from_secs(5) {
+            if Instant::now() >= deadline {
                 println!(
-                    "Waiting readiness: ready={}/{} (min_symbols={}, min_bars_ready={})",
-                    ready_count, total, min_symbols, self.min_bars_ready
+                    "Readiness timeout after 5 min: ready={}/{} (min_symbols={}). Starting real-time anyway.",
+                    ready_count, total, min_symbols
+                );
+                return Ok(());
+            }
+
+            if last_log.elapsed() >= Duration::from_secs(10) {
+                println!(
+                    "Waiting readiness: ready={}/{} (min_symbols={}, min_bars_ready={}, timeout in {:.0}s)",
+                    ready_count, total, min_symbols, self.min_bars_ready,
+                    (deadline - Instant::now()).as_secs_f64()
                 );
                 last_log = Instant::now();
             }
 
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
     }
 }

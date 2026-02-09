@@ -491,7 +491,7 @@ async fn flush_wide_indicators_chunk(
 ) -> Result<()> {
     if chunk.is_empty() { return Ok(()); }
     
-    // tracing::info!("Persistor: Flushing {} wide indicators...", chunk.len());
+    tracing::info!("Persistor: Flushing {} wide indicator rows...", chunk.len());
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -541,11 +541,19 @@ async fn flush_wide_indicators_chunk(
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
 
+    // Log indicator fill stats for first row in chunk (diagnostic)
+    if let Some((_, _, _, _, ref first_indicators, _, _, _, _)) = chunk.first() {
+        let non_null_count = first_indicators.len();
+        tracing::debug!(
+            "Wide indicator sample: {} non-null indicators in first row (keys: {:?})",
+            non_null_count,
+            first_indicators.keys().collect::<Vec<_>>()
+        );
+    }
+
     for (sym_id_str, sym_str, tf, tms, indicators, json_data, final_flag, cs, etm) in chunk {
         // Resolve symbol_id (reuse cache logic)
-        // Note: You might need to make get_symbol_id visible or inline its logic if it's private
-        // Assuming get_symbol_id handles the cache correctly:
-        let sym_id = get_symbol_id(pool, cache, &sym_id_str).await?; 
+        let sym_id = get_symbol_id(pool, cache, &sym_id_str).await?;
 
         time.push(ms_to_ts(tms));
         time_ms.push(tms);

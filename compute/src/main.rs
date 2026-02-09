@@ -91,27 +91,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_pool_clone = db_pool.clone();
     
     tokio::spawn(async move {
-        // IMPROVED: Wait loop logic
+        // Wait for ingestor to populate candles.
+        // Initial load can take 20-60+ seconds depending on network and rate limits.
+        // We poll every 2 seconds, no fixed retry limit — just wait until data appears.
         println!("Waiting for historical data to be ingested...");
-        let max_retries = 30; // Try for ~60 seconds
         let mut data_found = false;
+        let start = std::time::Instant::now();
         
-        for i in 0..max_retries {
+        loop {
             // Check if we have any candles in M1 table
             let row = sqlx::query("SELECT 1 FROM market.candles_1m LIMIT 1")
                 .fetch_optional(&db_pool_clone)
                 .await;
                 
             if let Ok(Some(_)) = row {
-                println!("Data detected in DB. Starting historical compute...");
+                println!("Data detected in DB after {:.1}s. Starting historical compute...",
+                    start.elapsed().as_secs_f64());
                 data_found = true;
-                // Give a little more grace time for bulk copy to fully commit/index
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                // Brief grace time for bulk copy to fully commit
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 break;
             }
             
-            if i % 5 == 0 {
-                println!("Waiting for ingestor... (attempt {}/{})", i+1, max_retries);
+            let elapsed = start.elapsed().as_secs();
+            if elapsed % 10 == 0 && elapsed > 0 {
+                println!("Waiting for ingestor... ({:.0}s elapsed)", start.elapsed().as_secs_f64());
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
@@ -120,8 +124,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(e) = trigger_historical_compute(&bootstrap_coordinator_clone, &db_pool_clone).await {
                 eprintln!("Error triggering historical compute: {}", e);
             }
-        } else {
-            eprintln!("TIMEOUT: No historical data found after waiting. Historical compute skipped.");
         }
     });
 
@@ -145,24 +147,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw_signal_persistor_clone = Arc::clone(&raw_signal_persistor);
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
+            let n = feature_window.batch.timestamps.len();
             println!(
-                "Processing feature batch for {} on {}, realtime: {}",
+                "Processing feature batch for {} on {}, bars={}, cols={}, realtime: {}",
                 feature_window.symbol,
                 feature_window.timeframe,
+                n,
+                feature_window.batch.columns.len(),
                 feature_window.is_realtime
             );
 
-            let n = feature_window.batch.timestamps.len();
             if n == 0 {
                 continue;
             }
 
-            // For real-time, only process the last 2 bars. For history, process all.
+            // Determine the effective start index for persistence:
+            // - Real-time: only the last 2 bars
+            // - Historical: skip warmup bars where most indicators are NaN.
+            //   We find the first bar where at least half of the f64 columns
+            //   have finite (non-NaN) values. This avoids persisting rows
+            //   that would be mostly NULL in the wide table.
             let start_idx = if feature_window.is_realtime && n > 2 {
                 n - 2
             } else {
-                0
+                // For historical: find the first bar where enough indicators are valid
+                let f64_columns: Vec<&Vec<f64>> = feature_window.batch.columns.iter()
+                    .filter_map(|c| match c {
+                        FeatureColumn::F64 { name, values } => {
+                            // Skip candle data columns
+                            let ignored: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
+                            if ignored.contains(&name.as_str()) { None } else { Some(values) }
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                let total_cols = f64_columns.len();
+                let threshold = (total_cols as f64 * 0.5).ceil() as usize; // At least 50% of indicators must be valid
+
+                let mut effective_start = 0;
+                for bar_idx in 0..n {
+                    let valid_count = f64_columns.iter()
+                        .filter(|col| col.get(bar_idx).map_or(false, |v| v.is_finite()))
+                        .count();
+                    if valid_count >= threshold {
+                        effective_start = bar_idx;
+                        break;
+                    }
+                    // If we reach the end without finding a valid bar, start from 0
+                    if bar_idx == n - 1 {
+                        effective_start = n; // Will skip all bars
+                    }
+                }
+                effective_start
             };
+
+            if start_idx >= n {
+                println!(
+                    "Skipping feature batch for {} on {} - no bars with enough valid indicators",
+                    feature_window.symbol, feature_window.timeframe
+                );
+                continue;
+            }
 
             // Handle indicators
             let mut records = Vec::new();
@@ -207,11 +252,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if !records.is_empty() {
+                println!(
+                    "  Persisting {} indicator records for {} on {} (bars {}..{}, skipped {} warmup bars)",
+                    records.len(),
+                    feature_window.symbol,
+                    feature_window.timeframe,
+                    start_idx,
+                    n - 1,
+                    start_idx
+                );
                 persistor_clone2.queue_records(records).await;
             }
 
             // Handle raw signals
             let all_raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
+            let all_raw_signals_count = all_raw_signals.len();
+
+            // Filter raw signals: skip warmup bars (same logic as indicators)
+            let min_valid_timestamp = if start_idx < n {
+                feature_window.batch.timestamps[start_idx]
+            } else {
+                i64::MAX // No valid bars → skip all signals
+            };
 
             let signals_to_persist = if feature_window.is_realtime {
                 let last_timestamps: Vec<i64> = feature_window.batch.timestamps.iter().rev().take(2).cloned().collect();
@@ -220,11 +282,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .filter(|s| last_timestamps.contains(&s.timestamp))
                     .collect::<Vec<_>>()
             } else {
+                // For historical: only persist signals for bars past the warmup period
                 all_raw_signals
+                    .into_iter()
+                    .filter(|s| s.timestamp >= min_valid_timestamp)
+                    .collect::<Vec<_>>()
             };
 
             // Send signals directly to persistor (no aggregation needed)
             if !signals_to_persist.is_empty() {
+                println!(
+                    "  Persisting {} raw signals for {} on {} (filtered from {} total)",
+                    signals_to_persist.len(),
+                    feature_window.symbol,
+                    feature_window.timeframe,
+                    all_raw_signals_count
+                );
                 raw_signal_persistor_clone.queue_records(signals_to_persist).await;
             }
         }
