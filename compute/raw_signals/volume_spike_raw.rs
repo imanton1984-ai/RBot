@@ -3,9 +3,9 @@ use crate::scoring::sigmoid_normalize;
 use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
-/// Calculate volume spike raw signals
+/// Calculate volume spike raw signals based on volume ratios
 pub fn calculate_volume_spike_raw_signals(
-    volume_spikes: &[bool],
+    volume_ratios: &[f64], // Changed from &[bool] to &[f64]
     volumes: &[f64],
     timestamps: &[i64],
     symbols: &[Symbol],
@@ -13,32 +13,26 @@ pub fn calculate_volume_spike_raw_signals(
     config: &SignalConfig,
 ) -> Vec<RawSignal> {
     let mut signals = Vec::new();
-    
-    for i in 0..volume_spikes.len() {
-        if i >= volumes.len() || i >= timestamps.len() || i >= symbols.len() || i >= timeframes.len() {
+    // Threshold for considering it a "spike" signal (e.g., 2.0x average)
+    let spike_threshold = 2.0;
+
+    for i in 0..volume_ratios.len() {
+        if i >= volumes.len() || i >= timestamps.len() || 
+           i >= symbols.len() || i >= timeframes.len() {
             break;
         }
         
-        if volume_spikes[i] {
+        let ratio = volume_ratios[i];
+        
+        if ratio > spike_threshold {
             let raw_volume = volumes[i];
             
-            if raw_volume.is_nan() {
-                continue;
-            }
-            
-            // Normalize volume to score [0, 1] - higher volumes get higher scores
-            // We'll use a logarithmic scale to prevent extremely high volumes from dominating
-            let normalized_volume = if raw_volume > 0.0 {
-                let log_volume = raw_volume.ln();
-                // Assuming max log volume is around 20 for normalization
-                (log_volume / 20.0).min(1.0).max(0.0)
-            } else {
-                0.0
-            };
-            
-            // Apply sigmoid to emphasize strong volume spikes
-            let score = sigmoid_normalize(normalized_volume, 0.3, 6.0);
-            
+            // Normalize score: 
+            // 2.0x -> ~0.5 score
+            // 5.0x -> ~0.9 score
+            // We shift input by threshold so 2.0 maps to 0 in sigmoid center logic
+            let score = sigmoid_normalize(ratio - spike_threshold, 1.0, 1.0);
+
             // Create raw signal
             let signal = RawSignal::new(
                 symbols[i].clone(),
@@ -46,13 +40,12 @@ pub fn calculate_volume_spike_raw_signals(
                 timestamps[i],
                 RawSignalType::VolumeSpike.to_indicator_id(),
                 SignalKind::PriceRelation.to_i16(),
-                0,
+                0, // No specific direction
                 score as f32,
-                raw_volume as f32,
+                ratio as f32, // Store the ratio as the value, not raw volume
                 None,
             );
-            
-            // Only include signals that meet our threshold criteria
+
             if signal.is_above_threshold(config) {
                 signals.push(signal);
             }

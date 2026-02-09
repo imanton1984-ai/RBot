@@ -15,10 +15,10 @@ pub fn calculate_volume_spike(
     // Calculate average volume for each position
     for i in (period - 1)..n {
         let start_idx = i + 1 - period;
-        
+
         let sum: f64 = volumes[start_idx..i].iter().sum();
         let avg_vol = sum / (period - 1) as f64;  // Exclude current bar from average
-        
+
         // Check if current volume is significantly higher than average
         if avg_vol > 0.0 && volumes[i] > avg_vol * threshold_factor {
             spikes[i] = true;
@@ -26,6 +26,35 @@ pub fn calculate_volume_spike(
     }
 
     spikes
+}
+
+/// Returns the ratio of current volume to the moving average of volume.
+/// Example: 2.5 means current volume is 2.5x the average.
+pub fn calculate_volume_spike_ratio(
+    volumes: &[f64],
+    period: usize,
+) -> Vec<f64> {
+    let n = volumes.len();
+    let mut ratios = vec![0.0; n]; // Default to 0.0 instead of NaN for safety in ML features
+
+    if n < period {
+        return ratios;
+    }
+
+    // Calculate average volume for each position (excluding current bar to avoid bias)
+    for i in (period - 1)..n {
+        let start_idx = i + 1 - period;
+        let sum: f64 = volumes[start_idx..i].iter().sum();
+        let avg_vol = sum / (period - 1) as f64;
+        
+        if avg_vol > 0.0 {
+            ratios[i] = volumes[i] / avg_vol;
+        } else if volumes[i] > 0.0 {
+            ratios[i] = 100.0; // Infinite spike (from 0 volume to something)
+        }
+    }
+
+    ratios
 }
 
 // Alternative: Calculate volume percentile-based spikes

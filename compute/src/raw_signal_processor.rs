@@ -52,6 +52,7 @@ impl RawSignalProcessor {
         let macd_hist = feature_window.batch.get_f64("macd_hist").unwrap_or(&[]);
         let stoch_k = feature_window.batch.get_f64("stoch_k").unwrap_or(&[]);
         let stoch_d = feature_window.batch.get_f64("stoch_d").unwrap_or(&[]);
+        let volume_spike = feature_window.batch.get_f64("volume_spike").unwrap_or(&[]);
 
         let timestamps = feature_window.batch.timestamps.as_slice();
 
@@ -149,6 +150,19 @@ impl RawSignalProcessor {
                 .map(|s| self.convert_raw_signal(s)),
         );
 
+        raw_signals.extend(
+            raw_signals::volume_spike_raw::calculate_volume_spike_raw_signals(
+                volume_spike, // Now passing f64 slice
+                &cw.volume,
+                timestamps,
+                &symbols,
+                &timeframes,
+                &self.config,
+            )
+            .into_iter()
+            .map(|s| self.convert_raw_signal(s)),
+        );
+
         // Приклеиваем контекст (features_json + scores_json) по свече.
         self.attach_context(
             &mut raw_signals,
@@ -215,6 +229,7 @@ impl RawSignalProcessor {
             put_num(&mut fm, "stoch_d", col("stoch_d", ci));
             put_num(&mut fm, "vwap", col("vwap", ci));
             put_num(&mut fm, "williams", col("williams", ci));
+            put_num(&mut fm, "volume_spike", col("volume_spike", ci));
 
             let features_json = JsonValue::Object(fm);
 

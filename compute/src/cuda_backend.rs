@@ -301,10 +301,8 @@ impl ComputeBackend for CudaBackend {
 
                     "volume_spike" => {
                         // Fall back to CPU implementation for volume_spike
-                        let spikes = compute_indicators::calculate_volume_spike(&candle_window.volume, 20, 2.0);
-                        // Convert boolean vector to f64 vector (true -> 1.0, false -> 0.0)
-                        let spike_values: Vec<f64> = spikes.iter().map(|&b| if b { 1.0 } else { 0.0 }).collect();
-                        batch.push_f64("volume_spike", spike_values);
+                        let ratios = compute_indicators::calculate_volume_spike_ratio(&candle_window.volume, 20);
+                        batch.push_f64("volume_spike", ratios);
                     }
 
                     "trend" => {
