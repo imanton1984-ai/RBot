@@ -121,6 +121,17 @@ pub struct ComputeConfig {
 
     pub raw_signals: RawSignalsConfig,
     pub final_signals: FinalSignalsConfig,
+    pub predictions: PredictionsConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PredictionsConfig {
+    pub enabled: bool,
+    pub horizon_bars: usize,         // =10
+    pub min_store_score: f64,        // 0.80
+    pub min_final_score: f64,        // 0.90
+    pub prefer_ml: bool,             // true
+    pub max_levels_per_side: usize,  // напр. 2
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -174,6 +185,8 @@ pub struct RustBotConfig {
     pub topic_raw_signals: String,
     pub topic_final_signals: String,
     pub topic_features_snapshot: String,
+    pub topic_predictions: String,
+    pub topic_prediction_events: String,
     pub topic_orders_cmd: String,
     pub topic_orders_events: String,
     pub topic_positions_events: String,
