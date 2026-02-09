@@ -139,15 +139,19 @@ impl JobScheduler {
     pub async fn process_single_job(
         &self,
         mut job: ComputeJob,
-    ) -> Result<Arc<FeatureWindow>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let window = self.inner.candle_fetcher.fetch_candle_window(&job.symbol, job.timeframe, job.window_start, job.window_end).await?;
         job.candle_window = Some(window);
         let results = self.inner.compute_backend.compute_indicators(vec![job]).await?;
 
         if let Some(result) = results.into_iter().next() {
-            Ok(result)
+            if self.inner.result_sender.send(result).is_err() {
+                return Err("Result receiver channel closed".into());
+            }
         } else {
-            Err("No results returned from compute backend".into())
+            return Err("No results returned from compute backend".into());
         }
+        
+        Ok(())
     }
 }

@@ -143,7 +143,7 @@ async fn main() -> Result<()> {
             }
 
             // Отправляем байты в Kafka
-            if let Err(e) = rp_for_ws.send_message(&ws_topic, msg).await {
+            if let Err(e) = rp_for_ws.send_message(&ws_topic, "", msg).await {
                 // Ошибка отправки — это важно, но тоже без спама: WARN/ERROR
                 // Если будет сыпаться — ты сразу увидишь.
                 error!("Kafka forward error: {e}");

@@ -140,6 +140,39 @@ impl ComputeBackend for CpuBackend {
             // Добавляем колонки (строка-имя 1 раз на колонку).
             for indicator in &job.indicators {
                 match indicator.as_str() {
+                    // ALIASES for grouped indicators
+                    "ema" => {
+                        if batch.get_f64("ema_20").is_none() { batch.push_f64("ema_20", Self::calculate_ema(&candle_window.close, 20)); }
+                        if batch.get_f64("ema_50").is_none() { batch.push_f64("ema_50", Self::calculate_ema(&candle_window.close, 50)); }
+                        if batch.get_f64("ema_200").is_none() { batch.push_f64("ema_200", Self::calculate_ema(&candle_window.close, 200)); }
+                    }
+                    "bb" | "bollinger" => {
+                        if bb_cache.is_none() {
+                            bb_cache = Some(Self::calculate_bollinger_bands(&candle_window.close, 20, 2.0));
+                        }
+                        let (upper, mid, lower) = bb_cache.as_ref().unwrap();
+                        if batch.get_f64("bb_upper").is_none() { batch.push_f64("bb_upper", upper.clone()); }
+                        if batch.get_f64("bb_mid").is_none() { batch.push_f64("bb_mid", mid.clone()); }
+                        if batch.get_f64("bb_lower").is_none() { batch.push_f64("bb_lower", lower.clone()); }
+                    }
+                    "stoch" | "stochastic" => {
+                        if stoch_cache.is_none() {
+                            stoch_cache = Some(Self::calculate_stochastic(&candle_window.high, &candle_window.low, &candle_window.close, 14, 3));
+                        }
+                        let (k, d) = stoch_cache.as_ref().unwrap();
+                        if batch.get_f64("stoch_k").is_none() { batch.push_f64("stoch_k", k.clone()); }
+                        if batch.get_f64("stoch_d").is_none() { batch.push_f64("stoch_d", d.clone()); }
+                    }
+                    "alligator" => {
+                        if alligator_cache.is_none() {
+                            alligator_cache = Some(Self::calculate_alligator(&candle_window.close, 13, 8, 5, 8, 5, 3));
+                        }
+                        let (jaw, teeth, lips) = alligator_cache.as_ref().unwrap();
+                        if batch.get_f64("alligator_jaw").is_none() { batch.push_f64("alligator_jaw", jaw.clone()); }
+                        if batch.get_f64("alligator_teeth").is_none() { batch.push_f64("alligator_teeth", teeth.clone()); }
+                        if batch.get_f64("alligator_lips").is_none() { batch.push_f64("alligator_lips", lips.clone()); }
+                    }
+
                     "adx" => {
                         let v = Self::calculate_adx(&candle_window.high, &candle_window.low, &candle_window.close, 14);
                         batch.push_f64("adx", v);

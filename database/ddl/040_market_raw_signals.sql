@@ -1,11 +1,9 @@
 -- database/ddl/040_market_raw_signals.sql
--- Aggregated signals table: one row per candle with all signals stored in a JSONB array.
--- This reduces row count significantly compared to individual signal rows.
-
 CREATE SCHEMA IF NOT EXISTS market;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
--- database/ddl/040_market_raw_signals.sql
+DROP TABLE IF EXISTS market.raw_signals CASCADE;
+
 CREATE TABLE IF NOT EXISTS market.raw_signals (
     time            TIMESTAMPTZ NOT NULL,
     time_ms         BIGINT      NOT NULL,
@@ -31,17 +29,24 @@ CREATE TABLE IF NOT EXISTS market.raw_signals (
     predictions_json JSONB,
 
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at_ms   BIGINT      NOT NULL DEFAULT (extract(epoch from now())*1000)::bigint,
 
+    -- Исправлено: Один Primary Key, включающий все поля уникальности
     CONSTRAINT raw_signals_pkey PRIMARY KEY (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id)
-    PRIMARY KEY (symbol_id, tf_minutes, time)
 );
 
--- Превращаем в гипертаблицу TimescaleDB
-SELECT create_hypertable('market.raw_signals', 'time', if_not_exists => TRUE);
+-- Hypertable
+SELECT create_hypertable('market.raw_signals', 'time', if_not_exists => TRUE, chunk_time_interval => INTERVAL '7 days');
 
--- Индексы для быстрой выборки последних сигналов
+-- Indexes
 CREATE INDEX IF NOT EXISTS ix_raw_signals_sym_tf_time_desc ON market.raw_signals(symbol_id, tf_minutes, time DESC);
-CREATE INDEX IF NOT EXISTS ix_raw_signals_time_ms ON market.raw_signals(time_ms);
+CREATE INDEX IF NOT EXISTS ix_raw_signals_time_ms ON market.raw_signals(time_ms DESC);
+CREATE INDEX IF NOT EXISTS ix_raw_signals_symbol ON market.raw_signals(symbol);
+
+-- Compression
+ALTER TABLE market.raw_signals SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'symbol_id, tf_minutes, indicator_id',
+    timescaledb.compress_orderby = 'time DESC'
+);
+SELECT add_compression_policy('market.raw_signals', INTERVAL '7 days');

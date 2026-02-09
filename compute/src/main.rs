@@ -126,8 +126,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Initialize RawSignal persistor
-    let (raw_signal_persistor, raw_signal_sender) = RawSignalPersistor::new(bulk_persistor_sender);
-    let _raw_signal_persistor = Arc::new(raw_signal_persistor);
+    let raw_signal_persistor = RawSignalPersistor::new(bulk_persistor_sender);
+    let raw_signal_persistor = Arc::new(raw_signal_persistor);
 
     // Initialize RawSignal processor
     let raw_cfg = SignalConfig {
@@ -142,6 +142,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn result processor to handle computed indicators and raw signals
     let persistor_clone2 = persistor.clone();
     let raw_signal_processor_clone = raw_signal_processor.clone();
+    let raw_signal_persistor_clone = Arc::clone(&raw_signal_persistor);
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
             println!(
@@ -222,25 +223,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 all_raw_signals
             };
 
-            // Group signals by timestamp (since process_feature_window returns a flat list)
-            let mut signals_by_ts: std::collections::HashMap<i64, Vec<RawSignal>> = std::collections::HashMap::new();
-            for sig in signals_to_persist {
-                signals_by_ts.entry(sig.timestamp).or_default().push(sig);
-            }
-
-            for (ts, signals) in signals_by_ts {
-                // Send ONE aggregated record to persistor
-                if let Err(e) = raw_signal_sender.send(crate::raw_signal_persistor::AggregatedSignalRecord {
-                    symbol: feature_window.symbol.clone(),
-                    time_ms: ts,
-                    timeframe: feature_window.timeframe,
-                    signals,
-                    features_json: None, // Will be set by the persistor from the first signal
-                    scores_json: None,   // Will be set by the persistor from the first signal
-                    predictions_json: None, // Will be set by the persistor from the first signal
-                }) {
-                    eprintln!("Error sending aggregated signal for processing: {}", e);
-                }
+            // Send signals directly to persistor (no aggregation needed)
+            if !signals_to_persist.is_empty() {
+                raw_signal_persistor_clone.queue_records(signals_to_persist).await;
             }
         }
     });

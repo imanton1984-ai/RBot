@@ -10,6 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tracing::error;
 
 #[derive(Clone, Debug)]
 pub struct MessageBusConfig {
@@ -120,7 +121,9 @@ impl MessageBus {
                 tokio::select! {
                     _ = tick.tick() => {
                         if !batch.is_empty() {
-                            let _ = flush_batch(&producer, &mut batch, timeout).await;
+                            if let Err(e) = flush_batch(&producer, &mut batch, timeout).await {
+                                error!("MessageBus: failed to flush batch: {}", e);
+                            }
                         }
                     }
                     msg = rx.recv() => {
@@ -128,12 +131,16 @@ impl MessageBus {
                             Some(m) => {
                                 batch.push(m);
                                 if batch.len() >= cfg.batch_max_messages {
-                                    let _ = flush_batch(&producer, &mut batch, timeout).await;
+                                    if let Err(e) = flush_batch(&producer, &mut batch, timeout).await {
+                                        error!("MessageBus: failed to flush batch: {}", e);
+                                    }
                                 }
                             }
                             None => {
                                 if !batch.is_empty() {
-                                    let _ = flush_batch(&producer, &mut batch, timeout).await;
+                                    if let Err(e) = flush_batch(&producer, &mut batch, timeout).await {
+                                        error!("MessageBus: failed to flush batch: {}", e);
+                                    }
                                 }
                                 break;
                             }
@@ -155,7 +162,11 @@ impl MessageBus {
 
     #[inline]
     pub fn topic(&self, name: &str) -> String {
-        format!("{}.{}", self.config.topic_prefix, name)
+        if self.config.topic_prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}.{}", self.config.topic_prefix, name)
+        }
     }
 
     pub async fn publish<T: Serialize>(&self, topic: &str, key: &[u8], message: &T) -> Result<()> {
@@ -169,7 +180,7 @@ impl MessageBus {
         message: &T,
         partition: Option<i32>,
     ) -> Result<()> {
-        let payload = bincode::serialize(message)?;
+        let payload = serde_json::to_vec(message)?;
         let msg = OutboundMessage {
             topic: self.topic(topic),
             key: key.to_vec(),
@@ -208,7 +219,7 @@ impl MessageBus {
                             Some(p) => p,
                             None => continue,
                         };
-                        let decoded: Result<T> = bincode::deserialize(payload).map_err(|e| anyhow!("Deserialize error: {}", e));
+                        let decoded: Result<T> = serde_json::from_slice(payload).map_err(|e| anyhow!("Deserialize error: {}", e));
                         let item = decoded.map(|payload| IncomingMessage {
                             key: owned.key().unwrap_or(&[]).to_vec(),
                             payload,

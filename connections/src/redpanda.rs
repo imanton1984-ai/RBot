@@ -46,12 +46,12 @@ impl RedpandaConnection {
         Ok(())
     }
 
-    pub async fn send_message(&self, key: &str, payload: impl AsRef<[u8]>) -> Result<()> {
+    pub async fn send_message(&self, topic: &str, key: &str, payload: impl AsRef<[u8]>) -> Result<()> {
         if let Some(ref producer) = self.producer {
             // В новых версиях rdkafka возвращает Result<Delivery, ...>
             let delivery = producer
                 .send(
-                    FutureRecord::to(&self.config.topic)
+                    FutureRecord::to(topic)
                         .key(key)
                         .payload(payload.as_ref()),
                     Duration::from_secs(1),
@@ -71,7 +71,7 @@ impl RedpandaConnection {
     }
 
     pub async fn ping(&self) -> Result<()> {
-        self.send_message("ping", b"test").await
+        self.send_message(&self.config.topic, "ping", b"test").await
     }
 }
 
