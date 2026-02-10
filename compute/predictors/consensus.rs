@@ -1,0 +1,438 @@
+// compute/predictions/consensus.rs
+
+use anyhow::Result;
+use crate::predictions::types::{PredictionRow, CalcSource, PredictionAspect};
+use crate::predictions::feature_view::FeatureView;
+
+/// Consensus logic for combining hardcode and ML predictions
+pub struct ConsensusEngine {}
+
+impl ConsensusEngine {
+    /// Creates a new consensus engine
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    /// Applies gate and fuse logic to combine hardcode and ML predictions
+    pub async fn apply_gate_and_fuse(
+        &self,
+        hard_predictions: Vec<PredictionRow>,
+        ml_predictions: Vec<PredictionRow>,
+        feature_view: &FeatureView,
+    ) -> Result<Vec<PredictionRow>> {
+        let mut consensus_predictions = Vec::new();
+
+        // Group predictions by aspect and level (if applicable)
+        use std::collections::HashMap;
+        let mut grouped_hard: HashMap<String, Vec<PredictionRow>> = HashMap::new();
+        let mut grouped_ml: HashMap<String, Vec<PredictionRow>> = HashMap::new();
+
+        // Group hardcode predictions
+        for pred in hard_predictions {
+            let key = self.create_prediction_key(&pred);
+            grouped_hard.entry(key).or_insert_with(Vec::new).push(pred);
+        }
+
+        // Group ML predictions
+        for pred in ml_predictions {
+            let key = self.create_prediction_key(&pred);
+            grouped_ml.entry(key).or_insert_with(Vec::new).push(pred);
+        }
+
+        // Process each group
+        for (key, hard_group) in grouped_hard {
+            let ml_group = grouped_ml.remove(&key).unwrap_or_default();
+
+            if hard_group.is_empty() && ml_group.is_empty() {
+                continue;
+            }
+
+            if hard_group.is_empty() {
+                // Only ML predictions exist
+                consensus_predictions.extend(ml_group);
+            } else if ml_group.is_empty() {
+                // Only hardcode predictions exist
+                consensus_predictions.extend(hard_group);
+            } else {
+                // Both exist, apply consensus logic
+                let consensus_group = self.combine_predictions(&hard_group, &ml_group, feature_view).await?;
+                consensus_predictions.extend(consensus_group);
+            }
+        }
+
+        // Add remaining ML groups that didn't have hardcode counterparts
+        for (_, ml_group) in grouped_ml {
+            consensus_predictions.extend(ml_group);
+        }
+
+        Ok(consensus_predictions)
+    }
+
+    /// Combines hardcode and ML predictions for the same aspect/level
+    async fn combine_predictions(
+        &self,
+        hard_predictions: &[PredictionRow],
+        ml_predictions: &[PredictionRow],
+        feature_view: &FeatureView,
+    ) -> Result<Vec<PredictionRow>> {
+        let mut combined_predictions = Vec::new();
+
+        for hard_pred in hard_predictions {
+            // Find corresponding ML prediction for the same aspect
+            let ml_pred = ml_predictions.iter()
+                .find(|ml| ml.aspect == hard_pred.aspect && 
+                         self.levels_match(&ml.level_hash, &hard_pred.level_hash));
+
+            if let Some(ml_pred) = ml_pred {
+                // Apply gate and fuse logic
+                let consensus_pred = self.apply_gate_and_fuse_logic(hard_pred, ml_pred, feature_view).await?;
+                if let Some(consensus_pred) = consensus_pred {
+                    combined_predictions.push(consensus_pred);
+                }
+            } else {
+                // No corresponding ML prediction, use hardcode
+                combined_predictions.push(hard_pred.clone());
+            }
+        }
+
+        // Add ML predictions that don't have hardcode counterparts
+        for ml_pred in ml_predictions {
+            let has_hard_counterpart = hard_predictions.iter()
+                .any(|hard| hard.aspect == ml_pred.aspect && 
+                           self.levels_match(&hard.level_hash, &ml_pred.level_hash));
+
+            if !has_hard_counterpart {
+                combined_predictions.push(ml_pred.clone());
+            }
+        }
+
+        Ok(combined_predictions)
+    }
+
+    /// Applies the gate and fuse logic to combine two predictions
+    async fn apply_gate_and_fuse_logic(
+        &self,
+        hard_pred: &PredictionRow,
+        ml_pred: &PredictionRow,
+        feature_view: &FeatureView,
+    ) -> Result<Option<PredictionRow>> {
+        // Gate logic: hardcode determines if there's a valid setup
+        // If hardcode score is below threshold, gate is 0 (no setup)
+        let gate_threshold = 0.5;
+        let gate = ((hard_pred.score_norm as f64 - gate_threshold) / (1.0 - gate_threshold)).clamp(0.0, 1.0);
+
+        // If gate is 0, don't trust the setup, return None or just the ML prediction
+        if gate == 0.0 {
+            // Return ML prediction if it's strong enough, otherwise none
+            if ml_pred.score_norm as f64 >= 0.7 {
+                return Ok(Some(ml_pred.clone()));
+            } else {
+                return Ok(None);
+            }
+        }
+
+        // Fuse logic: combine scores with weights
+        let s_ml = ml_pred.score_norm as f64;
+        let s_hc = hard_pred.score_norm as f64;
+
+        // Apply weights based on confidence in each method
+        let hc_weight = self.calculate_hardcode_weight(feature_view, hard_pred);
+        let ml_weight = self.calculate_ml_weight(feature_view, ml_pred);
+
+        // Weighted combination
+        let weighted_avg = (s_hc * hc_weight + s_ml * ml_weight) / (hc_weight + ml_weight);
+
+        // Apply gate to the fused score
+        let s_fused = gate * weighted_avg + (1.0 - gate) * s_ml; // If gate is low, rely more on ML
+
+        // Create fused prediction based on which source had higher original score
+        let mut fused_pred = if s_ml >= s_hc { ml_pred.clone() } else { hard_pred.clone() };
+        fused_pred.score_norm = s_fused as f32;
+
+        // Update details to reflect consensus
+        if let Some(ref mut details) = fused_pred.details_json {
+            if let serde_json::Value::Object(ref mut obj) = details {
+                obj.insert("consensus_applied".to_string(), serde_json::Value::Bool(true));
+                obj.insert("gate_value".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(gate).unwrap()));
+                obj.insert("original_ml_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(s_ml).unwrap()));
+                obj.insert("original_hard_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(s_hc).unwrap()));
+                obj.insert("fused_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(s_fused).unwrap()));
+                obj.insert("hc_weight".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(hc_weight).unwrap()));
+                obj.insert("ml_weight".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(ml_weight).unwrap()));
+            }
+        } else {
+            fused_pred.details_json = Some(serde_json::json!({
+                "consensus_applied": true,
+                "gate_value": gate,
+                "original_ml_score": s_ml,
+                "original_hard_score": s_hc,
+                "fused_score": s_fused,
+                "hc_weight": hc_weight,
+                "ml_weight": ml_weight,
+            }));
+        }
+
+        Ok(Some(fused_pred))
+    }
+
+    /// Calculates weight for hardcode prediction based on market conditions
+    fn calculate_hardcode_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
+        // Calculate weight based on how well the market conditions align with hardcode assumptions
+        let mut weight = 1.0;
+
+        // Adjust weight based on volatility regime
+        if let Some(atr) = feature_view.atr {
+            let atr_ratio = atr / feature_view.close;
+            if atr_ratio > 0.05 { // Very high volatility
+                weight *= 0.7; // Reduce hardcode weight
+            } else if atr_ratio < 0.005 { // Very low volatility
+                weight *= 0.8; // Reduce hardcode weight (may not be picking up moves)
+            }
+        }
+
+        // Adjust weight based on trend strength
+        if let Some(trend_strength) = feature_view.trend_short {
+            if trend_strength.abs() > 0.7 { // Strong trend
+                weight *= 1.1; // Increase hardcode weight
+            } else if trend_strength.abs() < 0.2 { // Weak trend
+                weight *= 0.8; // Decrease hardcode weight
+            }
+        }
+
+        // Adjust weight based on oscillator alignment
+        let osc_alignment = self.calculate_oscillator_alignment(feature_view);
+        if osc_alignment < 0.3 { // Poor alignment
+            weight *= 0.7;
+        } else if osc_alignment > 0.8 { // Good alignment
+            weight *= 1.1;
+        }
+
+        weight.clamp(0.5, 1.5) // Clamp between 0.5x and 1.5x base weight
+    }
+
+    /// Calculates weight for ML prediction based on market conditions
+    fn calculate_ml_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
+        // Calculate weight based on how well the market conditions align with ML training data
+        let mut weight = 1.0;
+
+        // Adjust weight based on volatility regime
+        if let Some(atr) = feature_view.atr {
+            let atr_ratio = atr / feature_view.close;
+            if atr_ratio > 0.05 { // Very high volatility
+                weight *= 1.2; // ML might be better in high vol situations
+            } else if atr_ratio < 0.005 { // Very low volatility
+                weight *= 0.9; // ML might struggle with no movement
+            }
+        }
+
+        // Adjust weight based on market regime stability
+        let regime_stability = self.calculate_regime_stability(feature_view);
+        if regime_stability < 0.3 { // Unstable regime
+            weight *= 0.8; // ML might be less reliable
+        } else if regime_stability > 0.8 { // Stable regime
+            weight *= 1.1; // ML should perform well
+        }
+
+        weight.clamp(0.5, 1.5) // Clamp between 0.5x and 1.5x base weight
+    }
+
+    /// Calculates how aligned oscillators are with each other
+    fn calculate_oscillator_alignment(&self, feature_view: &FeatureView) -> f64 {
+        let mut alignment_score = 0.0;
+        let mut count = 0;
+
+        if let Some(rsi) = feature_view.rsi {
+            // RSI in middle range is more reliable
+            if rsi > 30.0 && rsi < 70.0 {
+                alignment_score += 0.5;
+            }
+            count += 1;
+        }
+
+        if let Some(stoch_k) = feature_view.stoch_k {
+            if let Some(stoch_d) = feature_view.stoch_d {
+                // Stochastic in middle range and K close to D
+                if stoch_k > 20.0 && stoch_k < 80.0 && stoch_d > 20.0 && stoch_d < 80.0 {
+                    alignment_score += 0.3;
+                    // Bonus if K and D are close (confluence)
+                    if (stoch_k - stoch_d).abs() < 5.0 {
+                        alignment_score += 0.2;
+                    }
+                }
+                count += 1;
+            }
+        }
+
+        if let Some(williams_r) = feature_view.williams_r {
+            if williams_r > -80.0 && williams_r < -20.0 {
+                alignment_score += 0.5;
+            }
+            count += 1;
+        }
+
+        if count > 0 {
+            alignment_score / count as f64
+        } else {
+            0.0
+        }
+    }
+
+    /// Calculates market regime stability
+    fn calculate_regime_stability(&self, feature_view: &FeatureView) -> f64 {
+        let mut stability_score = 0.0;
+        let mut count = 0;
+
+        // Check trend stability
+        if let Some(trend_short) = feature_view.trend_short {
+            if let Some(trend_medium) = feature_view.trend_medium {
+                // If short and medium trends align, it's more stable
+                if trend_short.signum() == trend_medium.signum() {
+                    stability_score += 0.4;
+                } else {
+                    stability_score -= 0.2; // Conflicting trends
+                }
+                count += 1;
+            }
+        }
+
+        // Check volume stability
+        if let (Some(volume_sma), volume) = (feature_view.volume_sma, feature_view.volume) {
+            let volume_ratio = volume / volume_sma;
+            // Stable volumes (close to average) indicate stable regime
+            if volume_ratio > 0.7 && volume_ratio < 1.3 {
+                stability_score += 0.3;
+            }
+            count += 1;
+        }
+
+        // Check volatility stability
+        if let Some(atr) = feature_view.atr {
+            // Very high or very low volatility might indicate unstable regime
+            let atr_ratio = atr / feature_view.close;
+            if atr_ratio > 0.005 && atr_ratio < 0.05 {
+                stability_score += 0.3;
+            }
+            count += 1;
+        }
+
+        if count > 0 {
+            stability_score / count as f64
+        } else {
+            0.5 // Neutral if no data
+        }
+    }
+
+    /// Creates a unique key for grouping predictions
+    fn create_prediction_key(&self, pred: &PredictionRow) -> String {
+        match &pred.level_hash {
+            Some(hash) => format!("{}_{}_{}", pred.aspect.as_int(), hash, pred.symbol),
+            None => format!("{}_{}", pred.aspect.as_int(), pred.symbol),
+        }
+    }
+
+    /// Checks if two level hashes match (both None or both Some and equal)
+    fn levels_match(&self, level1: &Option<String>, level2: &Option<String>) -> bool {
+        match (level1, level2) {
+            (Some(l1), Some(l2)) => l1 == l2,
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    /// Applies consensus logic to determine if predictions should be combined
+    pub async fn should_combine_predictions(
+        &self,
+        hard_pred: &PredictionRow,
+        ml_pred: &PredictionRow,
+        feature_view: &FeatureView,
+    ) -> bool {
+        // Don't combine if they're for different aspects
+        if hard_pred.aspect != ml_pred.aspect {
+            return false;
+        }
+
+        // Don't combine if they're for different levels (if applicable)
+        if !self.levels_match(&hard_pred.level_hash, &ml_pred.level_hash) {
+            return false;
+        }
+
+        // Don't combine if they're too far apart in time
+        let time_diff = (hard_pred.time.timestamp_millis() - ml_pred.time.timestamp_millis()).abs();
+        if time_diff > 10000 { // More than 10 seconds apart
+            return false;
+        }
+
+        // Check if both predictions are for the same symbol and timeframe
+        hard_pred.symbol == ml_pred.symbol && hard_pred.tf_minutes == ml_pred.tf_minutes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::predictions::types::{PredictionAspect, CalcSource};
+
+    #[test]
+    fn test_create_prediction_key() {
+        let consensus = ConsensusEngine::new();
+        
+        let pred1 = PredictionRow {
+            aspect: PredictionAspect::PriceTarget,
+            symbol: "BTCUSDT".to_string(),
+            level_hash: None,
+            ..create_mock_prediction()
+        };
+        
+        let pred2 = PredictionRow {
+            aspect: PredictionAspect::LevelBounce,
+            symbol: "BTCUSDT".to_string(),
+            level_hash: Some("level_12345".to_string()),
+            ..create_mock_prediction()
+        };
+        
+        assert_eq!(consensus.create_prediction_key(&pred1), "1_BTCUSDT");
+        assert_eq!(consensus.create_prediction_key(&pred2), "2_level_12345_BTCUSDT");
+    }
+
+    #[test]
+    fn test_levels_match() {
+        let consensus = ConsensusEngine::new();
+        
+        assert!(consensus.levels_match(&None, &None));
+        assert!(!consensus.levels_match(&None, &Some("level_1".to_string())));
+        assert!(!consensus.levels_match(&Some("level_1".to_string()), &None));
+        assert!(consensus.levels_match(&Some("level_1".to_string()), &Some("level_1".to_string())));
+        assert!(!consensus.levels_match(&Some("level_1".to_string()), &Some("level_2".to_string())));
+    }
+
+    // Helper function to create mock prediction
+    fn create_mock_prediction() -> PredictionRow {
+        use chrono::Utc;
+        
+        PredictionRow {
+            time: Utc::now(),
+            time_ms: Utc::now().timestamp_millis(),
+            symbol_id: 1,
+            symbol: "BTCUSDT".to_string(),
+            tf_minutes: 5,
+            horizon_bars: 10,
+            aspect: PredictionAspect::PriceTarget,
+            calc_source: CalcSource::Hard,
+            predictor_id: 1,
+            score_norm: 0.85,
+            value: 100.0,
+            value_low: None,
+            value_high: None,
+            side: Some(1),
+            level_hash: None,
+            level_kind: None,
+            level_price: None,
+            level_strength: None,
+            level_distance_atr: None,
+            candle_is_final: true,
+            event_time_ms: None,
+            details_json: None,
+            prediction_key: "mock_key".to_string(),
+        }
+    }
+}

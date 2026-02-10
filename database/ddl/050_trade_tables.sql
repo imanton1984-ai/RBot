@@ -48,7 +48,16 @@ CREATE TABLE IF NOT EXISTS trade.final_signals (
 
     -- ВАЖНО: 'time' должен быть в PRIMARY KEY и во всех UNIQUE индексах
     PRIMARY KEY(symbol_id, tf_minutes, time),
-    UNIQUE(signal_id, time) 
+    UNIQUE(signal_id, time),
+
+    -- Prediction-related columns
+    price10_target  DOUBLE PRECISION NULL,
+    price10_score   REAL NULL,
+    bounce_prob     REAL NULL,
+    bounce_score    REAL NULL,
+    breakout_prob   REAL NULL,
+    breakout_score  REAL NULL,
+    predictions_ref bigint[] NULL
 );
 
 -- 3. Таблицы позиций и ордеров (тут нет GENERATED, оставляем как есть)
@@ -133,3 +142,16 @@ SELECT create_hypertable('trade.ml_train_examples','time', if_not_exists=>TRUE, 
 CREATE INDEX IF NOT EXISTS ix_final_signals_time_desc ON trade.final_signals(time DESC);
 CREATE INDEX IF NOT EXISTS ix_position_events_position_time ON trade.position_events(position_id, time DESC);
 CREATE INDEX IF NOT EXISTS ix_ml_examples_time_desc ON trade.ml_train_examples(time DESC);
+
+-- Prediction-related indexes
+CREATE INDEX IF NOT EXISTS ix_final_signals_price10_score
+  ON trade.final_signals(price10_score DESC, time DESC)
+  WHERE price10_score IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS ix_final_signals_bounce_score
+  ON trade.final_signals(bounce_score DESC, time DESC)
+  WHERE bounce_score IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS ix_final_signals_breakout_score
+  ON trade.final_signals(breakout_score DESC, time DESC)
+  WHERE breakout_score IS NOT NULL;

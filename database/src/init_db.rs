@@ -40,6 +40,8 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/060_policies.sql"),
             include_str!("../../database/ddl/070_views_all.sql"),
             include_str!("../../database/ddl/080_health_queries.sql"),
+            include_str!("../../database/ddl/085_trade_predictions.sql"),
+
         ];
 
         for (index, ddl_content) in ddl_files.iter().enumerate() {
