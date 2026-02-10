@@ -1,5 +1,38 @@
 #!/usr/bin/env bash
 # scripts/start.sh
+
+# 1. Основной путь к библиотеке
+export ONNXRUNTIME_ROOTDIR="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.19.0"
+
+# 2. Проверка наличия библиотеки перед сборкой
+if [ ! -d "$ONNXRUNTIME_ROOTDIR" ]; then
+    echo "ONNX Runtime not found at $ONNXRUNTIME_ROOTDIR"
+    echo "Installing ONNX Runtime..."
+    
+    DOWNLOAD_DIR="/home/anton/Downloads"
+    mkdir -p "$DOWNLOAD_DIR"
+    cd "$DOWNLOAD_DIR"
+    
+    wget https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-gpu-1.19.0.tgz
+    tar -xzvf onnxruntime-linux-x64-gpu-1.19.0.tgz
+    cd - > /dev/null
+fi
+
+# 3. КРИТИЧЕСКИЕ ПЕРЕМЕННЫЕ ДЛЯ КОМПИЛЯЦИИ И ЗАПУСКА
+# Путь к директории с .so файлами
+export ORT_LIB_LOCATION="$ONNXRUNTIME_ROOTDIR/lib"
+
+# Для линковщика (чтобы cargo build видел библиотеку)
+export LIBRARY_PATH="$ORT_LIB_LOCATION:$LIBRARY_PATH"
+
+# Для работы программы (чтобы бинарник находил библиотеку при старте)
+export LD_LIBRARY_PATH="$ORT_LIB_LOCATION:$LD_LIBRARY_PATH"
+
+# Если используется CUDA
+export CUDA_HOME=/usr/local/cuda
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
+
+# ----------------- Продолжение основного скрипта -----------------
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

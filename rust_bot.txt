@@ -4181,6 +4181,48 @@ exit $START_RESULT
 
 #!/usr/bin/env bash
 # scripts/start.sh
+
+# ONNX Runtime library location
+ORT_LIB_LOCATION="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.19.0/lib"
+
+# Check if ONNX Runtime library exists
+if [ ! -d "$ORT_LIB_LOCATION" ]; then
+    echo "ONNX Runtime library not found at $ORT_LIB_LOCATION"
+    echo "Installing ONNX Runtime..."
+    
+    # Create download directory if it doesn't exist
+    DOWNLOAD_DIR="/home/anton/Downloads"
+    if [ ! -d "$DOWNLOAD_DIR" ]; then
+        mkdir -p "$DOWNLOAD_DIR"
+    fi
+    
+    # Change to download directory
+    cd "$DOWNLOAD_DIR"
+    
+    # Download ONNX Runtime
+    echo "Downloading ONNX Runtime..."
+    wget https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-gpu-1.19.0.tgz
+    
+    # Extract the archive
+    echo "Extracting ONNX Runtime..."
+    tar -xzvf onnxruntime-linux-x64-gpu-1.19.0.tgz
+    
+    # Verify installation
+    if [ -d "$ORT_LIB_LOCATION" ]; then
+        echo "ONNX Runtime successfully installed at $ORT_LIB_LOCATION"
+    else
+        echo "Error: Failed to install ONNX Runtime"
+        exit 1
+    fi
+else
+    echo "ONNX Runtime library found at $ORT_LIB_LOCATION"
+fi
+
+# Set environment variables for the build
+export ORT_LIB_LOCATION=$(dirname "$ORT_LIB_LOCATION")
+export LD_LIBRARY_PATH=$ORT_LIB_LOCATION/lib:$LD_LIBRARY_PATH
+
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17541,7 +17583,7 @@ pub struct PredictorsConfig {
 // compute/predictors/consensus.rs
 
 use anyhow::Result;
-use crate::types::{PredictionRow, CalcSource, PredictionAspect};
+use crate::types::{PredictionRow};
 use crate::feature_view::FeatureView;
 
 /// Consensus logic for combining hardcode and ML predictors
@@ -17654,7 +17696,7 @@ impl ConsensusEngine {
         &self,
         hard_pred: &PredictionRow,
         ml_pred: &PredictionRow,
-        feature_view: &FeatureView,
+        _feature_view: &FeatureView,
     ) -> Result<Option<PredictionRow>> {
         
         let hc_pred_score = hard_pred.score_norm as f64;
@@ -17698,9 +17740,10 @@ impl ConsensusEngine {
     }
 
     /// Calculates weight for hardcode prediction based on market conditions
+    #[allow(dead_code)]
     fn calculate_hardcode_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
         // Calculate weight based on how well the market conditions align with hardcode assumptions
-        let mut weight = 1.0;
+        let mut weight: f64 = 1.0;
 
         // Adjust weight based on volatility regime
         let atr = feature_view.indicators.atr;
@@ -17727,11 +17770,11 @@ impl ConsensusEngine {
             weight *= 1.1;
         }
 
-        let mut weight: f64 = 1.0;
-        weight.clamp(0.5, 1.5) // Clamp between 0.5x and 1.5x base weight
+        weight.clamp(0.5_f64, 1.5_f64) // Clamp between 0.5x and 1.5x base weight
     }
 
     /// Calculates weight for ML prediction based on market conditions
+    #[allow(dead_code)]
     fn calculate_ml_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
         // Calculate weight based on how well the market conditions align with ML training data
         let mut weight: f64 = 1.0;
@@ -17753,10 +17796,11 @@ impl ConsensusEngine {
             weight *= 1.1; // ML should perform well
         }
 
-        weight.clamp(0.5, 1.5) // Clamp between 0.5x and 1.5x base weight
+        weight.clamp(0.5_f64, 1.5_f64) // Clamp between 0.5x and 1.5x base weight
     }
 
     /// Calculates how aligned oscillators are with each other
+    #[allow(dead_code)]
     fn calculate_oscillator_alignment(&self, feature_view: &FeatureView) -> f64 {
         let mut alignment_score = 0.0;
         let mut count = 0;
@@ -17794,6 +17838,7 @@ impl ConsensusEngine {
     }
 
     /// Calculates market regime stability
+    #[allow(dead_code)]
     fn calculate_regime_stability(&self, feature_view: &FeatureView) -> f64 {
         let mut stability_score = 0.0;
         let mut count = 0;
@@ -17857,7 +17902,7 @@ impl ConsensusEngine {
         &self,
         hard_pred: &PredictionRow,
         ml_pred: &PredictionRow,
-        feature_view: &FeatureView,
+        _feature_view: &FeatureView,
     ) -> bool {
         // Don't combine if they're for different aspects
         if hard_pred.aspect != ml_pred.aspect {
@@ -18657,8 +18702,8 @@ pub mod consensus;
 // compute/predictors/persistence.rs
 
 use anyhow::Result;
-use sqlx::{PgPool, Row};
-use crate::types::{PredictionRow, PredictorMeta, PredictorId, FeatureSchemaId, PredictionKey};
+use sqlx::PgPool;
+use crate::types::{PredictionRow, PredictorMeta, PredictorId};
 use serde_json::Value;
 
 pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) -> Result<()> {
@@ -18966,15 +19011,14 @@ mod tests {
 // compute/predictors/pipeline.rs
 
 use anyhow::Result;
-use tokio::sync::mpsc;
 use serde_json::Value;
 use crate::types::{PredictionRow, PredictionAspect, CalcSource};
-use crate::feature_view::{FeatureView, FeatureVector, IndicatorsWideRow};
+use crate::feature_view::{FeatureView, IndicatorsWideRow};
 use crate::level_view::LevelView;
 use crate::config::PredictorsConfig;
 use crate::persistence;
 use sqlx::PgPool;
-use common::{MessageBus, Codec};
+use common::MessageBus;
 use crate::consensus::ConsensusEngine;
 
 use crate::ml::model_manager::ModelManager;
@@ -18984,7 +19028,6 @@ use std::sync::Arc;
 pub struct PredictorsPipeline {
     config: PredictorsConfig,
     db_pool: PgPool,
-    message_bus: MessageBus,
     shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
     ml_manager: ModelManager,
@@ -18994,7 +19037,7 @@ impl PredictorsPipeline {
     pub fn new(
         config: PredictorsConfig,
         db_pool: PgPool,
-        message_bus: MessageBus,
+        _message_bus: MessageBus,
         shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
         let pool = Arc::new(ModelPool::new());
@@ -19010,7 +19053,6 @@ impl PredictorsPipeline {
         Self {
             config,
             db_pool,
-            message_bus,
             shutdown_rx,
             feature_rx: None,
             ml_manager,
@@ -19235,19 +19277,6 @@ impl PredictorsPipeline {
         }
     }
 
-    async fn publish_predictors(&self, snapshot: &FeatureSnapshot, feature_view: &FeatureView) -> Result<()> {
-        let payload = serde_json::json!({
-            "symbol": &feature_view.symbol,
-            "timeframe": &feature_view.timeframe,
-            "timestamp": feature_view.timestamp,
-            "predictors_reference": format!("{}_{}", feature_view.symbol, feature_view.timestamp.timestamp()),
-        });
-        let topic = std::env::var("KAFKA_predictors_TOPIC").unwrap_or_else(|_| "predictors".to_string());
-        self.message_bus
-            .publish(&topic, feature_view.symbol.as_bytes(), &payload, Codec::Bincode)
-            .await?;
-        Ok(())
-    }
 
     fn determine_side(&self, current_price: f64, target_price: f64) -> Option<i16> {
         if target_price > current_price * 1.001 { Some(1) } else if target_price < current_price * 0.999 { Some(-1) } else { Some(0) }
@@ -19524,21 +19553,20 @@ impl LevelPredictorHeuristic {
 use anyhow::Result;
 use crate::feature_view::FeatureVector;
 use crate::ml::onnx_runtime::OnnxRunner;
-use std::sync::Arc;
 use crate::ml::model_pool::ModelPool;
+use std::sync::Arc;
 
 pub struct LevelPredictorMl {
     runner: OnnxRunner,
-    model_name: String,
 }
 
 impl LevelPredictorMl {
     pub fn new(model_path: &str, use_cuda: bool, pool: Arc<ModelPool>) -> Result<Self> {
         let runner = OnnxRunner::new(model_path, use_cuda, pool)?;
-        Ok(Self { runner, model_name: "level_model".to_string() })
+        Ok(Self { runner })
     }
 
-    pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector, level_price: f64) -> Result<Option<(f64, f64, f64)>> {
+    pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector, _level_price: f64) -> Result<Option<(f64, f64, f64)>> {
         // Преобразование Vec<f32> в формат для ONNX (slice)
         let outputs = self.runner.run(&features.values)?;
 
@@ -19573,13 +19601,12 @@ use crate::ml::model_pool::ModelPool;
 
 pub struct FuturePriceMl {
     runner: OnnxRunner,
-    model_name: String,
 }
 
 impl FuturePriceMl {
     pub fn new(model_path: &str, use_cuda: bool, pool: Arc<ModelPool>) -> Result<Self> {
         let runner = OnnxRunner::new(model_path, use_cuda, pool)?;
-        Ok(Self { runner, model_name: "price_model".to_string() })
+        Ok(Self { runner })
     }
 
     pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector) -> Result<Option<(Vec<f64>, f64)>> {
@@ -19622,7 +19649,7 @@ impl FuturePriceHeuristic {
         let atr = view.indicators.atr as f64;
         let close = view.indicators.close as f64;
         let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
-        let vol_adj = atr_pct.clamp(0.001, 0.05); // not used in user snippet, but I'll keep it.
+        let _vol_adj = atr_pct.clamp(0.001, 0.05); // not used in user snippet, but I'll keep it.
         
         let mut score = trend * 0.5;
         if rsi < 40.0 && trend > 0.0 { score += 0.2; }
@@ -19737,7 +19764,6 @@ impl ModelManager {
 use std::sync::Arc;
 use ort::session::Session;
 use dashmap::DashMap;
-use tracing::{info, warn};
 
 pub struct ModelPool {
     sessions: DashMap<String, Arc<Session>>,
@@ -19755,7 +19781,7 @@ impl ModelPool {
             return Ok(s.clone());
         }
 
-        let session: Session = Session::builder()?.with_model_from_file(path)?.build()?;
+        let session = Session::builder()?.commit_from_file(path)?;
         let shared = Arc::new(session);
         self.sessions.insert(path.to_string(), shared.clone());
         Ok(shared)
@@ -19774,19 +19800,21 @@ impl Default for ModelPool {
 
 use anyhow::{Result};
 use ndarray::{Array2};
-use ort::session::Session;
-use std::sync::Arc;
-use tracing::{info, warn, error};
+use ort::{session::Session, value::Value};
+use std::sync::{Arc, Mutex};
 use super::model_pool::ModelPool;
 
 pub struct OnnxRunner {
-    session: Arc<Session>,
+    session: Arc<Mutex<Session>>,
 }
 
 impl OnnxRunner {
     /// Загружает модель из файла. Пытается использовать CUDA, если доступно.
     pub fn new(model_path: &str, use_cuda: bool, pool: Arc<ModelPool>) -> Result<Self> {
-        let session = pool.get_or_load(model_path, use_cuda)?;
+        let _session = pool.get_or_load(model_path, use_cuda)?;  // Just to validate the model exists
+        // Since we can't clone Session, we'll create a new one from the same model file
+        let new_session = Session::builder()?.commit_from_file(model_path)?;
+        let session = Arc::new(Mutex::new(new_session));
         Ok(Self { session })
     }
 
@@ -19796,18 +19824,24 @@ impl OnnxRunner {
     pub fn run(&self, features: &[f32]) -> Result<Vec<f32>> {
         // 1. Создаем тензор из входных данных [Batch Size, Features]
         let input_array = Array2::from_shape_vec((1, features.len()), features.to_vec())?;
-        
-        // 2. Запускаем сессию
-use ort::inputs;
 
-// ...
+        // 2. Get the input name first
+        let input_name = {
+            let session_guard = self.session.lock().unwrap();
+            session_guard.inputs()[0].name().to_string() // Clone the name to avoid borrowing issues
+        };
 
-        let outputs = self.session.run([(self.session.inputs()[0].name.as_str(), input_array.into_dyn())])?;
+        // 3. Create the input value
+        let input_value = Value::from_array((input_array.shape().to_vec(), input_array.as_slice().unwrap().to_vec()))?;
 
-        // 3. Извлекаем результат (предполагаем, что выход 0 - это то, что нам нужно)
+        // 4. Run the session
+        let mut session_guard = self.session.lock().unwrap();
+        let outputs = session_guard.run(ort::inputs![input_name.as_str() => input_value])?;
+
+        // 5. Извлекаем результат (предполагаем, что выход 0 - это то, что нам нужно)
         let output_tensor = outputs[0].try_extract_tensor::<f32>()?;
-        
-        let result: Vec<f32> = output_tensor.data().to_vec();
+
+        let result: Vec<f32> = output_tensor.1.to_vec(); // .1 is the data slice &[f32]
         Ok(result)
     }
 }
@@ -21441,7 +21475,7 @@ use dotenvy::dotenv;
 use raw_signals::thresholds::SignalConfig;
 use tracing_appender::rolling;
 use crate::predictors::{feature_view::IndicatorsWideRow, pipeline::FeatureSnapshot};
-use crate::predictors::config::predictorsConfig;
+use crate::predictors::config::PredictorsConfig;
 use database_lib;
 
 fn env_usize(key: &str, default: usize) -> usize {
@@ -21808,7 +21842,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let snapshot = FeatureSnapshot {
                     timestamp: chrono::DateTime::from_timestamp(feature_window.batch.timestamps[last_idx] / 1000, 0).unwrap_or(chrono::Utc::now()),
-                    symbol: feature_window.symbol.clone(),
+                    symbol: feature_window.symbol.to_string(),
                     timeframe: feature_window.timeframe.as_str().to_string(),
                     indicators,
                     raw_signals_data: None, // Could be populated if needed
@@ -21861,7 +21895,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize predictorsPipeline
     let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(8);
-    let predictors_config = predictorsConfig {
+    let predictors_config = PredictorsConfig {
         enabled: true,
         horizon_bars: 10,
         min_store_score: 0.80,
@@ -21873,7 +21907,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         model_path_levels: "models/levels_v1.onnx".to_string(),
     };
 
-    let mut predictors_pipeline = predictorsPipeline::new(
+    let mut predictors_pipeline = crate::predictors::pipeline::PredictorsPipeline::new(
         predictors_config,
         db_pool.clone(),
         message_bus,

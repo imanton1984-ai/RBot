@@ -1,0 +1,1558 @@
+Starting Compute Service...
+Compute bootstrap config: required_lookback=1000, warmup_bars=100, min_bars_ready=250
+Waiting for historical data to be ingested...
+Waiting for historical data processing to complete before starting real-time processing...
+Fetching symbols from database...
+Waiting for market.pairs to be populated...
+Waiting for market.pairs to be populated...
+Waiting for market.pairs to be populated...
+Fetched 46 symbols from database
+Initial batch submission deferred until historical data processing completes.
+Compute service started successfully. Processing indicators...
+Waiting for ingestor... (10s elapsed)
+Waiting readiness: ready=0/0 (min_symbols=5, min_bars_ready=250, timeout in 290s)
+Data detected in DB after 18.0s. Starting historical compute...
+Triggering historical compute for existing data...
+Processing historical data for timeframe: M1
+Readiness threshold reached: ready=18/18 (min_symbols=5)
+Historical data processing completed. Starting real-time processing...
+Started Kafka consumer, listening on topic: candles.close
+Timeframe M1: symbols=46, bars_range=499..500, ready=46/46 (min_bars_ready=250)
+Processing feature batch for 1000PEPEUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for 1000PEPEUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6212 raw signals for 1000PEPEUSDT on 1m (filtered from 6246 total)
+Processing feature batch for ALCHUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ALCHUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6135 raw signals for ALCHUSDT on 1m (filtered from 6169 total)
+Processing feature batch for KITEUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for KITEUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6199 raw signals for KITEUSDT on 1m (filtered from 6233 total)
+Processing feature batch for STABLEUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for STABLEUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6140 raw signals for STABLEUSDT on 1m (filtered from 6174 total)
+Processing feature batch for VANAUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for VANAUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6231 raw signals for VANAUSDT on 1m (filtered from 6265 total)
+Timeframe M1: submitted 46 compute jobs
+Processing historical data for timeframe: M5
+Timeframe M5: symbols=46, bars_range=499..500, ready=46/46 (min_bars_ready=250)
+Timeframe M5: submitted 46 compute jobs
+Processing historical data for timeframe: M15
+Timeframe M15: symbols=46, bars_range=499..499, ready=46/46 (min_bars_ready=250)
+Timeframe M15: submitted 46 compute jobs
+Processing historical data for timeframe: H1
+Timeframe H1: symbols=46, bars_range=306..500, ready=46/46 (min_bars_ready=250)
+Timeframe H1: submitted 46 compute jobs
+Processing historical data for timeframe: H4
+Timeframe H4: symbols=46, bars_range=76..499, ready=44/46 (min_bars_ready=250)
+Processing feature batch for SOLUSDT on 1m, bars=499, cols=27, realtime: false
+Timeframe H4: submitted 44 compute jobs
+Processing historical data for timeframe: D1
+  Persisting 12762 indicator records for SOLUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6191 raw signals for SOLUSDT on 1m (filtered from 6225 total)
+Processing feature batch for LTCUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LTCUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+Timeframe D1: symbols=46, bars_range=12..499, ready=34/46 (min_bars_ready=250)
+Timeframe D1: submitted 34 compute jobs
+  Persisting 6180 raw signals for LTCUSDT on 1m (filtered from 6214 total)
+Processing feature batch for SIRENUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SIRENUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6105 raw signals for SIRENUSDT on 1m (filtered from 6139 total)
+Processing feature batch for HYPEUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for HYPEUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6239 raw signals for HYPEUSDT on 1m (filtered from 6273 total)
+Processing feature batch for WLDUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLDUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6192 raw signals for WLDUSDT on 1m (filtered from 6226 total)
+Processing feature batch for AVAXUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AVAXUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6197 raw signals for AVAXUSDT on 1m (filtered from 6231 total)
+Processing feature batch for FILUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FILUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6222 raw signals for FILUSDT on 1m (filtered from 6256 total)
+Processing feature batch for WIFUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WIFUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6215 raw signals for WIFUSDT on 1m (filtered from 6249 total)
+Processing feature batch for ARCUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ARCUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6223 raw signals for ARCUSDT on 1m (filtered from 6257 total)
+Processing feature batch for BIRBUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BIRBUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6182 raw signals for BIRBUSDT on 1m (filtered from 6216 total)
+Processing feature batch for FHEUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FHEUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6065 raw signals for FHEUSDT on 1m (filtered from 6099 total)
+Processing feature batch for GPSUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for GPSUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6169 raw signals for GPSUSDT on 1m (filtered from 6203 total)
+Processing feature batch for LINKUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LINKUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6203 raw signals for LINKUSDT on 1m (filtered from 6237 total)
+Processing feature batch for XRPUSDT on 1m, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for XRPUSDT on 1m (bars 15..499, skipped 15 warmup bars)
+  Persisting 6194 raw signals for XRPUSDT on 1m (filtered from 6228 total)
+Processing feature batch for AXSUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AXSUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6175 raw signals for AXSUSDT on 1m (filtered from 6209 total)
+Processing feature batch for ENAUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ENAUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6215 raw signals for ENAUSDT on 1m (filtered from 6249 total)
+Processing feature batch for NEARUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for NEARUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6219 raw signals for NEARUSDT on 1m (filtered from 6253 total)
+Processing feature batch for ADAUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ADAUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6185 raw signals for ADAUSDT on 1m (filtered from 6219 total)
+Processing feature batch for BCHUSDT on 1m, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for BCHUSDT on 1m (bars 15..499, skipped 15 warmup bars)
+  Persisting 6199 raw signals for BCHUSDT on 1m (filtered from 6233 total)
+Processing feature batch for BTCUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BTCUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6190 raw signals for BTCUSDT on 1m (filtered from 6224 total)
+Processing feature batch for PIPPINUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PIPPINUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6097 raw signals for PIPPINUSDT on 1m (filtered from 6131 total)
+Processing feature batch for PUMPUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PUMPUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6188 raw signals for PUMPUSDT on 1m (filtered from 6222 total)
+Processing feature batch for RIVERUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for RIVERUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6045 raw signals for RIVERUSDT on 1m (filtered from 6079 total)
+Processing feature batch for WLFIUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLFIUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6214 raw signals for WLFIUSDT on 1m (filtered from 6248 total)
+Processing feature batch for AAVEUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AAVEUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6186 raw signals for AAVEUSDT on 1m (filtered from 6220 total)
+Processing feature batch for MONUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for MONUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6178 raw signals for MONUSDT on 1m (filtered from 6212 total)
+Processing feature batch for ETHUSDT on 1m, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for ETHUSDT on 1m (bars 15..499, skipped 15 warmup bars)
+  Persisting 6199 raw signals for ETHUSDT on 1m (filtered from 6233 total)
+Processing feature batch for XMRUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XMRUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6241 raw signals for XMRUSDT on 1m (filtered from 6275 total)
+Processing feature batch for ASTERUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ASTERUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6211 raw signals for ASTERUSDT on 1m (filtered from 6245 total)
+Processing feature batch for BERAUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BERAUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6138 raw signals for BERAUSDT on 1m (filtered from 6172 total)
+Processing feature batch for ZKPUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZKPUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6205 raw signals for ZKPUSDT on 1m (filtered from 6239 total)
+Processing feature batch for DUSKUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DUSKUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6195 raw signals for DUSKUSDT on 1m (filtered from 6229 total)
+Processing feature batch for BNBUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BNBUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6200 raw signals for BNBUSDT on 1m (filtered from 6234 total)
+Processing feature batch for SUIUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SUIUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6195 raw signals for SUIUSDT on 1m (filtered from 6229 total)
+Processing feature batch for TAOUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for TAOUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6193 raw signals for TAOUSDT on 1m (filtered from 6227 total)
+Processing feature batch for POWERUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for POWERUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5923 raw signals for POWERUSDT on 1m (filtered from 5957 total)
+Processing feature batch for SENTUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SENTUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6221 raw signals for SENTUSDT on 1m (filtered from 6255 total)
+Processing feature batch for ZAMAUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZAMAUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6152 raw signals for ZAMAUSDT on 1m (filtered from 6186 total)
+Processing feature batch for ZROUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZROUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6188 raw signals for ZROUSDT on 1m (filtered from 6222 total)
+Processing feature batch for ZECUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZECUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6191 raw signals for ZECUSDT on 1m (filtered from 6225 total)
+Processing feature batch for DOGEUSDT on 1m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DOGEUSDT on 1m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6173 raw signals for DOGEUSDT on 1m (filtered from 6207 total)
+Processing feature batch for BNBUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BNBUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6206 raw signals for BNBUSDT on 5m (filtered from 6240 total)
+Processing feature batch for FHEUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FHEUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5943 raw signals for FHEUSDT on 5m (filtered from 5977 total)
+Processing feature batch for XMRUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XMRUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6139 raw signals for XMRUSDT on 5m (filtered from 6173 total)
+Processing feature batch for ASTERUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ASTERUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6145 raw signals for ASTERUSDT on 5m (filtered from 6179 total)
+Processing feature batch for LTCUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LTCUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6209 raw signals for LTCUSDT on 5m (filtered from 6243 total)
+Processing feature batch for MONUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for MONUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6155 raw signals for MONUSDT on 5m (filtered from 6189 total)
+Processing feature batch for BTCUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BTCUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6187 raw signals for BTCUSDT on 5m (filtered from 6221 total)
+Processing feature batch for SUIUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SUIUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6181 raw signals for SUIUSDT on 5m (filtered from 6215 total)
+Processing feature batch for WLDUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLDUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6162 raw signals for WLDUSDT on 5m (filtered from 6196 total)
+Processing feature batch for XRPUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XRPUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6164 raw signals for XRPUSDT on 5m (filtered from 6198 total)
+Processing feature batch for AVAXUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AVAXUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6183 raw signals for AVAXUSDT on 5m (filtered from 6217 total)
+Processing feature batch for VANAUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for VANAUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6114 raw signals for VANAUSDT on 5m (filtered from 6148 total)
+Processing feature batch for WIFUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WIFUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6181 raw signals for WIFUSDT on 5m (filtered from 6215 total)
+Processing feature batch for GPSUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for GPSUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5874 raw signals for GPSUSDT on 5m (filtered from 5908 total)
+Processing feature batch for POWERUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for POWERUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5927 raw signals for POWERUSDT on 5m (filtered from 5961 total)
+Processing feature batch for SOLUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SOLUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6184 raw signals for SOLUSDT on 5m (filtered from 6218 total)
+Processing feature batch for HYPEUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for HYPEUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6171 raw signals for HYPEUSDT on 5m (filtered from 6205 total)
+Processing feature batch for ZAMAUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZAMAUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6088 raw signals for ZAMAUSDT on 5m (filtered from 6122 total)
+Processing feature batch for STABLEUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for STABLEUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6027 raw signals for STABLEUSDT on 5m (filtered from 6061 total)
+Processing feature batch for LINKUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LINKUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6185 raw signals for LINKUSDT on 5m (filtered from 6219 total)
+Processing feature batch for BERAUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BERAUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6060 raw signals for BERAUSDT on 5m (filtered from 6094 total)
+Processing feature batch for DUSKUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DUSKUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6011 raw signals for DUSKUSDT on 5m (filtered from 6045 total)
+Processing feature batch for ARCUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ARCUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5988 raw signals for ARCUSDT on 5m (filtered from 6022 total)
+Processing feature batch for DOGEUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DOGEUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6155 raw signals for DOGEUSDT on 5m (filtered from 6189 total)
+Processing feature batch for ETHUSDT on 5m, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for ETHUSDT on 5m (bars 15..499, skipped 15 warmup bars)
+  Persisting 6169 raw signals for ETHUSDT on 5m (filtered from 6203 total)
+Processing feature batch for FILUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FILUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6183 raw signals for FILUSDT on 5m (filtered from 6217 total)
+Processing feature batch for PUMPUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PUMPUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6168 raw signals for PUMPUSDT on 5m (filtered from 6202 total)
+Processing feature batch for SIRENUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SIRENUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5886 raw signals for SIRENUSDT on 5m (filtered from 5920 total)
+Processing feature batch for KITEUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for KITEUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6052 raw signals for KITEUSDT on 5m (filtered from 6086 total)
+Processing feature batch for AAVEUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AAVEUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6212 raw signals for AAVEUSDT on 5m (filtered from 6246 total)
+Processing feature batch for WLFIUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLFIUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6103 raw signals for WLFIUSDT on 5m (filtered from 6137 total)
+Processing feature batch for ZROUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZROUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6053 raw signals for ZROUSDT on 5m (filtered from 6087 total)
+Processing feature batch for TAOUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for TAOUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6179 raw signals for TAOUSDT on 5m (filtered from 6213 total)
+Processing feature batch for BIRBUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BIRBUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6076 raw signals for BIRBUSDT on 5m (filtered from 6110 total)
+Processing feature batch for AXSUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AXSUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5993 raw signals for AXSUSDT on 5m (filtered from 6027 total)
+Processing feature batch for ENAUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ENAUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6186 raw signals for ENAUSDT on 5m (filtered from 6220 total)
+Processing feature batch for SENTUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SENTUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6126 raw signals for SENTUSDT on 5m (filtered from 6160 total)
+Processing feature batch for ADAUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ADAUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6189 raw signals for ADAUSDT on 5m (filtered from 6223 total)
+Processing feature batch for BCHUSDT on 5m, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for BCHUSDT on 5m (bars 15..499, skipped 15 warmup bars)
+  Persisting 6218 raw signals for BCHUSDT on 5m (filtered from 6252 total)
+Processing feature batch for NEARUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for NEARUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6177 raw signals for NEARUSDT on 5m (filtered from 6211 total)
+Processing feature batch for 1000PEPEUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for 1000PEPEUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6163 raw signals for 1000PEPEUSDT on 5m (filtered from 6197 total)
+Processing feature batch for ZKPUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZKPUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5925 raw signals for ZKPUSDT on 5m (filtered from 5959 total)
+Processing feature batch for ALCHUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ALCHUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6041 raw signals for ALCHUSDT on 5m (filtered from 6075 total)
+Processing feature batch for PIPPINUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PIPPINUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5916 raw signals for PIPPINUSDT on 5m (filtered from 5950 total)
+Processing feature batch for RIVERUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for RIVERUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5954 raw signals for RIVERUSDT on 5m (filtered from 5988 total)
+Processing feature batch for ZECUSDT on 5m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZECUSDT on 5m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6168 raw signals for ZECUSDT on 5m (filtered from 6202 total)
+Processing feature batch for NEARUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for NEARUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6031 raw signals for NEARUSDT on 15m (filtered from 6065 total)
+Processing feature batch for ZECUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZECUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5975 raw signals for ZECUSDT on 15m (filtered from 6009 total)
+Processing feature batch for MONUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for MONUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6002 raw signals for MONUSDT on 15m (filtered from 6036 total)
+Processing feature batch for STABLEUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for STABLEUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5917 raw signals for STABLEUSDT on 15m (filtered from 5951 total)
+Processing feature batch for ARCUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ARCUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5898 raw signals for ARCUSDT on 15m (filtered from 5932 total)
+Processing feature batch for ALCHUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ALCHUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6010 raw signals for ALCHUSDT on 15m (filtered from 6044 total)
+Processing feature batch for ZAMAUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZAMAUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5901 raw signals for ZAMAUSDT on 15m (filtered from 5935 total)
+Processing feature batch for PUMPUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PUMPUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5969 raw signals for PUMPUSDT on 15m (filtered from 6003 total)
+Processing feature batch for FHEUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FHEUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5935 raw signals for FHEUSDT on 15m (filtered from 5969 total)
+Processing feature batch for SIRENUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SIRENUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5888 raw signals for SIRENUSDT on 15m (filtered from 5922 total)
+Processing feature batch for ZKPUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZKPUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5937 raw signals for ZKPUSDT on 15m (filtered from 5971 total)
+Processing feature batch for BTCUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BTCUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6099 raw signals for BTCUSDT on 15m (filtered from 6133 total)
+Processing feature batch for WLFIUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLFIUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5970 raw signals for WLFIUSDT on 15m (filtered from 6004 total)
+Processing feature batch for WIFUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WIFUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6022 raw signals for WIFUSDT on 15m (filtered from 6056 total)
+Processing feature batch for PIPPINUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PIPPINUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5906 raw signals for PIPPINUSDT on 15m (filtered from 5940 total)
+Processing feature batch for POWERUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for POWERUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6011 raw signals for POWERUSDT on 15m (filtered from 6045 total)
+Processing feature batch for ADAUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ADAUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6067 raw signals for ADAUSDT on 15m (filtered from 6101 total)
+Processing feature batch for ASTERUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ASTERUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5973 raw signals for ASTERUSDT on 15m (filtered from 6007 total)
+Processing feature batch for LTCUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LTCUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6073 raw signals for LTCUSDT on 15m (filtered from 6107 total)
+Processing feature batch for AXSUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AXSUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5931 raw signals for AXSUSDT on 15m (filtered from 5965 total)
+Processing feature batch for ZROUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZROUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5932 raw signals for ZROUSDT on 15m (filtered from 5966 total)
+Processing feature batch for SOLUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SOLUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6033 raw signals for SOLUSDT on 15m (filtered from 6067 total)
+Processing feature batch for AAVEUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AAVEUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6070 raw signals for AAVEUSDT on 15m (filtered from 6104 total)
+Processing feature batch for HYPEUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for HYPEUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5974 raw signals for HYPEUSDT on 15m (filtered from 6008 total)
+Processing feature batch for RIVERUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for RIVERUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5846 raw signals for RIVERUSDT on 15m (filtered from 5880 total)
+Processing feature batch for XMRUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XMRUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5988 raw signals for XMRUSDT on 15m (filtered from 6022 total)
+Processing feature batch for XRPUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XRPUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6039 raw signals for XRPUSDT on 15m (filtered from 6073 total)
+Processing feature batch for LINKUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LINKUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6068 raw signals for LINKUSDT on 15m (filtered from 6102 total)
+Processing feature batch for SUIUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SUIUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6025 raw signals for SUIUSDT on 15m (filtered from 6059 total)
+Processing feature batch for BCHUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BCHUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6045 raw signals for BCHUSDT on 15m (filtered from 6079 total)
+Processing feature batch for 1000PEPEUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for 1000PEPEUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6022 raw signals for 1000PEPEUSDT on 15m (filtered from 6056 total)
+Processing feature batch for ENAUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ENAUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6029 raw signals for ENAUSDT on 15m (filtered from 6063 total)
+Processing feature batch for ETHUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ETHUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6062 raw signals for ETHUSDT on 15m (filtered from 6096 total)
+Processing feature batch for WLDUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLDUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6030 raw signals for WLDUSDT on 15m (filtered from 6064 total)
+Processing feature batch for BERAUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BERAUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5923 raw signals for BERAUSDT on 15m (filtered from 5957 total)
+Processing feature batch for GPSUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for GPSUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5908 raw signals for GPSUSDT on 15m (filtered from 5942 total)
+Processing feature batch for DUSKUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DUSKUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5913 raw signals for DUSKUSDT on 15m (filtered from 5947 total)
+Processing feature batch for SENTUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SENTUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5970 raw signals for SENTUSDT on 15m (filtered from 6004 total)
+Processing feature batch for FILUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FILUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6009 raw signals for FILUSDT on 15m (filtered from 6043 total)
+Processing feature batch for AVAXUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AVAXUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6048 raw signals for AVAXUSDT on 15m (filtered from 6082 total)
+Processing feature batch for BIRBUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BIRBUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5866 raw signals for BIRBUSDT on 15m (filtered from 5900 total)
+Processing feature batch for BNBUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BNBUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6118 raw signals for BNBUSDT on 15m (filtered from 6152 total)
+Processing feature batch for VANAUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for VANAUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6039 raw signals for VANAUSDT on 15m (filtered from 6073 total)
+Processing feature batch for DOGEUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DOGEUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6065 raw signals for DOGEUSDT on 15m (filtered from 6099 total)
+Processing feature batch for TAOUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for TAOUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 6033 raw signals for TAOUSDT on 15m (filtered from 6067 total)
+Processing feature batch for KITEUSDT on 15m, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for KITEUSDT on 15m (bars 15..498, skipped 15 warmup bars)
+  Persisting 5980 raw signals for KITEUSDT on 15m (filtered from 6014 total)
+Processing feature batch for MONUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for MONUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5867 raw signals for MONUSDT on 1h (filtered from 5901 total)
+Processing feature batch for ARCUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ARCUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5889 raw signals for ARCUSDT on 1h (filtered from 5923 total)
+Processing feature batch for DUSKUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DUSKUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5870 raw signals for DUSKUSDT on 1h (filtered from 5904 total)
+Processing feature batch for POWERUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for POWERUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5884 raw signals for POWERUSDT on 1h (filtered from 5918 total)
+Processing feature batch for WLFIUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLFIUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5851 raw signals for WLFIUSDT on 1h (filtered from 5885 total)
+Processing feature batch for PUMPUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PUMPUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5889 raw signals for PUMPUSDT on 1h (filtered from 5923 total)
+Processing feature batch for ZROUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZROUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5889 raw signals for ZROUSDT on 1h (filtered from 5923 total)
+Processing feature batch for STABLEUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for STABLEUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5853 raw signals for STABLEUSDT on 1h (filtered from 5887 total)
+Processing feature batch for SIRENUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SIRENUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5921 raw signals for SIRENUSDT on 1h (filtered from 5955 total)
+Processing feature batch for ZECUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZECUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5878 raw signals for ZECUSDT on 1h (filtered from 5912 total)
+Processing feature batch for 1000PEPEUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for 1000PEPEUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5881 raw signals for 1000PEPEUSDT on 1h (filtered from 5915 total)
+Processing feature batch for SUIUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SUIUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5920 raw signals for SUIUSDT on 1h (filtered from 5954 total)
+Processing feature batch for SENTUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SENTUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5831 raw signals for SENTUSDT on 1h (filtered from 5865 total)
+Processing feature batch for RIVERUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for RIVERUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5823 raw signals for RIVERUSDT on 1h (filtered from 5857 total)
+Processing feature batch for AAVEUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AAVEUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5959 raw signals for AAVEUSDT on 1h (filtered from 5993 total)
+Processing feature batch for SOLUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SOLUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5989 raw signals for SOLUSDT on 1h (filtered from 6023 total)
+Processing feature batch for ENAUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ENAUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5933 raw signals for ENAUSDT on 1h (filtered from 5967 total)
+Processing feature batch for ASTERUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ASTERUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5920 raw signals for ASTERUSDT on 1h (filtered from 5954 total)
+Processing feature batch for AVAXUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AVAXUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5957 raw signals for AVAXUSDT on 1h (filtered from 5991 total)
+Processing feature batch for FHEUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FHEUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5872 raw signals for FHEUSDT on 1h (filtered from 5906 total)
+Processing feature batch for LINKUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LINKUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5968 raw signals for LINKUSDT on 1h (filtered from 6002 total)
+Processing feature batch for VANAUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for VANAUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5928 raw signals for VANAUSDT on 1h (filtered from 5962 total)
+Processing feature batch for ADAUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ADAUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5956 raw signals for ADAUSDT on 1h (filtered from 5990 total)
+Processing feature batch for HYPEUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for HYPEUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5869 raw signals for HYPEUSDT on 1h (filtered from 5903 total)
+Processing feature batch for GPSUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for GPSUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5844 raw signals for GPSUSDT on 1h (filtered from 5878 total)
+Processing feature batch for ZKPUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZKPUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5871 raw signals for ZKPUSDT on 1h (filtered from 5905 total)
+Processing feature batch for BIRBUSDT on 1h, bars=306, cols=27, realtime: false
+  Persisting 7551 indicator records for BIRBUSDT on 1h (bars 15..305, skipped 15 warmup bars)
+  Persisting 3407 raw signals for BIRBUSDT on 1h (filtered from 3441 total)
+Processing feature batch for ZAMAUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZAMAUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5799 raw signals for ZAMAUSDT on 1h (filtered from 5833 total)
+Processing feature batch for KITEUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for KITEUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5831 raw signals for KITEUSDT on 1h (filtered from 5865 total)
+Processing feature batch for ALCHUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ALCHUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5948 raw signals for ALCHUSDT on 1h (filtered from 5982 total)
+Processing feature batch for TAOUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for TAOUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5923 raw signals for TAOUSDT on 1h (filtered from 5957 total)
+Processing feature batch for XRPUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XRPUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5984 raw signals for XRPUSDT on 1h (filtered from 6018 total)
+Processing feature batch for XMRUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XMRUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5848 raw signals for XMRUSDT on 1h (filtered from 5882 total)
+Received candle close event: XMRUSDT 1m at 1770764459999
+Received candle close event: DUSKUSDT 1m at 1770764459999
+Received candle close event: ZROUSDT 1m at 1770764459999
+Received candle close event: XRPUSDT 1m at 1770764459999
+Received candle close event: WLDUSDT 1m at 1770764459999
+Received candle close event: PIPPINUSDT 1m at 1770764459999
+Received candle close event: HYPEUSDT 1m at 1770764459999
+Received candle close event: ADAUSDT 1m at 1770764459999
+Received candle close event: FHEUSDT 1m at 1770764459999
+Received candle close event: RIVERUSDT 1m at 1770764459999
+Received candle close event: ETHUSDT 1m at 1770764459999
+Received candle close event: AVAXUSDT 1m at 1770764459999
+Received candle close event: 1000PEPEUSDT 1m at 1770764459999
+Received candle close event: ARCUSDT 1m at 1770764459999
+Processing feature batch for AXSUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AXSUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+Received candle close event: WIFUSDT 1m at 1770764459999
+Received candle close event: MONUSDT 1m at 1770764459999
+  Persisting 5839 raw signals for AXSUSDT on 1h (filtered from 5873 total)
+Processing feature batch for BTCUSDT on 1h, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for BTCUSDT on 1h (bars 15..499, skipped 15 warmup bars)
+  Persisting 6049 raw signals for BTCUSDT on 1h (filtered from 6083 total)
+Received candle close event: POWERUSDT 1m at 1770764459999
+Received candle close event: SOLUSDT 1m at 1770764459999
+Received candle close event: GPSUSDT 1m at 1770764459999
+Received candle close event: BERAUSDT 1m at 1770764459999
+Received candle close event: BIRBUSDT 1m at 1770764459999
+Received candle close event: SIRENUSDT 1m at 1770764459999
+Received candle close event: STABLEUSDT 1m at 1770764459999
+Received candle close event: AXSUSDT 1m at 1770764459999
+Received candle close event: ZKPUSDT 1m at 1770764459999
+Received candle close event: WLFIUSDT 1m at 1770764459999
+Processing feature batch for BCHUSDT on 1h, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for BCHUSDT on 1h (bars 15..499, skipped 15 warmup bars)
+Received candle close event: BNBUSDT 1m at 1770764459999
+  Persisting 5992 raw signals for BCHUSDT on 1h (filtered from 6026 total)
+Received candle close event: BTCUSDT 1m at 1770764459999
+Received candle close event: ASTERUSDT 1m at 1770764459999
+Received candle close event: VANAUSDT 1m at 1770764459999
+Received candle close event: KITEUSDT 1m at 1770764459999
+Received candle close event: AAVEUSDT 1m at 1770764459999
+Received candle close event: DOGEUSDT 1m at 1770764459999
+Received candle close event: PUMPUSDT 1m at 1770764459999
+Received candle close event: SUIUSDT 1m at 1770764459999
+Received candle close event: SENTUSDT 1m at 1770764459999
+Received candle close event: ZAMAUSDT 1m at 1770764459999
+Processing feature batch for BNBUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BNBUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 6051 raw signals for BNBUSDT on 1h (filtered from 6085 total)
+Processing feature batch for PIPPINUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PIPPINUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5846 raw signals for PIPPINUSDT on 1h (filtered from 5880 total)
+Received candle close event: ZECUSDT 1m at 1770764459999
+Received candle close event: NEARUSDT 1m at 1770764459999
+Received candle close event: LTCUSDT 1m at 1770764459999
+Received candle close event: BCHUSDT 1m at 1770764459999
+Received candle close event: TAOUSDT 1m at 1770764459999
+Received candle close event: LINKUSDT 1m at 1770764459999
+Received candle close event: ALCHUSDT 1m at 1770764459999
+Received candle close event: FILUSDT 1m at 1770764459999
+Processing feature batch for WLDUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLDUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5914 raw signals for WLDUSDT on 1h (filtered from 5948 total)
+Received candle close event: ENAUSDT 1m at 1770764459999
+Processing feature batch for FILUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FILUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5926 raw signals for FILUSDT on 1h (filtered from 5960 total)
+Processing feature batch for NEARUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for NEARUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5912 raw signals for NEARUSDT on 1h (filtered from 5946 total)
+Processing feature batch for WIFUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WIFUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5906 raw signals for WIFUSDT on 1h (filtered from 5940 total)
+Processing feature batch for BERAUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BERAUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5944 raw signals for BERAUSDT on 1h (filtered from 5978 total)
+Processing feature batch for DOGEUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DOGEUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5944 raw signals for DOGEUSDT on 1h (filtered from 5978 total)
+Processing feature batch for ETHUSDT on 1h, bars=500, cols=27, realtime: false
+  Persisting 12789 indicator records for ETHUSDT on 1h (bars 15..499, skipped 15 warmup bars)
+  Persisting 5952 raw signals for ETHUSDT on 1h (filtered from 5986 total)
+Processing feature batch for LTCUSDT on 1h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LTCUSDT on 1h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5963 raw signals for LTCUSDT on 1h (filtered from 5997 total)
+Processing feature batch for ZECUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZECUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5823 raw signals for ZECUSDT on 4h (filtered from 5857 total)
+Processing feature batch for NEARUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for NEARUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5823 raw signals for NEARUSDT on 4h (filtered from 5857 total)
+Processing feature batch for BNBUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BNBUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5919 raw signals for BNBUSDT on 4h (filtered from 5953 total)
+Processing feature batch for POWERUSDT on 4h, bars=399, cols=27, realtime: false
+  Persisting 10062 indicator records for POWERUSDT on 4h (bars 15..398, skipped 15 warmup bars)
+  Persisting 4542 raw signals for POWERUSDT on 4h (filtered from 4576 total)
+Processing feature batch for HYPEUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for HYPEUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5813 raw signals for HYPEUSDT on 4h (filtered from 5847 total)
+Processing feature batch for SUIUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SUIUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5836 raw signals for SUIUSDT on 4h (filtered from 5870 total)
+Processing feature batch for BERAUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BERAUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5872 raw signals for BERAUSDT on 4h (filtered from 5906 total)
+Processing feature batch for VANAUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for VANAUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5873 raw signals for VANAUSDT on 4h (filtered from 5907 total)
+Processing feature batch for BCHUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BCHUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5857 raw signals for BCHUSDT on 4h (filtered from 5891 total)
+Processing feature batch for WLFIUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLFIUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5825 raw signals for WLFIUSDT on 4h (filtered from 5859 total)
+Processing feature batch for SIRENUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SIRENUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5909 raw signals for SIRENUSDT on 4h (filtered from 5943 total)
+Processing feature batch for ENAUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ENAUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5872 raw signals for ENAUSDT on 4h (filtered from 5906 total)
+Processing feature batch for XMRUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XMRUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5863 raw signals for XMRUSDT on 4h (filtered from 5897 total)
+Processing feature batch for ZKPUSDT on 4h, bars=309, cols=27, realtime: false
+  Persisting 7632 indicator records for ZKPUSDT on 4h (bars 15..308, skipped 15 warmup bars)
+  Persisting 3432 raw signals for ZKPUSDT on 4h (filtered from 3466 total)
+Processing feature batch for BTCUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BTCUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5928 raw signals for BTCUSDT on 4h (filtered from 5962 total)
+Processing feature batch for LTCUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LTCUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5840 raw signals for LTCUSDT on 4h (filtered from 5874 total)
+Processing feature batch for RIVERUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for RIVERUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5845 raw signals for RIVERUSDT on 4h (filtered from 5879 total)
+Processing feature batch for ARCUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ARCUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5868 raw signals for ARCUSDT on 4h (filtered from 5902 total)
+Processing feature batch for ETHUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ETHUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5905 raw signals for ETHUSDT on 4h (filtered from 5939 total)
+Processing feature batch for PUMPUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PUMPUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5819 raw signals for PUMPUSDT on 4h (filtered from 5853 total)
+Processing feature batch for LINKUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LINKUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5860 raw signals for LINKUSDT on 4h (filtered from 5894 total)
+Processing feature batch for TAOUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for TAOUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5803 raw signals for TAOUSDT on 4h (filtered from 5837 total)
+Processing feature batch for AAVEUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AAVEUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5871 raw signals for AAVEUSDT on 4h (filtered from 5905 total)
+Processing feature batch for WLDUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLDUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5823 raw signals for WLDUSDT on 4h (filtered from 5857 total)
+Processing feature batch for KITEUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for KITEUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5774 raw signals for KITEUSDT on 4h (filtered from 5808 total)
+Processing feature batch for ASTERUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ASTERUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5807 raw signals for ASTERUSDT on 4h (filtered from 5841 total)
+Processing feature batch for ADAUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ADAUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5858 raw signals for ADAUSDT on 4h (filtered from 5892 total)
+Processing feature batch for AVAXUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AVAXUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5863 raw signals for AVAXUSDT on 4h (filtered from 5897 total)
+Processing feature batch for FHEUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FHEUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5816 raw signals for FHEUSDT on 4h (filtered from 5850 total)
+Processing feature batch for 1000PEPEUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for 1000PEPEUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5859 raw signals for 1000PEPEUSDT on 4h (filtered from 5893 total)
+Processing feature batch for AXSUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AXSUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5857 raw signals for AXSUSDT on 4h (filtered from 5891 total)
+Processing feature batch for DUSKUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DUSKUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5862 raw signals for DUSKUSDT on 4h (filtered from 5896 total)
+Processing feature batch for FILUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FILUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5761 raw signals for FILUSDT on 4h (filtered from 5795 total)
+Processing feature batch for GPSUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for GPSUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5816 raw signals for GPSUSDT on 4h (filtered from 5850 total)
+Processing feature batch for ALCHUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ALCHUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5832 raw signals for ALCHUSDT on 4h (filtered from 5866 total)
+Processing feature batch for MONUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for MONUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5822 raw signals for MONUSDT on 4h (filtered from 5856 total)
+Processing feature batch for DOGEUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DOGEUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5849 raw signals for DOGEUSDT on 4h (filtered from 5883 total)
+Processing feature batch for ZROUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZROUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5804 raw signals for ZROUSDT on 4h (filtered from 5838 total)
+Processing feature batch for STABLEUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for STABLEUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5816 raw signals for STABLEUSDT on 4h (filtered from 5850 total)
+Processing feature batch for XRPUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XRPUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5860 raw signals for XRPUSDT on 4h (filtered from 5894 total)
+Processing feature batch for PIPPINUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for PIPPINUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5834 raw signals for PIPPINUSDT on 4h (filtered from 5868 total)
+Processing feature batch for WIFUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WIFUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5807 raw signals for WIFUSDT on 4h (filtered from 5841 total)
+Processing feature batch for SENTUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SENTUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5804 raw signals for SENTUSDT on 4h (filtered from 5838 total)
+Processing feature batch for SOLUSDT on 4h, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SOLUSDT on 4h (bars 15..498, skipped 15 warmup bars)
+  Persisting 5843 raw signals for SOLUSDT on 4h (filtered from 5877 total)
+Processing feature batch for ADAUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ADAUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5762 raw signals for ADAUSDT on 1d (filtered from 5796 total)
+Processing feature batch for DUSKUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DUSKUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5832 raw signals for DUSKUSDT on 1d (filtered from 5866 total)
+Processing feature batch for WLDUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WLDUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5761 raw signals for WLDUSDT on 1d (filtered from 5795 total)
+Processing feature batch for XRPUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XRPUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5759 raw signals for XRPUSDT on 1d (filtered from 5793 total)
+Processing feature batch for DOGEUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for DOGEUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5771 raw signals for DOGEUSDT on 1d (filtered from 5805 total)
+Processing feature batch for HYPEUSDT on 1d, bars=256, cols=27, realtime: false
+  Persisting 6201 indicator records for HYPEUSDT on 1d (bars 15..255, skipped 15 warmup bars)
+  Persisting 2715 raw signals for HYPEUSDT on 1d (filtered from 2749 total)
+Processing feature batch for LTCUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LTCUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5778 raw signals for LTCUSDT on 1d (filtered from 5812 total)
+Processing feature batch for AAVEUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AAVEUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5776 raw signals for AAVEUSDT on 1d (filtered from 5810 total)
+Processing feature batch for SUIUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SUIUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5766 raw signals for SUIUSDT on 1d (filtered from 5800 total)
+Processing feature batch for BTCUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BTCUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5817 raw signals for BTCUSDT on 1d (filtered from 5851 total)
+Processing feature batch for PIPPINUSDT on 1d, bars=382, cols=27, realtime: false
+  Persisting 9603 indicator records for PIPPINUSDT on 1d (bars 15..381, skipped 15 warmup bars)
+  Persisting 4326 raw signals for PIPPINUSDT on 1d (filtered from 4360 total)
+Processing feature batch for VANAUSDT on 1d, bars=421, cols=27, realtime: false
+  Persisting 10656 indicator records for VANAUSDT on 1d (bars 15..420, skipped 15 warmup bars)
+  Persisting 4807 raw signals for VANAUSDT on 1d (filtered from 4841 total)
+Processing feature batch for AVAXUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AVAXUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5763 raw signals for AVAXUSDT on 1d (filtered from 5797 total)
+Processing feature batch for ARCUSDT on 1d, bars=389, cols=27, realtime: false
+  Persisting 9792 indicator records for ARCUSDT on 1d (bars 15..388, skipped 15 warmup bars)
+  Persisting 4403 raw signals for ARCUSDT on 1d (filtered from 4437 total)
+Processing feature batch for ETHUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ETHUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5789 raw signals for ETHUSDT on 1d (filtered from 5823 total)
+Processing feature batch for SIRENUSDT on 1d, bars=325, cols=27, realtime: false
+  Persisting 8064 indicator records for SIRENUSDT on 1d (bars 15..324, skipped 15 warmup bars)
+  Persisting 3615 raw signals for SIRENUSDT on 1d (filtered from 3649 total)
+Processing feature batch for BERAUSDT on 1d, bars=369, cols=27, realtime: false
+  Persisting 9252 indicator records for BERAUSDT on 1d (bars 15..368, skipped 15 warmup bars)
+  Persisting 4193 raw signals for BERAUSDT on 1d (filtered from 4227 total)
+Processing feature batch for ALCHUSDT on 1d, bars=399, cols=27, realtime: false
+  Persisting 10062 indicator records for ALCHUSDT on 1d (bars 15..398, skipped 15 warmup bars)
+  Persisting 4553 raw signals for ALCHUSDT on 1d (filtered from 4587 total)
+Processing feature batch for BCHUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BCHUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5721 raw signals for BCHUSDT on 1d (filtered from 5755 total)
+Processing feature batch for NEARUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for NEARUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5792 raw signals for NEARUSDT on 1d (filtered from 5826 total)
+Processing feature batch for TAOUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for TAOUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5770 raw signals for TAOUSDT on 1d (filtered from 5804 total)
+Processing feature batch for ENAUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ENAUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5791 raw signals for ENAUSDT on 1d (filtered from 5825 total)
+Processing feature batch for GPSUSDT on 1d, bars=358, cols=27, realtime: false
+  Persisting 8955 indicator records for GPSUSDT on 1d (bars 15..357, skipped 15 warmup bars)
+  Persisting 4053 raw signals for GPSUSDT on 1d (filtered from 4087 total)
+Processing feature batch for ZECUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZECUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5774 raw signals for ZECUSDT on 1d (filtered from 5808 total)
+Processing feature batch for LINKUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for LINKUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5782 raw signals for LINKUSDT on 1d (filtered from 5816 total)
+Processing feature batch for FILUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for FILUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5779 raw signals for FILUSDT on 1d (filtered from 5813 total)
+Processing feature batch for 1000PEPEUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for 1000PEPEUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5772 raw signals for 1000PEPEUSDT on 1d (filtered from 5806 total)
+Processing feature batch for WIFUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for WIFUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5783 raw signals for WIFUSDT on 1d (filtered from 5817 total)
+Processing feature batch for FHEUSDT on 1d, bars=304, cols=27, realtime: false
+  Persisting 7497 indicator records for FHEUSDT on 1d (bars 15..303, skipped 15 warmup bars)
+  Persisting 3367 raw signals for FHEUSDT on 1d (filtered from 3401 total)
+Processing feature batch for AXSUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for AXSUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5798 raw signals for AXSUSDT on 1d (filtered from 5832 total)
+Processing feature batch for XMRUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for XMRUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5745 raw signals for XMRUSDT on 1d (filtered from 5779 total)
+Processing feature batch for BNBUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for BNBUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5775 raw signals for BNBUSDT on 1d (filtered from 5809 total)
+Processing feature batch for SOLUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for SOLUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5787 raw signals for SOLUSDT on 1d (filtered from 5821 total)
+Processing feature batch for ZROUSDT on 1d, bars=499, cols=27, realtime: false
+  Persisting 12762 indicator records for ZROUSDT on 1d (bars 15..498, skipped 15 warmup bars)
+  Persisting 5766 raw signals for ZROUSDT on 1d (filtered from 5800 total)
+Processing feature batch for XMRUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for XMRUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for XMRUSDT on 1m (filtered from 6229 total)
+Processing feature batch for DUSKUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for DUSKUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for DUSKUSDT on 1m (filtered from 6193 total)
+Processing feature batch for ZROUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for ZROUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 27 raw signals for ZROUSDT on 1m (filtered from 6174 total)
+Processing feature batch for XRPUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for XRPUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for XRPUSDT on 1m (filtered from 6192 total)
+Processing feature batch for WLDUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for WLDUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for WLDUSDT on 1m (filtered from 6192 total)
+Processing feature batch for PIPPINUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for PIPPINUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for PIPPINUSDT on 1m (filtered from 6111 total)
+Processing feature batch for HYPEUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for HYPEUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 28 raw signals for HYPEUSDT on 1m (filtered from 6228 total)
+Processing feature batch for ADAUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ADAUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for ADAUSDT on 1m (filtered from 6191 total)
+Processing feature batch for FHEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for FHEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for FHEUSDT on 1m (filtered from 6077 total)
+Processing feature batch for RIVERUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for RIVERUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for RIVERUSDT on 1m (filtered from 6063 total)
+Processing feature batch for ETHUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ETHUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for ETHUSDT on 1m (filtered from 6181 total)
+Processing feature batch for AVAXUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for AVAXUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for AVAXUSDT on 1m (filtered from 6196 total)
+Processing feature batch for 1000PEPEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for 1000PEPEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for 1000PEPEUSDT on 1m (filtered from 6220 total)
+Processing feature batch for ARCUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ARCUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for ARCUSDT on 1m (filtered from 6207 total)
+Processing feature batch for WIFUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for WIFUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for WIFUSDT on 1m (filtered from 6210 total)
+Processing feature batch for MONUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for MONUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for MONUSDT on 1m (filtered from 6154 total)
+Processing feature batch for POWERUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for POWERUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 24 raw signals for POWERUSDT on 1m (filtered from 5921 total)
+Processing feature batch for SOLUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for SOLUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for SOLUSDT on 1m (filtered from 6181 total)
+Processing feature batch for GPSUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for GPSUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for GPSUSDT on 1m (filtered from 6170 total)
+Processing feature batch for BERAUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for BERAUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for BERAUSDT on 1m (filtered from 6147 total)
+Processing feature batch for BIRBUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for BIRBUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for BIRBUSDT on 1m (filtered from 6182 total)
+Processing feature batch for SIRENUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for SIRENUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 27 raw signals for SIRENUSDT on 1m (filtered from 6103 total)
+Processing feature batch for STABLEUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for STABLEUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for STABLEUSDT on 1m (filtered from 6116 total)
+Processing feature batch for AXSUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for AXSUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for AXSUSDT on 1m (filtered from 6189 total)
+Processing feature batch for ZKPUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for ZKPUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 27 raw signals for ZKPUSDT on 1m (filtered from 6203 total)
+Processing feature batch for WLFIUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for WLFIUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for WLFIUSDT on 1m (filtered from 6198 total)
+Processing feature batch for BNBUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for BNBUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for BNBUSDT on 1m (filtered from 6209 total)
+Processing feature batch for BTCUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for BTCUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for BTCUSDT on 1m (filtered from 6199 total)
+Processing feature batch for ASTERUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ASTERUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for ASTERUSDT on 1m (filtered from 6211 total)
+Processing feature batch for VANAUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for VANAUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for VANAUSDT on 1m (filtered from 6217 total)
+Processing feature batch for KITEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for KITEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for KITEUSDT on 1m (filtered from 6199 total)
+Processing feature batch for AAVEUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for AAVEUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for AAVEUSDT on 1m (filtered from 6178 total)
+Processing feature batch for DOGEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for DOGEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for DOGEUSDT on 1m (filtered from 6180 total)
+Processing feature batch for PUMPUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for PUMPUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for PUMPUSDT on 1m (filtered from 6179 total)
+Processing feature batch for SUIUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for SUIUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for SUIUSDT on 1m (filtered from 6203 total)
+Processing feature batch for SENTUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for SENTUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for SENTUSDT on 1m (filtered from 6213 total)
+Processing feature batch for ZAMAUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ZAMAUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for ZAMAUSDT on 1m (filtered from 6148 total)
+Processing feature batch for ZECUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ZECUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for ZECUSDT on 1m (filtered from 6193 total)
+Processing feature batch for NEARUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for NEARUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for NEARUSDT on 1m (filtered from 6198 total)
+Processing feature batch for LTCUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for LTCUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for LTCUSDT on 1m (filtered from 6165 total)
+Processing feature batch for BCHUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for BCHUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for BCHUSDT on 1m (filtered from 6196 total)
+Processing feature batch for TAOUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for TAOUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for TAOUSDT on 1m (filtered from 6200 total)
+Processing feature batch for LINKUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for LINKUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for LINKUSDT on 1m (filtered from 6210 total)
+Processing feature batch for ALCHUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ALCHUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for ALCHUSDT on 1m (filtered from 6121 total)
+Processing feature batch for FILUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for FILUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 27 raw signals for FILUSDT on 1m (filtered from 6199 total)
+Processing feature batch for ENAUSDT on 1m, bars=499, cols=23, realtime: true
+  Persisting 46 indicator records for ENAUSDT on 1m (bars 497..498, skipped 497 warmup bars)
+  Persisting 26 raw signals for ENAUSDT on 1m (filtered from 6186 total)
+Received candle close event: FHEUSDT 1m at 1770764519999
+Received candle close event: ZROUSDT 1m at 1770764519999
+Processing feature batch for FHEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for FHEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+Received candle close event: PIPPINUSDT 1m at 1770764519999
+  Persisting 26 raw signals for FHEUSDT on 1m (filtered from 6077 total)
+Processing feature batch for ZROUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ZROUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 25 raw signals for ZROUSDT on 1m (filtered from 6186 total)
+Processing feature batch for PIPPINUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for PIPPINUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+Received candle close event: SUIUSDT 1m at 1770764519999
+Received candle close event: SIRENUSDT 1m at 1770764519999
+Received candle close event: POWERUSDT 1m at 1770764519999
+  Persisting 27 raw signals for PIPPINUSDT on 1m (filtered from 6111 total)
+Processing feature batch for SUIUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for SUIUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+Received candle close event: GPSUSDT 1m at 1770764519999
+  Persisting 26 raw signals for SUIUSDT on 1m (filtered from 6203 total)
+Processing feature batch for SIRENUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for SIRENUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for SIRENUSDT on 1m (filtered from 6131 total)
+Processing feature batch for POWERUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for POWERUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 24 raw signals for POWERUSDT on 1m (filtered from 5945 total)
+Processing feature batch for GPSUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for GPSUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: ZKPUSDT 1m at 1770764519999
+Received candle close event: BIRBUSDT 1m at 1770764519999
+  Persisting 26 raw signals for GPSUSDT on 1m (filtered from 6183 total)
+Processing feature batch for ZKPUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ZKPUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for ZKPUSDT on 1m (filtered from 6217 total)
+Processing feature batch for BIRBUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for BIRBUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for BIRBUSDT on 1m (filtered from 6182 total)
+Received candle close event: RIVERUSDT 1m at 1770764519999
+Processing feature batch for RIVERUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for RIVERUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: MONUSDT 1m at 1770764519999
+  Persisting 27 raw signals for RIVERUSDT on 1m (filtered from 6076 total)
+Processing feature batch for MONUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for MONUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for MONUSDT on 1m (filtered from 6168 total)
+Received candle close event: SENTUSDT 1m at 1770764519999
+Processing feature batch for SENTUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for SENTUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for SENTUSDT on 1m (filtered from 6226 total)
+Received candle close event: AAVEUSDT 1m at 1770764519999
+Received candle close event: HYPEUSDT 1m at 1770764519999
+Processing feature batch for AAVEUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for AAVEUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: XRPUSDT 1m at 1770764519999
+  Persisting 26 raw signals for AAVEUSDT on 1m (filtered from 6204 total)
+Processing feature batch for HYPEUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for HYPEUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for HYPEUSDT on 1m (filtered from 6256 total)
+Processing feature batch for XRPUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for XRPUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for XRPUSDT on 1m (filtered from 6218 total)
+Received candle close event: ETHUSDT 1m at 1770764519999
+Received candle close event: WIFUSDT 1m at 1770764519999
+Processing feature batch for ETHUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ETHUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for ETHUSDT on 1m (filtered from 6207 total)
+Processing feature batch for WIFUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for WIFUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for WIFUSDT on 1m (filtered from 6223 total)
+Received candle close event: TAOUSDT 1m at 1770764519999
+Processing feature batch for TAOUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for TAOUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for TAOUSDT on 1m (filtered from 6200 total)
+Received candle close event: ZECUSDT 1m at 1770764519999
+Processing feature batch for ZECUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ZECUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for ZECUSDT on 1m (filtered from 6193 total)
+Received candle close event: BERAUSDT 1m at 1770764519999
+Processing feature batch for BERAUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for BERAUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for BERAUSDT on 1m (filtered from 6147 total)
+Received candle close event: BNBUSDT 1m at 1770764519999
+Received candle close event: KITEUSDT 1m at 1770764519999
+Processing feature batch for BNBUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for BNBUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: ARCUSDT 1m at 1770764519999
+  Persisting 26 raw signals for BNBUSDT on 1m (filtered from 6222 total)
+Processing feature batch for KITEUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for KITEUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for KITEUSDT on 1m (filtered from 6212 total)
+Processing feature batch for ARCUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ARCUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for ARCUSDT on 1m (filtered from 6221 total)
+Received candle close event: LINKUSDT 1m at 1770764519999
+Processing feature batch for LINKUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for LINKUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for LINKUSDT on 1m (filtered from 6210 total)
+Received candle close event: ZAMAUSDT 1m at 1770764519999
+Processing feature batch for ZAMAUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ZAMAUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for ZAMAUSDT on 1m (filtered from 6161 total)
+Received candle close event: STABLEUSDT 1m at 1770764519999
+Processing feature batch for STABLEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for STABLEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for STABLEUSDT on 1m (filtered from 6129 total)
+Received candle close event: 1000PEPEUSDT 1m at 1770764519999
+Processing feature batch for 1000PEPEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for 1000PEPEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for 1000PEPEUSDT on 1m (filtered from 6220 total)
+Received candle close event: PUMPUSDT 1m at 1770764519999
+Processing feature batch for PUMPUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for PUMPUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 27 raw signals for PUMPUSDT on 1m (filtered from 6193 total)
+Received candle close event: AXSUSDT 1m at 1770764519999
+Received candle close event: LTCUSDT 1m at 1770764519999
+Processing feature batch for AXSUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for AXSUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for AXSUSDT on 1m (filtered from 6189 total)
+Processing feature batch for LTCUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for LTCUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for LTCUSDT on 1m (filtered from 6178 total)
+Received candle close event: DUSKUSDT 1m at 1770764519999
+Received candle close event: VANAUSDT 1m at 1770764519999
+Processing feature batch for DUSKUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for DUSKUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for DUSKUSDT on 1m (filtered from 6219 total)
+Processing feature batch for VANAUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for VANAUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for VANAUSDT on 1m (filtered from 6217 total)
+Received candle close event: XMRUSDT 1m at 1770764519999
+Received candle close event: BTCUSDT 1m at 1770764519999
+Processing feature batch for XMRUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for XMRUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+Received candle close event: ASTERUSDT 1m at 1770764519999
+Received candle close event: WLDUSDT 1m at 1770764519999
+  Persisting 26 raw signals for XMRUSDT on 1m (filtered from 6242 total)
+Processing feature batch for BTCUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for BTCUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for BTCUSDT on 1m (filtered from 6199 total)
+Processing feature batch for ASTERUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ASTERUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for ASTERUSDT on 1m (filtered from 6211 total)
+Processing feature batch for WLDUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for WLDUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+Received candle close event: SOLUSDT 1m at 1770764519999
+  Persisting 28 raw signals for WLDUSDT on 1m (filtered from 6192 total)
+Processing feature batch for SOLUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for SOLUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 27 raw signals for SOLUSDT on 1m (filtered from 6208 total)
+Received candle close event: DOGEUSDT 1m at 1770764519999
+Processing feature batch for DOGEUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for DOGEUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for DOGEUSDT on 1m (filtered from 6180 total)
+Received candle close event: ALCHUSDT 1m at 1770764519999
+Processing feature batch for ALCHUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ALCHUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for ALCHUSDT on 1m (filtered from 6121 total)
+Received candle close event: WLFIUSDT 1m at 1770764519999
+Processing feature batch for WLFIUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for WLFIUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for WLFIUSDT on 1m (filtered from 6224 total)
+Received candle close event: AVAXUSDT 1m at 1770764519999
+Processing feature batch for AVAXUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for AVAXUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 26 raw signals for AVAXUSDT on 1m (filtered from 6196 total)
+Received candle close event: FILUSDT 1m at 1770764519999
+Processing feature batch for FILUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for FILUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 28 raw signals for FILUSDT on 1m (filtered from 6213 total)
+Received candle close event: ADAUSDT 1m at 1770764519999
+Processing feature batch for ADAUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for ADAUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for ADAUSDT on 1m (filtered from 6191 total)
+Received candle close event: ENAUSDT 1m at 1770764519999
+Processing feature batch for ENAUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ENAUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for ENAUSDT on 1m (filtered from 6214 total)
+Received candle close event: NEARUSDT 1m at 1770764519999
+Received candle close event: BCHUSDT 1m at 1770764519999
+Processing feature batch for NEARUSDT on 1m, bars=500, cols=23, realtime: true
+  Persisting 46 indicator records for NEARUSDT on 1m (bars 498..499, skipped 498 warmup bars)
+  Persisting 27 raw signals for NEARUSDT on 1m (filtered from 6198 total)
+Processing feature batch for BCHUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for BCHUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for BCHUSDT on 1m (filtered from 6196 total)
+Received candle close event: ZECUSDT 1m at 1770764579999
+Received candle close event: FHEUSDT 1m at 1770764579999
+Processing feature batch for ZECUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ZECUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: ZROUSDT 1m at 1770764579999
+Received candle close event: ZAMAUSDT 1m at 1770764579999
+Received candle close event: PIPPINUSDT 1m at 1770764579999
+  Persisting 26 raw signals for ZECUSDT on 1m (filtered from 6206 total)
+Processing feature batch for FHEUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for FHEUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 25 raw signals for FHEUSDT on 1m (filtered from 6090 total)
+Processing feature batch for ZROUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ZROUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 24 raw signals for ZROUSDT on 1m (filtered from 6198 total)
+Received candle close event: BNBUSDT 1m at 1770764579999
+Processing feature batch for ZAMAUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ZAMAUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: XRPUSDT 1m at 1770764579999
+Received candle close event: GPSUSDT 1m at 1770764579999
+Received candle close event: SUIUSDT 1m at 1770764579999
+Received candle close event: ASTERUSDT 1m at 1770764579999
+  Persisting 26 raw signals for ZAMAUSDT on 1m (filtered from 6174 total)
+Processing feature batch for PIPPINUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for PIPPINUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: BIRBUSDT 1m at 1770764579999
+Received candle close event: POWERUSDT 1m at 1770764579999
+Received candle close event: LINKUSDT 1m at 1770764579999
+Received candle close event: ETHUSDT 1m at 1770764579999
+Received candle close event: HYPEUSDT 1m at 1770764579999
+  Persisting 28 raw signals for PIPPINUSDT on 1m (filtered from 6139 total)
+Processing feature batch for BNBUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for BNBUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: STABLEUSDT 1m at 1770764579999
+  Persisting 26 raw signals for BNBUSDT on 1m (filtered from 6235 total)
+Processing feature batch for XRPUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for XRPUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: XMRUSDT 1m at 1770764579999
+Received candle close event: SIRENUSDT 1m at 1770764579999
+Received candle close event: SENTUSDT 1m at 1770764579999
+  Persisting 26 raw signals for XRPUSDT on 1m (filtered from 6231 total)
+Processing feature batch for GPSUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for GPSUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: ZKPUSDT 1m at 1770764579999
+  Persisting 27 raw signals for GPSUSDT on 1m (filtered from 6197 total)
+Processing feature batch for SUIUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for SUIUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for SUIUSDT on 1m (filtered from 6230 total)
+Processing feature batch for ASTERUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ASTERUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: DOGEUSDT 1m at 1770764579999
+Received candle close event: 1000PEPEUSDT 1m at 1770764579999
+Received candle close event: WIFUSDT 1m at 1770764579999
+  Persisting 27 raw signals for ASTERUSDT on 1m (filtered from 6238 total)
+Processing feature batch for BIRBUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for BIRBUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for BIRBUSDT on 1m (filtered from 6208 total)
+Processing feature batch for POWERUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for POWERUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 24 raw signals for POWERUSDT on 1m (filtered from 5957 total)
+Processing feature batch for LINKUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for LINKUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: AAVEUSDT 1m at 1770764579999
+Received candle close event: LTCUSDT 1m at 1770764579999
+Received candle close event: ENAUSDT 1m at 1770764579999
+  Persisting 27 raw signals for LINKUSDT on 1m (filtered from 6237 total)
+Processing feature batch for ETHUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for ETHUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: RIVERUSDT 1m at 1770764579999
+Received candle close event: SOLUSDT 1m at 1770764579999
+Received candle close event: TAOUSDT 1m at 1770764579999
+  Persisting 26 raw signals for ETHUSDT on 1m (filtered from 6220 total)
+Processing feature batch for HYPEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for HYPEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for HYPEUSDT on 1m (filtered from 6269 total)
+Processing feature batch for STABLEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for STABLEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: ADAUSDT 1m at 1770764579999
+Received candle close event: BTCUSDT 1m at 1770764579999
+Received candle close event: AXSUSDT 1m at 1770764579999
+  Persisting 26 raw signals for STABLEUSDT on 1m (filtered from 6155 total)
+Processing feature batch for XMRUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for XMRUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for XMRUSDT on 1m (filtered from 6255 total)
+Processing feature batch for SIRENUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for SIRENUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for SIRENUSDT on 1m (filtered from 6131 total)
+Processing feature batch for SENTUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for SENTUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for SENTUSDT on 1m (filtered from 6239 total)
+Processing feature batch for ZKPUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ZKPUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for ZKPUSDT on 1m (filtered from 6231 total)
+Processing feature batch for DOGEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for DOGEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for DOGEUSDT on 1m (filtered from 6206 total)
+Processing feature batch for 1000PEPEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for 1000PEPEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for 1000PEPEUSDT on 1m (filtered from 6246 total)
+Processing feature batch for WIFUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for WIFUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: AVAXUSDT 1m at 1770764579999
+Received candle close event: BCHUSDT 1m at 1770764579999
+Received candle close event: VANAUSDT 1m at 1770764579999
+  Persisting 26 raw signals for WIFUSDT on 1m (filtered from 6236 total)
+Processing feature batch for AAVEUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for AAVEUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: WLDUSDT 1m at 1770764579999
+Received candle close event: BERAUSDT 1m at 1770764579999
+  Persisting 26 raw signals for AAVEUSDT on 1m (filtered from 6204 total)
+Processing feature batch for LTCUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for LTCUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for LTCUSDT on 1m (filtered from 6191 total)
+Processing feature batch for ENAUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ENAUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for ENAUSDT on 1m (filtered from 6214 total)
+Processing feature batch for RIVERUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for RIVERUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: ALCHUSDT 1m at 1770764579999
+  Persisting 27 raw signals for RIVERUSDT on 1m (filtered from 6076 total)
+Processing feature batch for SOLUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for SOLUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 27 raw signals for SOLUSDT on 1m (filtered from 6208 total)
+Processing feature batch for TAOUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for TAOUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 27 raw signals for TAOUSDT on 1m (filtered from 6214 total)
+Processing feature batch for ADAUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ADAUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for ADAUSDT on 1m (filtered from 6217 total)
+Processing feature batch for BTCUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for BTCUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for BTCUSDT on 1m (filtered from 6225 total)
+Processing feature batch for AXSUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for AXSUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for AXSUSDT on 1m (filtered from 6216 total)
+Processing feature batch for AVAXUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for AVAXUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for AVAXUSDT on 1m (filtered from 6222 total)
+Processing feature batch for BCHUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for BCHUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 27 raw signals for BCHUSDT on 1m (filtered from 6223 total)
+Processing feature batch for VANAUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for VANAUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: ARCUSDT 1m at 1770764579999
+  Persisting 26 raw signals for VANAUSDT on 1m (filtered from 6243 total)
+Processing feature batch for WLDUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for WLDUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for WLDUSDT on 1m (filtered from 6219 total)
+Processing feature batch for BERAUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for BERAUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for BERAUSDT on 1m (filtered from 6160 total)
+Processing feature batch for ALCHUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ALCHUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+Received candle close event: MONUSDT 1m at 1770764579999
+  Persisting 26 raw signals for ALCHUSDT on 1m (filtered from 6134 total)
+Processing feature batch for ARCUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for ARCUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for ARCUSDT on 1m (filtered from 6221 total)
+Processing feature batch for MONUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for MONUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 28 raw signals for MONUSDT on 1m (filtered from 6182 total)
+Received candle close event: WLFIUSDT 1m at 1770764579999
+Processing feature batch for WLFIUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for WLFIUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for WLFIUSDT on 1m (filtered from 6237 total)
+Received candle close event: PUMPUSDT 1m at 1770764579999
+Processing feature batch for PUMPUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for PUMPUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 27 raw signals for PUMPUSDT on 1m (filtered from 6193 total)
+Received candle close event: DUSKUSDT 1m at 1770764579999
+Processing feature batch for DUSKUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for DUSKUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 26 raw signals for DUSKUSDT on 1m (filtered from 6219 total)
+Received candle close event: KITEUSDT 1m at 1770764579999
+Processing feature batch for KITEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for KITEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for KITEUSDT on 1m (filtered from 6225 total)
+Received candle close event: NEARUSDT 1m at 1770764579999
+Processing feature batch for NEARUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for NEARUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 27 raw signals for NEARUSDT on 1m (filtered from 6212 total)
+Received candle close event: FILUSDT 1m at 1770764579999
+Processing feature batch for FILUSDT on 1m, bars=501, cols=23, realtime: true
+  Persisting 46 indicator records for FILUSDT on 1m (bars 499..500, skipped 499 warmup bars)
+  Persisting 28 raw signals for FILUSDT on 1m (filtered from 6227 total)
+Received candle close event: LINKUSDT 1m at 1770764639999
+Processing feature batch for LINKUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for LINKUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: ALCHUSDT 1m at 1770764639999
+Received candle close event: STABLEUSDT 1m at 1770764639999
+Received candle close event: ZKPUSDT 1m at 1770764639999
+  Persisting 27 raw signals for LINKUSDT on 1m (filtered from 6237 total)
+Processing feature batch for ALCHUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ALCHUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for ALCHUSDT on 1m (filtered from 6147 total)
+Processing feature batch for STABLEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for STABLEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for STABLEUSDT on 1m (filtered from 6155 total)
+Processing feature batch for ZKPUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ZKPUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: BTCUSDT 1m at 1770764639999
+Received candle close event: SUIUSDT 1m at 1770764639999
+Received candle close event: SIRENUSDT 1m at 1770764639999
+  Persisting 27 raw signals for ZKPUSDT on 1m (filtered from 6244 total)
+Processing feature batch for BTCUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for BTCUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: BIRBUSDT 1m at 1770764639999
+Received candle close event: KITEUSDT 1m at 1770764639999
+Received candle close event: SENTUSDT 1m at 1770764639999
+  Persisting 26 raw signals for BTCUSDT on 1m (filtered from 6238 total)
+Processing feature batch for SUIUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for SUIUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for SUIUSDT on 1m (filtered from 6243 total)
+Processing feature batch for SIRENUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for SIRENUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for SIRENUSDT on 1m (filtered from 6157 total)
+Processing feature batch for BIRBUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for BIRBUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: DOGEUSDT 1m at 1770764639999
+Received candle close event: PIPPINUSDT 1m at 1770764639999
+  Persisting 26 raw signals for BIRBUSDT on 1m (filtered from 6221 total)
+Processing feature batch for KITEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for KITEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: ARCUSDT 1m at 1770764639999
+  Persisting 26 raw signals for KITEUSDT on 1m (filtered from 6225 total)
+Processing feature batch for SENTUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for SENTUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for SENTUSDT on 1m (filtered from 6265 total)
+Processing feature batch for DOGEUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for DOGEUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for DOGEUSDT on 1m (filtered from 6219 total)
+Processing feature batch for PIPPINUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for PIPPINUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 28 raw signals for PIPPINUSDT on 1m (filtered from 6139 total)
+Processing feature batch for ARCUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ARCUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 28 raw signals for ARCUSDT on 1m (filtered from 6235 total)
+Received candle close event: POWERUSDT 1m at 1770764639999
+Received candle close event: RIVERUSDT 1m at 1770764639999
+Processing feature batch for POWERUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for POWERUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 24 raw signals for POWERUSDT on 1m (filtered from 5969 total)
+Processing feature batch for RIVERUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for RIVERUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 24 raw signals for RIVERUSDT on 1m (filtered from 6100 total)
+Received candle close event: SOLUSDT 1m at 1770764639999
+Received candle close event: PUMPUSDT 1m at 1770764639999
+Processing feature batch for SOLUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for SOLUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: XRPUSDT 1m at 1770764639999
+Received candle close event: WLDUSDT 1m at 1770764639999
+  Persisting 27 raw signals for SOLUSDT on 1m (filtered from 6221 total)
+Processing feature batch for PUMPUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for PUMPUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for PUMPUSDT on 1m (filtered from 6206 total)
+Processing feature batch for XRPUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for XRPUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for XRPUSDT on 1m (filtered from 6231 total)
+Processing feature batch for WLDUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for WLDUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for WLDUSDT on 1m (filtered from 6219 total)
+Received candle close event: AVAXUSDT 1m at 1770764639999
+Processing feature batch for AVAXUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for AVAXUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for AVAXUSDT on 1m (filtered from 6222 total)
+Received candle close event: ZECUSDT 1m at 1770764639999
+Received candle close event: FHEUSDT 1m at 1770764639999
+Processing feature batch for ZECUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for ZECUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: GPSUSDT 1m at 1770764639999
+  Persisting 26 raw signals for ZECUSDT on 1m (filtered from 6232 total)
+Processing feature batch for FHEUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for FHEUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for FHEUSDT on 1m (filtered from 6116 total)
+Processing feature batch for GPSUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for GPSUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 27 raw signals for GPSUSDT on 1m (filtered from 6210 total)
+Received candle close event: ZROUSDT 1m at 1770764639999
+Processing feature batch for ZROUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ZROUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 24 raw signals for ZROUSDT on 1m (filtered from 6210 total)
+Received candle close event: BERAUSDT 1m at 1770764639999
+Processing feature batch for BERAUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for BERAUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for BERAUSDT on 1m (filtered from 6186 total)
+Received candle close event: NEARUSDT 1m at 1770764639999
+Received candle close event: ADAUSDT 1m at 1770764639999
+Processing feature batch for NEARUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for NEARUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+Received candle close event: FILUSDT 1m at 1770764639999
+Received candle close event: ETHUSDT 1m at 1770764639999
+Received candle close event: WIFUSDT 1m at 1770764639999
+Received candle close event: AXSUSDT 1m at 1770764639999
+  Persisting 27 raw signals for NEARUSDT on 1m (filtered from 6225 total)
+Processing feature batch for ADAUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ADAUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for ADAUSDT on 1m (filtered from 6217 total)
+Processing feature batch for FILUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for FILUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for FILUSDT on 1m (filtered from 6240 total)
+Processing feature batch for ETHUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for ETHUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: HYPEUSDT 1m at 1770764639999
+Received candle close event: DUSKUSDT 1m at 1770764639999
+  Persisting 26 raw signals for ETHUSDT on 1m (filtered from 6220 total)
+Processing feature batch for WIFUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for WIFUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for WIFUSDT on 1m (filtered from 6236 total)
+Processing feature batch for AXSUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for AXSUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for AXSUSDT on 1m (filtered from 6216 total)
+Processing feature batch for HYPEUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for HYPEUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for HYPEUSDT on 1m (filtered from 6282 total)
+Processing feature batch for DUSKUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for DUSKUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: VANAUSDT 1m at 1770764639999
+  Persisting 26 raw signals for DUSKUSDT on 1m (filtered from 6245 total)
+Processing feature batch for VANAUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for VANAUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for VANAUSDT on 1m (filtered from 6243 total)
+Received candle close event: 1000PEPEUSDT 1m at 1770764639999
+Processing feature batch for 1000PEPEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for 1000PEPEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for 1000PEPEUSDT on 1m (filtered from 6246 total)
+Received candle close event: ASTERUSDT 1m at 1770764639999
+Processing feature batch for ASTERUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for ASTERUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for ASTERUSDT on 1m (filtered from 6251 total)
+Received candle close event: MONUSDT 1m at 1770764639999
+Processing feature batch for MONUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for MONUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 28 raw signals for MONUSDT on 1m (filtered from 6196 total)
+Received candle close event: XMRUSDT 1m at 1770764639999
+Received candle close event: BCHUSDT 1m at 1770764639999
+Processing feature batch for XMRUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for XMRUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: TAOUSDT 1m at 1770764639999
+Received candle close event: BNBUSDT 1m at 1770764639999
+  Persisting 27 raw signals for XMRUSDT on 1m (filtered from 6282 total)
+Processing feature batch for BCHUSDT on 1m, bars=504, cols=23, realtime: true
+  Persisting 46 indicator records for BCHUSDT on 1m (bars 502..503, skipped 502 warmup bars)
+  Persisting 27 raw signals for BCHUSDT on 1m (filtered from 6236 total)
+Processing feature batch for TAOUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for TAOUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+Received candle close event: AAVEUSDT 1m at 1770764639999
+  Persisting 26 raw signals for TAOUSDT on 1m (filtered from 6240 total)
+Processing feature batch for BNBUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for BNBUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for BNBUSDT on 1m (filtered from 6248 total)
+Processing feature batch for AAVEUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for AAVEUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for AAVEUSDT on 1m (filtered from 6217 total)
+Received candle close event: ZAMAUSDT 1m at 1770764639999
+Processing feature batch for ZAMAUSDT on 1m, bars=503, cols=23, realtime: true
+  Persisting 46 indicator records for ZAMAUSDT on 1m (bars 501..502, skipped 501 warmup bars)
+  Persisting 26 raw signals for ZAMAUSDT on 1m (filtered from 6187 total)
+Received candle close event: WLFIUSDT 1m at 1770764639999
+Processing feature batch for WLFIUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for WLFIUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for WLFIUSDT on 1m (filtered from 6237 total)
+Received candle close event: ENAUSDT 1m at 1770764639999
+Processing feature batch for ENAUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for ENAUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 27 raw signals for ENAUSDT on 1m (filtered from 6227 total)
+Received candle close event: LTCUSDT 1m at 1770764639999
+Processing feature batch for LTCUSDT on 1m, bars=502, cols=23, realtime: true
+  Persisting 46 indicator records for LTCUSDT on 1m (bars 500..501, skipped 500 warmup bars)
+  Persisting 26 raw signals for LTCUSDT on 1m (filtered from 6204 total)
