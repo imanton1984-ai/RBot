@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS trade.final_signals (
     bounce_score    REAL NULL,
     breakout_prob   REAL NULL,
     breakout_score  REAL NULL,
-    predictions_ref bigint[] NULL
+    predictors_ref bigint[] NULL
 );
 
 -- 3. Таблицы позиций и ордеров (тут нет GENERATED, оставляем как есть)

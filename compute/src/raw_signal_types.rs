@@ -27,5 +27,5 @@ pub struct RawSignal {
     // NEW: снапшоты для последующего анализа / отладки
     pub features_json: Option<JsonValue>,
     pub scores_json: Option<JsonValue>,
-    pub predictions_json: Option<JsonValue>,
+    pub predictors_json: Option<JsonValue>,
 }

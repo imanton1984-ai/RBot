@@ -1,12 +1,12 @@
-// compute/predictions/persistence.rs
+// compute/predictors/persistence.rs
 
 use anyhow::Result;
-use sqlx::{PgPool, Row};
-use crate::predictions::types::{PredictionRow, PredictorMeta, PredictorId, FeatureSchemaId, PredictionKey};
+use sqlx::PgPool;
+use crate::types::{PredictionRow, PredictorMeta, PredictorId};
 use serde_json::Value;
 
-pub async fn upsert_predictions(pool: &PgPool, predictions: Vec<PredictionRow>) -> Result<()> {
-    if predictions.is_empty() {
+pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) -> Result<()> {
+    if predictors.is_empty() {
         return Ok(());
     }
 
@@ -36,7 +36,7 @@ pub async fn upsert_predictions(pool: &PgPool, predictions: Vec<PredictionRow>) 
     let mut details_jsons = Vec::new();
     let mut prediction_keys = Vec::new();
 
-    for pred in predictions {
+    for pred in predictors {
         prediction_ids.push(None::<i64>); // Auto-generated
         times.push(pred.time);
         time_mss.push(pred.time_ms);
@@ -49,24 +49,24 @@ pub async fn upsert_predictions(pool: &PgPool, predictions: Vec<PredictionRow>) 
         predictor_ids.push(pred.predictor_id);
         score_norms.push(pred.score_norm);
         values.push(pred.value);
-        value_lows.push(pred.value_low);
-        value_highs.push(pred.value_high);
-        sides.push(pred.side);
-        level_hashes.push(pred.level_hash);
-        level_kinds.push(pred.level_kind);
-        level_prices.push(pred.level_price);
-        level_strengths.push(pred.level_strength);
-        level_distances_atr.push(pred.level_distance_atr);
+        value_lows.push(pred.value_low.unwrap_or(0.0));
+        value_highs.push(pred.value_high.unwrap_or(0.0));
+        sides.push(pred.side.unwrap_or(0));
+        level_hashes.push(pred.level_hash.unwrap_or_default());
+        level_kinds.push(pred.level_kind.unwrap_or(0));
+        level_prices.push(pred.level_price.unwrap_or(0.0));
+        level_strengths.push(pred.level_strength.unwrap_or(0.0));
+        level_distances_atr.push(pred.level_distance_atr.unwrap_or(0.0));
         candle_is_finals.push(pred.candle_is_final);
-        event_time_mss.push(pred.event_time_ms);
-        details_jsons.push(pred.details_json);
+        event_time_mss.push(pred.event_time_ms.unwrap_or(0));
+        details_jsons.push(pred.details_json.unwrap_or(serde_json::Value::Null));
         prediction_keys.push(pred.prediction_key);
     }
 
     // Perform bulk upsert
     sqlx::query!(
         r#"
-        INSERT INTO trade.predictions (
+        INSERT INTO trade.predictors (
             time, time_ms, symbol_id, symbol, tf_minutes,
             horizon_bars, aspect, calc_source, predictor_id,
             score_norm, value, value_low, value_high, side,
@@ -97,7 +97,6 @@ pub async fn upsert_predictions(pool: &PgPool, predictions: Vec<PredictionRow>) 
             UNNEST($21::BIGINT[]),
             UNNEST($22::JSONB[]),
             UNNEST($23::TEXT[])
-        )
         ON CONFLICT (symbol_id, tf_minutes, time, prediction_key, predictor_id)
         DO UPDATE SET
             score_norm = EXCLUDED.score_norm,
@@ -135,7 +134,7 @@ pub async fn upsert_predictions(pool: &PgPool, predictions: Vec<PredictionRow>) 
         &level_distances_atr,
         &candle_is_finals,
         &event_time_mss,
-        details_jsons.iter().map(|v| v.as_ref().map(|val| serde_json::value::RawValue::from_string(val.to_string()).unwrap())).collect::<Vec<_>>().as_slice(),
+        &details_jsons,
         &prediction_keys
     )
     .execute(pool)
@@ -214,9 +213,9 @@ pub async fn get_predictor_meta(pool: &PgPool, predictor_id: i64) -> Result<Opti
             predictor_id,
             name: row.name,
             version: row.version,
-            aspect: crate::predictions::types::PredictionAspect::from_int(row.aspect)
+            aspect: crate::types::PredictionAspect::from_int(row.aspect)
                 .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", row.aspect))?,
-            calc_source: crate::predictions::types::CalcSource::from_int(row.calc_source)
+            calc_source: crate::types::CalcSource::from_int(row.calc_source)
                 .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", row.calc_source))?,
             framework: row.framework,
             artifact_path: row.artifact_path,
@@ -227,13 +226,13 @@ pub async fn get_predictor_meta(pool: &PgPool, predictor_id: i64) -> Result<Opti
     }
 }
 
-pub async fn get_recent_predictions(
+pub async fn get_recent_predictors(
     pool: &PgPool,
     symbol_id: i64,
     tf_minutes: i32,
-    aspect: crate::predictions::types::PredictionAspect,
+    aspect: crate::types::PredictionAspect,
     min_score: f32,
-    limit: i32,
+    limit: i64,
 ) -> Result<Vec<PredictionRow>> {
     let rows = sqlx::query!(
         r#"
@@ -243,7 +242,7 @@ pub async fn get_recent_predictions(
             predictor_id, score_norm, value, value_low, value_high, side,
             level_hash, level_kind, level_price, level_strength, level_distance_atr,
             candle_is_final, event_time_ms, details_json, prediction_key
-        FROM trade.predictions
+        FROM trade.predictors
         WHERE symbol_id = $1 AND tf_minutes = $2 AND aspect = $3
           AND score_norm >= $4
         ORDER BY time DESC
@@ -258,22 +257,22 @@ pub async fn get_recent_predictions(
     .fetch_all(pool)
     .await?;
 
-    let mut predictions = Vec::new();
+    let mut predictors = Vec::new();
     for row in rows {
-        predictions.push(PredictionRow {
+        predictors.push(PredictionRow {
             time: row.time,
             time_ms: row.time_ms,
             symbol_id: row.symbol_id,
             symbol: row.symbol,
             tf_minutes: row.tf_minutes,
             horizon_bars: row.horizon_bars,
-            aspect: crate::predictions::types::PredictionAspect::from_int(row.aspect)
+            aspect: crate::types::PredictionAspect::from_int(row.aspect)
                 .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", row.aspect))?,
-            calc_source: crate::predictions::types::CalcSource::from_int(row.calc_source)
+            calc_source: crate::types::CalcSource::from_int(row.calc_source)
                 .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", row.calc_source))?,
             predictor_id: row.predictor_id,
             score_norm: row.score_norm,
-            value: row.value.unwrap_or(0.0),
+            value: row.value,
             value_low: row.value_low,
             value_high: row.value_high,
             side: row.side,
@@ -289,7 +288,7 @@ pub async fn get_recent_predictions(
         });
     }
 
-    Ok(predictions)
+    Ok(predictors)
 }
 
 #[cfg(test)]
@@ -299,7 +298,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore] // Requires database
-    async fn test_upsert_predictions() {
+    async fn test_upsert_predictors() {
         // This test would require a database connection
         // For now, just verifying the function signature compiles
     }

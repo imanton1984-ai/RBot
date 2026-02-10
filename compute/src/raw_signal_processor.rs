@@ -280,7 +280,7 @@ impl RawSignalProcessor {
 
             features_json: None,
             scores_json: None,
-            predictions_json: None,
+            predictors_json: None,
         }
     }
 

@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use crate::predictors::feature_view::FeatureView;
+use crate::feature_view::FeatureView;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct FeatureSchema {

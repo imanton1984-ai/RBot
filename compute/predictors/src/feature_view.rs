@@ -257,7 +257,7 @@ pub struct SrLevel {
     pub hash: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[repr(i16)]
 pub enum SrLevelKind {
     Support = 1,

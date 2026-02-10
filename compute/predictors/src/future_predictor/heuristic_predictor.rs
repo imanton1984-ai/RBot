@@ -1,7 +1,7 @@
 // compute/predictors/future_price/heuristic_predictor.rs
 
 use anyhow::Result;
-use crate::predictors::feature_view::FeatureView;
+use crate::feature_view::FeatureView;
 
 pub struct FuturePriceHeuristic;
 
@@ -21,7 +21,7 @@ impl FuturePriceHeuristic {
         let atr = view.indicators.atr as f64;
         let close = view.indicators.close as f64;
         let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
-        let vol_adj = atr_pct.clamp(0.001, 0.05); // not used in user snippet, but I'll keep it.
+        let _vol_adj = atr_pct.clamp(0.001, 0.05); // not used in user snippet, but I'll keep it.
         
         let mut score = trend * 0.5;
         if rsi < 40.0 && trend > 0.0 { score += 0.2; }

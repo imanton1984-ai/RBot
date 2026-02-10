@@ -65,7 +65,7 @@ pub enum PersistRecord {
 
         features_json: Option<Value>,
         scores_json: Option<Value>,
-        predictions_json: Option<Value>,
+        predictors_json: Option<Value>,
     },
 
     // NEW VARIANT for wide indicators
@@ -89,7 +89,7 @@ pub enum PersistRecord {
         signals: Vec<AggregatedSignalItem>,
         features_json: Option<Value>,
         scores_json: Option<Value>,
-        predictions_json: Option<Value>,
+        predictors_json: Option<Value>,
         candle_is_final: bool,
         calc_source: i16,
         event_time_ms: Option<i64>,
@@ -306,7 +306,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
 
     let mut features_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
     let mut scores_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
-    let mut predictions_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut predictors_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
 
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -328,7 +328,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
             event_time_ms: etm,
             features_json: fj,
             scores_json: sj,
-            predictions_json: pj,
+            predictors_json: pj,
         } = rec {
             time.push(ms_to_ts(tms));
             time_ms.push(tms);
@@ -351,7 +351,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
 
             features_json.push(fj.map(Json));
             scores_json.push(sj.map(Json));
-            predictions_json.push(pj.map(Json));
+            predictors_json.push(pj.map(Json));
 
             created_at.push(now);
             updated_at.push(now);
@@ -364,7 +364,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
          indicator_id, signal_kind, signal_sub_id,
          side, score, value,
          details, candle_is_final, calc_source, event_time_ms,
-         features_json, scores_json, predictions_json,
+         features_json, scores_json, predictors_json,
          created_at, updated_at)
         SELECT * FROM UNNEST(
             $1::timestamptz[],
@@ -398,7 +398,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
             event_time_ms = EXCLUDED.event_time_ms,
             features_json = EXCLUDED.features_json,
             scores_json = EXCLUDED.scores_json,
-            predictions_json = EXCLUDED.predictions_json,
+            predictors_json = EXCLUDED.predictors_json,
             updated_at = now()
     "#;
 
@@ -420,7 +420,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
         .bind(event_time_ms)
         .bind(features_json)
         .bind(scores_json)
-        .bind(predictions_json)
+        .bind(predictors_json)
         .bind(created_at)
         .bind(updated_at)
         .execute(pool)

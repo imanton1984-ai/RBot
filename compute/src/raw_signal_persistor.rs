@@ -46,7 +46,7 @@ impl RawSignalPersistor {
                 // These fields are optional and can be taken from the signal
                 features_json: signal.features_json, 
                 scores_json: signal.scores_json,
-                predictions_json: signal.predictions_json,
+                predictors_json: signal.predictors_json,
             };
 
             if let Err(e) = self.bulk_persistor_sender.send(persist_record).await {

@@ -12,9 +12,6 @@ pub mod indicator_persistor;
 pub mod raw_signal_persistor;
 pub mod raw_signal_processor;
 pub mod raw_signal_types;
-pub mod compute_predictors;
-
-
 pub use compute_backend::{ComputeBackend, ComputeBackendType, ComputeBackendManager, ComputeJob, ComputeResult, FeatureWindow};
 pub use job_scheduler::*;
 pub use types::*;
@@ -24,7 +21,7 @@ pub use indicator_persistor::*;
 pub use raw_signal_persistor::*;
 pub use raw_signal_processor::*;
 pub use raw_signal_types::*;
-pub use compute_predictors;
 
-// Import the compute indicators from the separate crate
+// Import the compute indicators and predictors from the separate crates
 pub use compute_indicators;
+pub use predictors;

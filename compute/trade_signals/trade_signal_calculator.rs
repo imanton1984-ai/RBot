@@ -10,10 +10,50 @@ use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
 use common::Symbol;
-use crate::predictions::types::PredictionRow;
+use crate::predictors::types::PredictionRow;
 
 use super::final_score::{FinalScorer, FinalScoreBreakdown};
 use super::market_params_calculator::MarketParams;
+
+#[derive(Debug, Clone, Copy)]
+struct TfTargets {
+    min_tp1_pct: f64,
+    min_tp2_pct: f64,
+    min_tp3_pct: f64,
+    min_sl_pct:  f64,
+}
+
+fn tf_targets(tf_minutes: i16) -> TfTargets {
+    let mut t = match tf_minutes {
+        1 => TfTargets {  // 1m
+            min_tp1_pct: 0.010, min_tp2_pct: 0.018, min_tp3_pct: 0.026, min_sl_pct: 0.007
+        },
+        5 => TfTargets {  // 5m
+            min_tp1_pct: 0.012, min_tp2_pct: 0.022, min_tp3_pct: 0.032, min_sl_pct: 0.008
+        },
+        15 => TfTargets { // 15m
+            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010
+        },
+        60 => TfTargets { // 1h
+            min_tp1_pct: 0.020, min_tp2_pct: 0.038, min_tp3_pct: 0.055, min_sl_pct: 0.013
+        },
+        240 => TfTargets { // 4h
+            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080, min_sl_pct: 0.018
+        },
+        1440 => TfTargets { // 1d
+            min_tp1_pct: 0.050, min_tp2_pct: 0.090, min_tp3_pct: 0.130, min_sl_pct: 0.028
+        },
+        _ => TfTargets { // default conservative
+            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010
+        },
+    };
+
+    // enforce monotonic targets (strict)
+    if t.min_tp2_pct <= t.min_tp1_pct { t.min_tp2_pct = t.min_tp1_pct * 1.6; }
+    if t.min_tp3_pct <= t.min_tp2_pct { t.min_tp3_pct = t.min_tp2_pct * 1.45; }
+
+    t
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TradeSide {
@@ -71,6 +111,10 @@ pub struct TradeSignalCalculator {
     pub tp2_atr_mult: f64,
     pub tp3_atr_mult: f64,
 
+    pub tp2_ratio_min: f64,
+    pub tp3_ratio_min: f64,
+    pub min_tp_gap_pct: f64,
+
     /// Fallback if ATR missing: ATR = entry * fallback_atr_pct
     pub fallback_atr_pct: f64,
 }
@@ -84,6 +128,9 @@ impl Default for TradeSignalCalculator {
             tp1_atr_mult: 1.2,
             tp2_atr_mult: 2.2,
             tp3_atr_mult: 3.4,
+            tp2_ratio_min: 1.6,
+            tp3_ratio_min: 1.45,
+            min_tp_gap_pct: 0.002,
             fallback_atr_pct: 0.008, // 0.8%
         }
     }
@@ -108,9 +155,9 @@ impl TradeSignalCalculator {
 
         entry_price: f64,
         raw_signals_summary: &Value,
-        predictions: &[PredictionRow],
+        predictors: &[PredictionRow],
     ) -> Result<Option<TradeSignal>> {
-        let side = infer_side(raw_signals_summary, predictions)
+        let side = infer_side(raw_signals_summary, predictors)
             .or_else(|| infer_side_from_summary_fields(raw_signals_summary))
             .unwrap_or(0);
 
@@ -127,7 +174,7 @@ impl TradeSignalCalculator {
                 time,
                 side as i16,
                 raw_signals_summary,
-                predictions,
+                predictors,
                 market_params,
             )
             .await?;
@@ -141,6 +188,17 @@ impl TradeSignalCalculator {
             return Ok(None);
         }
 
+        let targets = tf_targets(tf_minutes);
+
+        // Entry filter based on price prediction
+        let price_target_pred = predictors.iter().find(|p| p.aspect == crate::predictors::types::PredictionAspect::PriceTarget);
+        if let Some(pred) = price_target_pred {
+            let predicted_move_pct = (pred.value - entry_price) / entry_price * side as f64;
+            if predicted_move_pct < targets.min_tp1_pct {
+                return Ok(None); // Not enough expected profit
+            }
+        }
+
         // ATR
         let atr = extract_atr_from_summary(raw_signals_summary)
             .or_else(|| futures::executor::block_on(fetch_last_atr(pool, symbol_id, tf_minutes)).ok().flatten())
@@ -148,10 +206,40 @@ impl TradeSignalCalculator {
 
         let side_f = side as f64;
 
-        let stop_loss = (entry_price - side_f * self.sl_atr_mult * atr).max(0.0);
-        let tp1 = (entry_price + side_f * self.tp1_atr_mult * atr).max(0.0);
-        let tp2 = (entry_price + side_f * self.tp2_atr_mult * atr).max(0.0);
-        let tp3 = (entry_price + side_f * self.tp3_atr_mult * atr).max(0.0);
+        // 1) ATR-based deltas
+        let d_sl_atr  = self.sl_atr_mult  * atr;
+        let d_tp1_atr = self.tp1_atr_mult * atr;
+        let mut d_tp2_atr = self.tp2_atr_mult * atr;
+        let mut d_tp3_atr = self.tp3_atr_mult * atr;
+
+        // 2) TF minimum deltas from percent
+        let d_sl_min  = entry_price * targets.min_sl_pct;
+        let d_tp1_min = entry_price * targets.min_tp1_pct;
+        let d_tp2_min = entry_price * targets.min_tp2_pct;
+        let d_tp3_min = entry_price * targets.min_tp3_pct;
+
+        // 3) Different boosts for each TP
+        let s = breakdown.final_score.clamp(0.0, 1.0);
+        let boost_tp1 = (0.98 + 0.10 * s).clamp(0.98, 1.08);
+        let boost_tp2 = (0.98 + 0.22 * s).clamp(1.00, 1.20);
+        let boost_tp3 = (0.98 + 0.38 * s).clamp(1.05, 1.35);
+
+        // 4) Final deltas: max(ATR, min_pct) + boost
+        let d_sl  = d_sl_atr.max(d_sl_min);
+        let mut d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
+        let mut d_tp2 = (d_tp2_atr.max(d_tp2_min)) * boost_tp2;
+        let mut d_tp3 = (d_tp3_atr.max(d_tp3_min)) * boost_tp3;
+
+        // 5) Enforce spacing
+        let gap = entry_price * self.min_tp_gap_pct;
+        d_tp2 = d_tp2.max(d_tp1 * self.tp2_ratio_min).max(d_tp1 + gap);
+        d_tp3 = d_tp3.max(d_tp2 * self.tp3_ratio_min).max(d_tp2 + gap);
+
+        // 6) Build prices
+        let stop_loss = (entry_price - side_f * d_sl).max(0.0);
+        let tp1 = (entry_price + side_f * d_tp1).max(0.0);
+        let tp2 = (entry_price + side_f * d_tp2).max(0.0);
+        let tp3 = (entry_price + side_f * d_tp3).max(0.0);
 
         // Leverage = base * market_factor * score_factor
         let market_factor = market_params
@@ -169,7 +257,7 @@ impl TradeSignalCalculator {
             "base_score": breakdown.base_score,
             "coverage": breakdown.coverage_score,
             "consensus": breakdown.consensus_score,
-            "predictions_score": breakdown.predictions_score,
+            "predictors_score": breakdown.predictors_score,
             "raw_signals_score": breakdown.raw_signals_score,
             "indicators_score": breakdown.indicators_score,
             "market_score": breakdown.market_score,
@@ -199,7 +287,7 @@ impl TradeSignalCalculator {
     }
 }
 
-fn infer_side(raw_signals_summary: &Value, predictions: &[PredictionRow]) -> Option<i8> {
+fn infer_side(raw_signals_summary: &Value, predictors: &[PredictionRow]) -> Option<i8> {
     // 1) raw summary explicit
     if let Some(s) = raw_signals_summary.get("side").and_then(|v| v.as_i64()) {
         let ss = (s as i8).signum();
@@ -208,7 +296,7 @@ fn infer_side(raw_signals_summary: &Value, predictions: &[PredictionRow]) -> Opt
 
     // 2) best prediction by score_norm
     let mut best: Option<(f32, i16)> = None;
-    for p in predictions {
+    for p in predictors {
         let sc = p.score_norm;
         let sd = p.side;
         if sd == 0 { continue; }

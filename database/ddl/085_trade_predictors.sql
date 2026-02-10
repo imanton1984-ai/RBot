@@ -1,5 +1,5 @@
--- 085_trade_predictions.sql
--- Predictor registry and predictions tables
+-- 085_trade_predictors.sql
+-- Predictor registry and predictors tables
 
 -- 1) Registry: unified registry for ML and hardcode predictors
 CREATE TABLE IF NOT EXISTS trade.predictor_registry (
@@ -40,10 +40,10 @@ CREATE TABLE IF NOT EXISTS trade.predictor_registry (
 CREATE INDEX IF NOT EXISTS ix_predictor_registry_active
   ON trade.predictor_registry(is_active, aspect, calc_source);
 
--- 2) Predictions table (unified)
-CREATE TABLE IF NOT EXISTS trade.predictions (
+-- 2) predictors table (unified)
+CREATE TABLE IF NOT EXISTS trade.predictors (
   -- technical key
-  prediction_id      bigserial PRIMARY KEY,
+  prediction_id      bigserial,
 
   -- time axes
   time              timestamptz NOT NULL,
@@ -94,26 +94,26 @@ CREATE TABLE IF NOT EXISTS trade.predictions (
   -- to do UPSERT without dancing
   prediction_key    text        NOT NULL,
 
-  UNIQUE(symbol_id, tf_minutes, time, prediction_key, predictor_id)
+  PRIMARY KEY(time, symbol_id, tf_minutes, prediction_key, predictor_id)
 );
 
 -- Timescale hypertable
-SELECT create_hypertable('trade.predictions', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('trade.predictors', 'time', if_not_exists => TRUE);
 
 -- Indexes for fast queries
-CREATE INDEX IF NOT EXISTS ix_predictions_symbol_tf_time
-  ON trade.predictions(symbol_id, tf_minutes, time DESC);
+CREATE INDEX IF NOT EXISTS ix_predictors_symbol_tf_time
+  ON trade.predictors(symbol_id, tf_minutes, time DESC);
 
 -- Partial index for your 0.80 gate (table will already store only >=0.80, but index speeds up queries)
-CREATE INDEX IF NOT EXISTS ix_predictions_aspect_score_hi
-  ON trade.predictions(aspect, score_norm DESC, time DESC)
+CREATE INDEX IF NOT EXISTS ix_predictors_aspect_score_hi
+  ON trade.predictors(aspect, score_norm DESC, time DESC)
   WHERE score_norm >= 0.80;
 
 -- Index for level-based queries
-CREATE INDEX IF NOT EXISTS ix_predictions_level_hash
-  ON trade.predictions(level_hash, time DESC)
+CREATE INDEX IF NOT EXISTS ix_predictors_level_hash
+  ON trade.predictors(level_hash, time DESC)
   WHERE level_hash IS NOT NULL;
 
 -- Index for predictor-based queries
-CREATE INDEX IF NOT EXISTS ix_predictions_predictor_time
-  ON trade.predictions(predictor_id, time DESC);
+CREATE INDEX IF NOT EXISTS ix_predictors_predictor_time
+  ON trade.predictors(predictor_id, time DESC);

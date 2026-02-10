@@ -1,6 +1,6 @@
 use super::onnx_runtime::OnnxRunner;
 use super::model_pool::ModelPool;
-use super::feature_schema::FeatureSchema;
+use crate::feature_schema::FeatureSchema;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;

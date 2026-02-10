@@ -25,7 +25,7 @@ pub fn calculate_volume_spike_raw_signals(
         let ratio = volume_ratios[i];
         
         if ratio > spike_threshold {
-            let raw_volume = volumes[i];
+            let _raw_volume = volumes[i];
             
             // Normalize score: 
             // 2.0x -> ~0.5 score

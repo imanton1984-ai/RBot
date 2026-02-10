@@ -121,11 +121,11 @@ pub struct ComputeConfig {
 
     pub raw_signals: RawSignalsConfig,
     pub final_signals: FinalSignalsConfig,
-    pub predictions: PredictionsConfig,
+    pub predictors: PredictorsConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct PredictionsConfig {
+pub struct PredictorsConfig {
     pub enabled: bool,
     pub horizon_bars: usize,         // =10
     pub min_store_score: f64,        // 0.80
@@ -185,7 +185,7 @@ pub struct RustBotConfig {
     pub topic_raw_signals: String,
     pub topic_final_signals: String,
     pub topic_features_snapshot: String,
-    pub topic_predictions: String,
+    pub topic_predictors: String,
     pub topic_prediction_events: String,
     pub topic_orders_cmd: String,
     pub topic_orders_events: String,

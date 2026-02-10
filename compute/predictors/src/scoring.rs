@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PredictionScore {
+pub struct Predictorscore {
     pub raw_output: f64,    // Выход модели (цена или вероятность)
     pub confidence: f64,    // Итоговая уверенность (0.0 - 1.0)
     pub source: String,     // "ml_xgboost", "heuristic_ema"
 }
 
-impl PredictionScore {
+impl Predictorscore {
     /// Вычисляет скор для ML-модели (регрессия или классификация)
     pub fn from_ml(output: f64, model_accuracy_metric: f64) -> Self {
         // Если модель исторически точна (metric), уверенность выше.
@@ -23,7 +23,7 @@ impl PredictionScore {
 
     /// Вычисляет скор для эвристики
     pub fn from_heuristic(price: f64, trend_strength: f64, indicators_match: bool) -> Self {
-        let mut conf = 0.5;
+        let mut conf: f64 = 0.5;
         // Если сильный тренд
         if trend_strength.abs() > 0.7 { conf += 0.2; }
         // Если индикаторы подтверждают

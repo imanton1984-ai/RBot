@@ -1,6 +1,6 @@
-// compute/src/predictions/types.rs
+// compute/src/predictors/types.rs
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PredictionAspect {
     PriceTarget,
     LevelBounce,
@@ -26,7 +26,7 @@ impl PredictionAspect {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CalcSource {
     Hard,
     Ml,

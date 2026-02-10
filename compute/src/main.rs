@@ -6,6 +6,8 @@ use dotenvy::dotenv;
 use raw_signals::thresholds::SignalConfig;
 use tracing_appender::rolling;
 use crate::predictors::{feature_view::IndicatorsWideRow, pipeline::FeatureSnapshot};
+use crate::predictors::config::PredictorsConfig;
+use database_lib;
 
 fn env_usize(key: &str, default: usize) -> usize {
     std::env::var(key)
@@ -37,6 +39,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting Compute Service...");
     dotenv().ok();
 
+    // Initialize database
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+    database_lib::init_db::initialize_database(&db_url).await?;
+
     // Initialize configuration
     let config = ComputeConfig {
         batch_size: 100,
@@ -57,8 +64,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compute_backend = compute_backend_manager.get_backend();
 
     // Initialize database connection pool
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
 
     // Initialize candle window fetcher
@@ -153,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let raw_signal_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
-    // Create channel for feature snapshots to predictions pipeline
+    // Create channel for feature snapshots to predictors pipeline
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
 
     // Spawn result processor to handle computed indicators and raw signals
@@ -317,7 +322,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 raw_signal_persistor_clone.queue_records(signals_to_persist).await;
             }
 
-            // FORM FEATURE SNAPSHOT FOR PREDICTIONS PIPELINE
+            // FORM FEATURE SNAPSHOT FOR predictors PIPELINE
             // For real-time: send the last candle's data
             // For backfill: could send all candles in batch
             if feature_window.is_realtime && n > 0 {
@@ -368,7 +373,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let snapshot = FeatureSnapshot {
                     timestamp: chrono::DateTime::from_timestamp(feature_window.batch.timestamps[last_idx] / 1000, 0).unwrap_or(chrono::Utc::now()),
-                    symbol: feature_window.symbol.clone(),
+                    symbol: feature_window.symbol.to_string(),
                     timeframe: feature_window.timeframe.as_str().to_string(),
                     indicators,
                     raw_signals_data: None, // Could be populated if needed
@@ -416,11 +421,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Initialize MessageBus for predictions pipeline
+    // Initialize MessageBus for predictors pipeline
     let message_bus = common::MessageBus::new_from_env()?;
 
-    // Initialize PredictionsPipeline
-    let predictions_config = PredictionsConfig {
+    // Initialize predictorsPipeline
+    let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(8);
+    let predictors_config = PredictorsConfig {
         enabled: true,
         horizon_bars: 10,
         min_store_score: 0.80,
@@ -432,19 +438,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         model_path_levels: "models/levels_v1.onnx".to_string(),
     };
 
-    let mut predictions_pipeline = PredictionsPipeline::new(
-        predictions_config,
+    let mut predictors_pipeline = crate::predictors::pipeline::PredictorsPipeline::new(
+        predictors_config,
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
     );
 
     // Pass the receiver to the pipeline
-    predictions_pipeline.set_input_receiver(feature_rx);
+    predictors_pipeline.set_input_receiver(feature_rx);
 
     tokio::spawn(async move {
-        if let Err(e) = predictions_pipeline.run().await {
-            tracing::error!(target: "compute_predictors", "Predictions pipeline error: {}", e);
+        if let Err(e) = predictors_pipeline.run().await {
+            tracing::error!(target: "compute_predictors", "predictors pipeline error: {}", e);
         }
     });
 
@@ -459,6 +465,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // For now, we'll just keep it running
     tokio::signal::ctrl_c().await?;
     println!("Received shutdown signal");
+    let _ = shutdown_tx.send(true);
 
     Ok(())
 }

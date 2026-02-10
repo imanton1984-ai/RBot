@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Cleaning market tables..."
+echo "Cleaning market and trade tables..."
 
 # Load environment variables
 source .env
@@ -36,12 +36,16 @@ DROP TABLE IF EXISTS market.pairs CASCADE;
 -- Drop raw signals table
 DROP TABLE IF EXISTS market.raw_signals CASCADE;
 
--- Recreate the market schema
+-- Drop trade schema
+DROP SCHEMA IF EXISTS trade CASCADE;
+
+-- Recreate the market and trade schemas
 CREATE SCHEMA IF NOT EXISTS market;
+CREATE SCHEMA IF NOT EXISTS trade;
 
 COMMIT;
 
 SELECT 'Tables cleaned successfully' AS status;
 "
 
-echo "Market tables have been cleaned. You can now restart your services."
+echo "Market and trade tables have been cleaned. You can now restart your services."

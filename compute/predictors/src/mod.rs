@@ -3,7 +3,7 @@
 pub mod ml_predictor;
 pub mod heuristic_predictor;
 
-// compute/predictions/mod.rs
+// compute/predictors/mod.rs
 
 pub mod future_price;
 pub mod level_predictor;

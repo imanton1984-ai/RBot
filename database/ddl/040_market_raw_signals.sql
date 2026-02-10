@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS market.raw_signals (
 
     features_json   JSONB,
     scores_json     JSONB,
-    predictions_json JSONB,
+    predictors_json JSONB,
 
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -43,10 +43,10 @@ CREATE INDEX IF NOT EXISTS ix_raw_signals_sym_tf_time_desc ON market.raw_signals
 CREATE INDEX IF NOT EXISTS ix_raw_signals_time_ms ON market.raw_signals(time_ms DESC);
 CREATE INDEX IF NOT EXISTS ix_raw_signals_symbol ON market.raw_signals(symbol);
 
--- Compression
-ALTER TABLE market.raw_signals SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'symbol_id, tf_minutes, indicator_id',
-    timescaledb.compress_orderby = 'time DESC'
-);
-SELECT add_compression_policy('market.raw_signals', INTERVAL '7 days');
+-- -- Compression
+-- ALTER TABLE market.raw_signals SET (
+--     timescaledb.compress,
+--     timescaledb.compress_segmentby = 'symbol_id, tf_minutes, indicator_id',
+--     timescaledb.compress_orderby = 'time DESC'
+-- );
+-- SELECT add_compression_policy('market.raw_signals', INTERVAL '7 days');

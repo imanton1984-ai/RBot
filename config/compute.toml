@@ -39,7 +39,7 @@ min_publish_score = 0.80
 [compute.final_signals]
 min_final_score = 0.97
 
-[compute.predictions]
+[compute.predictors]
 enabled = true
 horizon_bars = 10
 min_store_score = 0.80

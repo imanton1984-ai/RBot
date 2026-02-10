@@ -1,10 +1,10 @@
-// compute/predictions/consensus.rs
+// compute/predictors/consensus.rs
 
 use anyhow::Result;
-use crate::predictions::types::{PredictionRow, CalcSource, PredictionAspect};
-use crate::predictions::feature_view::FeatureView;
+use crate::types::{PredictionRow};
+use crate::feature_view::FeatureView;
 
-/// Consensus logic for combining hardcode and ML predictions
+/// Consensus logic for combining hardcode and ML predictors
 pub struct ConsensusEngine {}
 
 impl ConsensusEngine {
@@ -13,28 +13,28 @@ impl ConsensusEngine {
         Self {}
     }
 
-    /// Applies gate and fuse logic to combine hardcode and ML predictions
+    /// Applies gate and fuse logic to combine hardcode and ML predictors
     pub async fn apply_gate_and_fuse(
         &self,
-        hard_predictions: Vec<PredictionRow>,
-        ml_predictions: Vec<PredictionRow>,
+        hard_predictors: Vec<PredictionRow>,
+        ml_predictors: Vec<PredictionRow>,
         feature_view: &FeatureView,
     ) -> Result<Vec<PredictionRow>> {
-        let mut consensus_predictions = Vec::new();
+        let mut consensus_predictors = Vec::new();
 
-        // Group predictions by aspect and level (if applicable)
+        // Group predictors by aspect and level (if applicable)
         use std::collections::HashMap;
         let mut grouped_hard: HashMap<String, Vec<PredictionRow>> = HashMap::new();
         let mut grouped_ml: HashMap<String, Vec<PredictionRow>> = HashMap::new();
 
-        // Group hardcode predictions
-        for pred in hard_predictions {
+        // Group hardcode predictors
+        for pred in hard_predictors {
             let key = self.create_prediction_key(&pred);
             grouped_hard.entry(key).or_insert_with(Vec::new).push(pred);
         }
 
-        // Group ML predictions
-        for pred in ml_predictions {
+        // Group ML predictors
+        for pred in ml_predictors {
             let key = self.create_prediction_key(&pred);
             grouped_ml.entry(key).or_insert_with(Vec::new).push(pred);
         }
@@ -48,38 +48,38 @@ impl ConsensusEngine {
             }
 
             if hard_group.is_empty() {
-                // Only ML predictions exist
-                consensus_predictions.extend(ml_group);
+                // Only ML predictors exist
+                consensus_predictors.extend(ml_group);
             } else if ml_group.is_empty() {
-                // Only hardcode predictions exist
-                consensus_predictions.extend(hard_group);
+                // Only hardcode predictors exist
+                consensus_predictors.extend(hard_group);
             } else {
                 // Both exist, apply consensus logic
-                let consensus_group = self.combine_predictions(&hard_group, &ml_group, feature_view).await?;
-                consensus_predictions.extend(consensus_group);
+                let consensus_group = self.combine_predictors(&hard_group, &ml_group, feature_view).await?;
+                consensus_predictors.extend(consensus_group);
             }
         }
 
         // Add remaining ML groups that didn't have hardcode counterparts
         for (_, ml_group) in grouped_ml {
-            consensus_predictions.extend(ml_group);
+            consensus_predictors.extend(ml_group);
         }
 
-        Ok(consensus_predictions)
+        Ok(consensus_predictors)
     }
 
-    /// Combines hardcode and ML predictions for the same aspect/level
-    async fn combine_predictions(
+    /// Combines hardcode and ML predictors for the same aspect/level
+    async fn combine_predictors(
         &self,
-        hard_predictions: &[PredictionRow],
-        ml_predictions: &[PredictionRow],
+        hard_predictors: &[PredictionRow],
+        ml_predictors: &[PredictionRow],
         feature_view: &FeatureView,
     ) -> Result<Vec<PredictionRow>> {
-        let mut combined_predictions = Vec::new();
+        let mut combined_predictors = Vec::new();
 
-        for hard_pred in hard_predictions {
+        for hard_pred in hard_predictors {
             // Find corresponding ML prediction for the same aspect
-            let ml_pred = ml_predictions.iter()
+            let ml_pred = ml_predictors.iter()
                 .find(|ml| ml.aspect == hard_pred.aspect && 
                          self.levels_match(&ml.level_hash, &hard_pred.level_hash));
 
@@ -87,34 +87,34 @@ impl ConsensusEngine {
                 // Apply gate and fuse logic
                 let consensus_pred = self.apply_gate_and_fuse_logic(hard_pred, ml_pred, feature_view).await?;
                 if let Some(consensus_pred) = consensus_pred {
-                    combined_predictions.push(consensus_pred);
+                    combined_predictors.push(consensus_pred);
                 }
             } else {
                 // No corresponding ML prediction, use hardcode
-                combined_predictions.push(hard_pred.clone());
+                combined_predictors.push(hard_pred.clone());
             }
         }
 
-        // Add ML predictions that don't have hardcode counterparts
-        for ml_pred in ml_predictions {
-            let has_hard_counterpart = hard_predictions.iter()
+        // Add ML predictors that don't have hardcode counterparts
+        for ml_pred in ml_predictors {
+            let has_hard_counterpart = hard_predictors.iter()
                 .any(|hard| hard.aspect == ml_pred.aspect && 
                            self.levels_match(&hard.level_hash, &ml_pred.level_hash));
 
             if !has_hard_counterpart {
-                combined_predictions.push(ml_pred.clone());
+                combined_predictors.push(ml_pred.clone());
             }
         }
 
-        Ok(combined_predictions)
+        Ok(combined_predictors)
     }
 
-    /// Applies the gate and fuse logic to combine two predictions
+    /// Applies the gate and fuse logic to combine two predictors
     async fn apply_gate_and_fuse_logic(
         &self,
         hard_pred: &PredictionRow,
         ml_pred: &PredictionRow,
-        feature_view: &FeatureView,
+        _feature_view: &FeatureView,
     ) -> Result<Option<PredictionRow>> {
         
         let hc_pred_score = hard_pred.score_norm as f64;
@@ -158,27 +158,26 @@ impl ConsensusEngine {
     }
 
     /// Calculates weight for hardcode prediction based on market conditions
+    #[allow(dead_code)]
     fn calculate_hardcode_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
         // Calculate weight based on how well the market conditions align with hardcode assumptions
-        let mut weight = 1.0;
+        let mut weight: f64 = 1.0;
 
         // Adjust weight based on volatility regime
-        if let Some(atr) = feature_view.atr {
-            let atr_ratio = atr / feature_view.close;
-            if atr_ratio > 0.05 { // Very high volatility
-                weight *= 0.7; // Reduce hardcode weight
-            } else if atr_ratio < 0.005 { // Very low volatility
-                weight *= 0.8; // Reduce hardcode weight (may not be picking up moves)
-            }
+        let atr = feature_view.indicators.atr;
+        let atr_ratio = atr / feature_view.indicators.close;
+        if atr_ratio > 0.05 { // Very high volatility
+            weight *= 0.7; // Reduce hardcode weight
+        } else if atr_ratio < 0.005 { // Very low volatility
+            weight *= 0.8; // Reduce hardcode weight (may not be picking up moves)
         }
 
         // Adjust weight based on trend strength
-        if let Some(trend_strength) = feature_view.trend_short {
-            if trend_strength.abs() > 0.7 { // Strong trend
-                weight *= 1.1; // Increase hardcode weight
-            } else if trend_strength.abs() < 0.2 { // Weak trend
-                weight *= 0.8; // Decrease hardcode weight
-            }
+        let trend_strength = feature_view.indicators.trend_short;
+        if trend_strength.abs() > 0.7 { // Strong trend
+            weight *= 1.1; // Increase hardcode weight
+        } else if trend_strength.abs() < 0.2 { // Weak trend
+            weight *= 0.8; // Decrease hardcode weight
         }
 
         // Adjust weight based on oscillator alignment
@@ -189,22 +188,22 @@ impl ConsensusEngine {
             weight *= 1.1;
         }
 
-        weight.clamp(0.5, 1.5) // Clamp between 0.5x and 1.5x base weight
+        weight.clamp(0.5_f64, 1.5_f64) // Clamp between 0.5x and 1.5x base weight
     }
 
     /// Calculates weight for ML prediction based on market conditions
+    #[allow(dead_code)]
     fn calculate_ml_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
         // Calculate weight based on how well the market conditions align with ML training data
-        let mut weight = 1.0;
+        let mut weight: f64 = 1.0;
 
         // Adjust weight based on volatility regime
-        if let Some(atr) = feature_view.atr {
-            let atr_ratio = atr / feature_view.close;
-            if atr_ratio > 0.05 { // Very high volatility
-                weight *= 1.2; // ML might be better in high vol situations
-            } else if atr_ratio < 0.005 { // Very low volatility
-                weight *= 0.9; // ML might struggle with no movement
-            }
+        let atr = feature_view.indicators.atr;
+        let atr_ratio = atr / feature_view.indicators.close;
+        if atr_ratio > 0.05 { // Very high volatility
+            weight *= 1.2; // ML might be better in high vol situations
+        } else if atr_ratio < 0.005 { // Very low volatility
+            weight *= 0.9; // ML might struggle with no movement
         }
 
         // Adjust weight based on market regime stability
@@ -215,42 +214,39 @@ impl ConsensusEngine {
             weight *= 1.1; // ML should perform well
         }
 
-        weight.clamp(0.5, 1.5) // Clamp between 0.5x and 1.5x base weight
+        weight.clamp(0.5_f64, 1.5_f64) // Clamp between 0.5x and 1.5x base weight
     }
 
     /// Calculates how aligned oscillators are with each other
+    #[allow(dead_code)]
     fn calculate_oscillator_alignment(&self, feature_view: &FeatureView) -> f64 {
         let mut alignment_score = 0.0;
         let mut count = 0;
 
-        if let Some(rsi) = feature_view.rsi {
-            // RSI in middle range is more reliable
-            if rsi > 30.0 && rsi < 70.0 {
-                alignment_score += 0.5;
-            }
-            count += 1;
+        let rsi = feature_view.indicators.rsi;
+        // RSI in middle range is more reliable
+        if rsi > 30.0 && rsi < 70.0 {
+            alignment_score += 0.5;
         }
+        count += 1;
 
-        if let Some(stoch_k) = feature_view.stoch_k {
-            if let Some(stoch_d) = feature_view.stoch_d {
-                // Stochastic in middle range and K close to D
-                if stoch_k > 20.0 && stoch_k < 80.0 && stoch_d > 20.0 && stoch_d < 80.0 {
-                    alignment_score += 0.3;
-                    // Bonus if K and D are close (confluence)
-                    if (stoch_k - stoch_d).abs() < 5.0 {
-                        alignment_score += 0.2;
-                    }
-                }
-                count += 1;
+        let stoch_k = feature_view.indicators.stoch_k;
+        let stoch_d = feature_view.indicators.stoch_d;
+        // Stochastic in middle range and K close to D
+        if stoch_k > 20.0 && stoch_k < 80.0 && stoch_d > 20.0 && stoch_d < 80.0 {
+            alignment_score += 0.3;
+            // Bonus if K and D are close (confluence)
+            if (stoch_k - stoch_d).abs() < 5.0 {
+                alignment_score += 0.2;
             }
         }
+        count += 1;
 
-        if let Some(williams_r) = feature_view.williams_r {
-            if williams_r > -80.0 && williams_r < -20.0 {
-                alignment_score += 0.5;
-            }
-            count += 1;
+        let williams_r = feature_view.indicators.williams_r;
+        if williams_r > -80.0 && williams_r < -20.0 {
+            alignment_score += 0.5;
         }
+        count += 1;
 
         if count > 0 {
             alignment_score / count as f64
@@ -260,42 +256,40 @@ impl ConsensusEngine {
     }
 
     /// Calculates market regime stability
+    #[allow(dead_code)]
     fn calculate_regime_stability(&self, feature_view: &FeatureView) -> f64 {
         let mut stability_score = 0.0;
         let mut count = 0;
 
         // Check trend stability
-        if let Some(trend_short) = feature_view.trend_short {
-            if let Some(trend_medium) = feature_view.trend_medium {
-                // If short and medium trends align, it's more stable
-                if trend_short.signum() == trend_medium.signum() {
-                    stability_score += 0.4;
-                } else {
-                    stability_score -= 0.2; // Conflicting trends
-                }
-                count += 1;
-            }
+        let trend_short = feature_view.indicators.trend_short;
+        let trend_medium = feature_view.indicators.trend_medium;
+        // If short and medium trends align, it's more stable
+        if trend_short.signum() == trend_medium.signum() {
+            stability_score += 0.4;
+        } else {
+            stability_score -= 0.2; // Conflicting trends
         }
+        count += 1;
 
         // Check volume stability
-        if let (Some(volume_sma), volume) = (feature_view.volume_sma, feature_view.volume) {
-            let volume_ratio = volume / volume_sma;
-            // Stable volumes (close to average) indicate stable regime
-            if volume_ratio > 0.7 && volume_ratio < 1.3 {
-                stability_score += 0.3;
-            }
-            count += 1;
+        let volume_sma = feature_view.indicators.volume_sma;
+        let volume = feature_view.indicators.volume;
+        let volume_ratio = volume / volume_sma;
+        // Stable volumes (close to average) indicate stable regime
+        if volume_ratio > 0.7 && volume_ratio < 1.3 {
+            stability_score += 0.3;
         }
+        count += 1;
 
         // Check volatility stability
-        if let Some(atr) = feature_view.atr {
-            // Very high or very low volatility might indicate unstable regime
-            let atr_ratio = atr / feature_view.close;
-            if atr_ratio > 0.005 && atr_ratio < 0.05 {
-                stability_score += 0.3;
-            }
-            count += 1;
+        let atr = feature_view.indicators.atr;
+        // Very high or very low volatility might indicate unstable regime
+        let atr_ratio = atr / feature_view.indicators.close;
+        if atr_ratio > 0.005 && atr_ratio < 0.05 {
+            stability_score += 0.3;
         }
+        count += 1;
 
         if count > 0 {
             stability_score / count as f64
@@ -304,7 +298,7 @@ impl ConsensusEngine {
         }
     }
 
-    /// Creates a unique key for grouping predictions
+    /// Creates a unique key for grouping predictors
     fn create_prediction_key(&self, pred: &PredictionRow) -> String {
         match &pred.level_hash {
             Some(hash) => format!("{}_{}_{}", pred.aspect.as_int(), hash, pred.symbol),
@@ -321,12 +315,12 @@ impl ConsensusEngine {
         }
     }
 
-    /// Applies consensus logic to determine if predictions should be combined
-    pub async fn should_combine_predictions(
+    /// Applies consensus logic to determine if predictors should be combined
+    pub async fn should_combine_predictors(
         &self,
         hard_pred: &PredictionRow,
         ml_pred: &PredictionRow,
-        feature_view: &FeatureView,
+        _feature_view: &FeatureView,
     ) -> bool {
         // Don't combine if they're for different aspects
         if hard_pred.aspect != ml_pred.aspect {
@@ -344,7 +338,7 @@ impl ConsensusEngine {
             return false;
         }
 
-        // Check if both predictions are for the same symbol and timeframe
+        // Check if both predictors are for the same symbol and timeframe
         hard_pred.symbol == ml_pred.symbol && hard_pred.tf_minutes == ml_pred.tf_minutes
     }
 }
@@ -352,7 +346,7 @@ impl ConsensusEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::predictions::types::{PredictionAspect, CalcSource};
+    use crate::types::{PredictionAspect, CalcSource};
 
     #[test]
     fn test_create_prediction_key() {

@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::predictions::types::{PredictionAspect, PredictionRow, PredictionCalcSource};
+use crate::predictors::types::{PredictionAspect, PredictionRow, PredictionCalcSource};
 
 use super::market_params_calculator::MarketParams;
 
@@ -24,7 +24,7 @@ pub struct FinalScorer {
 /// Weights for base score components (must sum to 1.0 after normalization)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyWeights {
-    pub predictions_weight: f64,
+    pub predictors_weight: f64,
     pub raw_signals_weight: f64,
     pub indicators_weight: f64,
     pub market_weight: f64,
@@ -34,7 +34,7 @@ impl Default for StrategyWeights {
     fn default() -> Self {
         // Keep market meaningful; without it you will trade against BTC regime.
         Self {
-            predictions_weight: 0.35,
+            predictors_weight: 0.35,
             raw_signals_weight: 0.30,
             indicators_weight: 0.20,
             market_weight: 0.15,
@@ -44,9 +44,9 @@ impl Default for StrategyWeights {
 
 impl StrategyWeights {
     pub fn normalized(mut self) -> Self {
-        let sum = self.predictions_weight + self.raw_signals_weight + self.indicators_weight + self.market_weight;
+        let sum = self.predictors_weight + self.raw_signals_weight + self.indicators_weight + self.market_weight;
         if sum > 0.0 {
-            self.predictions_weight /= sum;
+            self.predictors_weight /= sum;
             self.raw_signals_weight /= sum;
             self.indicators_weight /= sum;
             self.market_weight /= sum;
@@ -60,9 +60,9 @@ pub struct FinalScoreBreakdown {
     pub final_score: f64,
     pub base_score: f64,
 
-    pub predictions_score: f64,
-    pub predictions_ml_score: f64,
-    pub predictions_heur_score: f64,
+    pub predictors_score: f64,
+    pub predictors_ml_score: f64,
+    pub predictors_heur_score: f64,
 
     pub raw_signals_score: f64,
     pub indicators_score: f64,
@@ -107,11 +107,11 @@ impl FinalScorer {
         timestamp: DateTime<Utc>,
         side: i16,
         raw_signals_summary: &Value,
-        predictions: &[PredictionRow],
+        predictors: &[PredictionRow],
         market_params: Option<&MarketParams>,
     ) -> Result<Option<f64>> {
         Ok(self
-            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictions, market_params)
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictors, market_params)
             .await?
             .map(|b| b.final_score))
     }
@@ -124,16 +124,16 @@ impl FinalScorer {
         timestamp: DateTime<Utc>,
         side: i16,
         raw_signals_summary: &Value,
-        predictions: &[PredictionRow],
+        predictors: &[PredictionRow],
         market_params: Option<&MarketParams>,
     ) -> Result<Option<FinalScoreBreakdown>> {
         let side_i8 = (side.signum() as i8);
 
-        // Predictions score
-        let pred_comp = self.calculate_predictions_component(predictions)?;
-        let predictions_score = pred_comp.total;
-        let predictions_ml_score = pred_comp.ml;
-        let predictions_heur_score = pred_comp.heur;
+        // predictors score
+        let pred_comp = self.calculate_predictors_component(predictors)?;
+        let predictors_score = pred_comp.total;
+        let predictors_ml_score = pred_comp.ml;
+        let predictors_heur_score = pred_comp.heur;
 
         // Raw signals score (use BEST signals, but penalize missing coverage)
         let raw_signals_score = self.calculate_raw_signals_score(raw_signals_summary);
@@ -148,15 +148,15 @@ impl FinalScorer {
 
         // Base score (weights sum to 1)
         let base_score =
-            predictions_score * self.weights.predictions_weight +
+            predictors_score * self.weights.predictors_weight +
             raw_signals_score * self.weights.raw_signals_weight +
             indicators_score * self.weights.indicators_weight +
             market_score * self.weights.market_weight;
 
         // Coverage & consensus
         let has_market = market_params.is_some();
-        let coverage_score = self.calculate_feature_coverage_score(predictions, raw_signals_summary, has_market);
-        let consensus_score = self.calculate_ml_heuristic_consensus(predictions_ml_score, predictions_heur_score);
+        let coverage_score = self.calculate_feature_coverage_score(predictors, raw_signals_summary, has_market);
+        let consensus_score = self.calculate_ml_heuristic_consensus(predictors_ml_score, predictors_heur_score);
 
         // “AND-like” penalties:
         let final_score = (base_score
@@ -180,9 +180,9 @@ impl FinalScorer {
             Ok(Some(FinalScoreBreakdown {
                 final_score,
                 base_score,
-                predictions_score,
-                predictions_ml_score,
-                predictions_heur_score,
+                predictors_score,
+                predictors_ml_score,
+                predictors_heur_score,
                 raw_signals_score,
                 indicators_score,
                 market_score,
@@ -195,8 +195,8 @@ impl FinalScorer {
         }
     }
 
-    fn calculate_predictions_component(&self, predictions: &[PredictionRow]) -> Result<PredComponent> {
-        if predictions.is_empty() {
+    fn calculate_predictors_component(&self, predictors: &[PredictionRow]) -> Result<PredComponent> {
+        if predictors.is_empty() {
             return Ok(PredComponent::zero());
         }
 
@@ -204,7 +204,7 @@ impl FinalScorer {
         let mut best_ml: std::collections::HashMap<i16, f64> = std::collections::HashMap::new();
         let mut best_heur: std::collections::HashMap<i16, f64> = std::collections::HashMap::new();
 
-        for p in predictions {
+        for p in predictors {
             let aspect = p.aspect.as_int();
             let score = (p.score_norm as f64).clamp(0.0, 1.0);
 
@@ -310,13 +310,13 @@ impl FinalScorer {
             .clamp(0.0, 1.0)
     }
 
-    fn calculate_feature_coverage_score(&self, predictions: &[PredictionRow], raw_signals_summary: &Value, has_market: bool) -> f64 {
+    fn calculate_feature_coverage_score(&self, predictors: &[PredictionRow], raw_signals_summary: &Value, has_market: bool) -> f64 {
         // Prediction coverage: do we have main aspects?
         let mut has_price_target = false;
         let mut has_bounce = false;
         let mut has_break = false;
 
-        for p in predictions {
+        for p in predictors {
             match p.aspect {
                 PredictionAspect::PriceTarget => has_price_target = true,
                 PredictionAspect::LevelBounce => has_bounce = true,
@@ -335,7 +335,7 @@ impl FinalScorer {
 
         let market_cov = if has_market { 1.0 } else { 0.0 };
 
-        // Weighted coverage: predictions + raw + market
+        // Weighted coverage: predictors + raw + market
         (0.45 * pred_cov + 0.45 * raw_cov + 0.10 * market_cov).clamp(0.0, 1.0)
     }
 

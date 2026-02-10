@@ -1,8 +1,8 @@
-// compute/predictions/level_view.rs
+// compute/predictors/level_view.rs
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use crate::predictions::feature_view::{SrLevel, SrLevelKind};
+use crate::feature_view::{SrLevel, SrLevelKind};
 
 /// View for parsing and working with support/resistance levels
 #[derive(Debug, Clone)]

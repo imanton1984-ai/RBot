@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PredictionsConfig {
+pub struct PredictorsConfig {
     pub enabled: bool,
     pub horizon_bars: usize,
     pub min_store_score: f64,

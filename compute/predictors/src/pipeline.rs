@@ -1,35 +1,33 @@
 // compute/predictors/pipeline.rs
 
 use anyhow::Result;
-use tokio::sync::mpsc;
 use serde_json::Value;
 use crate::types::{PredictionRow, PredictionAspect, CalcSource};
-use crate::feature_view::{FeatureView, FeatureVector, IndicatorsWideRow};
+use crate::feature_view::{FeatureView, IndicatorsWideRow};
 use crate::level_view::LevelView;
-use crate::config::PredictionsConfig;
+use crate::config::PredictorsConfig;
 use crate::persistence;
-use database_lib::PgPool;
-use common::{MessageBus, Codec};
-use crate::predictors::consensus::ConsensusEngine;
+use sqlx::PgPool;
+use common::MessageBus;
+use crate::consensus::ConsensusEngine;
 
 use crate::ml::model_manager::ModelManager;
 use crate::ml::model_pool::ModelPool;
 use std::sync::Arc;
 
-pub struct PredictionsPipeline {
-    config: PredictionsConfig,
+pub struct PredictorsPipeline {
+    config: PredictorsConfig,
     db_pool: PgPool,
-    message_bus: MessageBus,
     shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
     ml_manager: ModelManager,
 }
 
-impl PredictionsPipeline {
+impl PredictorsPipeline {
     pub fn new(
-        config: PredictionsConfig,
+        config: PredictorsConfig,
         db_pool: PgPool,
-        message_bus: MessageBus,
+        _message_bus: MessageBus,
         shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
         let pool = Arc::new(ModelPool::new());
@@ -45,7 +43,6 @@ impl PredictionsPipeline {
         Self {
             config,
             db_pool,
-            message_bus,
             shutdown_rx,
             feature_rx: None,
             ml_manager,
@@ -70,7 +67,7 @@ impl PredictionsPipeline {
                     }
                 }
                 _ = self.shutdown_rx.recv() => {
-                    tracing::info!("Shutdown signal received, stopping predictions pipeline");
+                    tracing::info!("Shutdown signal received, stopping predictors pipeline");
                     break;
                 }
             }
@@ -114,10 +111,10 @@ impl PredictionsPipeline {
         let final_preds = consensus.apply_gate_and_fuse(hc_preds, ml_preds, &view).await?;
 
         if !final_preds.is_empty() {
-            persistence::upsert_predictions(&self.db_pool, &final_preds).await?;
+            persistence::upsert_predictors(&self.db_pool, final_preds.clone()).await?;
 
             tracing::info!(target: "compute_predictors", 
-                "Symbol: {}, TF: {}, Predictions: {}, Time: {:?}", 
+                "Symbol: {}, TF: {}, predictors: {}, Time: {:?}", 
                 snapshot.symbol, snapshot.timeframe, final_preds.len(), start.elapsed()
             );
         }
@@ -126,12 +123,12 @@ impl PredictionsPipeline {
     }
 
     async fn run_hardcode_predictors(&self, view: &FeatureView) -> Result<Option<Vec<PredictionRow>>> {
-        let mut predictions = Vec::new();
+        let mut predictors = Vec::new();
         let view_close = view.indicators.close as f64;
 
-        let hc_price = crate::predictors::future_predictor::heuristic_predictor::FuturePriceHeuristic::new();
+        let hc_price = crate::future_predictor::heuristic_predictor::FuturePriceHeuristic::new();
         if let Some((predicted_prices, score)) = hc_price.predict(&view.symbol, &view.timeframe, view)? {
-            let predictor_meta = persistence::PredictorMeta {
+            let predictor_meta = crate::types::PredictorMeta {
                 predictor_id: 0,
                 name: "price10_hard".to_string(),
                 version: "1.0".to_string(),
@@ -141,7 +138,7 @@ impl PredictionsPipeline {
                 artifact_path: None,
                 feature_schema_id: "feature_view".to_string(),
             };
-            let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+            let predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
             let prediction_row = PredictionRow {
                 time: view.timestamp,
                 time_ms: view.timestamp.timestamp_millis(),
@@ -171,24 +168,24 @@ impl PredictionsPipeline {
                 })),
                 prediction_key: format!("price10_hard_{}_{}", view.symbol, view.timestamp.timestamp()),
             };
-            predictions.push(prediction_row);
+            predictors.push(prediction_row);
         }
 
-        if predictions.is_empty() {
+        if predictors.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(predictions))
+            Ok(Some(predictors))
         }
     }
 
     async fn run_ml_predictors(&self, view: &FeatureView) -> Result<Option<Vec<PredictionRow>>> {
-        let mut predictions = Vec::new();
+        let mut predictors = Vec::new();
         let view_close = view.indicators.close as f64;
 
         if let Some(schema) = self.ml_manager.get_schema("price") {
             let input_vec = schema.build_vector(view);
             if let Some(predicted_prices) = self.ml_manager.predict("price", &input_vec)? {
-                let predictor_meta = persistence::PredictorMeta {
+                let predictor_meta = crate::types::PredictorMeta {
                     predictor_id: 0,
                     name: "price10_ml".to_string(),
                     version: "1.0".to_string(),
@@ -198,7 +195,7 @@ impl PredictionsPipeline {
                     artifact_path: Some(self.config.model_path_price.clone()),
                     feature_schema_id: schema.schema_id.clone(),
                 };
-                let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+                let predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
                 let score = if !predicted_prices.is_empty() { predicted_prices[0].abs().min(1.0) as f64 } else { 0.5 };
                 let prediction_row = PredictionRow {
                     time: view.timestamp,
@@ -230,7 +227,7 @@ impl PredictionsPipeline {
                     })),
                     prediction_key: format!("price10_ml_{}_{}", view.symbol, view.timestamp.timestamp()),
                 };
-                predictions.push(prediction_row);
+                predictors.push(prediction_row);
             }
         }
 
@@ -248,41 +245,28 @@ impl PredictionsPipeline {
                         let levels = level_view.get_near_levels();
                         if let Some(level) = levels.first() {
                             // Bounce
-                            let bounce_predictor_meta = persistence::PredictorMeta { predictor_id: 0, name: "level_bounce_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
-                            let bounce_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
+                            let bounce_predictor_meta = crate::types::PredictorMeta { predictor_id: 0, name: "level_bounce_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
+                            let bounce_predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
                             let bounce_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: 0, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, predictor_id: bounce_predictor_id, score_norm: prob_bounce as f32, value: prob_bounce, value_low: None, value_high: None, side: Some(if view_close < level.level_price { 1 } else { -1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_bounce", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
-                            predictions.push(bounce_prediction);
+                            predictors.push(bounce_prediction);
                             // Breakout
-                            let break_predictor_meta = persistence::PredictorMeta { predictor_id: 0, name: "level_breakout_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
-                            let break_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
+                            let break_predictor_meta = crate::types::PredictorMeta { predictor_id: 0, name: "level_breakout_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
+                            let break_predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
                             let break_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: 0, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, predictor_id: break_predictor_id, score_norm: prob_break as f32, value: prob_break, value_low: None, value_high: None, side: Some(if view_close < level.level_price { -1 } else { 1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_breakout", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
-                            predictions.push(break_prediction);
+                            predictors.push(break_prediction);
                         }
                     }
                 }
             }
         }
 
-        if predictions.is_empty() {
+        if predictors.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(predictions))
+            Ok(Some(predictors))
         }
     }
 
-    async fn publish_predictions(&self, snapshot: &FeatureSnapshot, feature_view: &FeatureView) -> Result<()> {
-        let payload = serde_json::json!({
-            "symbol": &feature_view.symbol,
-            "timeframe": &feature_view.timeframe,
-            "timestamp": feature_view.timestamp,
-            "predictions_reference": format!("{}_{}", feature_view.symbol, feature_view.timestamp.timestamp()),
-        });
-        let topic = std::env::var("KAFKA_PREDICTIONS_TOPIC").unwrap_or_else(|_| "predictions".to_string());
-        self.message_bus
-            .publish(&topic, feature_view.symbol.as_bytes(), &payload, Codec::Bincode)
-            .await?;
-        Ok(())
-    }
 
     fn determine_side(&self, current_price: f64, target_price: f64) -> Option<i16> {
         if target_price > current_price * 1.001 { Some(1) } else if target_price < current_price * 0.999 { Some(-1) } else { Some(0) }

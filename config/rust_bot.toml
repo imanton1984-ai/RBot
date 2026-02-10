@@ -16,8 +16,8 @@ topic_features_snapshot = "features.snapshot"
 topic_orders_cmd        = "orders.cmd"
 topic_orders_events     = "orders.events"
 topic_positions_events  = "positions.events"
-topic_predictions       = "predictions.all"
-topic_prediction_events = "predictions.events"
+topic_predictors       = "predictors.all"
+topic_prediction_events = "predictors.events"
 
 [rust_bot.warmup]
 require_db_schema_ready = true

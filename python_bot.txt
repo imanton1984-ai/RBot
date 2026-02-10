@@ -11416,7 +11416,7 @@ Trade signal engine.
 
 This asynchronous module coordinates the computation of final trading
 signals by combining scored raw signals, the latest technical
-indicators and machine‑learning predictions.  The resulting rows are
+indicators and machine‑learning predictors.  The resulting rows are
 inserted into the ``trade.signals`` table.
 
 Modifications in this version include using the nearest SR level to
@@ -11432,7 +11432,7 @@ Key steps:
 2. Fetch the close price and all required indicators from the various
    ``market.*`` tables.  The SR level is chosen based on proximity to
    the current price and includes ``upper`` and ``lower`` fields.
-3. Pull machine‑learning predictions from ``trade.predictions``.
+3. Pull machine‑learning predictors from ``trade.predictors``.
 4. Compute trend state (bullish/bearish) based on VWAP.
 5. Pass everything to ``core.trade_signal.calculate`` to derive TP/SL
    levels and final signal fields.
@@ -11604,13 +11604,13 @@ async def _process(symbol: str, tf: str, ts: datetime) -> int:
     # trend_state = "bullish" if vwap_val > 0 else "bearish"
     trend_value = indicators.get("vwap")
     trend_short = indicators.get("trend_short")
-    # Pull predictions from ``trade.predictions``
+    # Pull predictors from ``trade.predictors``
     try:
         async with engine.begin() as conn:
             stmt_pred = text(
                 """
                 SELECT expected_change, prob_breakout
-                  FROM trade.predictions
+                  FROM trade.predictors
                  WHERE symbol     = :s
                    AND timeframe  = :tf
                    AND time       = :t
@@ -15924,7 +15924,7 @@ async def run(now: datetime | None = None, regime: Regime = "flat") -> None:
     # Можно ещё раз обновить SR‑сигналы для этих пар, но теперь это опционально.
     # await sr_levels_signal_engine.run(filtered, now)
 
-    # Run the predictor before the scorer so predictions are available during scoring
+    # Run the predictor before the scorer so predictors are available during scoring
     await predictor_engine.run(filtered, now)
     await level_scorer_run(now, regime)
     await trade_signal_engine.run(filtered, now)
@@ -16126,7 +16126,7 @@ _ROOT_WEIGHTS: Dict[str, float] = {
     "volume": 1.3, "obv": 1.2, "vwap": 1.2, "poc": 1.0,
     # support/resistance — главный триггер
     "sr": SR_WEIGHT,
-    # predictions (expected_change/prob_breakout) weight
+    # predictors (expected_change/prob_breakout) weight
     "pred": 1.0,
 }
 
@@ -16474,7 +16474,7 @@ async def _collect_raw(symbol: str, tf: str, ts: datetime) -> List[dict]:
             stmt_pred = text(
                 """
                 SELECT expected_change, prob_breakout
-                  FROM trade.predictions
+                  FROM trade.predictors
                  WHERE symbol    = :s
                    AND timeframe = :tf
                    AND time      = :t
@@ -16939,24 +16939,24 @@ def predict(symbol: str, indicators: Dict[str, Any]) -> Dict[str, float]:
 # predictor/predictor_engine.py
 
 """
-Asynchronous engine for running predictions on a set of symbols.
+Asynchronous engine for running predictors on a set of symbols.
 
 This module pulls the latest indicator values from the database for each
 symbol/timeframe combination, invokes the predictor logic to compute
 expected price changes and breakout probabilities, and writes the
-results to a dedicated table (`trade.predictions`).
+results to a dedicated table (`trade.predictors`).
 
 To integrate this engine into the existing pipeline, call
 
     await predictor_engine.run(symbols, now)
 
 after the trade signals have been generated (e.g. in the SR‑level
-strategy pipeline).  The predictions are stored separately so they
+strategy pipeline).  The predictors are stored separately so they
 can be queried later or joined to `trade.signals` as needed.
 
 Note: a corresponding table should be created in PostgreSQL:
 
-    CREATE TABLE IF NOT EXISTS trade.predictions (
+    CREATE TABLE IF NOT EXISTS trade.predictors (
         symbol     TEXT,
         timeframe  TEXT,
         time       TIMESTAMP WITH TIME ZONE,
@@ -17055,7 +17055,7 @@ async def _fetch_indicators(symbol: str, tf: str, ts: datetime) -> Dict[str, Any
 
 
 async def _process(symbol: str, tf: str, ts: datetime) -> Dict[str, Any]:
-    """Compute predictions for a single symbol/timeframe/time."""
+    """Compute predictors for a single symbol/timeframe/time."""
     indicators = await _fetch_indicators(symbol, tf, ts)
     preds = predict(symbol, indicators)
     preds.update({
@@ -17068,11 +17068,11 @@ async def _process(symbol: str, tf: str, ts: datetime) -> Dict[str, Any]:
 
 async def run(symbols: List[str], now: datetime) -> None:
     """
-    Run predictions for the given symbols and the latest bar for each timeframe.
+    Run predictors for the given symbols and the latest bar for each timeframe.
 
     Creates a list of (tf, ts) pairs aligned to the nearest full bar based on
-    `now`, then schedules asynchronous workers to compute predictions in
-    parallel.  The results are bulk‑inserted into `trade.predictions`.
+    `now`, then schedules asynchronous workers to compute predictors in
+    parallel.  The results are bulk‑inserted into `trade.predictors`.
     """
     # derive the timestamps aligned to each timeframe
     epoch = int(now.replace(tzinfo=timezone.utc).timestamp())
@@ -17093,11 +17093,11 @@ async def run(symbols: List[str], now: datetime) -> None:
     if not results:
         return
     try:
-        await bulk_insert_copy("trade.predictions", results)
+        await bulk_insert_copy("trade.predictors", results)
     except Exception as e:
         log.error("Predictor insert failed: %s", e)
         return
-    log.info("📈 Predictor: saved %d predictions", len(results))
+    log.info("📈 Predictor: saved %d predictors", len(results))
 
 
 # core/_init_.py
@@ -22926,7 +22926,7 @@ Core trade signal utilities.
 
 This module contains functions to compute take‑profit (TP) and stop‑loss (SL)
 levels based on a variety of technical indicators, the overall strength of
-the signal and machine‑learning predictions.  It also constructs the final
+the signal and machine‑learning predictors.  It also constructs the final
 signal dictionary used to populate the ``trade.signals`` table.
 
 The ``_compute_tp_sl`` function is the heart of the TP/SL calculation.
@@ -22986,7 +22986,7 @@ STOCH_OVERSOLD = 20
 STOCH_PENALTY = 0.25
 STOCH_BONUS = 0.15
 
-# Weights to adjust TP/SL based on predictions.  A positive expected
+# Weights to adjust TP/SL based on predictors.  A positive expected
 # change expands targets; a high breakout probability increases range.
 PRED_CHANGE_WEIGHT = 0.5
 PRED_BREAKOUT_WEIGHT = 0.5
@@ -23007,7 +23007,7 @@ def _compute_tp_sl(
 
     The calculation combines ATR‑based volatility, support/resistance,
     MACD crosses, RSI extremes, volume spikes, stochastic levels and
-    machine‑learning predictions to adjust the base move size.
+    machine‑learning predictors to adjust the base move size.
 
     :param tf: timeframe (e.g. ``"15m"``)
     :param side: ``"long"`` or ``"short"``
@@ -23158,7 +23158,7 @@ def calculate(
                        keys ``symbol``, ``timeframe``, ``time``, ``decision``
                        and ``total`` (total score)
     :param indicators: mapping of indicator values including optional
-                       predictions (``expected_change`` and
+                       predictors (``expected_change`` and
                        ``prob_breakout``)
     :param trend_state: textual trend label (e.g. "bullish" or "bearish")
     :param trend_value: numeric long‑term trend value
@@ -23184,7 +23184,7 @@ def calculate(
         fee_rate=fee_rate
     )
 
-    # Prepare output row; include all indicators (including predictions)
+    # Prepare output row; include all indicators (including predictors)
     row_out: dict[str, Any] = {
         "symbol": symbol,
         "timeframe": tf,
@@ -33604,8 +33604,8 @@ CREATE TABLE IF NOT EXISTS trade.orders (
 
 """
 
-TRADE_PREDICTIONS_DDL = """
-    CREATE TABLE IF NOT EXISTS trade.predictions (
+TRADE_predictors_DDL = """
+    CREATE TABLE IF NOT EXISTS trade.predictors (
         symbol     TEXT,
         timeframe  TEXT,
         time       TIMESTAMP WITH TIME ZONE,
@@ -33751,7 +33751,7 @@ _DDLS = [
     RAW_SIGNALS_VOLUME_DDL,
     RAW_SCORED_SIGNALS_DDL,
     TRADE_ORDERS_DDL,
-    TRADE_PREDICTIONS_DDL,
+    TRADE_predictors_DDL,
     TRADE_SIGNALS_DDL,
     TRADE_ML_TRAIN_SIGNALS_DDL,
 ]
@@ -36978,11 +36978,11 @@ class OrderEngine:
 
         self.collector = OrderCollector(session_factory)
 
-    def _fetch_predictions(self, s, symbol: str, tf: str, ts) -> tuple[float | None, float | None]:
+    def _fetch_predictors(self, s, symbol: str, tf: str, ts) -> tuple[float | None, float | None]:
         row = s.execute(
             text("""
                 SELECT expected_change, prob_breakout
-                  FROM trade.predictions
+                  FROM trade.predictors
                  WHERE symbol = :s AND timeframe = :tf AND time = :t
             """),
             {"s": symbol, "tf": tf, "t": ts}
@@ -37099,7 +37099,7 @@ class OrderEngine:
         for sig in top:
             live = self._live_price(sig.symbol)
             with self.Session() as s:
-                exp_chg, prob = self._fetch_predictions(s, sig.symbol, sig.timeframe, sig.time)
+                exp_chg, prob = self._fetch_predictors(s, sig.symbol, sig.timeframe, sig.time)
 
             indicators = {
                 "atr": sig.atr,
@@ -37267,7 +37267,7 @@ class OrderEngine:
 
         # Прогноз (если есть)
         with self._session_factory() as s:
-            exp_chg, prob = self._fetch_predictions(s, symbol, tf, row["time"])
+            exp_chg, prob = self._fetch_predictors(s, symbol, tf, row["time"])
 
         indicators = {
             "atr": float(row["atr"]) if row["atr"] is not None else None,
