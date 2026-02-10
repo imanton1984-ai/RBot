@@ -411,6 +411,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: config.use_cuda,
+        model_path_price: "models/price_v1.onnx".to_string(),
+        model_path_levels: "models/levels_v1.onnx".to_string(),
     };
 
     let mut predictions_pipeline = PredictionsPipeline::new(

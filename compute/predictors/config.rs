@@ -9,4 +9,6 @@ pub struct PredictionsConfig {
     pub prefer_ml: bool,
     pub max_levels_per_side: usize,
     pub use_cuda: bool,
+    pub model_path_price: String,
+    pub model_path_levels: String,
 }

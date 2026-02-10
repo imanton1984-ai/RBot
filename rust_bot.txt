@@ -2207,6 +2207,57 @@ networks:
 
 
 
+# trainer/src/train_stub.py
+
+import numpy as np
+import pandas as pd
+import xgboost as xgb
+import onnx
+import os
+from skl2onnx import convert_sklearn
+from onnxmltools import convert_xgboost
+from onnxmltools.convert.common.data_types import FloatTensorType
+
+# Настройки
+MODEL_DIR = "../models"
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# 1. Генерация фиктивных данных (имитация фичей из Rust: RSI, EMA, MACD...)
+# Допустим, у нас 50 входных фичей
+N_FEATURES = 50
+N_SAMPLES = 1000
+
+X = np.random.rand(N_SAMPLES, N_FEATURES).astype(np.float32)
+# Целевая переменная (например, изменение цены через 10 баров)
+y_price = X[:, 0] * 0.5 + X[:, 1] * -0.2 + np.random.normal(0, 0.1, N_SAMPLES)
+# Целевая переменная для уровней (0 - нет уровня, 1 - уровень)
+y_level = (X[:, 2] > 0.8).astype(int)
+
+print("Training Price Regressor (XGBoost)...")
+# Обучаем простую модель
+reg = xgb.XGBRegressor(n_estimators=100, max_depth=3)
+reg.fit(X, y_price)
+
+# Экспорт в ONNX
+initial_type = [('float_input', FloatTensorType([None, N_FEATURES]))]
+onnx_model_price = convert_xgboost(reg, initial_types=initial_type)
+onnx.save_model(onnx_model_price, os.path.join(MODEL_DIR, "price_v1.onnx"))
+print(f"Saved {MODEL_DIR}/price_v1.onnx")
+
+print("Training Level Classifier (Scikit-Learn)...")
+from sklearn.ensemble import RandomForestClassifier
+clf = RandomForestClassifier(n_estimators=50, max_depth=5)
+clf.fit(X, y_level)
+
+# Экспорт в ONNX
+# Для sklearn нужен skl2onnx
+onnx_model_level = convert_sklearn(clf, initial_types=initial_type)
+onnx.save_model(onnx_model_level, os.path.join(MODEL_DIR, "levels_v1.onnx"))
+print(f"Saved {MODEL_DIR}/levels_v1.onnx")
+
+print("Done. Ready for Rust ingestion.")
+
+
 # cuda/Cargo.toml
 
 [package]
@@ -16410,6 +16461,8 @@ pub struct PredictionsConfig {
     pub prefer_ml: bool,
     pub max_levels_per_side: usize,
     pub use_cuda: bool,
+    pub model_path_price: String,
+    pub model_path_levels: String,
 }
 
 
@@ -17910,12 +17963,15 @@ use crate::persistence;
 use database_lib::PgPool;
 use connections_lib::RedpandaClient;
 
+use crate::ml::model_manager::ModelManager;
+
 pub struct PredictionsPipeline {
     config: PredictionsConfig,
     db_pool: PgPool,
     redpanda_client: RedpandaClient,
     shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
+    ml_manager: ModelManager,
 }
 
 impl PredictionsPipeline {
@@ -17925,12 +17981,22 @@ impl PredictionsPipeline {
         redpanda_client: RedpandaClient,
         shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
+        let mut ml_manager = ModelManager::new(config.use_cuda);
+        // Загружаем модели, пути берем из конфига
+        if let Err(e) = ml_manager.load_model("price", &config.model_path_price) {
+            tracing::error!("Failed to load price model: {}", e);
+        }
+        if let Err(e) = ml_manager.load_model("level", &config.model_path_levels) {
+            tracing::error!("Failed to load level model: {}", e);
+        }
+
         Self {
             config,
             db_pool,
             redpanda_client,
             shutdown_rx,
             feature_rx: None,
+            ml_manager,
         }
     }
 
@@ -18206,10 +18272,13 @@ impl PredictionsPipeline {
     async fn run_ml_predictors(&self, view: &FeatureView, vector: &FeatureVector) -> Result<Option<Vec<PredictionRow>>> {
         let mut predictions = Vec::new();
 
-        // Run FuturePriceMl
-        let use_cuda = self.config.use_cuda; // from config
-        let ml_price = crate::future_predictor::ml_predictor::FuturePriceMl::new("models/price10.onnx", use_cuda)?;
-        if let Some((predicted_prices, score)) = ml_price.predict(&view.symbol, &view.timeframe, vector).await? {
+        // Преобразуем FeatureView в плоский вектор f32 для ONNX
+        let input_vec = view.to_feature_vector().values; // Convert to f32 vector
+        
+        // Предикт цены
+        let price_pred = self.ml_manager.predict("price", &input_vec)?;
+        
+        if let Some(predicted_prices) = price_pred {
             // Create prediction row for ML price prediction
             let predictor_meta = persistence::PredictorMeta {
                 predictor_id: 0,
@@ -18218,11 +18287,19 @@ impl PredictionsPipeline {
                 aspect: PredictionAspect::PriceTarget,
                 calc_source: CalcSource::Ml,
                 framework: "onnx".to_string(),
-                artifact_path: Some("models/price10.onnx".to_string()),
+                artifact_path: Some(self.config.model_path_price.clone()),
                 feature_schema_id: vector.schema_id.clone(),
             };
 
             let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+
+            // Calculate confidence from the model output
+            let score = if !predicted_prices.is_empty() { 
+                // Use the first prediction as the score for simplicity, or calculate from the whole vector
+                predicted_prices[0].abs().min(1.0) as f64 
+            } else { 
+                0.5 
+            };
 
             let prediction_row = PredictionRow {
                 time: view.timestamp,
@@ -18235,10 +18312,10 @@ impl PredictionsPipeline {
                 calc_source: CalcSource::Ml,
                 predictor_id,
                 score_norm: score as f32,
-                value: predicted_prices.last().copied().unwrap_or(view.close),
+                value: predicted_prices.last().copied().unwrap_or(view.close as f32) as f64,
                 value_low: None,
                 value_high: None,
-                side: self.determine_side(view.close, predicted_prices.last().copied().unwrap_or(view.close)),
+                side: self.determine_side(view.close, predicted_prices.last().copied().unwrap_or(view.close as f32) as f64),
                 level_hash: None,
                 level_kind: None,
                 level_price: None,
@@ -18250,7 +18327,7 @@ impl PredictionsPipeline {
                     "method": "ml_price10",
                     "predicted_prices": predicted_prices,
                     "confidence": score,
-                    "model_used": "models/price10.onnx"
+                    "model_used": &self.config.model_path_price
                 })),
                 prediction_key: format!("price10_ml_{}_{}", view.symbol, view.timestamp.timestamp()),
             };
@@ -18258,113 +18335,122 @@ impl PredictionsPipeline {
             predictions.push(prediction_row);
         }
 
-        // Run LevelPredictorMl
-        let sr_levels = view.get_sr_levels()?;
-        if !sr_levels.is_empty() {
-            let atr = view.atr.unwrap_or(1.0);
-            let level_view = LevelView::new(sr_levels, view.close, atr, view.timestamp, view.symbol.clone(), view.timeframe.clone(), 2)?;
-            let levels = level_view.get_near_levels();
+        // Предикт уровней
+        let level_pred = self.ml_manager.predict("level", &input_vec)?;
+        
+        if let Some(level_outputs) = level_pred {
+            // Process level prediction outputs (assuming they contain probabilities)
+            if level_outputs.len() >= 2 {
+                let prob_bounce = level_outputs[0].max(0.0).min(1.0) as f64;
+                let prob_break = level_outputs[1].max(0.0).min(1.0) as f64;
+                let score = ((prob_bounce + prob_break) / 2.0).min(1.0) as f64;
 
-            if let Some(level) = levels.first() {
-                let ml_level = crate::level_predictor::ml_predictor::LevelPredictorMl::new("models/levels.onnx", use_cuda)?;
-                if let Some((prob_bounce, prob_break, score)) = ml_level.predict(&view.symbol, &view.timeframe, vector, level.level_price).await? {
-                    // Create prediction row for ML bounce
-                    let bounce_predictor_meta = persistence::PredictorMeta {
-                        predictor_id: 0,
-                        name: "level_bounce_ml".to_string(),
-                        version: "1.0".to_string(),
-                        aspect: PredictionAspect::LevelBounce,
-                        calc_source: CalcSource::Ml,
-                        framework: "onnx".to_string(),
-                        artifact_path: Some("models/levels.onnx".to_string()),
-                        feature_schema_id: vector.schema_id.clone(),
-                    };
+                // Get SR levels to determine which level to use
+                let sr_levels = view.get_sr_levels()?;
+                if !sr_levels.is_empty() {
+                    let atr = view.atr.unwrap_or(1.0);
+                    let level_view = LevelView::new(sr_levels, view.close, atr, view.timestamp, view.symbol.clone(), view.timeframe.clone(), 2)?;
+                    let levels = level_view.get_near_levels();
 
-                    let bounce_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
+                    if let Some(level) = levels.first() {
+                        // Create prediction row for ML bounce
+                        let bounce_predictor_meta = persistence::PredictorMeta {
+                            predictor_id: 0,
+                            name: "level_bounce_ml".to_string(),
+                            version: "1.0".to_string(),
+                            aspect: PredictionAspect::LevelBounce,
+                            calc_source: CalcSource::Ml,
+                            framework: "onnx".to_string(),
+                            artifact_path: Some(self.config.model_path_levels.clone()),
+                            feature_schema_id: vector.schema_id.clone(),
+                        };
 
-                    let bounce_prediction = PredictionRow {
-                        time: view.timestamp,
-                        time_ms: view.timestamp.timestamp_millis(),
-                        symbol_id: 0,
-                        symbol: view.symbol.clone(),
-                        tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
-                        horizon_bars: self.config.horizon_bars as i32,
-                        aspect: PredictionAspect::LevelBounce,
-                        calc_source: CalcSource::Ml,
-                        predictor_id: bounce_predictor_id,
-                        score_norm: prob_bounce as f32,
-                        value: prob_bounce,
-                        value_low: None,
-                        value_high: None,
-                        side: Some(if view.close < level.level_price { 1 } else { -1 }),
-                        level_hash: Some(level.level_hash.clone()),
-                        level_kind: Some(level.level_kind.as_i16()),
-                        level_price: Some(level.level_price),
-                        level_strength: Some(level.level_strength),
-                        level_distance_atr: Some(level.distance_atr),
-                        candle_is_final: true,
-                        event_time_ms: None,
-                        details_json: Some(serde_json::json!({
-                            "method": "ml_level_bounce",
-                            "level_price": level.level_price,
-                            "prob_bounce": prob_bounce,
-                            "prob_break": prob_break,
-                            "score": score,
-                            "model_used": "models/levels.onnx"
-                        })),
-                        prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
-                    };
+                        let bounce_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
 
-                    predictions.push(bounce_prediction);
+                        let bounce_prediction = PredictionRow {
+                            time: view.timestamp,
+                            time_ms: view.timestamp.timestamp_millis(),
+                            symbol_id: 0,
+                            symbol: view.symbol.clone(),
+                            tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                            horizon_bars: self.config.horizon_bars as i32,
+                            aspect: PredictionAspect::LevelBounce,
+                            calc_source: CalcSource::Ml,
+                            predictor_id: bounce_predictor_id,
+                            score_norm: prob_bounce as f32,
+                            value: prob_bounce,
+                            value_low: None,
+                            value_high: None,
+                            side: Some(if view.close < level.level_price { 1 } else { -1 }),
+                            level_hash: Some(level.level_hash.clone()),
+                            level_kind: Some(level.level_kind.as_i16()),
+                            level_price: Some(level.level_price),
+                            level_strength: Some(level.level_strength),
+                            level_distance_atr: Some(level.distance_atr),
+                            candle_is_final: true,
+                            event_time_ms: None,
+                            details_json: Some(serde_json::json!({
+                                "method": "ml_level_bounce",
+                                "level_price": level.level_price,
+                                "prob_bounce": prob_bounce,
+                                "prob_break": prob_break,
+                                "score": score,
+                                "model_used": &self.config.model_path_levels
+                            })),
+                            prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
+                        };
 
-                    // Create prediction row for ML break
-                    let break_predictor_meta = persistence::PredictorMeta {
-                        predictor_id: 0,
-                        name: "level_breakout_ml".to_string(),
-                        version: "1.0".to_string(),
-                        aspect: PredictionAspect::LevelBreakout,
-                        calc_source: CalcSource::Ml,
-                        framework: "onnx".to_string(),
-                        artifact_path: Some("models/levels.onnx".to_string()),
-                        feature_schema_id: vector.schema_id.clone(),
-                    };
+                        predictions.push(bounce_prediction);
 
-                    let break_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
+                        // Create prediction row for ML break
+                        let break_predictor_meta = persistence::PredictorMeta {
+                            predictor_id: 0,
+                            name: "level_breakout_ml".to_string(),
+                            version: "1.0".to_string(),
+                            aspect: PredictionAspect::LevelBreakout,
+                            calc_source: CalcSource::Ml,
+                            framework: "onnx".to_string(),
+                            artifact_path: Some(self.config.model_path_levels.clone()),
+                            feature_schema_id: vector.schema_id.clone(),
+                        };
 
-                    let break_prediction = PredictionRow {
-                        time: view.timestamp,
-                        time_ms: view.timestamp.timestamp_millis(),
-                        symbol_id: 0,
-                        symbol: view.symbol.clone(),
-                        tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
-                        horizon_bars: self.config.horizon_bars as i32,
-                        aspect: PredictionAspect::LevelBreakout,
-                        calc_source: CalcSource::Ml,
-                        predictor_id: break_predictor_id,
-                        score_norm: prob_break as f32,
-                        value: prob_break,
-                        value_low: None,
-                        value_high: None,
-                        side: Some(if view.close < level.level_price { -1 } else { 1 }),
-                        level_hash: Some(level.level_hash.clone()),
-                        level_kind: Some(level.level_kind.as_i16()),
-                        level_price: Some(level.level_price),
-                        level_strength: Some(level.level_strength),
-                        level_distance_atr: Some(level.distance_atr),
-                        candle_is_final: true,
-                        event_time_ms: None,
-                        details_json: Some(serde_json::json!({
-                            "method": "ml_level_breakout",
-                            "level_price": level.level_price,
-                            "prob_bounce": prob_bounce,
-                            "prob_break": prob_break,
-                            "score": score,
-                            "model_used": "models/levels.onnx"
-                        })),
-                        prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
-                    };
+                        let break_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
 
-                    predictions.push(break_prediction);
+                        let break_prediction = PredictionRow {
+                            time: view.timestamp,
+                            time_ms: view.timestamp.timestamp_millis(),
+                            symbol_id: 0,
+                            symbol: view.symbol.clone(),
+                            tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                            horizon_bars: self.config.horizon_bars as i32,
+                            aspect: PredictionAspect::LevelBreakout,
+                            calc_source: CalcSource::Ml,
+                            predictor_id: break_predictor_id,
+                            score_norm: prob_break as f32,
+                            value: prob_break,
+                            value_low: None,
+                            value_high: None,
+                            side: Some(if view.close < level.level_price { -1 } else { 1 }),
+                            level_hash: Some(level.level_hash.clone()),
+                            level_kind: Some(level.level_kind.as_i16()),
+                            level_price: Some(level.level_price),
+                            level_strength: Some(level.level_strength),
+                            level_distance_atr: Some(level.distance_atr),
+                            candle_is_final: true,
+                            event_time_ms: None,
+                            details_json: Some(serde_json::json!({
+                                "method": "ml_level_breakout",
+                                "level_price": level.level_price,
+                                "prob_bounce": prob_bounce,
+                                "prob_break": prob_break,
+                                "score": score,
+                                "model_used": &self.config.model_path_levels
+                            })),
+                            prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
+                        };
+
+                        predictions.push(break_prediction);
+                    }
                 }
             }
         }
@@ -18512,10 +18598,43 @@ mod tests {
 
 # compute/predictors/scoring.rs
 
-// compute/src/predictions/scoring.rs
+use serde::{Deserialize, Serialize};
 
-pub fn normalize_score(probability: f64) -> f64 {
-    probability.max(0.0).min(1.0)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PredictionScore {
+    pub raw_output: f64,    // Выход модели (цена или вероятность)
+    pub confidence: f64,    // Итоговая уверенность (0.0 - 1.0)
+    pub source: String,     // "ml_xgboost", "heuristic_ema"
+}
+
+impl PredictionScore {
+    /// Вычисляет скор для ML-модели (регрессия или классификация)
+    pub fn from_ml(output: f64, model_accuracy_metric: f64) -> Self {
+        // Если модель исторически точна (metric), уверенность выше.
+        // Здесь пока простая логика, которую можно усложнить.
+        let confidence = model_accuracy_metric.clamp(0.1, 0.95);
+        
+        Self {
+            raw_output: output,
+            confidence,
+            source: "ml_onnx".to_string(),
+        }
+    }
+
+    /// Вычисляет скор для эвристики
+    pub fn from_heuristic(price: f64, trend_strength: f64, indicators_match: bool) -> Self {
+        let mut conf = 0.5;
+        // Если сильный тренд
+        if trend_strength.abs() > 0.7 { conf += 0.2; }
+        // Если индикаторы подтверждают
+        if indicators_match { conf += 0.2; }
+
+        Self {
+            raw_output: price,
+            confidence: conf.clamp(0.0, 1.0),
+            source: "heuristic".to_string(),
+        }
+    }
 }
 
 
@@ -18813,351 +18932,114 @@ impl FuturePriceMl {
 
 # compute/predictors/ml/model_manager.rs
 
-// compute/predictors/ml/model_manager.rs
-
-// Central manager for loading and managing ONNX models for ML predictors.
-// Supports XGBoost for future price and LightGBM for level predictor.
-
+use super::onnx_runtime::OnnxRunner;
 use anyhow::Result;
-use ort::{Session, SessionBuilder, GraphOptimizationLevel, ExecutionProvider}; // TODO: Add 'ort' crate to compute/Cargo.toml
+use std::collections::HashMap;
+use tracing::{info, warn};
 
 pub struct ModelManager {
-    future_price_model: Session,
-    level_predictor_model: Session,
+    models: HashMap<String, OnnxRunner>,
+    use_cuda: bool,
 }
 
 impl ModelManager {
-    /// Loads ONNX models for future price (XGBoost) and level predictor (LightGBM).
-    /// Configures for CUDA if available.
-    pub fn new(future_path: &str, level_path: &str, use_cuda: bool) -> Result<Self> {
-        let mut builder = SessionBuilder::new()?
-            .with_optimization_level(GraphOptimizationLevel::All)?;
-
-        if use_cuda {
-            builder = builder.use_cuda(0)?; // Use first GPU
+    pub fn new(use_cuda: bool) -> Self {
+        Self {
+            models: HashMap::new(),
+            use_cuda,
         }
-
-        let future_price_model = builder.commit_from_file(future_path)?;
-        let level_predictor_model = builder.commit_from_file(level_path)?;
-
-        Ok(Self {
-            future_price_model,
-            level_predictor_model,
-        })
     }
 
-    pub fn get_future_price_model(&self) -> &Session {
-        &self.future_price_model
+    /// Загружает модель по указанному пути и присваивает ей имя (ключ)
+    pub fn load_model(&mut self, key: &str, path: &str) -> Result<()> {
+        if std::path::Path::new(path).exists() {
+            info!("Loading model '{}' from {}", key, path);
+            let runner = OnnxRunner::new(path, self.use_cuda)?;
+            self.models.insert(key.to_string(), runner);
+        } else {
+            warn!("Model file not found at {}. ML prediction for '{}' will be disabled.", path, key);
+        }
+        Ok(())
     }
 
-    pub fn get_level_predictor_model(&self) -> &Session {
-        &self.level_predictor_model
+    /// Проверяет, загружена ли модель
+    pub fn has_model(&self, key: &str) -> bool {
+        self.models.contains_key(key)
+    }
+
+    /// Запускает инференс для конкретной модели
+    pub fn predict(&self, key: &str, features: &[f32]) -> Result<Option<Vec<f32>>> {
+        if let Some(runner) = self.models.get(key) {
+            let result = runner.run(features)?;
+            Ok(Some(result))
+        } else {
+            Ok(None)
+        }
     }
 }
-
-// Note: Models are exported from Python trainer (XGBoost and LightGBM to ONNX).
-// Integrate with compute_backend for CUDA detection.
-// // TODO: Refactor for performance according to Manifesto v1.0
 
 
 # compute/predictors/ml/onnx_runtime.rs
 
-// compute/predictions/ml/onnx_runtime.rs
+use anyhow::{Context, Result};
+use ndarray::{Array, Array2, Axis};
+use ort::{
+    GraphOptimizationLevel, Session, SessionBuilder, Value,
+    ExecutionProvider,
+};
+use std::sync::Arc;
+use tracing::{info, warn, error};
 
-use anyhow::Result;
-use ort::{Session, GraphOptimizationLevel, ExecutionProvider, AllocatorType};
-use std::collections::HashMap;
-
-/// ONNX model manager for loading and running models
-pub struct OnnxModelManager {
-    models: HashMap<String, Session>,
-}
-
-impl OnnxModelManager {
-    /// Creates a new ONNX model manager
-    pub fn new() -> Self {
-        Self {
-            models: HashMap::new(),
-        }
-    }
-
-    /// Loads an ONNX model from the given path
-    pub fn load_model(&mut self, model_name: &str, model_path: &str, use_gpu: bool) -> Result<()> {
-        let mut builder = Session::builder()?
-            .with_optimization_level(GraphOptimizationLevel::All)?
-            .with_allocator(AllocatorType::Arena)?;
-
-        if use_gpu {
-            // Try to use CUDA if available
-            #[cfg(feature = "cuda")]
-            {
-                builder = builder.with_execution_providers([
-                    ort::ExecutionProvider::CUDA(Default::default())
-                ])?;
-            }
-        }
-
-        let session = builder.commit_from_file(model_path)?;
-        self.models.insert(model_name.to_string(), session);
-
-        Ok(())
-    }
-
-    /// Runs inference on the specified model
-    pub fn run_inference(&self, model_name: &str, inputs: &[ndarray::ArrayBase<ndarray::OwnedRepr<f32>, ndarray::Dim<[usize; 2]>>]) -> Result<Vec<ndarray::ArrayD<f32>>> {
-        let session = self.models.get(model_name)
-            .ok_or_else(|| anyhow::anyhow!("Model {} not found", model_name))?;
-
-        // Convert inputs to ort values
-        let mut ort_inputs = Vec::new();
-        for (i, input) in inputs.iter().enumerate() {
-            let input_shape: Vec<i64> = input.shape().iter().map(|&x| x as i64).collect();
-            let input_values: Vec<f32> = input.as_slice().unwrap().to_vec();
-
-            let ort_input = ort::inputs![
-                input_values => input_shape
-            ]?;
-
-            ort_inputs.push((session.inputs_get_names()[i].to_string(), ort_input));
-        }
-
-        // Run the model
-        let outputs = session.run(ort_inputs.into_iter().map(|(name, value)| (name.as_str(), value)).collect())?;
-
-        // Convert outputs to ndarray
-        let mut result = Vec::new();
-        for output in outputs {
-            let tensor = output.try_extract::<f32>()?;
-            let array = tensor.try_extract()?.into_owned();
-            result.push(array);
-        }
-
-        Ok(result)
-    }
-
-    /// Checks if a model is loaded
-    pub fn has_model(&self, model_name: &str) -> bool {
-        self.models.contains_key(model_name)
-    }
-
-    /// Gets a reference to a model
-    pub fn get_model(&self, model_name: &str) -> Option<&Session> {
-        self.models.get(model_name)
-    }
-
-    /// Gets the number of loaded models
-    pub fn model_count(&self) -> usize {
-        self.models.len()
-    }
-}
-
-/// ONNX model runner for specific prediction tasks
 pub struct OnnxRunner {
-    model_manager: OnnxModelManager,
+    session: Arc<Session>,
 }
 
 impl OnnxRunner {
-    /// Creates a new ONNX runner
-    pub fn new() -> Self {
-        Self {
-            model_manager: OnnxModelManager::new(),
-        }
-    }
+    /// Загружает модель из файла. Пытается использовать CUDA, если доступно.
+    pub fn new(model_path: &str, use_cuda: bool) -> Result<Self> {
+        let mut builder = Session::builder()?;
+        
+        builder = builder.with_optimization_level(GraphOptimizationLevel::Level3)?;
+        builder = builder.with_intra_threads(4)?;
 
-    /// Initializes the runner with models
-    pub fn initialize_models(&mut self, models_config: &[ModelConfig], use_gpu: bool) -> Result<()> {
-        for config in models_config {
-            self.model_manager.load_model(&config.name, &config.path, use_gpu)?;
-        }
-        Ok(())
-    }
-
-    /// Runs price prediction model
-    pub fn run_price_prediction(&self, model_name: &str, features: &[f32]) -> Result<(Vec<f64>, f64)> {
-        // Convert features to 2D array (batch_size=1, feature_count=features.len())
-        let input_array = ndarray::arr2(&[features]); // Shape: [1, feature_count]
-
-        let outputs = self.model_manager.run_inference(model_name, &[input_array])?;
-
-        if outputs.is_empty() {
-            anyhow::bail!("Model {} returned no outputs", model_name);
-        }
-
-        // Process outputs - assuming first output is predicted prices, second is confidence
-        let mut predicted_prices = Vec::new();
-        let mut confidence = 0.5; // Default confidence
-
-        for (i, output) in outputs.iter().enumerate() {
-            let output_slice = output.view();
-
-            if i == 0 {
-                // First output: predicted prices for next N candles
-                for &value in output_slice.iter() {
-                    predicted_prices.push(value as f64);
+        if use_cuda {
+            // Пытаемся подключить CUDA
+            match builder.clone().with_execution_providers([ExecutionProvider::CUDA(Default::default())]) {
+                Ok(b) => {
+                    builder = b;
+                    info!("CUDA Execution Provider enabled for model: {}", model_path);
                 }
-            } else if i == 1 {
-                // Second output: confidence score
-                if let Some(&conf) = output_slice.first() {
-                    confidence = conf as f64;
+                Err(e) => {
+                    warn!("Failed to initialize CUDA provider: {}. Falling back to CPU.", e);
                 }
             }
         }
 
-        // Ensure we have at least one predicted price
-        if predicted_prices.is_empty() {
-            // If no prices were returned, derive from the input features
-            // This is a fallback - in practice, the model should return predictions
-            predicted_prices.push(features[0] as f64); // Use first feature as proxy
-        }
+        let session = builder.commit_from_file(model_path)
+            .context(format!("Failed to load ONNX model from {}", model_path))?;
 
-        Ok((predicted_prices, confidence.clamp(0.0, 1.0)))
+        Ok(Self {
+            session: Arc::new(session),
+        })
     }
 
-    /// Runs level prediction model
-    pub fn run_level_prediction(
-        &self,
-        model_name: &str,
-        features: &[f32],
-        level_price: f64,
-    ) -> Result<(f64, f64, f64)> { // (prob_bounce, prob_break, confidence)
-        // Convert features to 2D array (batch_size=1, feature_count=features.len())
-        let input_array = ndarray::arr2(&[features]); // Shape: [1, feature_count]
+    /// Выполняет предсказание.
+    /// features: вектор фичей (размерность [1, n_features])
+    /// Возвращает вектор предсказаний.
+    pub fn run(&self, features: &[f32]) -> Result<Vec<f32>> {
+        // 1. Создаем тензор из входных данных [Batch Size, Features]
+        let input_array = Array2::from_shape_vec((1, features.len()), features.to_vec())?;
+        let input_tensor = Value::from_array(input_array)?;
 
-        let outputs = self.model_manager.run_inference(model_name, &[input_array])?;
+        // 2. Запускаем сессию
+        let outputs = self.session.run(ort::inputs![input_tensor]?)?;
 
-        if outputs.is_empty() {
-            anyhow::bail!("Model {} returned no outputs", model_name);
-        }
-
-        let mut prob_bounce = 0.5;
-        let mut prob_break = 0.5;
-        let mut confidence = 0.5;
-
-        for (i, output) in outputs.iter().enumerate() {
-            let output_slice = output.view();
-
-            match i {
-                0 => {
-                    // First output: bounce probability
-                    if let Some(&prob) = output_slice.first() {
-                        prob_bounce = prob as f64;
-                    }
-                }
-                1 => {
-                    // Second output: break probability
-                    if let Some(&prob) = output_slice.first() {
-                        prob_break = prob as f64;
-                    }
-                }
-                2 => {
-                    // Third output: confidence
-                    if let Some(&conf) = output_slice.first() {
-                        confidence = conf as f64;
-                    }
-                }
-                _ => {} // Ignore additional outputs
-            }
-        }
-
-        Ok((
-            prob_bounce.clamp(0.0, 1.0),
-            prob_break.clamp(0.0, 1.0),
-            confidence.clamp(0.0, 1.0)
-        ))
-    }
-
-    /// Runs quantile regression model to get prediction bands
-    pub fn run_quantile_prediction(&self, model_name: &str, features: &[f32]) -> Result<(f64, f64, f64, f64)> {
-        // Convert features to 2D array (batch_size=1, feature_count=features.len())
-        let input_array = ndarray::arr2(&[features]); // Shape: [1, feature_count]
-
-        let outputs = self.model_manager.run_inference(model_name, &[input_array])?;
-
-        if outputs.is_empty() {
-            anyhow::bail!("Model {} returned no outputs", model_name);
-        }
-
-        let mut q10 = features[0] as f64; // Default to first feature
-        let mut q50 = features[0] as f64;
-        let mut q90 = features[0] as f64;
-        let mut confidence = 0.5;
-
-        for (i, output) in outputs.iter().enumerate() {
-            let output_slice = output.view();
-
-            match i {
-                0 => {
-                    // First output: q10 (10th percentile)
-                    if let Some(&val) = output_slice.first() {
-                        q10 = val as f64;
-                    }
-                }
-                1 => {
-                    // Second output: q50 (median)
-                    if let Some(&val) = output_slice.first() {
-                        q50 = val as f64;
-                    }
-                }
-                2 => {
-                    // Third output: q90 (90th percentile)
-                    if let Some(&val) = output_slice.first() {
-                        q90 = val as f64;
-                    }
-                }
-                3 => {
-                    // Fourth output: confidence
-                    if let Some(&conf) = output_slice.first() {
-                        confidence = conf as f64;
-                    }
-                }
-                _ => {} // Ignore additional outputs
-            }
-        }
-
-        Ok((q10, q50, q90, confidence.clamp(0.0, 1.0)))
-    }
-}
-
-/// Configuration for a model
-#[derive(Debug, Clone)]
-pub struct ModelConfig {
-    pub name: String,
-    pub path: String,
-    pub input_shape: Vec<usize>,
-    pub output_shapes: Vec<Vec<usize>>,
-    pub description: String,
-}
-
-impl ModelConfig {
-    pub fn new(name: &str, path: &str, description: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            path: path.to_string(),
-            input_shape: vec![], // Will be determined at runtime
-            output_shapes: vec![], // Will be determined at runtime
-            description: description.to_string(),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_model_config_creation() {
-        let config = ModelConfig::new("test_model", "/path/to/model.onnx", "Test model");
-        assert_eq!(config.name, "test_model");
-        assert_eq!(config.path, "/path/to/model.onnx");
-        assert_eq!(config.description, "Test model");
-        assert!(config.input_shape.is_empty());
-        assert!(config.output_shapes.is_empty());
-    }
-
-    #[test]
-    fn test_onnx_runner_creation() {
-        let runner = OnnxRunner::new();
-        assert_eq!(runner.model_manager.model_count(), 0);
+        // 3. Извлекаем результат (предполагаем, что выход 0 - это то, что нам нужно)
+        let output_tensor = outputs[0].try_extract_tensor::<f32>()?;
+        
+        // Преобразуем в Vec<f32>
+        let result: Vec<f32> = output_tensor.view().iter().cloned().collect();
+        Ok(result)
     }
 }
 
@@ -21223,6 +21105,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: config.use_cuda,
+        model_path_price: "models/price_v1.onnx".to_string(),
+        model_path_levels: "models/levels_v1.onnx".to_string(),
     };
 
     let mut predictions_pipeline = PredictionsPipeline::new(

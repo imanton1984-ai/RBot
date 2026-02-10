@@ -11,12 +11,15 @@ use crate::persistence;
 use database_lib::PgPool;
 use connections_lib::RedpandaClient;
 
+use crate::ml::model_manager::ModelManager;
+
 pub struct PredictionsPipeline {
     config: PredictionsConfig,
     db_pool: PgPool,
     redpanda_client: RedpandaClient,
     shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
+    ml_manager: ModelManager,
 }
 
 impl PredictionsPipeline {
@@ -26,12 +29,22 @@ impl PredictionsPipeline {
         redpanda_client: RedpandaClient,
         shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
+        let mut ml_manager = ModelManager::new(config.use_cuda);
+        // Загружаем модели, пути берем из конфига
+        if let Err(e) = ml_manager.load_model("price", &config.model_path_price) {
+            tracing::error!("Failed to load price model: {}", e);
+        }
+        if let Err(e) = ml_manager.load_model("level", &config.model_path_levels) {
+            tracing::error!("Failed to load level model: {}", e);
+        }
+
         Self {
             config,
             db_pool,
             redpanda_client,
             shutdown_rx,
             feature_rx: None,
+            ml_manager,
         }
     }
 
@@ -307,10 +320,13 @@ impl PredictionsPipeline {
     async fn run_ml_predictors(&self, view: &FeatureView, vector: &FeatureVector) -> Result<Option<Vec<PredictionRow>>> {
         let mut predictions = Vec::new();
 
-        // Run FuturePriceMl
-        let use_cuda = self.config.use_cuda; // from config
-        let ml_price = crate::future_predictor::ml_predictor::FuturePriceMl::new("models/price10.onnx", use_cuda)?;
-        if let Some((predicted_prices, score)) = ml_price.predict(&view.symbol, &view.timeframe, vector).await? {
+        // Преобразуем FeatureView в плоский вектор f32 для ONNX
+        let input_vec = view.to_feature_vector().values; // Convert to f32 vector
+        
+        // Предикт цены
+        let price_pred = self.ml_manager.predict("price", &input_vec)?;
+        
+        if let Some(predicted_prices) = price_pred {
             // Create prediction row for ML price prediction
             let predictor_meta = persistence::PredictorMeta {
                 predictor_id: 0,
@@ -319,11 +335,19 @@ impl PredictionsPipeline {
                 aspect: PredictionAspect::PriceTarget,
                 calc_source: CalcSource::Ml,
                 framework: "onnx".to_string(),
-                artifact_path: Some("models/price10.onnx".to_string()),
+                artifact_path: Some(self.config.model_path_price.clone()),
                 feature_schema_id: vector.schema_id.clone(),
             };
 
             let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+
+            // Calculate confidence from the model output
+            let score = if !predicted_prices.is_empty() { 
+                // Use the first prediction as the score for simplicity, or calculate from the whole vector
+                predicted_prices[0].abs().min(1.0) as f64 
+            } else { 
+                0.5 
+            };
 
             let prediction_row = PredictionRow {
                 time: view.timestamp,
@@ -336,10 +360,10 @@ impl PredictionsPipeline {
                 calc_source: CalcSource::Ml,
                 predictor_id,
                 score_norm: score as f32,
-                value: predicted_prices.last().copied().unwrap_or(view.close),
+                value: predicted_prices.last().copied().unwrap_or(view.close as f32) as f64,
                 value_low: None,
                 value_high: None,
-                side: self.determine_side(view.close, predicted_prices.last().copied().unwrap_or(view.close)),
+                side: self.determine_side(view.close, predicted_prices.last().copied().unwrap_or(view.close as f32) as f64),
                 level_hash: None,
                 level_kind: None,
                 level_price: None,
@@ -351,7 +375,7 @@ impl PredictionsPipeline {
                     "method": "ml_price10",
                     "predicted_prices": predicted_prices,
                     "confidence": score,
-                    "model_used": "models/price10.onnx"
+                    "model_used": &self.config.model_path_price
                 })),
                 prediction_key: format!("price10_ml_{}_{}", view.symbol, view.timestamp.timestamp()),
             };
@@ -359,113 +383,122 @@ impl PredictionsPipeline {
             predictions.push(prediction_row);
         }
 
-        // Run LevelPredictorMl
-        let sr_levels = view.get_sr_levels()?;
-        if !sr_levels.is_empty() {
-            let atr = view.atr.unwrap_or(1.0);
-            let level_view = LevelView::new(sr_levels, view.close, atr, view.timestamp, view.symbol.clone(), view.timeframe.clone(), 2)?;
-            let levels = level_view.get_near_levels();
+        // Предикт уровней
+        let level_pred = self.ml_manager.predict("level", &input_vec)?;
+        
+        if let Some(level_outputs) = level_pred {
+            // Process level prediction outputs (assuming they contain probabilities)
+            if level_outputs.len() >= 2 {
+                let prob_bounce = level_outputs[0].max(0.0).min(1.0) as f64;
+                let prob_break = level_outputs[1].max(0.0).min(1.0) as f64;
+                let score = ((prob_bounce + prob_break) / 2.0).min(1.0) as f64;
 
-            if let Some(level) = levels.first() {
-                let ml_level = crate::level_predictor::ml_predictor::LevelPredictorMl::new("models/levels.onnx", use_cuda)?;
-                if let Some((prob_bounce, prob_break, score)) = ml_level.predict(&view.symbol, &view.timeframe, vector, level.level_price).await? {
-                    // Create prediction row for ML bounce
-                    let bounce_predictor_meta = persistence::PredictorMeta {
-                        predictor_id: 0,
-                        name: "level_bounce_ml".to_string(),
-                        version: "1.0".to_string(),
-                        aspect: PredictionAspect::LevelBounce,
-                        calc_source: CalcSource::Ml,
-                        framework: "onnx".to_string(),
-                        artifact_path: Some("models/levels.onnx".to_string()),
-                        feature_schema_id: vector.schema_id.clone(),
-                    };
+                // Get SR levels to determine which level to use
+                let sr_levels = view.get_sr_levels()?;
+                if !sr_levels.is_empty() {
+                    let atr = view.atr.unwrap_or(1.0);
+                    let level_view = LevelView::new(sr_levels, view.close, atr, view.timestamp, view.symbol.clone(), view.timeframe.clone(), 2)?;
+                    let levels = level_view.get_near_levels();
 
-                    let bounce_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
+                    if let Some(level) = levels.first() {
+                        // Create prediction row for ML bounce
+                        let bounce_predictor_meta = persistence::PredictorMeta {
+                            predictor_id: 0,
+                            name: "level_bounce_ml".to_string(),
+                            version: "1.0".to_string(),
+                            aspect: PredictionAspect::LevelBounce,
+                            calc_source: CalcSource::Ml,
+                            framework: "onnx".to_string(),
+                            artifact_path: Some(self.config.model_path_levels.clone()),
+                            feature_schema_id: vector.schema_id.clone(),
+                        };
 
-                    let bounce_prediction = PredictionRow {
-                        time: view.timestamp,
-                        time_ms: view.timestamp.timestamp_millis(),
-                        symbol_id: 0,
-                        symbol: view.symbol.clone(),
-                        tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
-                        horizon_bars: self.config.horizon_bars as i32,
-                        aspect: PredictionAspect::LevelBounce,
-                        calc_source: CalcSource::Ml,
-                        predictor_id: bounce_predictor_id,
-                        score_norm: prob_bounce as f32,
-                        value: prob_bounce,
-                        value_low: None,
-                        value_high: None,
-                        side: Some(if view.close < level.level_price { 1 } else { -1 }),
-                        level_hash: Some(level.level_hash.clone()),
-                        level_kind: Some(level.level_kind.as_i16()),
-                        level_price: Some(level.level_price),
-                        level_strength: Some(level.level_strength),
-                        level_distance_atr: Some(level.distance_atr),
-                        candle_is_final: true,
-                        event_time_ms: None,
-                        details_json: Some(serde_json::json!({
-                            "method": "ml_level_bounce",
-                            "level_price": level.level_price,
-                            "prob_bounce": prob_bounce,
-                            "prob_break": prob_break,
-                            "score": score,
-                            "model_used": "models/levels.onnx"
-                        })),
-                        prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
-                    };
+                        let bounce_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
 
-                    predictions.push(bounce_prediction);
+                        let bounce_prediction = PredictionRow {
+                            time: view.timestamp,
+                            time_ms: view.timestamp.timestamp_millis(),
+                            symbol_id: 0,
+                            symbol: view.symbol.clone(),
+                            tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                            horizon_bars: self.config.horizon_bars as i32,
+                            aspect: PredictionAspect::LevelBounce,
+                            calc_source: CalcSource::Ml,
+                            predictor_id: bounce_predictor_id,
+                            score_norm: prob_bounce as f32,
+                            value: prob_bounce,
+                            value_low: None,
+                            value_high: None,
+                            side: Some(if view.close < level.level_price { 1 } else { -1 }),
+                            level_hash: Some(level.level_hash.clone()),
+                            level_kind: Some(level.level_kind.as_i16()),
+                            level_price: Some(level.level_price),
+                            level_strength: Some(level.level_strength),
+                            level_distance_atr: Some(level.distance_atr),
+                            candle_is_final: true,
+                            event_time_ms: None,
+                            details_json: Some(serde_json::json!({
+                                "method": "ml_level_bounce",
+                                "level_price": level.level_price,
+                                "prob_bounce": prob_bounce,
+                                "prob_break": prob_break,
+                                "score": score,
+                                "model_used": &self.config.model_path_levels
+                            })),
+                            prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
+                        };
 
-                    // Create prediction row for ML break
-                    let break_predictor_meta = persistence::PredictorMeta {
-                        predictor_id: 0,
-                        name: "level_breakout_ml".to_string(),
-                        version: "1.0".to_string(),
-                        aspect: PredictionAspect::LevelBreakout,
-                        calc_source: CalcSource::Ml,
-                        framework: "onnx".to_string(),
-                        artifact_path: Some("models/levels.onnx".to_string()),
-                        feature_schema_id: vector.schema_id.clone(),
-                    };
+                        predictions.push(bounce_prediction);
 
-                    let break_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
+                        // Create prediction row for ML break
+                        let break_predictor_meta = persistence::PredictorMeta {
+                            predictor_id: 0,
+                            name: "level_breakout_ml".to_string(),
+                            version: "1.0".to_string(),
+                            aspect: PredictionAspect::LevelBreakout,
+                            calc_source: CalcSource::Ml,
+                            framework: "onnx".to_string(),
+                            artifact_path: Some(self.config.model_path_levels.clone()),
+                            feature_schema_id: vector.schema_id.clone(),
+                        };
 
-                    let break_prediction = PredictionRow {
-                        time: view.timestamp,
-                        time_ms: view.timestamp.timestamp_millis(),
-                        symbol_id: 0,
-                        symbol: view.symbol.clone(),
-                        tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
-                        horizon_bars: self.config.horizon_bars as i32,
-                        aspect: PredictionAspect::LevelBreakout,
-                        calc_source: CalcSource::Ml,
-                        predictor_id: break_predictor_id,
-                        score_norm: prob_break as f32,
-                        value: prob_break,
-                        value_low: None,
-                        value_high: None,
-                        side: Some(if view.close < level.level_price { -1 } else { 1 }),
-                        level_hash: Some(level.level_hash.clone()),
-                        level_kind: Some(level.level_kind.as_i16()),
-                        level_price: Some(level.level_price),
-                        level_strength: Some(level.level_strength),
-                        level_distance_atr: Some(level.distance_atr),
-                        candle_is_final: true,
-                        event_time_ms: None,
-                        details_json: Some(serde_json::json!({
-                            "method": "ml_level_breakout",
-                            "level_price": level.level_price,
-                            "prob_bounce": prob_bounce,
-                            "prob_break": prob_break,
-                            "score": score,
-                            "model_used": "models/levels.onnx"
-                        })),
-                        prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
-                    };
+                        let break_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
 
-                    predictions.push(break_prediction);
+                        let break_prediction = PredictionRow {
+                            time: view.timestamp,
+                            time_ms: view.timestamp.timestamp_millis(),
+                            symbol_id: 0,
+                            symbol: view.symbol.clone(),
+                            tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                            horizon_bars: self.config.horizon_bars as i32,
+                            aspect: PredictionAspect::LevelBreakout,
+                            calc_source: CalcSource::Ml,
+                            predictor_id: break_predictor_id,
+                            score_norm: prob_break as f32,
+                            value: prob_break,
+                            value_low: None,
+                            value_high: None,
+                            side: Some(if view.close < level.level_price { -1 } else { 1 }),
+                            level_hash: Some(level.level_hash.clone()),
+                            level_kind: Some(level.level_kind.as_i16()),
+                            level_price: Some(level.level_price),
+                            level_strength: Some(level.level_strength),
+                            level_distance_atr: Some(level.distance_atr),
+                            candle_is_final: true,
+                            event_time_ms: None,
+                            details_json: Some(serde_json::json!({
+                                "method": "ml_level_breakout",
+                                "level_price": level.level_price,
+                                "prob_bounce": prob_bounce,
+                                "prob_break": prob_break,
+                                "score": score,
+                                "model_used": &self.config.model_path_levels
+                            })),
+                            prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
+                        };
+
+                        predictions.push(break_prediction);
+                    }
                 }
             }
         }

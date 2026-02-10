@@ -1,45 +1,45 @@
-// compute/predictors/ml/model_manager.rs
-
-// Central manager for loading and managing ONNX models for ML predictors.
-// Supports XGBoost for future price and LightGBM for level predictor.
-
+use super::onnx_runtime::OnnxRunner;
 use anyhow::Result;
-use ort::{Session, SessionBuilder, GraphOptimizationLevel, ExecutionProvider}; // TODO: Add 'ort' crate to compute/Cargo.toml
+use std::collections::HashMap;
+use tracing::{info, warn};
 
 pub struct ModelManager {
-    future_price_model: Session,
-    level_predictor_model: Session,
+    models: HashMap<String, OnnxRunner>,
+    use_cuda: bool,
 }
 
 impl ModelManager {
-    /// Loads ONNX models for future price (XGBoost) and level predictor (LightGBM).
-    /// Configures for CUDA if available.
-    pub fn new(future_path: &str, level_path: &str, use_cuda: bool) -> Result<Self> {
-        let mut builder = SessionBuilder::new()?
-            .with_optimization_level(GraphOptimizationLevel::All)?;
-
-        if use_cuda {
-            builder = builder.use_cuda(0)?; // Use first GPU
+    pub fn new(use_cuda: bool) -> Self {
+        Self {
+            models: HashMap::new(),
+            use_cuda,
         }
-
-        let future_price_model = builder.commit_from_file(future_path)?;
-        let level_predictor_model = builder.commit_from_file(level_path)?;
-
-        Ok(Self {
-            future_price_model,
-            level_predictor_model,
-        })
     }
 
-    pub fn get_future_price_model(&self) -> &Session {
-        &self.future_price_model
+    /// Загружает модель по указанному пути и присваивает ей имя (ключ)
+    pub fn load_model(&mut self, key: &str, path: &str) -> Result<()> {
+        if std::path::Path::new(path).exists() {
+            info!("Loading model '{}' from {}", key, path);
+            let runner = OnnxRunner::new(path, self.use_cuda)?;
+            self.models.insert(key.to_string(), runner);
+        } else {
+            warn!("Model file not found at {}. ML prediction for '{}' will be disabled.", path, key);
+        }
+        Ok(())
     }
 
-    pub fn get_level_predictor_model(&self) -> &Session {
-        &self.level_predictor_model
+    /// Проверяет, загружена ли модель
+    pub fn has_model(&self, key: &str) -> bool {
+        self.models.contains_key(key)
+    }
+
+    /// Запускает инференс для конкретной модели
+    pub fn predict(&self, key: &str, features: &[f32]) -> Result<Option<Vec<f32>>> {
+        if let Some(runner) = self.models.get(key) {
+            let result = runner.run(features)?;
+            Ok(Some(result))
+        } else {
+            Ok(None)
+        }
     }
 }
-
-// Note: Models are exported from Python trainer (XGBoost and LightGBM to ONNX).
-// Integrate with compute_backend for CUDA detection.
-// // TODO: Refactor for performance according to Manifesto v1.0
