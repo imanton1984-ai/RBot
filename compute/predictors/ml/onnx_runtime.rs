@@ -19,18 +19,21 @@ impl OnnxModelManager {
 
     /// Loads an ONNX model from the given path
     pub fn load_model(&mut self, model_name: &str, model_path: &str, use_gpu: bool) -> Result<()> {
-        let mut session_builder = Session::builder()?
+        let mut builder = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::All)?
             .with_allocator(AllocatorType::Arena)?;
 
         if use_gpu {
             // Try to use CUDA if available
-            if let Err(_) = session_builder.with_execution_providers([ExecutionProvider::CUDA(Default::default())]) {
-                tracing::warn!("CUDA not available, falling back to CPU for model: {}", model_path);
+            #[cfg(feature = "cuda")]
+            {
+                builder = builder.with_execution_providers([
+                    ort::ExecutionProvider::CUDA(Default::default())
+                ])?;
             }
         }
 
-        let session = session_builder.commit_from_file(model_path)?;
+        let session = builder.commit_from_file(model_path)?;
         self.models.insert(model_name.to_string(), session);
 
         Ok(())

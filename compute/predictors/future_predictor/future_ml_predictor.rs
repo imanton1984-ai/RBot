@@ -1,59 +1,36 @@
 // compute/predictors/future_price/ml_predictor.rs
 
-// Machine Learning predictor for future prices using XGBoost via ONNX.
-// Calculations performed on CUDA if available, fallback to CPU.
-
 use anyhow::Result;
-use ort::{Session, GraphOptimizationLevel}; // TODO: Add 'ort' crate to compute/Cargo.toml for ONNX runtime
-use crate::compute::compute_backend::ComputeBackend; // Assuming path to compute backend
-use crate::compute::types::Features; // Assuming features type from ml/features.rs
+use crate::feature_view::FeatureVector;
+use crate::predictors::ml::onnx_runtime::OnnxRunner; // Предполагаем, что runner тут
 
 pub struct FuturePriceMl {
-    model: Session,
-    backend: ComputeBackend,
+    runner: OnnxRunner,
+    model_name: String,
 }
 
 impl FuturePriceMl {
-    /// Creates a new ML predictor, loading the ONNX model (exported from XGBoost).
-    /// Prefers CUDA backend if available.
-    pub fn new(model_path: &str, backend: ComputeBackend) -> Result<Self> {
-        // Load ONNX model with optimization
-        let model = ort::Session::builder()?
-            .with_optimization_level(GraphOptimizationLevel::All)?
-            .commit_from_file(model_path)?;
-
-        Ok(Self { model, backend })
+    pub fn new(model_path: &str, use_cuda: bool) -> Result<Self> {
+        let mut runner = OnnxRunner::new();
+        // Если файла нет, можно сделать warn и не грузить, но лучше fail fast или graceful degradation
+        if std::path::Path::new(model_path).exists() {
+            runner.initialize_models(&[crate::predictors::ml::onnx_runtime::ModelConfig::new("price_model", model_path, "XGBoost")], use_cuda)?;
+        }
+        Ok(Self { runner, model_name: "price_model".to_string() })
     }
 
-    /// Predicts prices for the next 10 candles using features from indicators_wide and raw_signals.
-    /// Returns (predicted_prices, normalized_score) if score >= 0.80.
-    pub fn predict(&self, symbol: &str, timeframe: &str, features: &Features) -> Result<Option<(Vec<f64>, f64)>> {
-        // TODO: Fetch and prepare features from DB (indicators_wide, raw_signals)
+    pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector) -> Result<Option<(Vec<f64>, f64)>> {
+        if !self.runner.model_manager.has_model(&self.model_name) {
+            return Ok(None); // Модель не загружена
+        }
 
-        // Run inference using the backend (CUDA or CPU)
-        // For ONNX, use GPU execution provider if backend is CUDA
-        // Pseudocode:
-        // if self.backend.is_cuda() {
-        //     // Set CUDA provider
-        // } else {
-        //     // Use CPU
-        // }
-
-        // Run model
-        // let outputs = self.model.run(inputs)?;
-
-        // Extract predicted_prices (vec of 10 f64)
-        // Compute normalized score (0-1, e.g., confidence from model)
-
-        // If score < 0.80, return None (do not store)
-        // Else return Some((predicted_prices, score))
-
-        // Ensure zero-copy where possible, batch processing for performance
-
-        todo!("Implement prediction logic with CUDA/CPU fallback")
+        // Преобразование Vec<f32> в формат для ONNX (slice)
+        let (prices, conf) = self.runner.run_price_prediction(&self.model_name, &features.values)?;
+        
+        if conf >= 0.80 {
+            Ok(Some((prices, conf)))
+        } else {
+            Ok(None)
+        }
     }
 }
-
-// Note: Integrate with job_scheduler for batch processing.
-// Use Data-Oriented Design for feature vectors.
-// // TODO: Refactor for performance according to Manifesto v1.0

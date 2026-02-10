@@ -4,6 +4,8 @@ use compute_lib::*;
 use sqlx::Row;
 use dotenvy::dotenv;
 use raw_signals::thresholds::SignalConfig;
+use tracing_appender::rolling;
+use crate::predictors::pipeline::FeatureSnapshot;
 
 fn env_usize(key: &str, default: usize) -> usize {
     std::env::var(key)
@@ -20,6 +22,18 @@ fn env_f64(key: &str, default: f64) -> f64 { std::env::var(key).ok() .and_then(|
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Setup separate logger for compute_predictors
+    let file_appender = rolling::daily("logs", "compute_predictors.out");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    
+    // Initialize tracing subscriber with the file appender
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        .with_target(true)
+        .with_max_level(tracing::Level::INFO)
+        .with_ansi(false) // Disable ANSI colors for log file
+        .init();
+
     println!("Starting Compute Service...");
     dotenv().ok();
 
@@ -139,12 +153,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let raw_signal_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
-
+    // Create channel for feature snapshots to predictions pipeline
+    let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
 
     // Spawn result processor to handle computed indicators and raw signals
     let persistor_clone2 = persistor.clone();
     let raw_signal_processor_clone = raw_signal_processor.clone();
     let raw_signal_persistor_clone = Arc::clone(&raw_signal_persistor);
+    let feature_tx_clone = feature_tx.clone(); // Clone for sending feature snapshots
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
             let n = feature_window.batch.timestamps.len();
@@ -300,6 +316,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
                 raw_signal_persistor_clone.queue_records(signals_to_persist).await;
             }
+
+            // FORM FEATURE SNAPSHOT FOR PREDICTIONS PIPELINE
+            // For real-time: send the last candle's data
+            // For backfill: could send all candles in batch
+            if feature_window.is_realtime && n > 0 {
+                let last_idx = n - 1;
+                
+                // Create a simplified JSON representation of the indicators for this candle
+                let mut indicators_map = serde_json::Map::new();
+                
+                // Add basic candle data
+                if let Some(timestamp) = feature_window.batch.timestamps.get(last_idx) {
+                    indicators_map.insert("timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(*timestamp)));
+                }
+                
+                for column in &feature_window.batch.columns {
+                    match column {
+                        FeatureColumn::F64 { name, values } => {
+                            if let Some(value) = values.get(last_idx) {
+                                if value.is_finite() {
+                                    indicators_map.insert(name.clone(), serde_json::Value::Number(serde_json::Number::from_f64(*value).unwrap()));
+                                }
+                            }
+                        }
+                        FeatureColumn::Json { name, values } => {
+                            if let Some(value) = values.get(last_idx) {
+                                if !value.is_null() {
+                                    indicators_map.insert(name.clone(), value.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let snapshot = FeatureSnapshot {
+                    timestamp: chrono::DateTime::from_timestamp(feature_window.batch.timestamps[last_idx] / 1000, 0).unwrap_or(chrono::Utc::now()),
+                    symbol: feature_window.symbol.clone(),
+                    timeframe: feature_window.timeframe.as_str().to_string(),
+                    indicators_data: serde_json::Value::Object(indicators_map),
+                    raw_signals_data: None, // Could be populated if needed
+                };
+
+                let _ = feature_tx_clone.send(snapshot);
+            }
         }
     });
 
@@ -338,6 +398,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     };
+
+    // Initialize Redpanda client for predictions pipeline
+    let redpanda_client = connections_lib::RedpandaClient::new(connections_lib::RedpandaConfig::from_env()?).await?;
+
+    // Initialize PredictionsPipeline
+    let predictions_config = PredictionsConfig {
+        enabled: true,
+        horizon_bars: 10,
+        min_store_score: 0.80,
+        min_final_score: 0.90,
+        prefer_ml: true,
+        max_levels_per_side: 2,
+        use_cuda: config.use_cuda,
+    };
+
+    let mut predictions_pipeline = PredictionsPipeline::new(
+        predictions_config,
+        db_pool.clone(),
+        redpanda_client,
+        shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
+    );
+
+    // Pass the receiver to the pipeline
+    predictions_pipeline.set_input_receiver(feature_rx);
+
+    tokio::spawn(async move {
+        if let Err(e) = predictions_pipeline.run().await {
+            tracing::error!(target: "compute_predictors", "Predictions pipeline error: {}", e);
+        }
+    });
 
     // NOTE: Initial batch submission is now handled by bootstrap coordinator after historical data is processed
     // This prevents attempts to calculate indicators on empty or insufficient data

@@ -46,3 +46,7 @@ min_store_score = 0.80
 min_final_score = 0.90
 prefer_ml = true
 max_levels_per_side = 2
+use_cuda = true
+# Пути к моделям
+model_path_price = "models/price_v1.onnx"
+model_path_levels = "models/levels_v1.onnx"

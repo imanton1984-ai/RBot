@@ -1,13 +1,13 @@
-// compute/predictions/pipeline.rs
+// compute/predictors/pipeline.rs
 
 use anyhow::Result;
 use tokio::sync::mpsc;
 use serde_json::Value;
-use crate::predictions::types::{PredictionRow, PredictionAspect, CalcSource};
-use crate::predictions::feature_view::{FeatureView, FeatureVector};
-use crate::predictions::level_view::LevelView;
-use crate::predictions::config::PredictionsConfig;
-use crate::predictions::persistence;
+use crate::types::{PredictionRow, PredictionAspect, CalcSource};
+use crate::feature_view::{FeatureView, FeatureVector};
+use crate::level_view::LevelView;
+use crate::config::PredictionsConfig;
+use crate::persistence;
 use database_lib::PgPool;
 use connections_lib::RedpandaClient;
 
@@ -16,6 +16,7 @@ pub struct PredictionsPipeline {
     db_pool: PgPool,
     redpanda_client: RedpandaClient,
     shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
+    feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
 }
 
 impl PredictionsPipeline {
@@ -30,17 +31,18 @@ impl PredictionsPipeline {
             db_pool,
             redpanda_client,
             shutdown_rx,
+            feature_rx: None,
         }
     }
 
+    // Add a field to hold the receiver
+    // We'll add this as a method to allow setting the receiver externally
+    
     pub async fn run(&mut self) -> Result<()> {
-        // Subscribe to feature snapshots
-        let (tx, mut rx) = mpsc::unbounded_channel();
-
-        // Start consumer for feature snapshots
-        self.start_feature_consumer(tx).await?;
-
-        // Main processing loop
+        // Get the receiver - it must be set before calling run
+        let mut rx = self.feature_rx.take().expect("Feature receiver must be set before calling run()");
+        
+        // Main processing loop - now using the external receiver
         while !self.is_shutdown().await {
             tokio::select! {
                 feature_snapshot = rx.recv() => {
@@ -64,6 +66,10 @@ impl PredictionsPipeline {
         }
 
         Ok(())
+    }
+    
+    pub fn set_input_receiver(&mut self, receiver: tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>) {
+        self.feature_rx = Some(receiver);
     }
 
     async fn is_shutdown(&mut self) -> bool {
@@ -96,12 +102,10 @@ impl PredictionsPipeline {
     }
 
     async fn process_feature_snapshot(&self, snapshot: FeatureSnapshot) -> Result<()> {
-        if !self.config.enabled {
-            return Ok(());
-        }
+        let start = std::time::Instant::now();
 
-        // Create feature view from the snapshot
-        let feature_view = FeatureView::new(
+        // 1. Create FeatureView
+        let view = FeatureView::new(
             snapshot.timestamp,
             snapshot.symbol.clone(),
             snapshot.timeframe.clone(),
@@ -109,316 +113,188 @@ impl PredictionsPipeline {
             snapshot.raw_signals_data.as_ref(),
         )?;
 
-        // Convert to feature vector for ML models
-        let feature_vector = feature_view.to_feature_vector();
+        let vector = view.to_feature_vector();
 
-        // Run all predictors
-        let mut all_predictions = Vec::new();
+        // 2. Run predictors in parallel (join!)
+        let (hc_res, ml_res) = tokio::join!(
+            self.run_hardcode_predictors(&view),
+            self.run_ml_predictors(&view, &vector)
+        );
 
-        // Run hardcode predictors
-        if let Some(hard_predictions) = self.run_hardcode_predictors(&feature_view, &feature_vector).await? {
-            all_predictions.extend(hard_predictions);
-        }
+        // 3. Collect results
+        let mut all_preds = Vec::new();
+        if let Ok(Some(p)) = hc_res { all_preds.extend(p); }
+        if let Ok(Some(p)) = ml_res { all_preds.extend(p); }
 
-        // Run ML predictors
-        if let Some(ml_predictions) = self.run_ml_predictors(&feature_view, &feature_vector).await? {
-            all_predictions.extend(ml_predictions);
-        }
+        // 4. Consensus
+        let consensus = crate::consensus::ConsensusEngine::new();
+        let final_preds = consensus.apply_gate_and_fuse(all_preds, &view).await?;
 
-        // Apply consensus logic if both hardcode and ML predictions exist
-        let final_predictions = self.apply_consensus_logic(all_predictions, &feature_view).await?;
+        // 5. Filter and write
+        if !final_preds.is_empty() {
+            persistence::upsert_predictions(&self.db_pool, final_preds).await?;
 
-        // Filter predictions by minimum score
-        let filtered_predictions: Vec<PredictionRow> = final_predictions
-            .into_iter()
-            .filter(|pred| pred.score_norm as f64 >= self.config.min_store_score)
-            .collect();
-
-        if !filtered_predictions.is_empty() {
-            // Persist predictions to database
-            persistence::upsert_predictions(&self.db_pool, filtered_predictions).await?;
-
-            // Optionally publish to predictions topic
-            self.publish_predictions(&snapshot, &feature_view).await?;
+            // LOGGING TO NEW FILE
+            tracing::info!(target: "compute_predictors", 
+                "Symbol: {}, TF: {}, Predictions: {}, Time: {:?}", 
+                snapshot.symbol, snapshot.timeframe, final_preds.len(), start.elapsed()
+            );
         }
 
         Ok(())
     }
 
-    async fn run_hardcode_predictors(
-        &self,
-        feature_view: &FeatureView,
-        feature_vector: &FeatureVector,
-    ) -> Result<Option<Vec<PredictionRow>>> {
-        if !self.config.enabled {
-            return Ok(None);
-        }
-
+    async fn run_hardcode_predictors(&self, view: &FeatureView) -> Result<Option<Vec<PredictionRow>>> {
         let mut predictions = Vec::new();
 
-        // Run price target predictor (hardcode)
-        if let Some(price_pred) = self.run_hardcode_price_predictor(feature_view).await? {
-            predictions.push(price_pred);
-        }
-
-        // Run level predictors (bounce/breakout)
-        if let Some(level_preds) = self.run_hardcode_level_predictors(feature_view).await? {
-            predictions.extend(level_preds);
-        }
-
-        Ok(Some(predictions))
-    }
-
-    async fn run_hardcode_price_predictor(&self, feature_view: &FeatureView) -> Result<Option<PredictionRow>> {
-        // Import the heuristic predictor
-        use crate::predictions::future_price::heuristic_predictor::FuturePriceHeuristic;
-        use crate::predictions::future_price::heuristic_predictor::Backend;
-
-        // Create a dummy backend for now (would use actual compute backend in real implementation)
-        let backend = Backend::Cpu; // Placeholder
-        let predictor = FuturePriceHeuristic::new(backend);
-
-        // Run prediction
-        if let Some((predicted_prices, score)) = predictor.predict(
-            &feature_view.symbol,
-            &feature_view.timeframe,
-            feature_view,
-        ).await? {
-            if score >= self.config.min_store_score {
-                // Calculate target price for horizon_bars (10)
-                let target_price = if predicted_prices.len() > self.config.horizon_bars {
-                    predicted_prices[self.config.horizon_bars - 1]
-                } else {
-                    predicted_prices.last().copied().unwrap_or(feature_view.close)
-                };
-
-                // Register predictor if missing
-                let predictor_meta = persistence::PredictorMeta {
-                    predictor_id: 0, // Will be filled by register_predictor_if_missing
-                    name: "price10_hard".to_string(),
-                    version: "1.0".to_string(),
-                    aspect: PredictionAspect::PriceTarget,
-                    calc_source: CalcSource::Hard,
-                    framework: "hardcode".to_string(),
-                    artifact_path: None,
-                    feature_schema_id: feature_vector.schema_id.clone(),
-                };
-
-                let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
-
-                // Create prediction row
-                let prediction_row = PredictionRow {
-                    time: feature_view.timestamp,
-                    time_ms: feature_view.timestamp.timestamp_millis(),
-                    symbol_id: 0, // Would come from symbol lookup
-                    symbol: feature_view.symbol.clone(),
-                    tf_minutes: self.parse_timeframe_minutes(&feature_view.timeframe)?,
-                    horizon_bars: self.config.horizon_bars as i32,
-                    aspect: PredictionAspect::PriceTarget,
-                    calc_source: CalcSource::Hard,
-                    predictor_id,
-                    score_norm: score as f32,
-                    value: target_price,
-                    value_low: None, // Could be calculated from bands
-                    value_high: None, // Could be calculated from bands
-                    side: self.determine_side(feature_view.close, target_price),
-                    level_hash: None,
-                    level_kind: None,
-                    level_price: None,
-                    level_strength: None,
-                    level_distance_atr: None,
-                    candle_is_final: true, // Assuming final candle
-                    event_time_ms: None,
-                    details_json: Some(serde_json::json!({
-                        "method": "hardcode_price10",
-                        "predicted_prices": predicted_prices,
-                        "confidence_factors": self.calculate_confidence_factors(feature_view)
-                    })),
-                    prediction_key: format!("price10_hard_{}_{}", feature_view.symbol, feature_view.timestamp.timestamp()),
-                };
-
-                return Ok(Some(prediction_row));
-            }
-        }
-
-        Ok(None)
-    }
-
-    async fn run_hardcode_level_predictors(&self, feature_view: &FeatureView) -> Result<Option<Vec<PredictionRow>>> {
-        // Parse SR levels from JSON
-        let sr_levels = feature_view.get_sr_levels()?;
-        if sr_levels.is_empty() {
-            return Ok(None);
-        }
-
-        // Create level view
-        let atr = feature_view.atr.unwrap_or(0.01); // Default to small value if no ATR
-        let level_view = LevelView::new(
-            sr_levels,
-            feature_view.close,
-            atr,
-            feature_view.timestamp,
-            feature_view.symbol.clone(),
-            feature_view.timeframe.clone(),
-            self.config.max_levels_per_side,
-        )?;
-
-        let mut predictions = Vec::new();
-
-        // Process each near level
-        for level in level_view.get_near_levels() {
-            // Calculate trend strength
-            let trend_strength = feature_view.trend_short.unwrap_or(0.0);
-
-            // Calculate momentum
-            let momentum = feature_view.macd_histogram.unwrap_or(0.0);
-
-            // Calculate exhaustion (using RSI or Williams %R)
-            let exhaustion = {
-                let rsi = feature_view.rsi.unwrap_or(50.0);
-                let williams = feature_view.williams_r.unwrap_or(-50.0);
-
-                // Normalize both to 0-1 scale where higher means more exhausted
-                let rsi_exhaustion = if rsi > 70.0 { (rsi - 70.0) / 30.0 } else if rsi < 30.0 { (30.0 - rsi) / 30.0 } else { 0.0 };
-                let williams_exhaustion = if williams < -80.0 { (williams.abs() - 80.0) / 20.0 } else if williams > -20.0 { (williams + 20.0) / 20.0 } else { 0.0 };
-
-                rsi_exhaustion.max(williams_exhaustion).min(1.0)
+        // Run FuturePriceHeuristic
+        let hc_price = crate::future_predictor::heuristic_predictor::FuturePriceHeuristic::new();
+        if let Some((predicted_prices, score)) = hc_price.predict(&view.symbol, &view.timeframe, view)? {
+            // Create prediction row for price prediction
+            let predictor_meta = persistence::PredictorMeta {
+                predictor_id: 0,
+                name: "price10_hard".to_string(),
+                version: "1.0".to_string(),
+                aspect: PredictionAspect::PriceTarget,
+                calc_source: CalcSource::Hard,
+                framework: "hardcode".to_string(),
+                artifact_path: None,
+                feature_schema_id: "feature_view".to_string(),
             };
 
-            // Calculate volume factor
-            let volume_factor = if let (Some(volume_sma), volume) = (feature_view.volume_sma, feature_view.volume) {
-                if volume_sma > 0.0 {
-                    (volume / volume_sma).min(2.0) // Cap at 2x average
-                } else {
-                    1.0
-                }
-            } else {
-                1.0
+            let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+
+            let prediction_row = PredictionRow {
+                time: view.timestamp,
+                time_ms: view.timestamp.timestamp_millis(),
+                symbol_id: 0,
+                symbol: view.symbol.clone(),
+                tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                horizon_bars: self.config.horizon_bars as i32,
+                aspect: PredictionAspect::PriceTarget,
+                calc_source: CalcSource::Hard,
+                predictor_id,
+                score_norm: score as f32,
+                value: predicted_prices.last().copied().unwrap_or(view.close),
+                value_low: None,
+                value_high: None,
+                side: self.determine_side(view.close, predicted_prices.last().copied().unwrap_or(view.close)),
+                level_hash: None,
+                level_kind: None,
+                level_price: None,
+                level_strength: None,
+                level_distance_atr: None,
+                candle_is_final: true,
+                event_time_ms: None,
+                details_json: Some(serde_json::json!({
+                    "method": "hardcode_price10",
+                    "predicted_prices": predicted_prices,
+                    "confidence_factors": self.calculate_confidence_factors(view)
+                })),
+                prediction_key: format!("price10_hard_{}_{}", view.symbol, view.timestamp.timestamp()),
             };
 
-            // Calculate bounce/break probabilities
-            let (bounce_prob, break_prob) = level_view.calculate_level_probability(
-                level,
-                trend_strength,
-                momentum,
-                exhaustion,
-                volume_factor,
-            );
+            predictions.push(prediction_row);
+        }
 
-            // Create predictions for both bounce and break
-            if bounce_prob >= self.config.min_store_score {
-                let predictor_meta = persistence::PredictorMeta {
-                    predictor_id: 0,
-                    name: "level_bounce_hard".to_string(),
-                    version: "1.0".to_string(),
-                    aspect: PredictionAspect::LevelBounce,
-                    calc_source: CalcSource::Hard,
-                    framework: "hardcode".to_string(),
-                    artifact_path: None,
-                    feature_schema_id: "sr_level_features".to_string(), // Fixed schema for level features
-                };
+        // Run LevelPredictorHeuristic
+        let level_predictor = crate::level_predictor::heuristic_predictor::LevelPredictorHeuristic::new();
+        if let Some((level_price, prob_bounce, prob_break, score)) = level_predictor.predict(&view.symbol, &view.timeframe, view)? {
+            // Create prediction row for bounce
+            let bounce_predictor_meta = persistence::PredictorMeta {
+                predictor_id: 0,
+                name: "level_bounce_hard".to_string(),
+                version: "1.0".to_string(),
+                aspect: PredictionAspect::LevelBounce,
+                calc_source: CalcSource::Hard,
+                framework: "hardcode".to_string(),
+                artifact_path: None,
+                feature_schema_id: "feature_view".to_string(),
+            };
 
-                let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+            let bounce_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
 
-                let bounce_prediction = PredictionRow {
-                    time: feature_view.timestamp,
-                    time_ms: feature_view.timestamp.timestamp_millis(),
-                    symbol_id: 0,
-                    symbol: feature_view.symbol.clone(),
-                    tf_minutes: self.parse_timeframe_minutes(&feature_view.timeframe)?,
-                    horizon_bars: self.config.horizon_bars as i32,
-                    aspect: PredictionAspect::LevelBounce,
-                    calc_source: CalcSource::Hard,
-                    predictor_id,
-                    score_norm: bounce_prob as f32,
-                    value: bounce_prob,
-                    value_low: None,
-                    value_high: None,
-                    side: Some(if level.level_kind == crate::predictions::feature_view::SrLevelKind::Support { 1 } else { -1 }),
-                    level_hash: Some(level.level_hash.clone()),
-                    level_kind: Some(level.level_kind.as_i16()),
-                    level_price: Some(level.level_price),
-                    level_strength: Some(level.level_strength),
-                    level_distance_atr: Some(level.distance_atr),
-                    candle_is_final: true,
-                    event_time_ms: None,
-                    details_json: Some(serde_json::json!({
-                        "method": "hardcode_level_bounce",
-                        "level_info": {
-                            "price": level.level_price,
-                            "kind": level.level_kind.as_i16(),
-                            "strength": level.level_strength,
-                            "distance_atr": level.distance_atr,
-                        },
-                        "factors": {
-                            "trend_strength": trend_strength,
-                            "momentum": momentum,
-                            "exhaustion": exhaustion,
-                            "volume_factor": volume_factor,
-                        }
-                    })),
-                    prediction_key: format!("bounce_hard_{}_{}_{}", feature_view.symbol, level.level_hash, feature_view.timestamp.timestamp()),
-                };
+            let bounce_prediction = PredictionRow {
+                time: view.timestamp,
+                time_ms: view.timestamp.timestamp_millis(),
+                symbol_id: 0,
+                symbol: view.symbol.clone(),
+                tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                horizon_bars: self.config.horizon_bars as i32,
+                aspect: PredictionAspect::LevelBounce,
+                calc_source: CalcSource::Hard,
+                predictor_id: bounce_predictor_id,
+                score_norm: prob_bounce as f32,
+                value: prob_bounce,
+                value_low: None,
+                value_high: None,
+                side: Some(if view.close < level_price { 1 } else { -1 }),
+                level_hash: Some(format!("level_{:.2}", level_price)),
+                level_kind: Some(1), // Support
+                level_price: Some(level_price),
+                level_strength: Some(score as f32),
+                level_distance_atr: None,
+                candle_is_final: true,
+                event_time_ms: None,
+                details_json: Some(serde_json::json!({
+                    "method": "hardcode_level_bounce",
+                    "level_price": level_price,
+                    "prob_bounce": prob_bounce,
+                    "prob_break": prob_break,
+                    "score": score
+                })),
+                prediction_key: format!("bounce_hard_{}_{}_{}", view.symbol, level_price, view.timestamp.timestamp()),
+            };
 
-                predictions.push(bounce_prediction);
-            }
+            predictions.push(bounce_prediction);
 
-            if break_prob >= self.config.min_store_score {
-                let predictor_meta = persistence::PredictorMeta {
-                    predictor_id: 0,
-                    name: "level_breakout_hard".to_string(),
-                    version: "1.0".to_string(),
-                    aspect: PredictionAspect::LevelBreakout,
-                    calc_source: CalcSource::Hard,
-                    framework: "hardcode".to_string(),
-                    artifact_path: None,
-                    feature_schema_id: "sr_level_features".to_string(),
-                };
+            // Create prediction row for break
+            let break_predictor_meta = persistence::PredictorMeta {
+                predictor_id: 0,
+                name: "level_breakout_hard".to_string(),
+                version: "1.0".to_string(),
+                aspect: PredictionAspect::LevelBreakout,
+                calc_source: CalcSource::Hard,
+                framework: "hardcode".to_string(),
+                artifact_path: None,
+                feature_schema_id: "feature_view".to_string(),
+            };
 
-                let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+            let break_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
 
-                let break_prediction = PredictionRow {
-                    time: feature_view.timestamp,
-                    time_ms: feature_view.timestamp.timestamp_millis(),
-                    symbol_id: 0,
-                    symbol: feature_view.symbol.clone(),
-                    tf_minutes: self.parse_timeframe_minutes(&feature_view.timeframe)?,
-                    horizon_bars: self.config.horizon_bars as i32,
-                    aspect: PredictionAspect::LevelBreakout,
-                    calc_source: CalcSource::Hard,
-                    predictor_id,
-                    score_norm: break_prob as f32,
-                    value: break_prob,
-                    value_low: None,
-                    value_high: None,
-                    side: Some(if level.level_kind == crate::predictions::feature_view::SrLevelKind::Support { -1 } else { 1 }), // Opposite direction for break
-                    level_hash: Some(level.level_hash.clone()),
-                    level_kind: Some(level.level_kind.as_i16()),
-                    level_price: Some(level.level_price),
-                    level_strength: Some(level.level_strength),
-                    level_distance_atr: Some(level.distance_atr),
-                    candle_is_final: true,
-                    event_time_ms: None,
-                    details_json: Some(serde_json::json!({
-                        "method": "hardcode_level_breakout",
-                        "level_info": {
-                            "price": level.level_price,
-                            "kind": level.level_kind.as_i16(),
-                            "strength": level.level_strength,
-                            "distance_atr": level.distance_atr,
-                        },
-                        "factors": {
-                            "trend_strength": trend_strength,
-                            "momentum": momentum,
-                            "exhaustion": exhaustion,
-                            "volume_factor": volume_factor,
-                        }
-                    })),
-                    prediction_key: format!("breakout_hard_{}_{}_{}", feature_view.symbol, level.level_hash, feature_view.timestamp.timestamp()),
-                };
+            let break_prediction = PredictionRow {
+                time: view.timestamp,
+                time_ms: view.timestamp.timestamp_millis(),
+                symbol_id: 0,
+                symbol: view.symbol.clone(),
+                tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                horizon_bars: self.config.horizon_bars as i32,
+                aspect: PredictionAspect::LevelBreakout,
+                calc_source: CalcSource::Hard,
+                predictor_id: break_predictor_id,
+                score_norm: prob_break as f32,
+                value: prob_break,
+                value_low: None,
+                value_high: None,
+                side: Some(if view.close < level_price { -1 } else { 1 }),
+                level_hash: Some(format!("level_{:.2}", level_price)),
+                level_kind: Some(1), // Support
+                level_price: Some(level_price),
+                level_strength: Some(score as f32),
+                level_distance_atr: None,
+                candle_is_final: true,
+                event_time_ms: None,
+                details_json: Some(serde_json::json!({
+                    "method": "hardcode_level_breakout",
+                    "level_price": level_price,
+                    "prob_bounce": prob_bounce,
+                    "prob_break": prob_break,
+                    "score": score
+                })),
+                prediction_key: format!("breakout_hard_{}_{}_{}", view.symbol, level_price, view.timestamp.timestamp()),
+            };
 
-                predictions.push(break_prediction);
-            }
+            predictions.push(break_prediction);
         }
 
         if predictions.is_empty() {
@@ -428,258 +304,165 @@ impl PredictionsPipeline {
         }
     }
 
-    async fn run_ml_predictors(
-        &self,
-        feature_view: &FeatureView,
-        feature_vector: &FeatureVector,
-    ) -> Result<Option<Vec<PredictionRow>>> {
-        if !self.config.enabled {
-            return Ok(None);
-        }
-
+    async fn run_ml_predictors(&self, view: &FeatureView, vector: &FeatureVector) -> Result<Option<Vec<PredictionRow>>> {
         let mut predictions = Vec::new();
 
-        // Run ML price predictor
-        if let Some(ml_price_pred) = self.run_ml_price_predictor(feature_view, feature_vector).await? {
-            predictions.push(ml_price_pred);
+        // Run FuturePriceMl
+        let use_cuda = self.config.use_cuda; // from config
+        let ml_price = crate::future_predictor::ml_predictor::FuturePriceMl::new("models/price10.onnx", use_cuda)?;
+        if let Some((predicted_prices, score)) = ml_price.predict(&view.symbol, &view.timeframe, vector).await? {
+            // Create prediction row for ML price prediction
+            let predictor_meta = persistence::PredictorMeta {
+                predictor_id: 0,
+                name: "price10_ml".to_string(),
+                version: "1.0".to_string(),
+                aspect: PredictionAspect::PriceTarget,
+                calc_source: CalcSource::Ml,
+                framework: "onnx".to_string(),
+                artifact_path: Some("models/price10.onnx".to_string()),
+                feature_schema_id: vector.schema_id.clone(),
+            };
+
+            let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+
+            let prediction_row = PredictionRow {
+                time: view.timestamp,
+                time_ms: view.timestamp.timestamp_millis(),
+                symbol_id: 0,
+                symbol: view.symbol.clone(),
+                tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
+                horizon_bars: self.config.horizon_bars as i32,
+                aspect: PredictionAspect::PriceTarget,
+                calc_source: CalcSource::Ml,
+                predictor_id,
+                score_norm: score as f32,
+                value: predicted_prices.last().copied().unwrap_or(view.close),
+                value_low: None,
+                value_high: None,
+                side: self.determine_side(view.close, predicted_prices.last().copied().unwrap_or(view.close)),
+                level_hash: None,
+                level_kind: None,
+                level_price: None,
+                level_strength: None,
+                level_distance_atr: None,
+                candle_is_final: true,
+                event_time_ms: None,
+                details_json: Some(serde_json::json!({
+                    "method": "ml_price10",
+                    "predicted_prices": predicted_prices,
+                    "confidence": score,
+                    "model_used": "models/price10.onnx"
+                })),
+                prediction_key: format!("price10_ml_{}_{}", view.symbol, view.timestamp.timestamp()),
+            };
+
+            predictions.push(prediction_row);
         }
 
-        // Run ML level predictor
-        if let Some(ml_level_preds) = self.run_ml_level_predictor(feature_view, feature_vector).await? {
-            predictions.extend(ml_level_preds);
-        }
+        // Run LevelPredictorMl
+        let sr_levels = view.get_sr_levels()?;
+        if !sr_levels.is_empty() {
+            let atr = view.atr.unwrap_or(1.0);
+            let level_view = LevelView::new(sr_levels, view.close, atr, view.timestamp, view.symbol.clone(), view.timeframe.clone(), 2)?;
+            let levels = level_view.get_near_levels();
 
-        if predictions.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(predictions))
-        }
-    }
-
-    async fn run_ml_price_predictor(
-        &self,
-        feature_view: &FeatureView,
-        feature_vector: &FeatureVector,
-    ) -> Result<Option<PredictionRow>> {
-        // Import the ML predictor
-        use crate::predictions::future_price::ml_predictor::FuturePriceMl;
-        use crate::predictions::future_price::ml_predictor::Backend;
-
-        // Create a dummy backend for now
-        let backend = Backend::Cpu; // Placeholder
-        let model_path = "models/price10.onnx"; // Would come from config
-        let predictor = FuturePriceMl::new(model_path, backend)?;
-
-        // Run prediction
-        if let Some((predicted_prices, score)) = predictor.predict(
-            &feature_view.symbol,
-            &feature_view.timeframe,
-            feature_vector,
-        ).await? {
-            if score >= self.config.min_store_score {
-                // Calculate target price for horizon_bars (10)
-                let target_price = if predicted_prices.len() > self.config.horizon_bars {
-                    predicted_prices[self.config.horizon_bars - 1]
-                } else {
-                    predicted_prices.last().copied().unwrap_or(feature_view.close)
-                };
-
-                // Register predictor if missing
-                let predictor_meta = persistence::PredictorMeta {
-                    predictor_id: 0,
-                    name: "price10_ml".to_string(),
-                    version: "1.0".to_string(),
-                    aspect: PredictionAspect::PriceTarget,
-                    calc_source: CalcSource::Ml,
-                    framework: "onnx".to_string(),
-                    artifact_path: Some(model_path.to_string()),
-                    feature_schema_id: feature_vector.schema_id.clone(),
-                };
-
-                let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
-
-                // Create prediction row
-                let prediction_row = PredictionRow {
-                    time: feature_view.timestamp,
-                    time_ms: feature_view.timestamp.timestamp_millis(),
-                    symbol_id: 0,
-                    symbol: feature_view.symbol.clone(),
-                    tf_minutes: self.parse_timeframe_minutes(&feature_view.timeframe)?,
-                    horizon_bars: self.config.horizon_bars as i32,
-                    aspect: PredictionAspect::PriceTarget,
-                    calc_source: CalcSource::Ml,
-                    predictor_id,
-                    score_norm: score as f32,
-                    value: target_price,
-                    value_low: None, // Could be calculated from quantile outputs
-                    value_high: None, // Could be calculated from quantile outputs
-                    side: self.determine_side(feature_view.close, target_price),
-                    level_hash: None,
-                    level_kind: None,
-                    level_price: None,
-                    level_strength: None,
-                    level_distance_atr: None,
-                    candle_is_final: true,
-                    event_time_ms: None,
-                    details_json: Some(serde_json::json!({
-                        "method": "ml_price10",
-                        "predicted_prices": predicted_prices,
-                        "feature_vector_length": feature_vector.values.len(),
-                        "model_used": model_path
-                    })),
-                    prediction_key: format!("price10_ml_{}_{}", feature_view.symbol, feature_view.timestamp.timestamp()),
-                };
-
-                return Ok(Some(prediction_row));
-            }
-        }
-
-        Ok(None)
-    }
-
-    async fn run_ml_level_predictor(
-        &self,
-        feature_view: &FeatureView,
-        feature_vector: &FeatureVector,
-    ) -> Result<Option<Vec<PredictionRow>>> {
-        // Parse SR levels from JSON
-        let sr_levels = feature_view.get_sr_levels()?;
-        if sr_levels.is_empty() {
-            return Ok(None);
-        }
-
-        // Create level view
-        let atr = feature_view.atr.unwrap_or(0.01);
-        let level_view = LevelView::new(
-            sr_levels,
-            feature_view.close,
-            atr,
-            feature_view.timestamp,
-            feature_view.symbol.clone(),
-            feature_view.timeframe.clone(),
-            self.config.max_levels_per_side,
-        )?;
-
-        let mut predictions = Vec::new();
-
-        // Import the ML level predictor
-        use crate::predictions::level_predictor::ml_predictor::LevelPredictorMl;
-        use crate::predictions::level_predictor::ml_predictor::Backend;
-
-        // Create a dummy backend for now
-        let backend = Backend::Cpu; // Placeholder
-        let model_path = "models/levels.onnx"; // Would come from config
-        let predictor = LevelPredictorMl::new(model_path, backend)?;
-
-        // Process each near level
-        for level in level_view.get_near_levels() {
-            // Run prediction for this level
-            if let Some((level_price, prob_bounce, prob_break, score)) = predictor.predict_for_level(
-                &feature_view.symbol,
-                &feature_view.timeframe,
-                feature_vector,
-                level,
-            ).await? {
-                // Determine which prediction to use based on score
-                if prob_bounce >= self.config.min_store_score {
-                    let predictor_meta = persistence::PredictorMeta {
+            if let Some(level) = levels.first() {
+                let ml_level = crate::level_predictor::ml_predictor::LevelPredictorMl::new("models/levels.onnx", use_cuda)?;
+                if let Some((prob_bounce, prob_break, score)) = ml_level.predict(&view.symbol, &view.timeframe, vector, level.level_price).await? {
+                    // Create prediction row for ML bounce
+                    let bounce_predictor_meta = persistence::PredictorMeta {
                         predictor_id: 0,
                         name: "level_bounce_ml".to_string(),
                         version: "1.0".to_string(),
                         aspect: PredictionAspect::LevelBounce,
                         calc_source: CalcSource::Ml,
                         framework: "onnx".to_string(),
-                        artifact_path: Some(model_path.to_string()),
-                        feature_schema_id: feature_vector.schema_id.clone(),
+                        artifact_path: Some("models/levels.onnx".to_string()),
+                        feature_schema_id: vector.schema_id.clone(),
                     };
 
-                    let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+                    let bounce_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
 
                     let bounce_prediction = PredictionRow {
-                        time: feature_view.timestamp,
-                        time_ms: feature_view.timestamp.timestamp_millis(),
+                        time: view.timestamp,
+                        time_ms: view.timestamp.timestamp_millis(),
                         symbol_id: 0,
-                        symbol: feature_view.symbol.clone(),
-                        tf_minutes: self.parse_timeframe_minutes(&feature_view.timeframe)?,
+                        symbol: view.symbol.clone(),
+                        tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
                         horizon_bars: self.config.horizon_bars as i32,
                         aspect: PredictionAspect::LevelBounce,
                         calc_source: CalcSource::Ml,
-                        predictor_id,
+                        predictor_id: bounce_predictor_id,
                         score_norm: prob_bounce as f32,
                         value: prob_bounce,
                         value_low: None,
                         value_high: None,
-                        side: Some(if level.level_kind == crate::predictions::feature_view::SrLevelKind::Support { 1 } else { -1 }),
+                        side: Some(if view.close < level.level_price { 1 } else { -1 }),
                         level_hash: Some(level.level_hash.clone()),
                         level_kind: Some(level.level_kind.as_i16()),
-                        level_price: Some(level_price),
+                        level_price: Some(level.level_price),
                         level_strength: Some(level.level_strength),
                         level_distance_atr: Some(level.distance_atr),
                         candle_is_final: true,
                         event_time_ms: None,
                         details_json: Some(serde_json::json!({
                             "method": "ml_level_bounce",
-                            "level_info": {
-                                "price": level_price,
-                                "kind": level.level_kind.as_i16(),
-                                "strength": level.level_strength,
-                                "distance_atr": level.distance_atr,
-                            },
-                            "model_used": model_path
+                            "level_price": level.level_price,
+                            "prob_bounce": prob_bounce,
+                            "prob_break": prob_break,
+                            "score": score,
+                            "model_used": "models/levels.onnx"
                         })),
-                        prediction_key: format!("bounce_ml_{}_{}_{}", feature_view.symbol, level.level_hash, feature_view.timestamp.timestamp()),
+                        prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
                     };
 
                     predictions.push(bounce_prediction);
-                }
 
-                if prob_break >= self.config.min_store_score {
-                    let predictor_meta = persistence::PredictorMeta {
+                    // Create prediction row for ML break
+                    let break_predictor_meta = persistence::PredictorMeta {
                         predictor_id: 0,
                         name: "level_breakout_ml".to_string(),
                         version: "1.0".to_string(),
                         aspect: PredictionAspect::LevelBreakout,
                         calc_source: CalcSource::Ml,
                         framework: "onnx".to_string(),
-                        artifact_path: Some(model_path.to_string()),
-                        feature_schema_id: feature_vector.schema_id.clone(),
+                        artifact_path: Some("models/levels.onnx".to_string()),
+                        feature_schema_id: vector.schema_id.clone(),
                     };
 
-                    let predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
+                    let break_predictor_id = persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
 
                     let break_prediction = PredictionRow {
-                        time: feature_view.timestamp,
-                        time_ms: feature_view.timestamp.timestamp_millis(),
+                        time: view.timestamp,
+                        time_ms: view.timestamp.timestamp_millis(),
                         symbol_id: 0,
-                        symbol: feature_view.symbol.clone(),
-                        tf_minutes: self.parse_timeframe_minutes(&feature_view.timeframe)?,
+                        symbol: view.symbol.clone(),
+                        tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
                         horizon_bars: self.config.horizon_bars as i32,
                         aspect: PredictionAspect::LevelBreakout,
                         calc_source: CalcSource::Ml,
-                        predictor_id,
+                        predictor_id: break_predictor_id,
                         score_norm: prob_break as f32,
                         value: prob_break,
                         value_low: None,
                         value_high: None,
-                        side: Some(if level.level_kind == crate::predictions::feature_view::SrLevelKind::Support { -1 } else { 1 }),
+                        side: Some(if view.close < level.level_price { -1 } else { 1 }),
                         level_hash: Some(level.level_hash.clone()),
                         level_kind: Some(level.level_kind.as_i16()),
-                        level_price: Some(level_price),
+                        level_price: Some(level.level_price),
                         level_strength: Some(level.level_strength),
                         level_distance_atr: Some(level.distance_atr),
                         candle_is_final: true,
                         event_time_ms: None,
                         details_json: Some(serde_json::json!({
                             "method": "ml_level_breakout",
-                            "level_info": {
-                                "price": level_price,
-                                "kind": level.level_kind.as_i16(),
-                                "strength": level.level_strength,
-                                "distance_atr": level.distance_atr,
-                            },
-                            "model_used": model_path
+                            "level_price": level.level_price,
+                            "prob_bounce": prob_bounce,
+                            "prob_break": prob_break,
+                            "score": score,
+                            "model_used": "models/levels.onnx"
                         })),
-                        prediction_key: format!("breakout_ml_{}_{}_{}", feature_view.symbol, level.level_hash, feature_view.timestamp.timestamp()),
+                        prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()),
                     };
 
                     predictions.push(break_prediction);
@@ -691,111 +474,6 @@ impl PredictionsPipeline {
             Ok(None)
         } else {
             Ok(Some(predictions))
-        }
-    }
-
-    async fn apply_consensus_logic(
-        &self,
-        mut predictions: Vec<PredictionRow>,
-        feature_view: &FeatureView,
-    ) -> Result<Vec<PredictionRow>> {
-        // If we have both hardcode and ML predictions for the same aspect and level,
-        // apply consensus logic
-        if !self.config.prefer_ml || predictions.len() <= 1 {
-            return Ok(predictions);
-        }
-
-        // Group predictions by aspect and level (if applicable)
-        use std::collections::HashMap;
-        let mut grouped: HashMap<String, Vec<PredictionRow>> = HashMap::new();
-
-        for pred in predictions {
-            let key = match &pred.level_hash {
-                Some(hash) => format!("{}_{}_{}", pred.aspect.as_int(), hash, pred.symbol),
-                None => format!("{}_{}", pred.aspect.as_int(), pred.symbol),
-            };
-
-            grouped.entry(key).or_insert_with(Vec::new).push(pred);
-        }
-
-        let mut final_predictions = Vec::new();
-
-        for (_key, mut group) in grouped {
-            if group.len() == 1 {
-                // Single prediction, just add it
-                final_predictions.push(group.remove(0));
-            } else {
-                // Multiple predictions for the same aspect/level, apply consensus
-                let consensus_pred = self.apply_gate_and_fuse_logic(&group, feature_view).await?;
-                if let Some(consensus_pred) = consensus_pred {
-                    final_predictions.push(consensus_pred);
-                }
-            }
-        }
-
-        Ok(final_predictions)
-    }
-
-    async fn apply_gate_and_fuse_logic(
-        &self,
-        predictions: &[PredictionRow],
-        feature_view: &FeatureView,
-    ) -> Result<Option<PredictionRow>> {
-        // Separate hardcode and ML predictions
-        let mut hard_preds: Vec<&PredictionRow> = predictions.iter()
-            .filter(|p| p.calc_source == CalcSource::Hard)
-            .collect();
-
-        let ml_preds: Vec<&PredictionRow> = predictions.iter()
-            .filter(|p| p.calc_source == CalcSource::Ml)
-            .collect();
-
-        if hard_preds.is_empty() && ml_preds.is_empty() {
-            return Ok(None);
-        }
-
-        // If only one type exists, return the best of that type
-        if hard_preds.is_empty() {
-            if let Some(best_ml) = ml_preds.iter().max_by(|a, b| a.score_norm.partial_cmp(&b.score_norm).unwrap()) {
-                return Ok(Some((*best_ml).clone()));
-            }
-        } else if ml_preds.is_empty() {
-            if let Some(best_hard) = hard_preds.iter().max_by(|a, b| a.score_norm.partial_cmp(&b.score_norm).unwrap()) {
-                return Ok(Some((*best_hard).clone()));
-            }
-        }
-
-        // Both hardcode and ML exist, apply gate and fuse logic
-        if let (Some(hard_pred), Some(ml_pred)) = (hard_preds.pop(), ml_preds.first()) {
-            // Gate logic: hardcode determines if there's a valid setup
-            let gate = ((hard_pred.score_norm as f64 - 0.5) / 0.5).clamp(0.0, 1.0);
-
-            // Fuse logic: combine scores with weights
-            let s_ml = ml_pred.score_norm as f64;
-            let s_hc = hard_pred.score_norm as f64;
-
-            // Simple fusion formula: gate * (1 - (1 - s_ml)^w_ml * (1 - s_hc)^w_hc)
-            // Using equal weights for now (w_ml = w_hc = 1)
-            let s_fused = gate * (1.0 - (1.0 - s_ml) * (1.0 - s_hc));
-
-            // Create fused prediction
-            let mut fused_pred = if s_ml >= s_hc { ml_pred.clone() } else { hard_pred.clone() };
-            fused_pred.score_norm = s_fused as f32;
-
-            // Update details to reflect consensus
-            if let Some(ref mut details) = fused_pred.details_json {
-                if let Value::Object(ref mut obj) = details {
-                    obj.insert("consensus_applied".to_string(), Value::Bool(true));
-                    obj.insert("gate_value".to_string(), Value::Number(serde_json::Number::from_f64(gate).unwrap()));
-                    obj.insert("original_ml_score".to_string(), Value::Number(serde_json::Number::from_f64(s_ml).unwrap()));
-                    obj.insert("original_hard_score".to_string(), Value::Number(serde_json::Number::from_f64(s_hc).unwrap()));
-                    obj.insert("fused_score".to_string(), Value::Number(serde_json::Number::from_f64(s_fused).unwrap()));
-                }
-            }
-
-            Ok(Some(fused_pred))
-        } else {
-            Ok(None)
         }
     }
 
@@ -917,6 +595,7 @@ mod tests {
                 min_final_score: 0.90,
                 prefer_ml: true,
                 max_levels_per_side: 2,
+                use_cuda: false,
             },
             db_pool: todo!(), // Mock
             redpanda_client: todo!(), // Mock
