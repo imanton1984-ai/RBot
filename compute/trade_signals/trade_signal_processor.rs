@@ -1,0 +1,1 @@
+//processor for trade_signal which is responsible for processing data

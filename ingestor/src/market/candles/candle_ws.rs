@@ -25,7 +25,7 @@
 use crate::market::candles::candle_common::*;
 use crate::market::candles::candle_writer::{TypedWriterMsg, DataSource, LiveCandle};
 use anyhow::{Context, Result};
-use common::{timeframe::TimeFrame, MessageBus};
+use common::{timeframe::TimeFrame, MessageBus, Codec};
 use common::AppConfig;
 use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
@@ -236,7 +236,7 @@ pub async fn ws_worker(
                     let _ = tokio::spawn(async move {
                         // Note: We use the topic name directly, assuming message_bus handles prefixes if configured
                         // or pass the raw topic name found in config/rust_bot.toml
-                        if let Err(e) = message_bus_clone.publish(&topic_name, symbol_key.as_bytes(), &close_event).await {
+                        if let Err(e) = message_bus_clone.publish(&topic_name, symbol_key.as_bytes(), &close_event, Codec::Json).await {
                             tracing::error!("Failed to publish candle close event: {}", e);
                         } else {
                             tracing::debug!("Published close event: {} {}", symbol_key, k.interval);

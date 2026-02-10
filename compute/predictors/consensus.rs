@@ -116,59 +116,41 @@ impl ConsensusEngine {
         ml_pred: &PredictionRow,
         feature_view: &FeatureView,
     ) -> Result<Option<PredictionRow>> {
-        // Gate logic: hardcode determines if there's a valid setup
-        // If hardcode score is below threshold, gate is 0 (no setup)
-        let gate_threshold = 0.5;
-        let gate = ((hard_pred.score_norm as f64 - gate_threshold) / (1.0 - gate_threshold)).clamp(0.0, 1.0);
+        
+        let hc_pred_score = hard_pred.score_norm as f64;
+        let ml_pred_score = ml_pred.score_norm as f64;
 
-        // If gate is 0, don't trust the setup, return None or just the ML prediction
-        if gate == 0.0 {
-            // Return ML prediction if it's strong enough, otherwise none
-            if ml_pred.score_norm as f64 >= 0.7 {
-                return Ok(Some(ml_pred.clone()));
-            } else {
-                return Ok(None);
-            }
-        }
+        // TODO: ml_trust should come from calibration_json (metrics from the DB)
+        let ml_trust = 0.5; // Placeholder
 
-        // Fuse logic: combine scores with weights
-        let s_ml = ml_pred.score_norm as f64;
-        let s_hc = hard_pred.score_norm as f64;
+        let w_ml = ml_trust as f64;
+        let w_hc = 1.0 - w_ml;
+        
+        // Smooth gate: if the hardcore predictor is confident, it "opens the way" for ML
+        let gate = 1.0 / (1.0 + f64::exp(-10.0 * (hc_pred_score.abs() - 0.5)));
+        
+        let fused_score = (w_hc * hc_pred_score + w_ml * ml_pred_score) * gate;
 
-        // Apply weights based on confidence in each method
-        let hc_weight = self.calculate_hardcode_weight(feature_view, hard_pred);
-        let ml_weight = self.calculate_ml_weight(feature_view, ml_pred);
+        // Create fused prediction
+        let mut fused_pred = if ml_pred_score >= hc_pred_score { ml_pred.clone() } else { hard_pred.clone() };
+        fused_pred.score_norm = fused_score as f32;
 
-        // Weighted combination
-        let weighted_avg = (s_hc * hc_weight + s_ml * ml_weight) / (hc_weight + ml_weight);
-
-        // Apply gate to the fused score
-        let s_fused = gate * weighted_avg + (1.0 - gate) * s_ml; // If gate is low, rely more on ML
-
-        // Create fused prediction based on which source had higher original score
-        let mut fused_pred = if s_ml >= s_hc { ml_pred.clone() } else { hard_pred.clone() };
-        fused_pred.score_norm = s_fused as f32;
-
-        // Update details to reflect consensus
+        // Update details
         if let Some(ref mut details) = fused_pred.details_json {
             if let serde_json::Value::Object(ref mut obj) = details {
                 obj.insert("consensus_applied".to_string(), serde_json::Value::Bool(true));
                 obj.insert("gate_value".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(gate).unwrap()));
-                obj.insert("original_ml_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(s_ml).unwrap()));
-                obj.insert("original_hard_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(s_hc).unwrap()));
-                obj.insert("fused_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(s_fused).unwrap()));
-                obj.insert("hc_weight".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(hc_weight).unwrap()));
-                obj.insert("ml_weight".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(ml_weight).unwrap()));
+                obj.insert("original_ml_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(ml_pred_score).unwrap()));
+                obj.insert("original_hard_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(hc_pred_score).unwrap()));
+                obj.insert("fused_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(fused_score).unwrap()));
             }
         } else {
             fused_pred.details_json = Some(serde_json::json!({
                 "consensus_applied": true,
                 "gate_value": gate,
-                "original_ml_score": s_ml,
-                "original_hard_score": s_hc,
-                "fused_score": s_fused,
-                "hc_weight": hc_weight,
-                "ml_weight": ml_weight,
+                "original_ml_score": ml_pred_score,
+                "original_hard_score": hc_pred_score,
+                "fused_score": fused_score,
             }));
         }
 

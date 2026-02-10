@@ -6,6 +6,9 @@ import sqlalchemy
 from skl2onnx.common.data_types import FloatTensorType
 from onnxmltools import convert_xgboost
 import onnx
+from sklearn.model_selection import TimeSeriesSplit
+import json
+import hashlib
 
 # --- КОНФИГУРАЦИЯ ---
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/timescaledb_binance")
@@ -53,16 +56,20 @@ def load_data():
 def train_price_model(df):
     print("Training Price Prediction Model...")
     
-    # Target: Цена через N свечей
-    # shift(-HORIZON) берет цену "из будущего" и ставит в текущую строку для обучения
-    y = df['close'].shift(-HORIZON)
+    # Target: Percentage return after N candles
+    y = (df['close'].shift(-HORIZON) / df['close']) - 1
     X = df[FEATURES]
     
-    # Удаляем последние N строк, где нет target
+    # Fill infinities that might result from division by zero
+    y = y.replace([np.inf, -np.inf], 0.0)
+
+    # Remove last N rows where target is NaN
     X = X.iloc[:-HORIZON]
     y = y.iloc[:-HORIZON]
     
-    # Обучение
+    # TimeSeriesSplit for cross-validation
+    tscv = TimeSeriesSplit(n_splits=5)
+    
     model = xgb.XGBRegressor(
         n_estimators=100, 
         max_depth=5, 
@@ -70,19 +77,31 @@ def train_price_model(df):
         objective='reg:squarederror',
         n_jobs=-1
     )
-    model.fit(X, y)
     
-    # Оценка (простая)
-    score = model.score(X, y)
-    print(f"R^2 Score on train set: {score:.4f}")
+    print("Cross-validating...")
+    scores = []
+    for train_index, test_index in tscv.split(X):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        
+        model.fit(X_train, y_train)
+        score = model.score(X_test, y_test)
+        scores.append(score)
+        print(f"  Split score: {score:.4f}")
+
+    print(f"Average R^2 Score on cross-validation: {np.mean(scores):.4f}")
+
+    # Final fit on all data
+    print("Fitting final model on all data...")
+    model.fit(X, y)
     
     return model
 
-def export_to_onnx(model, filename):
+def export_to_onnx(model, filename, features, schema_id):
     print(f"Exporting to {filename}...")
     
     # Описываем входной тензор: [None (любой batch size), кол-во фичей]
-    initial_type = [('float_input', FloatTensorType([None, len(FEATURES)]))]
+    initial_type = [('float_input', FloatTensorType([None, len(features)]))]
     
     onnx_model = convert_xgboost(model, initial_types=initial_type)
     
@@ -90,6 +109,16 @@ def export_to_onnx(model, filename):
     full_path = os.path.join(MODEL_DIR, filename)
     onnx.save_model(onnx_model, full_path)
     print(f"Saved model to {full_path}")
+
+    # Export metadata
+    meta = {
+        "schema_id": schema_id,
+        "features": features
+    }
+    meta_path = os.path.join(MODEL_DIR, filename.replace(".onnx", ".json"))
+    with open(meta_path, 'w') as f:
+        json.dump(meta, f, indent=2)
+    print(f"Saved metadata to {meta_path}")
 
 def train_level_model(df):
     print("Training Level Prediction Model...")
@@ -138,13 +167,17 @@ if __name__ == "__main__":
         if len(df) < 200:
             print("Not enough data to train! Run the bot to collect candles first.")
         else:
+            # Create schema_id from FEATURES list
+            feature_string = ",".join(FEATURES)
+            schema_id = hashlib.sha256(feature_string.encode('utf-8')).hexdigest()
+
             # Обучаем модель предсказания цены
-            price_model = train_price_model(df)
-            export_to_onnx(price_model, "price_v1.onnx")
+            price_model = train_price_model(df.copy())
+            export_to_onnx(price_model, "price_v1.onnx", FEATURES, schema_id)
             
             # Обучаем модель предсказания уровней
-            level_model = train_level_model(df)
-            export_to_onnx(level_model, "levels_v1.onnx")
+            level_model = train_level_model(df.copy())
+            export_to_onnx(level_model, "levels_v1.onnx", FEATURES, schema_id)
             
             print("Training complete.")
     except Exception as e:

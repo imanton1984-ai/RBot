@@ -1,11 +1,9 @@
 use anyhow::{Context, Result};
 use ndarray::{Array, Array2, Axis};
-use ort::{
-    GraphOptimizationLevel, Session, SessionBuilder, Value,
-    ExecutionProvider,
-};
+use ort::{Value, Session};
 use std::sync::Arc;
 use tracing::{info, warn, error};
+use super::model_pool::ModelPool;
 
 pub struct OnnxRunner {
     session: Arc<Session>,
@@ -13,31 +11,9 @@ pub struct OnnxRunner {
 
 impl OnnxRunner {
     /// Загружает модель из файла. Пытается использовать CUDA, если доступно.
-    pub fn new(model_path: &str, use_cuda: bool) -> Result<Self> {
-        let mut builder = Session::builder()?;
-        
-        builder = builder.with_optimization_level(GraphOptimizationLevel::Level3)?;
-        builder = builder.with_intra_threads(4)?;
-
-        if use_cuda {
-            // Пытаемся подключить CUDA
-            match builder.clone().with_execution_providers([ExecutionProvider::CUDA(Default::default())]) {
-                Ok(b) => {
-                    builder = b;
-                    info!("CUDA Execution Provider enabled for model: {}", model_path);
-                }
-                Err(e) => {
-                    warn!("Failed to initialize CUDA provider: {}. Falling back to CPU.", e);
-                }
-            }
-        }
-
-        let session = builder.commit_from_file(model_path)
-            .context(format!("Failed to load ONNX model from {}", model_path))?;
-
-        Ok(Self {
-            session: Arc::new(session),
-        })
+    pub fn new(model_path: &str, use_cuda: bool, pool: Arc<ModelPool>) -> Result<Self> {
+        let session = pool.get_or_load(model_path, use_cuda)?;
+        Ok(Self { session })
     }
 
     /// Выполняет предсказание.

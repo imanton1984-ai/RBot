@@ -34,6 +34,7 @@ tokio-stream = "0.1"
 ort = { version = "2.0.0-rc.9", features = ["cuda"] }
 ndarray = "0.16"
 tracing-appender = "0.2"
+dashmap = "5.5"
 
 [features]
 default = []

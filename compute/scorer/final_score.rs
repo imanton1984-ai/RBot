@@ -1,313 +1,364 @@
 // compute/scoring/final_scorer.rs
 
-use anyhow::Result;
-use serde_json::Value;
-use crate::predictions::types::PredictionRow;
-use crate::predictions::persistence;
+// compute/scoring/final_score.rs
 
-/// Final scorer that combines predictions with other signals to produce final scores
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use crate::predictions::types::{PredictionAspect, PredictionRow, PredictionCalcSource};
+
+use super::market_params_calculator::MarketParams;
+
+/// Final scorer configuration (weights + strictness)
 pub struct FinalScorer {
     min_final_score: f64,
-    strategy_weights: StrategyWeights,
+    weights: StrategyWeights,
+    /// How strict to penalize missing feature coverage (>= 1.0)
+    coverage_gamma: f64,
+    /// How strict to penalize ML vs heuristic disagreement (>= 1.0)
+    consensus_gamma: f64,
 }
 
-/// Weights for different strategies/components in the final scoring
-#[derive(Debug, Clone)]
+/// Weights for base score components (must sum to 1.0 after normalization)
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyWeights {
     pub predictions_weight: f64,
-    pub levels_context_weight: f64,
-    pub trend_weight: f64,
-    pub momentum_weight: f64,
-    pub volatility_weight: f64,
-    pub volume_weight: f64,
+    pub raw_signals_weight: f64,
+    pub indicators_weight: f64,
+    pub market_weight: f64,
 }
 
 impl Default for StrategyWeights {
     fn default() -> Self {
+        // Keep market meaningful; without it you will trade against BTC regime.
         Self {
-            predictions_weight: 0.3,
-            levels_context_weight: 0.25,
-            trend_weight: 0.15,
-            momentum_weight: 0.15,
-            volatility_weight: 0.075,
-            volume_weight: 0.075,
+            predictions_weight: 0.35,
+            raw_signals_weight: 0.30,
+            indicators_weight: 0.20,
+            market_weight: 0.15,
         }
     }
 }
 
+impl StrategyWeights {
+    pub fn normalized(mut self) -> Self {
+        let sum = self.predictions_weight + self.raw_signals_weight + self.indicators_weight + self.market_weight;
+        if sum > 0.0 {
+            self.predictions_weight /= sum;
+            self.raw_signals_weight /= sum;
+            self.indicators_weight /= sum;
+            self.market_weight /= sum;
+        }
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FinalScoreBreakdown {
+    pub final_score: f64,
+    pub base_score: f64,
+
+    pub predictions_score: f64,
+    pub predictions_ml_score: f64,
+    pub predictions_heur_score: f64,
+
+    pub raw_signals_score: f64,
+    pub indicators_score: f64,
+    pub market_score: f64,
+
+    pub coverage_score: f64,
+    pub consensus_score: f64,
+
+    pub debug: Value,
+}
+
 impl FinalScorer {
-    /// Creates a new final scorer with default weights
     pub fn new(min_final_score: f64) -> Self {
         Self {
             min_final_score,
-            strategy_weights: StrategyWeights::default(),
+            weights: StrategyWeights::default().normalized(),
+            coverage_gamma: 1.8,
+            consensus_gamma: 1.5,
         }
     }
 
-    /// Creates a new final scorer with custom weights
     pub fn new_with_weights(min_final_score: f64, weights: StrategyWeights) -> Self {
         Self {
             min_final_score,
-            strategy_weights: weights,
+            weights: weights.normalized(),
+            coverage_gamma: 1.8,
+            consensus_gamma: 1.5,
         }
     }
 
-    /// Scores a signal based on predictions and other factors
+    pub fn with_strictness(mut self, coverage_gamma: f64, consensus_gamma: f64) -> Self {
+        self.coverage_gamma = coverage_gamma.max(1.0);
+        self.consensus_gamma = consensus_gamma.max(1.0);
+        self
+    }
+
+    /// Returns only final number (compat)
     pub async fn score_signal(
         &self,
         symbol: &str,
-        timeframe: &str,
-        timestamp: chrono::DateTime<chrono::Utc>,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
         raw_signals_summary: &Value,
         predictions: &[PredictionRow],
+        market_params: Option<&MarketParams>,
     ) -> Result<Option<f64>> {
-        // Calculate base score from predictions
-        let predictions_score = self.calculate_predictions_score(predictions, symbol, timeframe).await?;
-        
-        // Extract other signal components
-        let levels_context_score = self.extract_levels_context(raw_signals_summary);
-        let trend_score = self.extract_trend_score(raw_signals_summary);
-        let momentum_score = self.extract_momentum_score(raw_signals_summary);
-        let volatility_score = self.extract_volatility_score(raw_signals_summary);
-        let volume_score = self.extract_volume_score(raw_signals_summary);
+        Ok(self
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictions, market_params)
+            .await?
+            .map(|b| b.final_score))
+    }
 
-        // Combine all scores using weights
-        let final_score = 
-            predictions_score * self.strategy_weights.predictions_weight +
-            levels_context_score * self.strategy_weights.levels_context_weight +
-            trend_score * self.strategy_weights.trend_weight +
-            momentum_score * self.strategy_weights.momentum_weight +
-            volatility_score * self.strategy_weights.volatility_weight +
-            volume_score * self.strategy_weights.volume_weight;
+    /// Verbose score with breakdown for persistence/debug
+    pub async fn score_signal_verbose(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictions: &[PredictionRow],
+        market_params: Option<&MarketParams>,
+    ) -> Result<Option<FinalScoreBreakdown>> {
+        let side_i8 = (side.signum() as i8);
 
-        // Only return score if it meets the minimum threshold
+        // Predictions score
+        let pred_comp = self.calculate_predictions_component(predictions)?;
+        let predictions_score = pred_comp.total;
+        let predictions_ml_score = pred_comp.ml;
+        let predictions_heur_score = pred_comp.heur;
+
+        // Raw signals score (use BEST signals, but penalize missing coverage)
+        let raw_signals_score = self.calculate_raw_signals_score(raw_signals_summary);
+
+        // Indicators score from summary fields (already normalized 0..1 expected)
+        let indicators_score = self.calculate_indicator_score(raw_signals_summary);
+
+        // Market score (BTC regime alignment)
+        let market_score = market_params
+            .map(|m| m.score_for_side(side_i8))
+            .unwrap_or(0.0);
+
+        // Base score (weights sum to 1)
+        let base_score =
+            predictions_score * self.weights.predictions_weight +
+            raw_signals_score * self.weights.raw_signals_weight +
+            indicators_score * self.weights.indicators_weight +
+            market_score * self.weights.market_weight;
+
+        // Coverage & consensus
+        let has_market = market_params.is_some();
+        let coverage_score = self.calculate_feature_coverage_score(predictions, raw_signals_summary, has_market);
+        let consensus_score = self.calculate_ml_heuristic_consensus(predictions_ml_score, predictions_heur_score);
+
+        // “AND-like” penalties:
+        let final_score = (base_score
+            * coverage_score.powf(self.coverage_gamma)
+            * consensus_score.powf(self.consensus_gamma))
+            .clamp(0.0, 1.0);
+
+        let debug = json!({
+            "symbol": symbol,
+            "tf_minutes": tf_minutes,
+            "timestamp": timestamp.to_rfc3339(),
+            "side": side_i8,
+            "weights": self.weights,
+            "coverage_gamma": self.coverage_gamma,
+            "consensus_gamma": self.consensus_gamma,
+            "has_market_params": has_market,
+            "market_params": market_params.map(|m| m.details_json.clone()),
+        });
+
         if final_score >= self.min_final_score {
-            Ok(Some(final_score))
+            Ok(Some(FinalScoreBreakdown {
+                final_score,
+                base_score,
+                predictions_score,
+                predictions_ml_score,
+                predictions_heur_score,
+                raw_signals_score,
+                indicators_score,
+                market_score,
+                coverage_score,
+                consensus_score,
+                debug,
+            }))
         } else {
             Ok(None)
         }
     }
 
-    /// Calculates score based on predictions
-    async fn calculate_predictions_score(
-        &self,
-        predictions: &[PredictionRow],
-        symbol: &str,
-        timeframe: &str,
-    ) -> Result<f64> {
+    fn calculate_predictions_component(&self, predictions: &[PredictionRow]) -> Result<PredComponent> {
         if predictions.is_empty() {
-            return Ok(0.0);
+            return Ok(PredComponent::zero());
         }
 
-        // Group predictions by aspect
-        use std::collections::HashMap;
-        let mut aspect_scores: HashMap<i16, Vec<f64>> = HashMap::new();
+        // Per aspect best-by-score for ML and HEUR separately
+        let mut best_ml: std::collections::HashMap<i16, f64> = std::collections::HashMap::new();
+        let mut best_heur: std::collections::HashMap<i16, f64> = std::collections::HashMap::new();
 
-        for pred in predictions {
-            let aspect_key = pred.aspect.as_int();
-            let score = pred.score_norm as f64;
-            aspect_scores.entry(aspect_key).or_insert_with(Vec::new).push(score);
+        for p in predictions {
+            let aspect = p.aspect.as_int();
+            let score = (p.score_norm as f64).clamp(0.0, 1.0);
+
+            match p.calc_source {
+                PredictionCalcSource::Ml => {
+                    best_ml.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
+                }
+                PredictionCalcSource::Hard => {
+                    best_heur.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
+                }
+            }
         }
 
-        // Calculate weighted average of predictions
-        let mut total_weighted_score = 0.0;
-        let mut total_weight = 0.0;
+        // Aspect weights: target price is king, bounce/breakout slightly less.
+        let aspect_weight = |a: i16| -> f64 {
+            match a {
+                x if x == PredictionAspect::PriceTarget.as_int() => 1.00,
+                x if x == PredictionAspect::LevelBounce.as_int() => 0.85,
+                x if x == PredictionAspect::LevelBreak.as_int() => 0.85,
+                _ => 0.60,
+            }
+        };
 
-        for (aspect, scores) in aspect_scores {
-            // Calculate average score for this aspect
-            let avg_score = scores.iter().sum::<f64>() / scores.len() as f64;
-            
-            // Assign weight based on aspect importance
-            let aspect_weight = match aspect {
-                1 => 1.0, // Price target
-                2 => 0.8, // Level bounce
-                3 => 0.8, // Level break
-                _ => 0.5, // Other aspects
-            };
+        // Merge ML+HEUR into total by taking BEST-of-two per aspect, but keep their averages for consensus later
+        let mut total_ws = 0.0;
+        let mut total_w = 0.0;
 
-            total_weighted_score += avg_score * aspect_weight;
-            total_weight += aspect_weight;
+        let mut ml_ws = 0.0;
+        let mut ml_w = 0.0;
+
+        let mut heur_ws = 0.0;
+        let mut heur_w = 0.0;
+
+        // union of aspects
+        let mut aspects: std::collections::BTreeSet<i16> = std::collections::BTreeSet::new();
+        for k in best_ml.keys() { aspects.insert(*k); }
+        for k in best_heur.keys() { aspects.insert(*k); }
+
+        for a in aspects {
+            let w = aspect_weight(a);
+
+            let s_ml = best_ml.get(&a).copied().unwrap_or(0.0);
+            let s_heur = best_heur.get(&a).copied().unwrap_or(0.0);
+
+            let s_total = s_ml.max(s_heur);
+
+            total_ws += s_total * w;
+            total_w += w;
+
+            if s_ml > 0.0 {
+                ml_ws += s_ml * w;
+                ml_w += w;
+            }
+            if s_heur > 0.0 {
+                heur_ws += s_heur * w;
+                heur_w += w;
+            }
         }
 
-        if total_weight > 0.0 {
-            Ok(total_weighted_score / total_weight)
-        } else {
-            Ok(0.0)
+        let total = if total_w > 0.0 { total_ws / total_w } else { 0.0 };
+        let ml = if ml_w > 0.0 { ml_ws / ml_w } else { 0.0 };
+        let heur = if heur_w > 0.0 { heur_ws / heur_w } else { 0.0 };
+
+        Ok(PredComponent { total, ml, heur })
+    }
+
+    fn calculate_raw_signals_score(&self, raw_signals_summary: &Value) -> f64 {
+        // Use the strongest signals, not averages (you explicitly want "maximum of possible high-score signals")
+        let best_raw = raw_signals_summary.get("best_raw_signal_score")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        let best_levels = raw_signals_summary.get("best_levels_score")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        let best_momentum = raw_signals_summary.get("best_momentum_score")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        let best_volume = raw_signals_summary.get("best_volume_score")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        // Keep it simple: max pool with slight smoothing to avoid single-noise spikes
+        let m = best_raw.max(best_levels).max(best_momentum).max(best_volume);
+
+        // Smooth: if only one is high and others are 0, we don't want 1.0
+        let avg = (best_raw + best_levels + best_momentum + best_volume) / 4.0;
+        (0.75 * m + 0.25 * avg).clamp(0.0, 1.0)
+    }
+
+    fn calculate_indicator_score(&self, raw_signals_summary: &Value) -> f64 {
+        // Expected already normalized 0..1 in summary.
+        // If you don't have those fields yet, start writing them into raw_signals_summary in your aggregator.
+        let trend_strength = raw_signals_summary.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let momentum_strength = raw_signals_summary.get("momentum_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let volatility_regime = raw_signals_summary.get("volatility_regime").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let volume_spike = raw_signals_summary.get("volume_spike_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        // You can tune weights; keep balanced.
+        (0.30 * trend_strength + 0.30 * momentum_strength + 0.20 * (1.0 - volatility_regime) + 0.20 * volume_spike)
+            .clamp(0.0, 1.0)
+    }
+
+    fn calculate_feature_coverage_score(&self, predictions: &[PredictionRow], raw_signals_summary: &Value, has_market: bool) -> f64 {
+        // Prediction coverage: do we have main aspects?
+        let mut has_price_target = false;
+        let mut has_bounce = false;
+        let mut has_break = false;
+
+        for p in predictions {
+            match p.aspect {
+                PredictionAspect::PriceTarget => has_price_target = true,
+                PredictionAspect::LevelBounce => has_bounce = true,
+                PredictionAspect::LevelBreak => has_break = true,
+                _ => {}
+            }
         }
+
+        let pred_cov = (has_price_target as i32 + has_bounce as i32 + has_break as i32) as f64 / 3.0;
+
+        // Raw signals coverage: how many expected buckets are present?
+        // You should store these counts in summary (your aggregator must do it).
+        let raw_cov = raw_signals_summary.get("feature_coverage")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.6); // fallback: assume partial
+
+        let market_cov = if has_market { 1.0 } else { 0.0 };
+
+        // Weighted coverage: predictions + raw + market
+        (0.45 * pred_cov + 0.45 * raw_cov + 0.10 * market_cov).clamp(0.0, 1.0)
     }
 
-    /// Extracts levels context score from raw signals
-    fn extract_levels_context(&self, raw_signals_summary: &Value) -> f64 {
-        // Look for level-related signals in the raw signals
-        let levels_signal = raw_signals_summary.get("levels_signal")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Also consider proximity to levels
-        let level_proximity = raw_signals_summary.get("level_proximity")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Combine both signals
-        (levels_signal.abs() + level_proximity) / 2.0
-    }
-
-    /// Extracts trend score from raw signals
-    fn extract_trend_score(&self, raw_signals_summary: &Value) -> f64 {
-        // Look for trend signals
-        let trend_strength = raw_signals_summary.get("trend_strength")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Look for trend direction agreement
-        let trend_agreement = raw_signals_summary.get("trend_agreement")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Combine trend metrics
-        (trend_strength.abs() + trend_agreement.abs()) / 2.0
-    }
-
-    /// Extracts momentum score from raw signals
-    fn extract_momentum_score(&self, raw_signals_summary: &Value) -> f64 {
-        // Look for momentum signals
-        let momentum_strength = raw_signals_summary.get("momentum_strength")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Look for oscillator alignment
-        let oscillator_alignment = raw_signals_summary.get("oscillator_alignment")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Combine momentum metrics
-        (momentum_strength.abs() + oscillator_alignment.abs()) / 2.0
-    }
-
-    /// Extracts volatility score from raw signals
-    fn extract_volatility_score(&self, raw_signals_summary: &Value) -> f64 {
-        // Look for volatility regime signals
-        let volatility_regime = raw_signals_summary.get("volatility_regime")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Look for ATR-based signals
-        let atr_signal = raw_signals_summary.get("atr_signal")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Combine volatility metrics
-        (volatility_regime.abs() + atr_signal.abs()) / 2.0
-    }
-
-    /// Extracts volume score from raw signals
-    fn extract_volume_score(&self, raw_signals_summary: &Value) -> f64 {
-        // Look for volume signals
-        let volume_spike = raw_signals_summary.get("volume_spike")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Look for OBV trend
-        let obv_trend = raw_signals_summary.get("obv_trend")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        // Combine volume metrics
-        (volume_spike.abs() + obv_trend.abs()) / 2.0
-    }
-
-    /// Updates the strategy weights dynamically based on market conditions
-    pub fn update_weights_based_on_conditions(&mut self, market_conditions: &MarketConditions) {
-        // Adjust weights based on market conditions
-        if market_conditions.is_trending {
-            self.strategy_weights.trend_weight = 0.25;
-            self.strategy_weights.momentum_weight = 0.20;
-            self.strategy_weights.predictions_weight = 0.25;
-            self.strategy_weights.levels_context_weight = 0.15;
-            self.strategy_weights.volatility_weight = 0.075;
-            self.strategy_weights.volume_weight = 0.075;
-        } else if market_conditions.is_choppy {
-            self.strategy_weights.levels_context_weight = 0.3;
-            self.strategy_weights.predictions_weight = 0.25;
-            self.strategy_weights.volatility_weight = 0.2;
-            self.strategy_weights.trend_weight = 0.1;
-            self.strategy_weights.momentum_weight = 0.075;
-            self.strategy_weights.volume_weight = 0.075;
-        } else if market_conditions.high_volatility {
-            self.strategy_weights.volatility_weight = 0.2;
-            self.strategy_weights.predictions_weight = 0.25;
-            self.strategy_weights.volume_weight = 0.2;
-            self.strategy_weights.levels_context_weight = 0.15;
-            self.strategy_weights.trend_weight = 0.1;
-            self.strategy_weights.momentum_weight = 0.1;
+    fn calculate_ml_heuristic_consensus(&self, ml_score: f64, heur_score: f64) -> f64 {
+        // If one source missing -> treat as weaker consensus
+        if ml_score <= 0.0 || heur_score <= 0.0 {
+            return 0.65;
         }
-    }
-
-    /// Gets recent predictions for a symbol and timeframe
-    pub async fn get_recent_predictions(
-        &self,
-        db_pool: &sqlx::PgPool,
-        symbol_id: i64,
-        tf_minutes: i32,
-        min_score: f32,
-        limit: i32,
-    ) -> Result<Vec<PredictionRow>> {
-        persistence::get_recent_predictions(db_pool, symbol_id, tf_minutes, 
-                                         crate::predictions::types::PredictionAspect::PriceTarget, 
-                                         min_score, limit).await
+        let diff = (ml_score - heur_score).abs();
+        // 0 diff => 1.0, 0.4 diff => ~0.6
+        (1.0 - (diff / 0.4)).clamp(0.0, 1.0) * 0.4 + 0.6
     }
 }
 
-/// Market conditions that affect strategy weights
 #[derive(Debug, Clone)]
-pub struct MarketConditions {
-    pub is_trending: bool,
-    pub is_choppy: bool,
-    pub high_volatility: bool,
-    pub high_volume: bool,
-    pub trend_direction: Option<i8>, // None = neutral, 1 = up, -1 = down
+struct PredComponent {
+    total: f64,
+    ml: f64,
+    heur: f64,
 }
 
-impl MarketConditions {
-    pub fn new() -> Self {
-        Self {
-            is_trending: false,
-            is_choppy: false,
-            high_volatility: false,
-            high_volume: false,
-            trend_direction: None,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_strategy_weights_default() {
-        let weights = StrategyWeights::default();
-        assert_eq!(weights.predictions_weight, 0.3);
-        assert_eq!(weights.levels_context_weight, 0.25);
-        assert_eq!(weights.trend_weight, 0.15);
-        assert_eq!(weights.momentum_weight, 0.15);
-        assert_eq!(weights.volatility_weight, 0.075);
-        assert_eq!(weights.volume_weight, 0.075);
-    }
-
-    #[test]
-    fn test_final_scorer_creation() {
-        let scorer = FinalScorer::new(0.90);
-        assert_eq!(scorer.min_final_score, 0.90);
-    }
-
-    #[test]
-    fn test_market_conditions_new() {
-        let conditions = MarketConditions::new();
-        assert!(!conditions.is_trending);
-        assert!(!conditions.is_choppy);
-        assert!(!conditions.high_volatility);
-        assert!(!conditions.high_volume);
-        assert_eq!(conditions.trend_direction, None);
+impl PredComponent {
+    fn zero() -> Self {
+        Self { total: 0.0, ml: 0.0, heur: 0.0 }
     }
 }

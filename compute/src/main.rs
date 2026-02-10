@@ -5,7 +5,7 @@ use sqlx::Row;
 use dotenvy::dotenv;
 use raw_signals::thresholds::SignalConfig;
 use tracing_appender::rolling;
-use crate::predictors::pipeline::FeatureSnapshot;
+use crate::predictors::{feature_view::IndicatorsWideRow, pipeline::FeatureSnapshot};
 
 fn env_usize(key: &str, default: usize) -> usize {
     std::env::var(key)
@@ -323,39 +323,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if feature_window.is_realtime && n > 0 {
                 let last_idx = n - 1;
                 
-                // Create a simplified JSON representation of the indicators for this candle
-                let mut indicators_map = serde_json::Map::new();
+                let get_f32 = |name: &str, default: f32| -> f32 {
+                    feature_window.batch.get_f64(name)
+                        .and_then(|v| v.get(last_idx))
+                        .map(|&v| v as f32)
+                        .unwrap_or(default)
+                };
                 
-                // Add basic candle data
-                if let Some(timestamp) = feature_window.batch.timestamps.get(last_idx) {
-                    indicators_map.insert("timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(*timestamp)));
-                }
-                
-                for column in &feature_window.batch.columns {
-                    match column {
-                        FeatureColumn::F64 { name, values } => {
-                            if let Some(value) = values.get(last_idx) {
-                                if value.is_finite() {
-                                    indicators_map.insert(name.clone(), serde_json::Value::Number(serde_json::Number::from_f64(*value).unwrap()));
-                                }
-                            }
-                        }
-                        FeatureColumn::Json { name, values } => {
-                            if let Some(value) = values.get(last_idx) {
-                                if !value.is_null() {
-                                    indicators_map.insert(name.clone(), value.clone());
-                                }
-                            }
-                        }
-                    }
-                }
+                let indicators = IndicatorsWideRow {
+                    close: get_f32("close", 0.0),
+                    high: get_f32("high", 0.0),
+                    low: get_f32("low", 0.0),
+                    open: get_f32("open", 0.0),
+                    volume: get_f32("volume", 0.0),
+                    rsi: get_f32("rsi", 50.0),
+                    macd_line: get_f32("macd_line", 0.0),
+                    macd_signal: get_f32("macd_signal", 0.0),
+                    macd_histogram: get_f32("macd_histogram", 0.0),
+                    ema_20: get_f32("ema_20", 0.0),
+                    ema_50: get_f32("ema_50", 0.0),
+                    ema_200: get_f32("ema_200", 0.0),
+                    sma: get_f32("sma", 0.0),
+                    bb_upper: get_f32("bb_upper", 0.0),
+                    bb_lower: get_f32("bb_lower", 0.0),
+                    bb_middle: get_f32("bb_middle", 0.0),
+                    atr: get_f32("atr", 0.0),
+                    adx: get_f32("adx", 0.0),
+                    vwap: get_f32("vwap", 0.0),
+                    obv: get_f32("obv", 0.0),
+                    cci: get_f32("cci", 0.0),
+                    stoch_k: get_f32("stoch_k", 50.0),
+                    stoch_d: get_f32("stoch_d", 50.0),
+                    williams_r: get_f32("williams_r", -50.0),
+                    trend_short: get_f32("trend_short", 0.0),
+                    trend_medium: get_f32("trend_medium", 0.0),
+                    trend_long: get_f32("trend_long", 0.0),
+                    volume_sma: get_f32("volume_sma", 0.0),
+                    volume_spike: get_f32("volume_spike", 0.0),
+                };
+            
+                let sr_levels = feature_window.batch.get_json("sr_levels")
+                    .and_then(|v| v.get(last_idx))
+                    .cloned();
 
                 let snapshot = FeatureSnapshot {
                     timestamp: chrono::DateTime::from_timestamp(feature_window.batch.timestamps[last_idx] / 1000, 0).unwrap_or(chrono::Utc::now()),
                     symbol: feature_window.symbol.clone(),
                     timeframe: feature_window.timeframe.as_str().to_string(),
-                    indicators_data: serde_json::Value::Object(indicators_map),
+                    indicators,
                     raw_signals_data: None, // Could be populated if needed
+                    sr_levels,
                 };
 
                 let _ = feature_tx_clone.send(snapshot);
@@ -399,8 +416,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Initialize Redpanda client for predictions pipeline
-    let redpanda_client = connections_lib::RedpandaClient::new(connections_lib::RedpandaConfig::from_env()?).await?;
+    // Initialize MessageBus for predictions pipeline
+    let message_bus = common::MessageBus::new_from_env()?;
 
     // Initialize PredictionsPipeline
     let predictions_config = PredictionsConfig {
@@ -418,7 +435,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut predictions_pipeline = PredictionsPipeline::new(
         predictions_config,
         db_pool.clone(),
-        redpanda_client,
+        message_bus,
         shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
     );
 

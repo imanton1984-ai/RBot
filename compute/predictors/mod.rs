@@ -14,5 +14,6 @@ pub mod feature_view;
 pub mod level_view;
 pub mod scoring;
 pub mod persistence;
+pub mod feature_schema;
 pub mod pipeline;
 pub mod consensus;

@@ -12,6 +12,27 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::error;
 
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub enum Codec {
+    Json,
+    Bincode,
+}
+
+pub fn encode<T: Serialize>(codec: Codec, v: &T) -> anyhow::Result<Vec<u8>> {
+    match codec {
+        Codec::Json => Ok(serde_json::to_vec(v)?),
+        Codec::Bincode => Ok(bincode::serialize(v)?),
+    }
+}
+
+pub fn decode<T: DeserializeOwned>(codec: Codec, bytes: &[u8]) -> anyhow::Result<T> {
+    match codec {
+        Codec::Json => Ok(serde_json::from_slice(bytes)?),
+        Codec::Bincode => Ok(bincode::deserialize(bytes)?),
+    }
+}
+
+
 #[derive(Clone, Debug)]
 pub struct MessageBusConfig {
     pub brokers: String,
@@ -169,8 +190,8 @@ impl MessageBus {
         }
     }
 
-    pub async fn publish<T: Serialize>(&self, topic: &str, key: &[u8], message: &T) -> Result<()> {
-        self.publish_partitioned(topic, key, message, None).await
+    pub async fn publish<T: Serialize>(&self, topic: &str, key: &[u8], message: &T, codec: Codec) -> Result<()> {
+        self.publish_partitioned(topic, key, message, None, codec).await
     }
 
     pub async fn publish_partitioned<T: Serialize>(
@@ -179,8 +200,9 @@ impl MessageBus {
         key: &[u8],
         message: &T,
         partition: Option<i32>,
+        codec: Codec,
     ) -> Result<()> {
-        let payload = serde_json::to_vec(message)?;
+        let payload = encode(codec, message)?;
         let msg = OutboundMessage {
             topic: self.topic(topic),
             key: key.to_vec(),
@@ -194,6 +216,7 @@ impl MessageBus {
         &self,
         topic: &str,
         group_id: &str,
+        codec: Codec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<IncomingMessage<T>>> + Send>>> {
         let consumer: StreamConsumer = ClientConfig::new()
             .set("bootstrap.servers", &self.config.brokers)
@@ -219,7 +242,7 @@ impl MessageBus {
                             Some(p) => p,
                             None => continue,
                         };
-                        let decoded: Result<T> = serde_json::from_slice(payload).map_err(|e| anyhow!("Deserialize error: {}", e));
+                        let decoded: Result<T> = decode(codec, payload).map_err(|e| anyhow!("Deserialize error: {}", e));
                         let item = decoded.map(|payload| IncomingMessage {
                             key: owned.key().unwrap_or(&[]).to_vec(),
                             payload,

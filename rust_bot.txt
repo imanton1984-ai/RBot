@@ -2207,55 +2207,159 @@ networks:
 
 
 
-# trainer/src/train_stub.py
+# trainer/src/train_from_db.py
 
-import numpy as np
-import pandas as pd
-import xgboost as xgb
-import onnx
 import os
-from skl2onnx import convert_sklearn
+import pandas as pd
+import numpy as np
+import xgboost as xgb
+import sqlalchemy
+from skl2onnx.common.data_types import FloatTensorType
 from onnxmltools import convert_xgboost
-from onnxmltools.convert.common.data_types import FloatTensorType
+import onnx
 
-# Настройки
+# --- КОНФИГУРАЦИЯ ---
+DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/timescaledb_binance")
+SYMBOL = "BTCUSDT"
+TIMEFRAME = 5 # 5 minutes
+HORIZON = 10  # Предсказываем на 10 свечей вперед
 MODEL_DIR = "../models"
-os.makedirs(MODEL_DIR, exist_ok=True)
 
-# 1. Генерация фиктивных данных (имитация фичей из Rust: RSI, EMA, MACD...)
-# Допустим, у нас 50 входных фичей
-N_FEATURES = 50
-N_SAMPLES = 1000
+# Список фичей, которые ДОЛЖНЫ совпадать с тем, что вы подаете в Rust (FeatureView)
+FEATURES = [
+    'close', 'high', 'low', 'open',
+    'rsi', 'macd', 'macd_signal', 'macd_hist',
+    'ema_20', 'ema_50', 'ema_200', 'sma',
+    'bb_upper', 'bb_lower', 'bb_mid',
+    'atr', 'adx', 'vwap', 'obv', 'cci',
+    'stoch_k', 'stoch_d', 'williams',
+    'trend', 'trend_short', 'volume'
+]
 
-X = np.random.rand(N_SAMPLES, N_FEATURES).astype(np.float32)
-# Целевая переменная (например, изменение цены через 10 баров)
-y_price = X[:, 0] * 0.5 + X[:, 1] * -0.2 + np.random.normal(0, 0.1, N_SAMPLES)
-# Целевая переменная для уровней (0 - нет уровня, 1 - уровень)
-y_level = (X[:, 2] > 0.8).astype(int)
+def load_data():
+    print(f"Connecting to {DB_URL}...")
+    engine = sqlalchemy.create_engine(DB_URL)
+    
+    # Формируем SQL запрос. Важно: порядок колонок должен быть жестким, 
+    # либо в Rust мы должны маппить их по именам.
+    cols = ", ".join(FEATURES)
+    query = f"""
+        SELECT {cols}
+        FROM market.indicators_wide
+        WHERE symbol = '{SYMBOL}' AND tf_minutes = {TIMEFRAME}
+        ORDER BY time ASC
+    """
+    print("Fetching data...")
+    df = pd.read_sql(query, engine)
+    
+    # Заменяем NULL на 0 (или среднее), чтобы XGBoost не падал при конвертации
+    df = df.fillna(0.0)
+    
+    # Конвертируем все в float32 (требование ONNX Runtime в Rust)
+    for c in df.columns:
+        df[c] = df[c].astype(np.float32)
+        
+    return df
 
-print("Training Price Regressor (XGBoost)...")
-# Обучаем простую модель
-reg = xgb.XGBRegressor(n_estimators=100, max_depth=3)
-reg.fit(X, y_price)
+def train_price_model(df):
+    print("Training Price Prediction Model...")
+    
+    # Target: Цена через N свечей
+    # shift(-HORIZON) берет цену "из будущего" и ставит в текущую строку для обучения
+    y = df['close'].shift(-HORIZON)
+    X = df[FEATURES]
+    
+    # Удаляем последние N строк, где нет target
+    X = X.iloc[:-HORIZON]
+    y = y.iloc[:-HORIZON]
+    
+    # Обучение
+    model = xgb.XGBRegressor(
+        n_estimators=100, 
+        max_depth=5, 
+        learning_rate=0.05, 
+        objective='reg:squarederror',
+        n_jobs=-1
+    )
+    model.fit(X, y)
+    
+    # Оценка (простая)
+    score = model.score(X, y)
+    print(f"R^2 Score on train set: {score:.4f}")
+    
+    return model
 
-# Экспорт в ONNX
-initial_type = [('float_input', FloatTensorType([None, N_FEATURES]))]
-onnx_model_price = convert_xgboost(reg, initial_types=initial_type)
-onnx.save_model(onnx_model_price, os.path.join(MODEL_DIR, "price_v1.onnx"))
-print(f"Saved {MODEL_DIR}/price_v1.onnx")
+def export_to_onnx(model, filename):
+    print(f"Exporting to {filename}...")
+    
+    # Описываем входной тензор: [None (любой batch size), кол-во фичей]
+    initial_type = [('float_input', FloatTensorType([None, len(FEATURES)]))]
+    
+    onnx_model = convert_xgboost(model, initial_types=initial_type)
+    
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    full_path = os.path.join(MODEL_DIR, filename)
+    onnx.save_model(onnx_model, full_path)
+    print(f"Saved model to {full_path}")
 
-print("Training Level Classifier (Scikit-Learn)...")
-from sklearn.ensemble import RandomForestClassifier
-clf = RandomForestClassifier(n_estimators=50, max_depth=5)
-clf.fit(X, y_level)
+def train_level_model(df):
+    print("Training Level Prediction Model...")
+    
+    # Target: классификация (пробой/отскок от уровня)
+    # Для примера, создадим искусственную целевую переменную
+    # В реальности это будет более сложная логика на основе SR уровней
+    
+    # Создаем фиктивные уровни (в реальности они будут из SR уровней)
+    df['avg_price'] = df['close'].rolling(window=20).mean()
+    df['is_near_level'] = abs(df['close'] - df['avg_price']) < (df['atr'] * 0.5)  # Рядом с уровнем
+    
+    # Целевая переменная: 1 если пробой, 0 если отскок (упрощенно)
+    df['next_direction'] = (df['close'].shift(-HORIZON) > df['close']).astype(int)
+    
+    y = df['next_direction']
+    X = df[FEATURES]
+    
+    # Удаляем последние N строк, где нет target
+    X = X.iloc[:-HORIZON]
+    y = y.iloc[:-HORIZON]
+    
+    # Убираем строки с NaN
+    mask = ~(X.isna().any(axis=1) | y.isna())
+    X = X[mask]
+    y = y[mask]
+    
+    # Обучение модели классификации
+    model = xgb.XGBClassifier(
+        n_estimators=100,
+        max_depth=5,
+        learning_rate=0.05,
+        n_jobs=-1
+    )
+    model.fit(X, y)
+    
+    # Оценка
+    score = model.score(X, y)
+    print(f"Accuracy Score on train set: {score:.4f}")
+    
+    return model
 
-# Экспорт в ONNX
-# Для sklearn нужен skl2onnx
-onnx_model_level = convert_sklearn(clf, initial_types=initial_type)
-onnx.save_model(onnx_model_level, os.path.join(MODEL_DIR, "levels_v1.onnx"))
-print(f"Saved {MODEL_DIR}/levels_v1.onnx")
-
-print("Done. Ready for Rust ingestion.")
+if __name__ == "__main__":
+    try:
+        df = load_data()
+        if len(df) < 200:
+            print("Not enough data to train! Run the bot to collect candles first.")
+        else:
+            # Обучаем модель предсказания цены
+            price_model = train_price_model(df)
+            export_to_onnx(price_model, "price_v1.onnx")
+            
+            # Обучаем модель предсказания уровней
+            level_model = train_level_model(df)
+            export_to_onnx(level_model, "levels_v1.onnx")
+            
+            print("Training complete.")
+    except Exception as e:
+        print(f"Error: {e}")
 
 
 # cuda/Cargo.toml
@@ -4660,6 +4764,33 @@ echo "STOP DONE @ $(date)"
 echo "Logs in : $LOG_DIR"
 echo "==========================================="
 
+
+
+# scripts/teacher.sh
+
+#!/bin/bash
+
+# Script to run the Python training script in the virtual environment
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+TRAINER_DIR="$PROJECT_ROOT/trainer"
+
+echo "Running Python training script in virtual environment..."
+echo "Project root: $PROJECT_ROOT"
+echo "Trainer directory: $TRAINER_DIR"
+
+# Activate the virtual environment and run the training script
+cd "$TRAINER_DIR" && source .venv/bin/activate && python src/train_from_db.py
+
+# Check if the command was successful
+if [ $? -eq 0 ]; then
+    echo "Training script executed successfully!"
+else
+    echo "Training script failed!"
+    exit 1
+fi
 
 
 # scripts/test_connection.sh
@@ -19042,26 +19173,6 @@ impl OnnxRunner {
         Ok(result)
     }
 }
-
-
-# compute/predictors/ml/trainer/export_onnx.py
-
-
-
-
-# compute/predictors/ml/trainer/features.py
-
-
-
-
-# compute/predictors/ml/trainer/schedule.py
-
-
-
-
-# compute/predictors/ml/trainer/train.py
-
-
 
 
 # compute/src/bootstrap_coordinator.rs
