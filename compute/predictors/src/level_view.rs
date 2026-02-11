@@ -46,7 +46,7 @@ impl LevelView {
                 f32::MAX
             };
             
-            let is_near = distance_atr <= 1.0; // Within 1 ATR
+            let is_near = distance_atr <= 3.0; // Within 3 ATR
             
             processed_levels.push(ProcessedLevel {
                 level_hash: level.hash,

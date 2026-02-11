@@ -18440,13 +18440,106 @@ impl FeatureView {
     pub fn get_sr_levels(&self) -> Result<Vec<SrLevel>> {
         match &self.sr_levels {
             Some(json_val) => {
-                // Parse the JSON value into a vector of SR levels
-                let levels: Vec<SrLevel> = serde_json::from_value(json_val.clone())
-                    .map_err(|e| anyhow::anyhow!("Failed to parse SR levels: {}", e))?;
-                Ok(levels)
+                // Check if the JSON value is an object (the SRLLevels struct format)
+                if let serde_json::Value::Object(ref obj) = json_val {
+                    // Handle the SRLLevels struct format by converting to individual SrLevel objects
+                    let levels = self.convert_srl_levels_to_sr_levels(obj)?;
+                    Ok(levels)
+                } else {
+                    // If it's already an array of SrLevel objects, parse directly
+                    let levels: Vec<SrLevel> = serde_json::from_value(json_val.clone())
+                        .map_err(|e| anyhow::anyhow!("Failed to parse SR levels: {}", e))?;
+                    Ok(levels)
+                }
             }
             None => Ok(Vec::new()),
         }
+    }
+
+    /// Converts SRLLevels struct format to individual SrLevel objects
+    fn convert_srl_levels_to_sr_levels(&self, obj: &serde_json::Map<String, serde_json::Value>) -> Result<Vec<SrLevel>> {
+        let mut levels = Vec::new();
+
+        // Extract individual level values from the SRLLevels struct
+        if let Some(strong_support_val) = obj.get("strong_support") {
+            if let Some(price) = strong_support_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Support,
+                        strength: 0.9, // Strong support
+                        hash: format!("support_strong_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(mid_support_val) = obj.get("mid_support") {
+            if let Some(price) = mid_support_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Support,
+                        strength: 0.6, // Mid support
+                        hash: format!("support_mid_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(light_support_val) = obj.get("light_support") {
+            if let Some(price) = light_support_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Support,
+                        strength: 0.3, // Light support
+                        hash: format!("support_light_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(strong_resistance_val) = obj.get("strong_resistance") {
+            if let Some(price) = strong_resistance_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Resistance,
+                        strength: 0.9, // Strong resistance
+                        hash: format!("resistance_strong_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(mid_resistance_val) = obj.get("mid_resistance") {
+            if let Some(price) = mid_resistance_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Resistance,
+                        strength: 0.6, // Mid resistance
+                        hash: format!("resistance_mid_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(light_resistance_val) = obj.get("light_resistance") {
+            if let Some(price) = light_resistance_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Resistance,
+                        strength: 0.3, // Light resistance
+                        hash: format!("resistance_light_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        Ok(levels)
     }
     pub fn get_value(&self, name: &str) -> f32 {
         if let Some(val) = self.custom_features.get(name) {
@@ -18562,7 +18655,7 @@ impl LevelView {
                 f32::MAX
             };
             
-            let is_near = distance_atr <= 1.0; // Within 1 ATR
+            let is_near = distance_atr <= 3.0; // Within 3 ATR
             
             processed_levels.push(ProcessedLevel {
                 level_hash: level.hash,
@@ -20181,39 +20274,62 @@ pub struct LevelPredictorHeuristic;
 impl LevelPredictorHeuristic {
     pub fn new() -> Self { Self }
 
-    pub fn predict(&self, symbol: &str, timeframe: &str, features: &FeatureView) -> Result<Option<(ProcessedLevel, f64, f64, f64)>> {
-        // 1. Получаем уровни
+    pub fn predict(
+        &self,
+        symbol: &str,
+        timeframe: &str,
+        features: &FeatureView,
+    ) -> Result<Option<(ProcessedLevel, f64, f64, f64)>> {
+
         let sr_levels = features.get_sr_levels()?;
-        if sr_levels.is_empty() { return Ok(None); }
-
-        let atr = features.indicators.atr;
-        // Создаем LevelView (уже есть в коде)
-        let level_view = LevelView::new(sr_levels, features.indicators.close as f64, atr as f64, features.timestamp, symbol.to_string(), timeframe.to_string(), 2)?;
-
-        // 2. Ищем ближайший уровень
-        let levels = level_view.get_near_levels();
-        if let Some(level) = levels.first() {
-            // Эвристика:
-            // Если цена подходит к уровню на малом объеме -> отскок (Bounce)
-            // Если на большом объеме + сильный моментум -> пробой (Breakout)
-
-            let volume_spike = features.indicators.volume_spike;
-            let momentum = features.indicators.macd_histogram.abs();
-
-            let mut prob_break: f64 = 0.3;
-            if volume_spike > 2.0 && momentum > 0.5 {
-                prob_break = 0.85;
-            }
-
-            let prob_bounce = 1.0 - prob_break;
-            let score = prob_bounce.max(prob_break); // Уверенность
-
-            if score >= 0.80 {
-                return Ok(Some(((*level).clone(), prob_bounce, prob_break, score)));
-            }
+        if sr_levels.is_empty() {
+            return Ok(None);
         }
 
-        Ok(None)
+        let atr = features.indicators.atr;
+
+        let level_view = LevelView::new(
+            sr_levels,
+            features.indicators.close as f64,
+            atr as f64,
+            features.timestamp,
+            symbol.to_string(),
+            timeframe.to_string(),
+            2,
+        )?;
+
+        // ⬇️ ВАЖНО: если near нет — берём ближайший уровень
+        let level = level_view
+            .get_near_levels()
+            .first()
+            .cloned()
+            .or_else(|| level_view.levels.first());
+
+        let Some(level) = level else {
+            return Ok(None);
+        };
+
+        let volume_spike = features.indicators.volume_spike as f64;
+        let momentum = features.indicators.macd_histogram.abs() as f64;
+
+        // Базовая логика
+        let mut prob_break: f64 = 0.3;
+
+        if volume_spike > 1.5 {
+            prob_break += 0.2;
+        }
+
+        if momentum > 0.3 {
+            prob_break += 0.2;
+        }
+
+        prob_break = prob_break.min(0.95);
+        let prob_bounce = 1.0 - prob_break;
+
+        let score = prob_bounce.max(prob_break);
+
+        // ❗ Убираем жёсткий фильтр 0.80
+        Ok(Some((level.clone(), prob_bounce, prob_break, score)))
     }
 }
 
@@ -22177,7 +22293,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_writer(non_blocking)
         .with_target(true)
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::WARN)
         .with_ansi(false) // Disable ANSI colors for log file
         .init();
 
