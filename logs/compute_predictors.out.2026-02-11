@@ -1,0 +1,1050 @@
+2026-02-11T18:35:44.934561Z  INFO database_lib::init_db: Starting database initialization process...
+2026-02-11T18:35:44.940580Z  INFO database_lib::init_db: Database connection test successful
+2026-02-11T18:35:44.940591Z  INFO database_lib::init_db: Initializing database schema...
+2026-02-11T18:35:44.940593Z  INFO database_lib::init_db: Executing DDL file #0...
+2026-02-11T18:35:44.945935Z  INFO sqlx::postgres::notice: relation "integration_test_data" already exists, skipping
+2026-02-11T18:35:44.946168Z  INFO sqlx::postgres::notice: relation "cross_system_test" already exists, skipping
+2026-02-11T18:35:44.948228Z  INFO sqlx::postgres::notice: relation "idx_integration_test_timestamp" already exists, skipping
+2026-02-11T18:35:44.948460Z  INFO sqlx::postgres::notice: relation "idx_cross_system_test_timestamp" already exists, skipping
+2026-02-11T18:35:44.948996Z  INFO sqlx::postgres::notice: relation "idx_integration_symbol" already exists, skipping
+2026-02-11T18:35:44.949100Z  INFO sqlx::postgres::notice: relation "idx_cross_system_symbol" already exists, skipping
+2026-02-11T18:35:44.949148Z  INFO database_lib::init_db: Successfully executed DDL file #0
+2026-02-11T18:35:44.949150Z  INFO database_lib::init_db: Executing DDL file #1...
+2026-02-11T18:35:44.949523Z  INFO sqlx::postgres::notice: extension "timescaledb" already exists, skipping
+2026-02-11T18:35:44.949568Z  INFO sqlx::postgres::notice: extension "pgcrypto" already exists, skipping
+2026-02-11T18:35:44.949626Z  INFO sqlx::postgres::notice: schema "market" already exists, skipping
+2026-02-11T18:35:44.949694Z  INFO sqlx::postgres::notice: schema "trade" already exists, skipping
+2026-02-11T18:35:44.949758Z  INFO sqlx::postgres::notice: schema "core" already exists, skipping
+2026-02-11T18:35:44.949769Z  INFO database_lib::init_db: Successfully executed DDL file #1
+2026-02-11T18:35:44.949770Z  INFO database_lib::init_db: Executing DDL file #2...
+2026-02-11T18:35:44.950038Z  INFO sqlx::postgres::notice: relation "pairs" already exists, skipping
+2026-02-11T18:35:44.950395Z  INFO sqlx::postgres::notice: relation "ix_pairs_active" already exists, skipping
+2026-02-11T18:35:44.950659Z  INFO sqlx::postgres::notice: relation "ix_pairs_volume" already exists, skipping
+2026-02-11T18:35:44.950752Z  INFO sqlx::postgres::notice: relation "collected_candles" already exists, skipping
+2026-02-11T18:35:44.950761Z  INFO database_lib::init_db: Successfully executed DDL file #2
+2026-02-11T18:35:44.950763Z  INFO database_lib::init_db: Executing DDL file #3...
+2026-02-11T18:35:44.951131Z  INFO sqlx::postgres::notice: relation "candles_1m" already exists, skipping
+2026-02-11T18:35:44.951396Z  INFO sqlx::postgres::notice: relation "candles_5m" already exists, skipping
+2026-02-11T18:35:44.951473Z  INFO sqlx::postgres::notice: relation "candles_15m" already exists, skipping
+2026-02-11T18:35:44.951543Z  INFO sqlx::postgres::notice: relation "candles_1h" already exists, skipping
+2026-02-11T18:35:44.951609Z  INFO sqlx::postgres::notice: relation "candles_4h" already exists, skipping
+2026-02-11T18:35:44.951682Z  INFO sqlx::postgres::notice: relation "candles_1d" already exists, skipping
+2026-02-11T18:35:44.954393Z  INFO sqlx::postgres::notice: table "candles_1m" is already a hypertable, skipping
+2026-02-11T18:35:44.954580Z  INFO sqlx::postgres::notice: table "candles_5m" is already a hypertable, skipping
+2026-02-11T18:35:44.954713Z  INFO sqlx::postgres::notice: table "candles_15m" is already a hypertable, skipping
+2026-02-11T18:35:44.954884Z  INFO sqlx::postgres::notice: table "candles_1h" is already a hypertable, skipping
+2026-02-11T18:35:44.955023Z  INFO sqlx::postgres::notice: table "candles_4h" is already a hypertable, skipping
+2026-02-11T18:35:44.955176Z  INFO sqlx::postgres::notice: table "candles_1d" is already a hypertable, skipping
+2026-02-11T18:35:44.956054Z  INFO sqlx::postgres::notice: relation "ix_candles_1m_symbol_time_desc" already exists, skipping
+2026-02-11T18:35:44.956254Z  INFO sqlx::postgres::notice: relation "ix_candles_5m_symbol_time_desc" already exists, skipping
+2026-02-11T18:35:44.956429Z  INFO sqlx::postgres::notice: relation "ix_candles_15m_symbol_time_desc" already exists, skipping
+2026-02-11T18:35:44.956629Z  INFO sqlx::postgres::notice: relation "ix_candles_1h_symbol_time_desc" already exists, skipping
+2026-02-11T18:35:44.956812Z  INFO sqlx::postgres::notice: relation "ix_candles_4h_symbol_time_desc" already exists, skipping
+2026-02-11T18:35:44.957016Z  INFO sqlx::postgres::notice: relation "ix_candles_1d_symbol_time_desc" already exists, skipping
+2026-02-11T18:35:44.957055Z  INFO database_lib::init_db: Successfully executed DDL file #3
+2026-02-11T18:35:44.957058Z  INFO database_lib::init_db: Executing DDL file #4...
+2026-02-11T18:35:44.957358Z  INFO sqlx::postgres::notice: schema "market" already exists, skipping
+2026-02-11T18:35:44.957437Z  INFO sqlx::postgres::notice: relation "candles_live" already exists, skipping
+2026-02-11T18:35:44.958039Z  INFO sqlx::postgres::notice: relation "candles_live_tf_time_idx" already exists, skipping
+2026-02-11T18:35:44.958211Z  INFO sqlx::postgres::notice: relation "candles_live_symbol_tf_time_idx" already exists, skipping
+2026-02-11T18:35:44.958253Z  INFO database_lib::init_db: Successfully executed DDL file #4
+2026-02-11T18:35:44.958255Z  INFO database_lib::init_db: Executing DDL file #5...
+2026-02-11T18:35:44.958510Z  INFO sqlx::postgres::notice: relation "candles_staging" already exists, skipping
+2026-02-11T18:35:44.958585Z  INFO sqlx::postgres::notice: relation "indicators_staging" already exists, skipping
+2026-02-11T18:35:44.958892Z  INFO sqlx::postgres::notice: relation "ix_candles_staging_symbol_time" already exists, skipping
+2026-02-11T18:35:44.959121Z  INFO sqlx::postgres::notice: relation "ix_ind_staging_symbol_time" already exists, skipping
+2026-02-11T18:35:44.959129Z  INFO database_lib::init_db: Successfully executed DDL file #5
+2026-02-11T18:35:44.959130Z  INFO database_lib::init_db: Executing DDL file #6...
+2026-02-11T18:35:44.959405Z  INFO sqlx::postgres::notice: schema "market" already exists, skipping
+2026-02-11T18:35:44.959483Z  INFO sqlx::postgres::notice: extension "timescaledb" already exists, skipping
+2026-02-11T18:35:44.963469Z  INFO sqlx::postgres::notice: drop cascades to view market.indicators
+2026-02-11T18:35:45.001498Z  INFO database_lib::init_db: Successfully executed DDL file #6
+2026-02-11T18:35:45.001507Z  INFO database_lib::init_db: Executing DDL file #7...
+2026-02-11T18:35:45.001885Z  INFO sqlx::postgres::notice: schema "market" already exists, skipping
+2026-02-11T18:35:45.001965Z  INFO sqlx::postgres::notice: extension "timescaledb" already exists, skipping
+2026-02-11T18:35:45.041023Z  INFO database_lib::init_db: Successfully executed DDL file #7
+2026-02-11T18:35:45.041030Z  INFO database_lib::init_db: Executing DDL file #8...
+2026-02-11T18:35:45.041712Z  INFO sqlx::postgres::notice: column "symbol" of relation "candles_1m" already exists, skipping
+2026-02-11T18:35:45.042009Z  INFO sqlx::postgres::notice: column "symbol" of relation "candles_5m" already exists, skipping
+2026-02-11T18:35:45.042245Z  INFO sqlx::postgres::notice: column "symbol" of relation "candles_15m" already exists, skipping
+2026-02-11T18:35:45.042550Z  INFO sqlx::postgres::notice: column "symbol" of relation "candles_1h" already exists, skipping
+2026-02-11T18:35:45.042866Z  INFO sqlx::postgres::notice: column "symbol" of relation "candles_4h" already exists, skipping
+2026-02-11T18:35:45.043171Z  INFO sqlx::postgres::notice: column "symbol" of relation "candles_1d" already exists, skipping
+2026-02-11T18:35:45.043311Z  INFO sqlx::postgres::notice: column "symbol" of relation "candles_live" already exists, skipping
+2026-02-11T18:35:45.043606Z  INFO sqlx::postgres::notice: column "symbol" of relation "indicators_wide" already exists, skipping
+2026-02-11T18:35:45.043890Z  INFO sqlx::postgres::notice: column "symbol" of relation "raw_signals" already exists, skipping
+2026-02-11T18:35:45.053321Z  INFO sqlx::postgres::notice: relation "ix_candles_1m_symbol" already exists, skipping
+2026-02-11T18:35:45.053379Z  INFO sqlx::postgres::notice: relation "ix_candles_5m_symbol" already exists, skipping
+2026-02-11T18:35:45.053506Z  INFO sqlx::postgres::notice: relation "ix_candles_15m_symbol" already exists, skipping
+2026-02-11T18:35:45.053580Z  INFO sqlx::postgres::notice: relation "ix_candles_1h_symbol" already exists, skipping
+2026-02-11T18:35:45.053686Z  INFO sqlx::postgres::notice: relation "ix_candles_4h_symbol" already exists, skipping
+2026-02-11T18:35:45.053762Z  INFO sqlx::postgres::notice: relation "ix_candles_1d_symbol" already exists, skipping
+2026-02-11T18:35:45.053854Z  INFO sqlx::postgres::notice: relation "ix_candles_live_symbol" already exists, skipping
+2026-02-11T18:35:45.057410Z  INFO sqlx::postgres::notice: relation "ix_raw_signals_symbol" already exists, skipping
+2026-02-11T18:35:45.057496Z  INFO database_lib::init_db: Successfully executed DDL file #8
+2026-02-11T18:35:45.057499Z  INFO database_lib::init_db: Executing DDL file #9...
+2026-02-11T18:35:45.058576Z  INFO sqlx::postgres::notice: relation "final_signals" already exists, skipping
+2026-02-11T18:35:45.058649Z  INFO sqlx::postgres::notice: relation "orders" already exists, skipping
+2026-02-11T18:35:45.058712Z  INFO sqlx::postgres::notice: relation "positions" already exists, skipping
+2026-02-11T18:35:45.058787Z  INFO sqlx::postgres::notice: relation "position_events" already exists, skipping
+2026-02-11T18:35:45.058833Z  INFO sqlx::postgres::notice: relation "ml_train_examples" already exists, skipping
+2026-02-11T18:35:45.059155Z ERROR database_lib::init_db: Error executing DDL file #9: error returned from database: trigger "trg_sync_final_signals" for relation "final_signals" already exists
+2026-02-11T18:35:45.059159Z  INFO database_lib::init_db: Executing DDL file #10...
+2026-02-11T18:35:45.060251Z ERROR database_lib::init_db: Error executing DDL file #10: error returned from database: constraint "chk_final_tf" for relation "final_signals" already exists
+2026-02-11T18:35:45.060256Z  INFO database_lib::init_db: Executing DDL file #11...
+2026-02-11T18:35:45.071278Z  INFO database_lib::init_db: Successfully executed DDL file #11
+2026-02-11T18:35:45.071282Z  INFO database_lib::init_db: Executing DDL file #12...
+2026-02-11T18:35:45.071807Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "candles_1m", skipping
+2026-02-11T18:35:45.071953Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "candles_5m", skipping
+2026-02-11T18:35:45.072068Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "candles_15m", skipping
+2026-02-11T18:35:45.072216Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "candles_1h", skipping
+2026-02-11T18:35:45.072324Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "candles_4h", skipping
+2026-02-11T18:35:45.072449Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "candles_1d", skipping
+2026-02-11T18:35:45.072792Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "final_signals", skipping
+2026-02-11T18:35:45.072963Z  INFO sqlx::postgres::notice: retention policy already exists for hypertable "ml_train_examples", skipping
+2026-02-11T18:35:45.073962Z  INFO sqlx::postgres::notice: compression policy already exists for hypertable "candles_1m", skipping
+2026-02-11T18:35:45.074035Z  INFO sqlx::postgres::notice: compression policy already exists for hypertable "candles_5m", skipping
+2026-02-11T18:35:45.074128Z  INFO sqlx::postgres::notice: compression policy already exists for hypertable "candles_15m", skipping
+2026-02-11T18:35:45.074211Z  INFO sqlx::postgres::notice: compression policy already exists for hypertable "candles_1h", skipping
+2026-02-11T18:35:45.074276Z  INFO sqlx::postgres::notice: compression policy already exists for hypertable "candles_4h", skipping
+2026-02-11T18:35:45.074359Z  INFO sqlx::postgres::notice: compression policy already exists for hypertable "candles_1d", skipping
+2026-02-11T18:35:45.074671Z  WARN sqlx::postgres::notice: compression policy already exists for hypertable "indicators_wide"
+2026-02-11T18:35:45.074729Z  INFO database_lib::init_db: Successfully executed DDL file #12
+2026-02-11T18:35:45.074731Z  INFO database_lib::init_db: Executing DDL file #13...
+2026-02-11T18:35:45.078391Z  INFO database_lib::init_db: Successfully executed DDL file #13
+2026-02-11T18:35:45.078394Z  INFO database_lib::init_db: Executing DDL file #14...
+2026-02-11T18:35:45.091534Z  INFO database_lib::init_db: Successfully executed DDL file #14
+2026-02-11T18:35:45.091538Z  INFO database_lib::init_db: Executing DDL file #15...
+2026-02-11T18:35:45.091933Z  INFO sqlx::postgres::notice: relation "predictor_registry" already exists, skipping
+2026-02-11T18:35:45.092330Z  INFO sqlx::postgres::notice: relation "ix_predictor_registry_active" already exists, skipping
+2026-02-11T18:35:45.092403Z  INFO sqlx::postgres::notice: relation "predictors" already exists, skipping
+2026-02-11T18:35:45.092774Z  INFO sqlx::postgres::notice: table "predictors" is already a hypertable, skipping
+2026-02-11T18:35:45.093251Z  INFO sqlx::postgres::notice: relation "ix_predictors_symbol_tf_time" already exists, skipping
+2026-02-11T18:35:45.094427Z  INFO sqlx::postgres::notice: relation "ix_predictors_aspect_score_hi" already exists, skipping
+2026-02-11T18:35:45.094542Z  INFO sqlx::postgres::notice: relation "ix_predictors_level_hash" already exists, skipping
+2026-02-11T18:35:45.094673Z  INFO sqlx::postgres::notice: relation "ix_predictors_predictor_time" already exists, skipping
+2026-02-11T18:35:45.094681Z  INFO database_lib::init_db: Successfully executed DDL file #15
+2026-02-11T18:35:45.094682Z  INFO database_lib::init_db: Database schema initialization completed.
+2026-02-11T18:35:45.097061Z  INFO database_lib::init_db: Verified that integration_test_data table exists
+2026-02-11T18:35:45.097065Z  INFO database_lib::init_db: Inserting test data for integration verification...
+2026-02-11T18:35:45.098282Z  INFO database_lib::init_db: Test data insertion completed successfully
+2026-02-11T18:35:45.098285Z  INFO database_lib::init_db: Database initialization process completed successfully
+2026-02-11T18:35:49.130250Z  INFO predictors::ml::model_manager: Starting to load price models for timeframes: [1, 5, 15, 60, 240, 1440]
+2026-02-11T18:35:49.130262Z  INFO predictors::ml::model_manager: Attempting to load price model: price_tf1 from path: models/price_v1_tf1.onnx
+2026-02-11T18:35:49.130267Z  INFO predictors::ml::model_manager: Loading price model for timeframe 1m: price_tf1 from models/price_v1_tf1.onnx
+2026-02-11T18:35:49.140261Z  INFO ort::logging: Discovered OrtHardwareDevice {vendor_id:0x10de, device_id:0x2208, vendor:, type:1, metadata: [card_idx=1, ]}
+2026-02-11T18:35:49.140270Z  INFO ort::logging: Discovered OrtHardwareDevice {vendor_id:0x1022, device_id:0x0, vendor:AMD, type:0, metadata: []}
+2026-02-11T18:35:49.497121Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.497132Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/price_v1_tf1.onnx
+2026-02-11T18:35:49.497184Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.497197Z  INFO ort::logging: Flush-to-zero and denormal-as-zero are off
+2026-02-11T18:35:49.497202Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.497209Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.503252Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.503261Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.503282Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.503288Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.503295Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.505347Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.505359Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.505362Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.505365Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.505367Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.509460Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.509467Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.509470Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509473Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509476Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509479Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.509483Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.509486Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509488Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.509491Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.509494Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.509503Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.509515Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleRegressor node name: TreeEnsembleRegressor
+2026-02-11T18:35:49.509528Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.509531Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509535Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.509538Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.509541Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509544Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509547Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509549Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509552Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509554Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.509556Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.509559Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509561Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509564Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509567Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509570Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509573Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509579Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509582Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509584Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509587Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509590Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509593Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509595Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509598Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509601Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509604Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509606Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509609Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509613Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509617Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509620Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.509625Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509628Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.509631Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.509642Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.542332Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.542353Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.542376Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.542382Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.543352Z  INFO ort::logging: removed 12 removable attributes for node 'TreeEnsembleRegressor' ('TreeEnsembleRegressor'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, target_ids, target_treeids, target_nodeids, target_weightsbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.543361Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.543378Z  INFO predictors::ml::model_manager: Attempting to load schema for price model from: models/price_v1_tf1.json
+2026-02-11T18:35:49.543441Z  INFO predictors::ml::model_manager: Successfully loaded schema for price model: price_tf1
+2026-02-11T18:35:49.543444Z  INFO predictors::ml::model_manager: Successfully loaded price model: price_tf1 with schema present: true
+2026-02-11T18:35:49.543446Z  INFO predictors::ml::model_manager: Attempting to load price model: price_tf5 from path: models/price_v1_tf5.onnx
+2026-02-11T18:35:49.543451Z  INFO predictors::ml::model_manager: Loading price model for timeframe 5m: price_tf5 from models/price_v1_tf5.onnx
+2026-02-11T18:35:49.543479Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.543482Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/price_v1_tf5.onnx
+2026-02-11T18:35:49.543498Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.543504Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.543507Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.547268Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.547277Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.547285Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.547290Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.547296Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.547390Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.547397Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.547401Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547403Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.547406Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.547637Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.547739Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.547832Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547835Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547838Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547841Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.547844Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.547848Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547851Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.547853Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.547856Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.547862Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.547873Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleRegressor node name: TreeEnsembleRegressor
+2026-02-11T18:35:49.547887Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.547890Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547893Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.547896Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.547900Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547903Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547905Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547908Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547911Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547913Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.547915Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.547918Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547920Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547923Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547926Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547929Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547932Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547935Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547937Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547940Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547943Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547946Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547949Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547952Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547954Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547957Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547960Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547963Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547965Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547969Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547974Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547976Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.547981Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547984Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.547987Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.547993Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.551230Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.551355Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.551520Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.551604Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.552886Z  INFO ort::logging: removed 12 removable attributes for node 'TreeEnsembleRegressor' ('TreeEnsembleRegressor'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, target_ids, target_treeids, target_nodeids, target_weightsbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.553001Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.553109Z  INFO predictors::ml::model_manager: Attempting to load schema for price model from: models/price_v1_tf5.json
+2026-02-11T18:35:49.553275Z  INFO predictors::ml::model_manager: Successfully loaded schema for price model: price_tf5
+2026-02-11T18:35:49.553378Z  INFO predictors::ml::model_manager: Successfully loaded price model: price_tf5 with schema present: true
+2026-02-11T18:35:49.553479Z  INFO predictors::ml::model_manager: Attempting to load price model: price_tf15 from path: models/price_v1_tf15.onnx
+2026-02-11T18:35:49.553564Z  INFO predictors::ml::model_manager: Loading price model for timeframe 15m: price_tf15 from models/price_v1_tf15.onnx
+2026-02-11T18:35:49.553588Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.553591Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/price_v1_tf15.onnx
+2026-02-11T18:35:49.553607Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.553614Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.553618Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.557660Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.557779Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.557888Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.557995Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.558083Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.558162Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.558167Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.558170Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558173Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.558297Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.558480Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.558484Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.558487Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558489Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558492Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558495Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.558497Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.558500Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558503Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.558505Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.558508Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.558512Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.558521Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleRegressor node name: TreeEnsembleRegressor
+2026-02-11T18:35:49.558530Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.558533Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558537Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.558540Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.558543Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558545Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558548Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558551Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558553Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558555Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.558557Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.558560Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558563Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558565Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558568Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558570Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558573Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558576Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558578Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558581Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558583Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558586Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558589Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558591Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558594Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558596Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558599Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558601Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558604Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558607Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558612Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558615Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.558618Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558621Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.558624Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.558629Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.562048Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.562192Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.562324Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.562453Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.563733Z  INFO ort::logging: removed 12 removable attributes for node 'TreeEnsembleRegressor' ('TreeEnsembleRegressor'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, target_ids, target_treeids, target_nodeids, target_weightsbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.563873Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.564000Z  INFO predictors::ml::model_manager: Attempting to load schema for price model from: models/price_v1_tf15.json
+2026-02-11T18:35:49.564181Z  INFO predictors::ml::model_manager: Successfully loaded schema for price model: price_tf15
+2026-02-11T18:35:49.564301Z  INFO predictors::ml::model_manager: Successfully loaded price model: price_tf15 with schema present: true
+2026-02-11T18:35:49.564426Z  INFO predictors::ml::model_manager: Attempting to load price model: price_tf60 from path: models/price_v1_tf60.onnx
+2026-02-11T18:35:49.564547Z  INFO predictors::ml::model_manager: Loading price model for timeframe 60m: price_tf60 from models/price_v1_tf60.onnx
+2026-02-11T18:35:49.564684Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.564806Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/price_v1_tf60.onnx
+2026-02-11T18:35:49.564937Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.565065Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.565185Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.568516Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.568657Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.568783Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.568909Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.569033Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.569229Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.569361Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.569489Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.569610Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.569728Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.569945Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.570071Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.570198Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.570318Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.570442Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.570570Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.570718Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.570855Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.570979Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.571100Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.571221Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.571342Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.571608Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleRegressor node name: TreeEnsembleRegressor
+2026-02-11T18:35:49.571734Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.571787Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.571836Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.571842Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.571846Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.571848Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571851Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571854Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571856Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571859Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.571860Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.571863Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571866Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571868Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571871Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571874Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571876Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571879Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571882Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571884Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571887Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571889Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571892Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571895Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571897Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571900Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571902Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571905Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571908Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.571911Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.571916Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.571918Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.571922Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.571925Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.571927Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.571932Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.575340Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.575603Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.575742Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.575864Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.577526Z  INFO ort::logging: removed 12 removable attributes for node 'TreeEnsembleRegressor' ('TreeEnsembleRegressor'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, target_ids, target_treeids, target_nodeids, target_weightsbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.577678Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.577808Z  INFO predictors::ml::model_manager: Attempting to load schema for price model from: models/price_v1_tf60.json
+2026-02-11T18:35:49.577981Z  INFO predictors::ml::model_manager: Successfully loaded schema for price model: price_tf60
+2026-02-11T18:35:49.578102Z  INFO predictors::ml::model_manager: Successfully loaded price model: price_tf60 with schema present: true
+2026-02-11T18:35:49.578218Z  INFO predictors::ml::model_manager: Attempting to load price model: price_tf240 from path: models/price_v1_tf240.onnx
+2026-02-11T18:35:49.578337Z  INFO predictors::ml::model_manager: Loading price model for timeframe 240m: price_tf240 from models/price_v1_tf240.onnx
+2026-02-11T18:35:49.578479Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.578612Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/price_v1_tf240.onnx
+2026-02-11T18:35:49.578745Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.578878Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.578999Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.582387Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.582535Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.582662Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.582787Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.582925Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.583123Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.583257Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.583379Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.583624Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.583751Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.583957Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.584083Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.584202Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584323Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584436Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584554Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.584560Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.584563Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584566Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.584568Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.584571Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.584576Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.584584Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleRegressor node name: TreeEnsembleRegressor
+2026-02-11T18:35:49.584594Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.584597Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584690Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.584784Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.584788Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584790Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584793Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584796Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584799Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584801Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.584803Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.584806Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584809Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584811Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584814Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584817Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584820Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584822Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584825Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584827Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584830Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584833Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584835Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584838Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584840Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584843Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584845Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584848Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584851Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584854Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584859Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584861Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.584865Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584868Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.584870Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.584875Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.599640Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.599764Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.599777Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.599780Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.601026Z  INFO ort::logging: removed 12 removable attributes for node 'TreeEnsembleRegressor' ('TreeEnsembleRegressor'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, target_ids, target_treeids, target_nodeids, target_weightsbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.601166Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.601293Z  INFO predictors::ml::model_manager: Attempting to load schema for price model from: models/price_v1_tf240.json
+2026-02-11T18:35:49.601470Z  INFO predictors::ml::model_manager: Successfully loaded schema for price model: price_tf240
+2026-02-11T18:35:49.601592Z  INFO predictors::ml::model_manager: Successfully loaded price model: price_tf240 with schema present: true
+2026-02-11T18:35:49.601720Z  INFO predictors::ml::model_manager: Attempting to load price model: price_tf1440 from path: models/price_v1_tf1440.onnx
+2026-02-11T18:35:49.601840Z  INFO predictors::ml::model_manager: Loading price model for timeframe 1440m: price_tf1440 from models/price_v1_tf1440.onnx
+2026-02-11T18:35:49.601977Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.602097Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/price_v1_tf1440.onnx
+2026-02-11T18:35:49.602227Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.602353Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.602478Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.605905Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.606046Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.606172Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.606296Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.606425Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.606651Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.606786Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.606907Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.607027Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.607145Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.607363Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.607629Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.607758Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.607879Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.607998Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608118Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.608237Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.608356Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608466Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.608470Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.608473Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.608479Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.608486Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleRegressor node name: TreeEnsembleRegressor
+2026-02-11T18:35:49.608497Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.608500Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608503Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.608506Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.608509Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608512Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608514Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608517Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608520Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608522Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.608524Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.608526Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608529Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608531Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608534Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608537Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608539Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608542Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608544Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608547Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608550Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608552Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608555Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608557Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608560Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608562Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608565Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608568Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608570Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608573Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608577Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608580Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.608584Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608586Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.608589Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.608594Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.615547Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.615667Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.615679Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.615682Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.617267Z  INFO ort::logging: removed 12 removable attributes for node 'TreeEnsembleRegressor' ('TreeEnsembleRegressor'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, target_ids, target_treeids, target_nodeids, target_weightsbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.617398Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.617561Z  INFO predictors::ml::model_manager: Attempting to load schema for price model from: models/price_v1_tf1440.json
+2026-02-11T18:35:49.617717Z  INFO predictors::ml::model_manager: Successfully loaded schema for price model: price_tf1440
+2026-02-11T18:35:49.617836Z  INFO predictors::ml::model_manager: Successfully loaded price model: price_tf1440 with schema present: true
+2026-02-11T18:35:49.617951Z  INFO predictors::ml::model_manager: Completed loading price models. Total 6 models loaded.
+2026-02-11T18:35:49.618065Z  INFO predictors::ml::model_manager: Starting to load level models for timeframes: [1, 5, 15, 60, 240, 1440]
+2026-02-11T18:35:49.618181Z  INFO predictors::ml::model_manager: Attempting to load level model: level_tf1 from path: models/levels_v1_tf1.onnx
+2026-02-11T18:35:49.618298Z  INFO predictors::ml::model_manager: Loading level model for timeframe 1m: level_tf1 from models/levels_v1_tf1.onnx
+2026-02-11T18:35:49.618438Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.618559Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/levels_v1_tf1.onnx
+2026-02-11T18:35:49.618700Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.618833Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.618954Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.621616Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.621756Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.621882Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.622007Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.622129Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.622315Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.622461Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.622584Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.622704Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.622821Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.623093Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.623217Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.623336Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.623573Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.623701Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.623823Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.623943Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.624062Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624181Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.624302Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.624425Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.624549Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.624677Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleClassifier node name: TreeEnsembleClassifier
+2026-02-11T18:35:49.624803Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.624810Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624815Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.624818Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.624821Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624823Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624826Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624829Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624832Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624834Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.624836Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.624838Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624841Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624843Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624846Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624849Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624852Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624854Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624857Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624859Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624862Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624865Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624867Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624870Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624872Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624875Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624877Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624880Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624883Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624886Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624890Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624893Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.624897Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624899Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.624902Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.624906Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.648135Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.648277Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.648402Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.648405Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.649332Z  INFO ort::logging: removed 13 removable attributes for node 'TreeEnsembleClassifier' ('TreeEnsembleClassifier'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, class_ids, class_treeids, class_nodeids, class_weights, classlabels_strings, classlabels_int64sbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.649338Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.649348Z  INFO predictors::ml::model_manager: Attempting to load schema for level model from: models/levels_v1_tf1.json
+2026-02-11T18:35:49.649397Z  INFO predictors::ml::model_manager: Successfully loaded schema for level model: level_tf1
+2026-02-11T18:35:49.649398Z  INFO predictors::ml::model_manager: Successfully loaded level model: level_tf1 with schema present: true
+2026-02-11T18:35:49.649400Z  INFO predictors::ml::model_manager: Attempting to load level model: level_tf5 from path: models/levels_v1_tf5.onnx
+2026-02-11T18:35:49.649405Z  INFO predictors::ml::model_manager: Loading level model for timeframe 5m: level_tf5 from models/levels_v1_tf5.onnx
+2026-02-11T18:35:49.649433Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.649435Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/levels_v1_tf5.onnx
+2026-02-11T18:35:49.649449Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.649457Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.649460Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.652397Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.652533Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.652654Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.652771Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.652922Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.653110Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.653241Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.653363Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.653497Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.653616Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.653872Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.653996Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.654114Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.654233Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.654351Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.654477Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.654596Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.654715Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.654835Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.654953Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.655071Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.655192Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.655316Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleClassifier node name: TreeEnsembleClassifier
+2026-02-11T18:35:49.655450Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.655574Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.655695Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.655828Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.655949Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.656069Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.656188Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.656306Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.656430Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.656550Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.656667Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.656786Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.656943Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657048Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657052Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657054Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657057Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657060Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657062Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657065Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657068Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657070Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657073Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657075Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657078Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657080Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657083Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657086Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657088Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.657092Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.657096Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.657099Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.657103Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.657106Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.657108Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.657113Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.660206Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.660340Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.660470Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.660593Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.661683Z  INFO ort::logging: removed 13 removable attributes for node 'TreeEnsembleClassifier' ('TreeEnsembleClassifier'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, class_ids, class_treeids, class_nodeids, class_weights, classlabels_strings, classlabels_int64sbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.661821Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.661951Z  INFO predictors::ml::model_manager: Attempting to load schema for level model from: models/levels_v1_tf5.json
+2026-02-11T18:35:49.662112Z  INFO predictors::ml::model_manager: Successfully loaded schema for level model: level_tf5
+2026-02-11T18:35:49.662231Z  INFO predictors::ml::model_manager: Successfully loaded level model: level_tf5 with schema present: true
+2026-02-11T18:35:49.662349Z  INFO predictors::ml::model_manager: Attempting to load level model: level_tf15 from path: models/levels_v1_tf15.onnx
+2026-02-11T18:35:49.662464Z  INFO predictors::ml::model_manager: Loading level model for timeframe 15m: level_tf15 from models/levels_v1_tf15.onnx
+2026-02-11T18:35:49.662599Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.662719Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/levels_v1_tf15.onnx
+2026-02-11T18:35:49.662847Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.662979Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.663099Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.665881Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.666021Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.666146Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.666271Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.666393Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.666566Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.666572Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.666575Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666577Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.666580Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.666707Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.666710Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.666713Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666715Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666718Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666721Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.666724Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.666726Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666729Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.666731Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.666734Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.666739Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.666746Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleClassifier node name: TreeEnsembleClassifier
+2026-02-11T18:35:49.666755Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.666758Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666762Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.666764Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.666767Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666770Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666773Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666775Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666778Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666780Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.666782Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.666784Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666787Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666789Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666792Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666795Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666797Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666800Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666802Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666805Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666807Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666810Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666812Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666815Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666817Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666820Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666823Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666825Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666828Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666831Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666834Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666837Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.666841Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666843Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.666846Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.666850Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.670128Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.670135Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.670147Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.670149Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.671010Z  INFO ort::logging: removed 13 removable attributes for node 'TreeEnsembleClassifier' ('TreeEnsembleClassifier'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, class_ids, class_treeids, class_nodeids, class_weights, classlabels_strings, classlabels_int64sbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.671016Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.671024Z  INFO predictors::ml::model_manager: Attempting to load schema for level model from: models/levels_v1_tf15.json
+2026-02-11T18:35:49.671091Z  INFO predictors::ml::model_manager: Successfully loaded schema for level model: level_tf15
+2026-02-11T18:35:49.671093Z  INFO predictors::ml::model_manager: Successfully loaded level model: level_tf15 with schema present: true
+2026-02-11T18:35:49.671095Z  INFO predictors::ml::model_manager: Attempting to load level model: level_tf60 from path: models/levels_v1_tf60.onnx
+2026-02-11T18:35:49.671100Z  INFO predictors::ml::model_manager: Loading level model for timeframe 60m: level_tf60 from models/levels_v1_tf60.onnx
+2026-02-11T18:35:49.671120Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.671122Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/levels_v1_tf60.onnx
+2026-02-11T18:35:49.671135Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.671142Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.671145Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.674142Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.674146Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.674152Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.674157Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.674162Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.674225Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.674230Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.674233Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674235Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.674237Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.674369Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.674372Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.674374Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674377Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674380Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674382Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.674385Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.674388Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674390Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.674393Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.674395Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.674400Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.674407Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleClassifier node name: TreeEnsembleClassifier
+2026-02-11T18:35:49.674415Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.674432Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674436Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.674439Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.674442Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674445Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674447Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674450Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674452Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674454Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.674456Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.674459Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674462Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674464Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674467Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674469Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674472Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674475Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674477Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674479Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674482Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674484Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674487Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674489Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674492Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674494Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674497Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674499Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674502Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674505Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674509Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674511Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.674515Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674517Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.674520Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.674524Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.677461Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.677468Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.677479Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.677481Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.678367Z  INFO ort::logging: removed 13 removable attributes for node 'TreeEnsembleClassifier' ('TreeEnsembleClassifier'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, class_ids, class_treeids, class_nodeids, class_weights, classlabels_strings, classlabels_int64sbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.678373Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.678381Z  INFO predictors::ml::model_manager: Attempting to load schema for level model from: models/levels_v1_tf60.json
+2026-02-11T18:35:49.678405Z  INFO predictors::ml::model_manager: Successfully loaded schema for level model: level_tf60
+2026-02-11T18:35:49.678406Z  INFO predictors::ml::model_manager: Successfully loaded level model: level_tf60 with schema present: true
+2026-02-11T18:35:49.678408Z  INFO predictors::ml::model_manager: Attempting to load level model: level_tf240 from path: models/levels_v1_tf240.onnx
+2026-02-11T18:35:49.678413Z  INFO predictors::ml::model_manager: Loading level model for timeframe 240m: level_tf240 from models/levels_v1_tf240.onnx
+2026-02-11T18:35:49.678446Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.678448Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/levels_v1_tf240.onnx
+2026-02-11T18:35:49.678461Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.678469Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.678472Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.681837Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.681982Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.682101Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.682233Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.682350Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.682548Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.682681Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.682803Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.682916Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.683033Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.683280Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.683402Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.683523Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.683645Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.683763Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.683882Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.684001Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.684118Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.684236Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.684354Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.684477Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.684598Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.684722Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleClassifier node name: TreeEnsembleClassifier
+2026-02-11T18:35:49.684850Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.684978Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.685100Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.685220Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.685339Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.685463Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.685582Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.685699Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.685818Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.685935Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.686052Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.686170Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.686280Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.686397Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.686530Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.686649Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.686766Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.686884Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687001Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687120Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687238Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687357Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687478Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687598Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687716Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687834Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.687952Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.688069Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.688187Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.688307Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.688424Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.688545Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.688665Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.688784Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.688902Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.689024Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.692016Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.692182Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.692314Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.692441Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.693447Z  INFO ort::logging: removed 13 removable attributes for node 'TreeEnsembleClassifier' ('TreeEnsembleClassifier'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, class_ids, class_treeids, class_nodeids, class_weights, classlabels_strings, classlabels_int64sbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.693573Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.693699Z  INFO predictors::ml::model_manager: Attempting to load schema for level model from: models/levels_v1_tf240.json
+2026-02-11T18:35:49.693837Z  INFO predictors::ml::model_manager: Successfully loaded schema for level model: level_tf240
+2026-02-11T18:35:49.693956Z  INFO predictors::ml::model_manager: Successfully loaded level model: level_tf240 with schema present: true
+2026-02-11T18:35:49.694065Z  INFO predictors::ml::model_manager: Attempting to load level model: level_tf1440 from path: models/levels_v1_tf1440.onnx
+2026-02-11T18:35:49.694183Z  INFO predictors::ml::model_manager: Loading level model for timeframe 1440m: level_tf1440 from models/levels_v1_tf1440.onnx
+2026-02-11T18:35:49.694318Z  INFO ort::ep: Successfully registered `CUDAExecutionProvider` source=session options
+2026-02-11T18:35:49.694441Z  INFO predictors::ml::onnx_runtime: CUDA provider registered for model: models/levels_v1_tf1440.onnx
+2026-02-11T18:35:49.694572Z  INFO ort::logging: Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:"" enable_mem_pattern:1 enable_mem_reuse:1 enable_cpu_mem_arena:1 profile_file_prefix:onnxruntime_profile_ session_logid: session_log_severity_level:-1 session_log_verbosity_level:0 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:1 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {  } }
+2026-02-11T18:35:49.694698Z  INFO ort::logging: Creating and using per session threadpools since use_per_session_threads_ is true
+2026-02-11T18:35:49.694810Z  INFO ort::logging: Dynamic block base set to 0
+2026-02-11T18:35:49.697975Z  INFO ort::logging: Initializing session.
+2026-02-11T18:35:49.698125Z  INFO ort::logging: Adding default CPU execution provider.
+2026-02-11T18:35:49.698253Z  INFO ort::logging: Creating BFCArena for Cuda with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.698377Z  INFO ort::logging: Creating BFCArena for CudaPinned with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.698505Z  INFO ort::logging: Creating BFCArena for Cpu with following configs: initial_chunk_size_bytes: 1048576 max_dead_bytes_per_chunk: 134217728 initial_growth_chunk_size_bytes: 2097152 max_power_of_two_extend_bytes: 1073741824 memory limit: 18446744073709551615 arena_extend_strategy: 0
+2026-02-11T18:35:49.698686Z  INFO ort::logging: This model does not have any local functions defined. AOT Inlining is not performed
+2026-02-11T18:35:49.698823Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.698945Z  INFO ort::logging: GraphTransformer Level1_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.699064Z  INFO ort::logging: GraphTransformer DoubleQDQPairsRemover modified: 0 with status: OK
+2026-02-11T18:35:49.699195Z  INFO ort::logging: GraphTransformer ConstantSharing modified: 0 with status: OK
+2026-02-11T18:35:49.699454Z  INFO ort::logging: GraphTransformer CommonSubexpressionElimination modified: 0 with status: OK
+2026-02-11T18:35:49.699577Z  INFO ort::logging: GraphTransformer ConstantFolding modified: 0 with status: OK
+2026-02-11T18:35:49.699695Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.699812Z  INFO ort::logging: GraphTransformer ReshapeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.699929Z  INFO ort::logging: GraphTransformer FreeDimensionOverrideTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.700047Z  INFO ort::logging: GraphTransformer GeluFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.700165Z  INFO ort::logging: GraphTransformer LayerNormFusionL1 modified: 0 with status: OK
+2026-02-11T18:35:49.700283Z  INFO ort::logging: GraphTransformer QDQPropagationTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.700400Z  INFO ort::logging: GraphTransformer WeightBiasQuantization modified: 0 with status: OK
+2026-02-11T18:35:49.700525Z  INFO ort::logging: GraphTransformer EnsureUniqueDQForNodeUnit modified: 0 with status: OK
+2026-02-11T18:35:49.700636Z  INFO ort::logging: GraphTransformer RocmBlasAltImpl modified: 0 with status: OK
+2026-02-11T18:35:49.700756Z  INFO ort::logging: GraphTransformer TransposeOptimizer modified: 0 with status: OK
+2026-02-11T18:35:49.700879Z  INFO ort::logging: CUDA kernel not found in registries for Op type: TreeEnsembleClassifier node name: TreeEnsembleClassifier
+2026-02-11T18:35:49.701007Z  INFO ort::logging: Running graph optimizations in loop 1 time/s (Graph Optimizations Loop Level : 1)
+2026-02-11T18:35:49.701128Z  INFO ort::logging: GraphTransformer Level2_RuleBasedTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.701249Z  INFO ort::logging: GraphTransformer TransposeOptimizer_CPUExecutionProvider modified: 0 with status: OK
+2026-02-11T18:35:49.701367Z  INFO ort::logging: GraphTransformer QDQS8ToU8Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.701492Z  INFO ort::logging: GraphTransformer QDQSelectorActionTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.701611Z  INFO ort::logging: GraphTransformer GemmActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.701728Z  INFO ort::logging: GraphTransformer MatMulIntegerToFloatFusion modified: 0 with status: OK
+2026-02-11T18:35:49.701845Z  INFO ort::logging: GraphTransformer DynamicQuantizeMatMulFusion modified: 0 with status: OK
+2026-02-11T18:35:49.701963Z  INFO ort::logging: GraphTransformer ConvActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.702079Z  INFO ort::logging: GraphTransformer GeluFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.702195Z  INFO ort::logging: GraphTransformer LayerNormFusionL2 modified: 0 with status: OK
+2026-02-11T18:35:49.702312Z  INFO ort::logging: GraphTransformer SimplifiedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.702436Z  INFO ort::logging: GraphTransformer AttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.702555Z  INFO ort::logging: GraphTransformer EmbedLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.702673Z  INFO ort::logging: GraphTransformer GatherSliceToSplitFusion modified: 0 with status: OK
+2026-02-11T18:35:49.702790Z  INFO ort::logging: GraphTransformer GatherToSliceFusion modified: 0 with status: OK
+2026-02-11T18:35:49.702907Z  INFO ort::logging: GraphTransformer MatmulTransposeFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703024Z  INFO ort::logging: GraphTransformer BiasGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703150Z  INFO ort::logging: GraphTransformer GroupQueryAttentionFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703268Z  INFO ort::logging: GraphTransformer MatMulAddFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703386Z  INFO ort::logging: GraphTransformer SkipLayerNormFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703508Z  INFO ort::logging: GraphTransformer FastGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703627Z  INFO ort::logging: GraphTransformer QuickGeluFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703745Z  INFO ort::logging: GraphTransformer BiasSoftmaxFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703862Z  INFO ort::logging: GraphTransformer BiasDropoutFusion modified: 0 with status: OK
+2026-02-11T18:35:49.703979Z  INFO ort::logging: GraphTransformer MatMulScaleFusion modified: 0 with status: OK
+2026-02-11T18:35:49.704096Z  INFO ort::logging: GraphTransformer MatMulActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.704214Z  INFO ort::logging: GraphTransformer MatMulNBitsFusion modified: 0 with status: OK
+2026-02-11T18:35:49.704331Z  INFO ort::logging: GraphTransformer QDQFinalCleanupTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.704454Z  INFO ort::logging: GraphTransformer NchwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.704574Z  INFO ort::logging: GraphTransformer NhwcTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.704693Z  INFO ort::logging: GraphTransformer ConvAddActivationFusion modified: 0 with status: OK
+2026-02-11T18:35:49.704813Z  INFO ort::logging: GraphTransformer RemoveDuplicateCastTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.704932Z  INFO ort::logging: GraphTransformer CastFloat16Transformer modified: 0 with status: OK
+2026-02-11T18:35:49.705049Z  INFO ort::logging: GraphTransformer FuseFp16InitializerToFp32NodeTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.705169Z  INFO ort::logging: GraphTransformer MemcpyTransformer modified: 0 with status: OK
+2026-02-11T18:35:49.708808Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:35:49.708952Z  INFO ort::logging: Use DeviceBasedPartition as default
+2026-02-11T18:35:49.709084Z  INFO ort::logging: Saving initialized tensors.
+2026-02-11T18:35:49.709207Z  INFO ort::logging: Done saving initialized tensors
+2026-02-11T18:35:49.710347Z  INFO ort::logging: removed 13 removable attributes for node 'TreeEnsembleClassifier' ('TreeEnsembleClassifier'), among attributes: base_values, nodes_falsenodeids, nodes_featureids, nodes_hitrates, nodes_missing_value_tracks_true, nodes_modes, nodes_nodeids, nodes_treeids, nodes_truenodeids, nodes_values, class_ids, class_treeids, class_nodeids, class_weights, classlabels_strings, classlabels_int64sbase_values_as_tensor, nodes_hitrates_as_tensor, nodes_values_as_tensor, class_weights_as_tensor.
+2026-02-11T18:35:49.710489Z  INFO ort::logging: Session successfully initialized.
+2026-02-11T18:35:49.710616Z  INFO predictors::ml::model_manager: Attempting to load schema for level model from: models/levels_v1_tf1440.json
+2026-02-11T18:35:49.710754Z  INFO predictors::ml::model_manager: Successfully loaded schema for level model: level_tf1440
+2026-02-11T18:35:49.710872Z  INFO predictors::ml::model_manager: Successfully loaded level model: level_tf1440 with schema present: true
+2026-02-11T18:35:49.710988Z  INFO predictors::ml::model_manager: Completed loading level models. Total 12 models loaded.
+2026-02-11T18:36:05.191795Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:36:05.191826Z  INFO ort::logging: Extending BFCArena for Cpu. bin_num:0 (requested) num_bytes: 4 (actual) rounded_bytes:256
+2026-02-11T18:36:05.191883Z  INFO ort::logging: Extended allocation by 1048576 bytes.
+2026-02-11T18:36:05.191887Z  INFO ort::logging: Total allocated bytes: 1048576
+2026-02-11T18:36:05.191890Z  INFO ort::logging: Allocated memory at 0x769f601d7600 to 0x769f602d7600
+2026-02-11T18:36:05.208735Z  INFO ort::logging: cuDNN version: 91900
+2026-02-11T18:36:05.208767Z  INFO ort::logging: Extending BFCArena for Cpu. bin_num:0 (requested) num_bytes: 8 (actual) rounded_bytes:256
+2026-02-11T18:36:05.208771Z  INFO ort::logging: Extended allocation by 1048576 bytes.
+2026-02-11T18:36:05.208773Z  INFO ort::logging: Total allocated bytes: 1048576
+2026-02-11T18:36:05.208776Z  INFO ort::logging: Allocated memory at 0x769f30039b80 to 0x769f30139b80
+2026-02-11T18:37:36.392442Z  WARN sqlx::query: slow statement: execution time exceeded alert threshold summary="INSERT INTO market.raw_signals (time, …" db.statement="\n\n\n        INSERT INTO market.raw_signals\n        (time, time_ms, symbol_id, symbol, tf_minutes,\n         indicator_id, signal_kind, signal_sub_id,\n         side, score, value,\n         details, candle_is_final, calc_source, event_time_ms,\n         features_json, scores_json, predictors_json,\n         created_at, updated_at)\n        SELECT * FROM UNNEST(\n            $1::timestamptz[],\n            $2::bigint[],\n            $3::bigint[],\n            $4::text[],\n            $5::smallint[],\n            $6::smallint[],\n            $7::smallint[],\n            $8::smallint[],\n            $9::smallint[],\n            $10::real[],\n            $11::real[],\n            $12::jsonb[],\n            $13::boolean[],\n            $14::smallint[],\n            $15::bigint[],\n            $16::jsonb[],\n            $17::jsonb[],\n            $18::jsonb[],\n            $19::timestamptz[],\n            $20::timestamptz[]\n        )\n        ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET\n            side = EXCLUDED.side,\n            score = EXCLUDED.score,\n            value = EXCLUDED.value,\n            details = EXCLUDED.details,\n            candle_is_final = EXCLUDED.candle_is_final,\n            calc_source = EXCLUDED.calc_source,\n            event_time_ms = EXCLUDED.event_time_ms,\n            features_json = EXCLUDED.features_json,\n            scores_json = EXCLUDED.scores_json,\n            predictors_json = EXCLUDED.predictors_json,\n            updated_at = now()\n    \n" rows_affected=2000 rows_returned=0 elapsed=1.618001271s elapsed_secs=1.618001271 slow_threshold=1s
+2026-02-11T18:37:38.780508Z  WARN sqlx::query: slow statement: execution time exceeded alert threshold summary="INSERT INTO market.indicators_wide (time, …" db.statement="\n\n\n        INSERT INTO market.indicators_wide\n        (time, time_ms, symbol_id, symbol, tf_minutes,\n         rsi, cci, stoch_k, stoch_d, williams,\n         macd, macd_signal, macd_hist, adx, sma, ema_20, ema_50, ema_200,\n         bb_upper, bb_mid, bb_lower, atr,\n         obv, vwap, volume_spike,\n         alligator_jaw, alligator_teeth, alligator_lips,\n         trend, trend_short, poc,\n         sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)\n        SELECT * FROM UNNEST(\n            $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],\n            $6::real[], $7::real[], $8::real[], $9::real[], $10::real[],\n            $11::real[], $12::real[], $13::real[], $14::real[], $15::real[], $16::real[], $17::real[], $18::real[],\n            $19::real[], $20::real[], $21::real[], $22::real[],\n            $23::double precision[], $24::double precision[], $25::real[],\n            $26::real[], $27::real[], $28::real[],\n            $29::smallint[], $30::smallint[], $31::real[],\n            $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]\n        )\n        ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET\n            rsi = COALESCE(EXCLUDED.rsi, market.indicators_wide.rsi),\n            cci = COALESCE(EXCLUDED.cci, market.indicators_wide.cci),\n            stoch_k = COALESCE(EXCLUDED.stoch_k, market.indicators_wide.stoch_k),\n            stoch_d = COALESCE(EXCLUDED.stoch_d, market.indicators_wide.stoch_d),\n            williams = COALESCE(EXCLUDED.williams, market.indicators_wide.williams),\n            macd = COALESCE(EXCLUDED.macd, market.indicators_wide.macd),\n            macd_signal = COALESCE(EXCLUDED.macd_signal, market.indicators_wide.macd_signal),\n            macd_hist = COALESCE(EXCLUDED.macd_hist, market.indicators_wide.macd_hist),\n            adx = COALESCE(EXCLUDED.adx, market.indicators_wide.adx),\n            sma = COALESCE(EXCLUDED.sma, market.indicators_wide.sma),\n            ema_20 = COALESCE(EXCLUDED.ema_20, market.indicators_wide.ema_20),\n            ema_50 = COALESCE(EXCLUDED.ema_50, market.indicators_wide.ema_50),\n            ema_200 = COALESCE(EXCLUDED.ema_200, market.indicators_wide.ema_200),\n            bb_upper = COALESCE(EXCLUDED.bb_upper, market.indicators_wide.bb_upper),\n            bb_mid = COALESCE(EXCLUDED.bb_mid, market.indicators_wide.bb_mid),\n            bb_lower = COALESCE(EXCLUDED.bb_lower, market.indicators_wide.bb_lower),\n            atr = COALESCE(EXCLUDED.atr, market.indicators_wide.atr),\n            obv = COALESCE(EXCLUDED.obv, market.indicators_wide.obv),\n            vwap = COALESCE(EXCLUDED.vwap, market.indicators_wide.vwap),\n            volume_spike = COALESCE(EXCLUDED.volume_spike, market.indicators_wide.volume_spike),\n            alligator_jaw = COALESCE(EXCLUDED.alligator_jaw, market.indicators_wide.alligator_jaw),\n            alligator_teeth = COALESCE(EXCLUDED.alligator_teeth, market.indicators_wide.alligator_teeth),\n            alligator_lips = COALESCE(EXCLUDED.alligator_lips, market.indicators_wide.alligator_lips),\n            trend = COALESCE(EXCLUDED.trend, market.indicators_wide.trend),\n            trend_short = COALESCE(EXCLUDED.trend_short, market.indicators_wide.trend_short),\n            poc = COALESCE(EXCLUDED.poc, market.indicators_wide.poc),\n            sr_levels = COALESCE(EXCLUDED.sr_levels, market.indicators_wide.sr_levels),\n            candle_is_final = EXCLUDED.candle_is_final,\n            calc_source = EXCLUDED.calc_source,\n            event_time_ms = EXCLUDED.event_time_ms,\n            updated_at = now()\n    \n" rows_affected=968 rows_returned=0 elapsed=1.769330092s elapsed_secs=1.7693300920000001 slow_threshold=1s

@@ -1,4 +1,49 @@
 #!/usr/bin/env bash
+
+# ==============================================================================
+# Automatic cuDNN Installation for GPU Acceleration
+# ==============================================================================
+# This section checks if cuDNN 9 is installed, which is required for ONNX Runtime GPU support.
+# If it's not found, it will attempt to install it. This requires sudo privileges.
+
+# Check if we are on a debian-based system with apt-get
+if command -v apt-get &> /dev/null; then
+    # Check for libcudnn.so.9
+    if ! ldconfig -p | grep -q libcudnn.so.9; then
+        echo "WARNING: libcudnn.so.9 not found. Attempting to install NVIDIA cuDNN 9 for CUDA 12."
+        echo "This is required for GPU acceleration and will require sudo privileges."
+        
+        # Check if running with sudo, if not, prompt
+        if [ "$EUID" -ne 0 ]; then
+            echo "Please enter your password for sudo to continue with the installation."
+        fi
+
+        set -e # Exit immediately if a command exits with a non-zero status.
+
+        # Install wget if not present
+        if ! command -v wget &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y wget
+        fi
+
+        # Install cuDNN 9 for CUDA 12 on Ubuntu 24.04
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb -O /tmp/cuda-keyring.deb
+        sudo dpkg -i /tmp/cuda-keyring.deb
+        sudo apt-get update
+        sudo apt-get install -y libcudnn9-cuda-12
+        rm /tmp/cuda-keyring.deb
+
+        echo "cuDNN 9 installation complete."
+        set +e # Return to default error handling
+    else
+        echo "Found libcudnn.so.9. Skipping cuDNN installation."
+    fi
+else
+    echo "WARNING: 'apt-get' not found. Cannot automatically check or install cuDNN. Please ensure cuDNN 9 for your CUDA version is installed manually."
+fi
+
+# ==============================================================================
+
 # scripts/start.sh
 
 # 1. Основной путь к библиотеке
@@ -30,7 +75,7 @@ export LD_LIBRARY_PATH="$ORT_LIB_LOCATION:$LD_LIBRARY_PATH"
 
 # Если используется CUDA
 export CUDA_HOME=/usr/local/cuda
-export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH"
 
 # ----------------- Продолжение основного скрипта -----------------
 set -euo pipefail

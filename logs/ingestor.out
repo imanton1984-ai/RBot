@@ -1,0 +1,70 @@
+[2m2026-02-11T18:35:44.925416Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Refreshing universe pairs...
+[2m2026-02-11T18:35:48.089306Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-02-11T18:35:48.089342Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-02-11T18:35:48.089358Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-02-11T18:35:48.089374Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-02-11T18:35:48.089380Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-02-11T18:35:48.089388Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-02-11T18:35:48.108894Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=52, active_cnt=52
+[2m2026-02-11T18:35:48.109077Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Starting ingest (candles monolith)...
+[2m2026-02-11T18:35:48.124491Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Active pairs: 52
+[2m2026-02-11T18:35:48.126751Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1m: 0
+[2m2026-02-11T18:35:48.127948Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 5m: 0
+[2m2026-02-11T18:35:48.129141Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 15m: 0
+[2m2026-02-11T18:35:48.130445Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1h: 0
+[2m2026-02-11T18:35:48.131539Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 4h: 0
+[2m2026-02-11T18:35:48.132713Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): synchronous_commit=OFF
+[2m2026-02-11T18:35:48.133553Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1d: 0
+[2m2026-02-11T18:35:48.133697Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): synchronous_commit=OFF
+[2m2026-02-11T18:35:48.133966Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): synchronous_commit=OFF
+[2m2026-02-11T18:35:48.134016Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Empty database detected - performing fast one-shot initial load
+[2m2026-02-11T18:35:48.134030Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Rate limiting configured: 39 weight/sec, limit=500, weight=2, effective ~19.5 req/sec
+[2m2026-02-11T18:35:48.134783Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Periodically refreshing universe pairs...
+[2m2026-02-11T18:35:48.135517Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): synchronous_commit=OFF
+[2m2026-02-11T18:35:48.137201Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(4h): synchronous_commit=OFF
+[2m2026-02-11T18:35:48.138568Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1d): synchronous_commit=OFF
+[2m2026-02-11T18:35:51.262622Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-02-11T18:35:51.262652Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-02-11T18:35:51.262664Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-02-11T18:35:51.262673Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-02-11T18:35:51.262686Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-02-11T18:35:51.262691Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-02-11T18:35:51.281758Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=52, active_cnt=52
+[2m2026-02-11T18:35:51.281882Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Pairs refreshed: selected_cnt=52, active_cnt=52
+[2m2026-02-11T18:36:01.779079Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 25952 candles for market.candles_1m in 585.497711ms
+[2m2026-02-11T18:36:01.927731Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 25948 candles for market.candles_5m in 148.608926ms
+[2m2026-02-11T18:36:02.070391Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 25948 candles for market.candles_15m in 142.61443ms
+[2m2026-02-11T18:36:02.245964Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 25948 candles for market.candles_1h in 175.522057ms
+[2m2026-02-11T18:36:02.404322Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 25369 candles for market.candles_4h in 158.319847ms
+[2m2026-02-11T18:36:02.614937Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 20586 candles for market.candles_1d in 210.571254ms
+[2m2026-02-11T18:36:02.614976Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Fast initial load completed in 14.480936947s
+[2m2026-02-11T18:36:02.616247Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Waiting for 5 seconds before starting WebSocket connections...
+[2m2026-02-11T18:36:07.666271Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS streams total=208, connections=11
+[2m2026-02-11T18:36:07.666307Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Starting live candle writer with flush interval: 2000ms
+[2m2026-02-11T18:36:07.674533Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Candles ingest running (WS realtime + BINARY COPY writers). Press Ctrl+C to stop.
+[2m2026-02-11T18:36:07.674572Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill start...
+[2m2026-02-11T18:36:07.674579Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill done.
+[2m2026-02-11T18:36:07.674590Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: streams=208
+[2m2026-02-11T18:36:07.674694Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #0 streams=20
+[2m2026-02-11T18:36:07.676551Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #1 streams=20
+[2m2026-02-11T18:36:07.677823Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=trxusdt@kline_1m/trxusdt@kline_5m/trxusdt@kline_15m/trxusdt@kline_1h/linkusdt@kline_1m/linkusdt@kline_5m/linkusdt@kline_15m/linkusdt@kline_1h/adausdt@kline_1m/adausdt@kline_5m/adausdt@kline_15m/adausdt@kline_1h/xmrusdt@kline_1m/xmrusdt@kline_5m/xmrusdt@kline_15m/xmrusdt@kline_1h/dashusdt@kline_1m/dashusdt@kline_5m/dashusdt@kline_15m/dashusdt@kline_1h
+[2m2026-02-11T18:36:07.677875Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #2 streams=20
+[2m2026-02-11T18:36:07.679489Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=zecusdt@kline_1m/zecusdt@kline_5m/zecusdt@kline_15m/zecusdt@kline_1h/bnbusdt@kline_1m/bnbusdt@kline_5m/bnbusdt@kline_15m/bnbusdt@kline_1h/dogeusdt@kline_1m/dogeusdt@kline_5m/dogeusdt@kline_15m/dogeusdt@kline_1h/dotusdt@kline_1m/dotusdt@kline_5m/dotusdt@kline_15m/dotusdt@kline_1h/solusdt@kline_1m/solusdt@kline_5m/solusdt@kline_15m/solusdt@kline_1h
+[2m2026-02-11T18:36:07.679552Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #3 streams=20
+[2m2026-02-11T18:36:07.680456Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=btcusdt@kline_1m/btcusdt@kline_5m/btcusdt@kline_15m/btcusdt@kline_1h/ethusdt@kline_1m/ethusdt@kline_5m/ethusdt@kline_15m/ethusdt@kline_1h/bchusdt@kline_1m/bchusdt@kline_5m/bchusdt@kline_15m/bchusdt@kline_1h/xrpusdt@kline_1m/xrpusdt@kline_5m/xrpusdt@kline_15m/xrpusdt@kline_1h/ltcusdt@kline_1m/ltcusdt@kline_5m/ltcusdt@kline_15m/ltcusdt@kline_1h
+[2m2026-02-11T18:36:07.680511Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #4 streams=20
+[2m2026-02-11T18:36:07.680677Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=uniusdt@kline_1m/uniusdt@kline_5m/uniusdt@kline_15m/uniusdt@kline_1h/avaxusdt@kline_1m/avaxusdt@kline_5m/avaxusdt@kline_15m/avaxusdt@kline_1h/nearusdt@kline_1m/nearusdt@kline_5m/nearusdt@kline_15m/nearusdt@kline_1h/aaveusdt@kline_1m/aaveusdt@kline_5m/aaveusdt@kline_15m/aaveusdt@kline_1h/filusdt@kline_1m/filusdt@kline_5m/filusdt@kline_15m/filusdt@kline_1h
+[2m2026-02-11T18:36:07.680730Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #5 streams=20
+[2m2026-02-11T18:36:07.680808Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #6 streams=20
+[2m2026-02-11T18:36:07.684707Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #7 streams=20
+[2m2026-02-11T18:36:07.684938Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=axsusdt@kline_1m/axsusdt@kline_5m/axsusdt@kline_15m/axsusdt@kline_1h/duskusdt@kline_1m/duskusdt@kline_5m/duskusdt@kline_15m/duskusdt@kline_1h/stgusdt@kline_1m/stgusdt@kline_5m/stgusdt@kline_15m/stgusdt@kline_1h/arbusdt@kline_1m/arbusdt@kline_5m/arbusdt@kline_15m/arbusdt@kline_1h/suiusdt@kline_1m/suiusdt@kline_5m/suiusdt@kline_15m/suiusdt@kline_1h
+[2m2026-02-11T18:36:07.685027Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #8 streams=20
+[2m2026-02-11T18:36:07.685443Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=zrousdt@kline_1m/zrousdt@kline_5m/zrousdt@kline_15m/zrousdt@kline_1h/vanausdt@kline_1m/vanausdt@kline_5m/vanausdt@kline_15m/vanausdt@kline_1h/sonicusdt@kline_1m/sonicusdt@kline_5m/sonicusdt@kline_15m/sonicusdt@kline_1h/trumpusdt@kline_1m/trumpusdt@kline_5m/trumpusdt@kline_15m/trumpusdt@kline_1h/pippinusdt@kline_1m/pippinusdt@kline_5m/pippinusdt@kline_15m/pippinusdt@kline_1h
+[2m2026-02-11T18:36:07.689288Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #9 streams=20
+[2m2026-02-11T18:36:07.689641Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=berausdt@kline_1m/berausdt@kline_5m/berausdt@kline_15m/berausdt@kline_1h/gpsusdt@kline_1m/gpsusdt@kline_5m/gpsusdt@kline_15m/gpsusdt@kline_1h/sirenusdt@kline_1m/sirenusdt@kline_5m/sirenusdt@kline_15m/sirenusdt@kline_1h/nilusdt@kline_1m/nilusdt@kline_5m/nilusdt@kline_15m/nilusdt@kline_1h/fheusdt@kline_1m/fheusdt@kline_5m/fheusdt@kline_15m/fheusdt@kline_1h
+[2m2026-02-11T18:36:07.690070Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=1000pepeusdt@kline_1m/1000pepeusdt@kline_5m/1000pepeusdt@kline_15m/1000pepeusdt@kline_1h/wldusdt@kline_1m/wldusdt@kline_5m/wldusdt@kline_15m/wldusdt@kline_1h/wifusdt@kline_1m/wifusdt@kline_5m/wifusdt@kline_15m/wifusdt@kline_1h/enausdt@kline_1m/enausdt@kline_5m/enausdt@kline_15m/enausdt@kline_1h/taousdt@kline_1m/taousdt@kline_5m/taousdt@kline_15m/taousdt@kline_1h
+[2m2026-02-11T18:36:07.690222Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=hypeusdt@kline_1m/hypeusdt@kline_5m/hypeusdt@kline_15m/hypeusdt@kline_1h/resolvusdt@kline_1m/resolvusdt@kline_5m/resolvusdt@kline_15m/resolvusdt@kline_1h/myxusdt@kline_1m/myxusdt@kline_5m/myxusdt@kline_15m/myxusdt@kline_1h/pumpusdt@kline_1m/pumpusdt@kline_5m/pumpusdt@kline_15m/pumpusdt@kline_1h/xplusdt@kline_1m/xplusdt@kline_5m/xplusdt@kline_15m/xplusdt@kline_1h
+[2m2026-02-11T18:36:07.690917Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #10 streams=8
+[2m2026-02-11T18:36:07.691495Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=wlfiusdt@kline_1m/wlfiusdt@kline_5m/wlfiusdt@kline_15m/wlfiusdt@kline_1h/asterusdt@kline_1m/asterusdt@kline_5m/asterusdt@kline_15m/asterusdt@kline_1h/monusdt@kline_1m/monusdt@kline_5m/monusdt@kline_15m/monusdt@kline_1h/riverusdt@kline_1m/riverusdt@kline_5m/riverusdt@kline_15m/riverusdt@kline_1h/powerusdt@kline_1m/powerusdt@kline_5m/powerusdt@kline_15m/powerusdt@kline_1h
+[2m2026-02-11T18:36:07.691551Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=zkpusdt@kline_1m/zkpusdt@kline_5m/zkpusdt@kline_15m/zkpusdt@kline_1h/zamausdt@kline_1m/zamausdt@kline_5m/zamausdt@kline_15m/zamausdt@kline_1h
+[2m2026-02-11T18:37:00.133784Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 7
