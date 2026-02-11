@@ -6,7 +6,7 @@ use crate::types::{PredictionRow, PredictionAspect, CalcSource};
 use crate::feature_view::{FeatureView, IndicatorsWideRow};
 use crate::level_view::LevelView;
 use crate::config::PredictorsConfig;
-use crate::persistence;
+use crate::persistence::{self, resolve_symbol_id};
 use sqlx::PgPool;
 use common::MessageBus;
 use crate::consensus::ConsensusEngine;
@@ -128,6 +128,7 @@ impl PredictorsPipeline {
 
         let hc_price = crate::future_predictor::heuristic_predictor::FuturePriceHeuristic::new();
         if let Some((predicted_prices, score)) = hc_price.predict(&view.symbol, &view.timeframe, view)? {
+            let sid = resolve_symbol_id(&self.db_pool, &view.symbol).await?;
             let predictor_meta = crate::types::PredictorMeta {
                 predictor_id: 0,
                 name: "price10_hard".to_string(),
@@ -142,7 +143,7 @@ impl PredictorsPipeline {
             let prediction_row = PredictionRow {
                 time: view.timestamp,
                 time_ms: view.timestamp.timestamp_millis(),
-                symbol_id: 0,
+                symbol_id: sid,
                 symbol: view.symbol.clone(),
                 tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
                 horizon_bars: self.config.horizon_bars as i32,
@@ -182,6 +183,8 @@ impl PredictorsPipeline {
         let mut predictors = Vec::new();
         let view_close = view.indicators.close as f64;
 
+        let sid = resolve_symbol_id(&self.db_pool, &view.symbol).await?;
+
         if let Some(schema) = self.ml_manager.get_schema("price") {
             let input_vec = schema.build_vector(view);
             if let Some(predicted_prices) = self.ml_manager.predict("price", &input_vec)? {
@@ -197,10 +200,14 @@ impl PredictorsPipeline {
                 };
                 let predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
                 let score = if !predicted_prices.is_empty() { predicted_prices[0].abs().min(1.0) as f64 } else { 0.5 };
+                let last_predicted_price = predicted_prices.last().copied().unwrap_or(view_close as f32) as f64;
+                // Ensure the predicted price is positive
+                let safe_predicted_price = last_predicted_price.max(0.00000001);
+                
                 let prediction_row = PredictionRow {
                     time: view.timestamp,
                     time_ms: view.timestamp.timestamp_millis(),
-                    symbol_id: 0,
+                    symbol_id: sid,
                     symbol: view.symbol.clone(),
                     tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
                     horizon_bars: self.config.horizon_bars as i32,
@@ -208,10 +215,10 @@ impl PredictorsPipeline {
                     calc_source: CalcSource::Ml,
                     predictor_id,
                     score_norm: score as f32,
-                    value: predicted_prices.last().copied().unwrap_or(view_close as f32) as f64,
+                    value: safe_predicted_price,
                     value_low: None,
                     value_high: None,
-                    side: self.determine_side(view_close, predicted_prices.last().copied().unwrap_or(view_close as f32) as f64),
+                    side: self.determine_side(view_close, safe_predicted_price),
                     level_hash: None,
                     level_kind: None,
                     level_price: None,
@@ -247,12 +254,12 @@ impl PredictorsPipeline {
                             // Bounce
                             let bounce_predictor_meta = crate::types::PredictorMeta { predictor_id: 0, name: "level_bounce_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
                             let bounce_predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
-                            let bounce_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: 0, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, predictor_id: bounce_predictor_id, score_norm: prob_bounce as f32, value: prob_bounce, value_low: None, value_high: None, side: Some(if view_close < level.level_price { 1 } else { -1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_bounce", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
+                            let bounce_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: sid, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, predictor_id: bounce_predictor_id, score_norm: prob_bounce as f32, value: prob_bounce, value_low: None, value_high: None, side: Some(if view_close < level.level_price { 1 } else { -1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_bounce", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
                             predictors.push(bounce_prediction);
                             // Breakout
                             let break_predictor_meta = crate::types::PredictorMeta { predictor_id: 0, name: "level_breakout_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
                             let break_predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
-                            let break_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: 0, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, predictor_id: break_predictor_id, score_norm: prob_break as f32, value: prob_break, value_low: None, value_high: None, side: Some(if view_close < level.level_price { -1 } else { 1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_breakout", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
+                            let break_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: sid, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, predictor_id: break_predictor_id, score_norm: prob_break as f32, value: prob_break, value_low: None, value_high: None, side: Some(if view_close < level.level_price { -1 } else { 1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_breakout", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
                             predictors.push(break_prediction);
                         }
                     }

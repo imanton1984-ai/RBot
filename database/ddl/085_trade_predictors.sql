@@ -94,7 +94,17 @@ CREATE TABLE IF NOT EXISTS trade.predictors (
   -- to do UPSERT without dancing
   prediction_key    text        NOT NULL,
 
-  PRIMARY KEY(time, symbol_id, tf_minutes, prediction_key, predictor_id)
+  PRIMARY KEY(time, symbol_id, tf_minutes, prediction_key, predictor_id),
+  
+  -- Logical constraints to prevent incorrect data combinations
+  -- For price_target (aspect=1), level-related fields should be NULL
+  CONSTRAINT chk_price_has_no_levels
+    CHECK (aspect <> 1 OR (level_hash IS NULL AND level_kind IS NULL AND level_price IS NULL 
+                           AND level_strength IS NULL AND level_distance_atr IS NULL)),
+  
+  -- For level aspects (aspect=2,3), level-related fields should NOT be NULL
+  CONSTRAINT chk_levels_required_for_level_aspects
+    CHECK (aspect NOT IN (2, 3) OR (level_hash IS NOT NULL AND level_kind IS NOT NULL AND level_price IS NOT NULL))
 );
 
 -- Timescale hypertable

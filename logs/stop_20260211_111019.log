@@ -1,0 +1,13 @@
+===========================================
+STOP @ Wed 11 Feb 2026 11:10:19 AM MSK
+ROOT: /home/anton/Desktop/Rust_trader
+LOG : /home/anton/Desktop/Rust_trader/logs/stop_20260211_111019.log
+===========================================
+Loading env: /home/anton/Desktop/Rust_trader/.env
+Stopping connections (pid 402181)...
+--- Stopping by pidfiles in /home/anton/Desktop/Rust_trader/run ---
+Stopping compute pid=402234 (TERM)...
+Stopped: compute
+Stopping ingestor pid=402207 (TERM)...
+Stopped: ingestor
+--- Killing leftover processes that belong to this repo only (cmdline contains ROOT_DIR) ---

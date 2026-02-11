@@ -28,13 +28,17 @@ impl FuturePriceHeuristic {
         
         let score = score.clamp(-1.0, 1.0);
 
-        // Price prediction logic
+        // Price prediction logic - ensure prices remain positive
         let current_price = view.indicators.close as f64;
         let mut predicted_prices = Vec::with_capacity(10);
         for i in 1..=10 {
             let step = (i as f64) * 0.1;
-            let movement = score * atr * step; 
-            predicted_prices.push(current_price + movement);
+            let movement = score * atr * step;
+            let predicted_price = current_price + movement;
+            
+            // Ensure the predicted price is positive
+            let safe_predicted_price = predicted_price.max(0.00000001); // minimum positive value to avoid zero/negative prices
+            predicted_prices.push(safe_predicted_price);
         }
         
         if score.abs() > 0.1 {

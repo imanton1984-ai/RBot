@@ -334,6 +334,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 start_idx..n
             };
 
+            // Get access to candle data
+            let cw = feature_window.candle_window.as_ref().expect("Candle window missing in snapshot");
+
             for idx in snapshot_range {
                 let get_f32 = |name: &str, default: f32| -> f32 {
                     feature_window.batch.get_f64(name)
@@ -341,24 +344,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .map(|&v| v as f32)
                         .unwrap_or(default)
                 };
-                
+
                 let indicators = IndicatorsWideRow {
-                    close: get_f32("close", 0.0),
-                    high: get_f32("high", 0.0),
-                    low: get_f32("low", 0.0),
-                    open: get_f32("open", 0.0),
-                    volume: get_f32("volume", 0.0),
+                    // --- CANDLE DATA (FIXED) ---
+                    close: cw.close.get(idx).copied().unwrap_or(0.0) as f32,
+                    high: cw.high.get(idx).copied().unwrap_or(0.0) as f32,
+                    low: cw.low.get(idx).copied().unwrap_or(0.0) as f32,
+                    open: cw.open.get(idx).copied().unwrap_or(0.0) as f32,
+                    volume: cw.volume.get(idx).copied().unwrap_or(0.0) as f32,
+                    
+                    // --- INDICATORS (Keep using helper) ---
                     rsi: get_f32("rsi", 50.0),
-                    macd_line: get_f32("macd_line", 0.0),
+                    macd_line: get_f32("macd", 0.0), // Note: name in batch is "macd", field is "macd_line"
                     macd_signal: get_f32("macd_signal", 0.0),
-                    macd_histogram: get_f32("macd_histogram", 0.0),
+                    macd_histogram: get_f32("macd_hist", 0.0), // Note: name in batch is "macd_hist", field is "macd_histogram"
                     ema_20: get_f32("ema_20", 0.0),
                     ema_50: get_f32("ema_50", 0.0),
                     ema_200: get_f32("ema_200", 0.0),
                     sma: get_f32("sma", 0.0),
                     bb_upper: get_f32("bb_upper", 0.0),
                     bb_lower: get_f32("bb_lower", 0.0),
-                    bb_middle: get_f32("bb_middle", 0.0),
+                    bb_middle: get_f32("bb_mid", 0.0), // Note: name in batch is "bb_mid", field is "bb_middle"
                     atr: get_f32("atr", 0.0),
                     adx: get_f32("adx", 0.0),
                     vwap: get_f32("vwap", 0.0),
@@ -366,7 +372,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     cci: get_f32("cci", 0.0),
                     stoch_k: get_f32("stoch_k", 50.0),
                     stoch_d: get_f32("stoch_d", 50.0),
-                    williams_r: get_f32("williams_r", -50.0),
+                    williams_r: get_f32("williams", -50.0), // Note: name in batch is "williams", field is "williams_r"
+                    
                     trend_short: get_f32("trend_short", 0.0),
                     trend_medium: get_f32("trend", 0.0), // Mapped "trend" to "trend_medium"
                     trend_long: get_f32("trend_long", 0.0),

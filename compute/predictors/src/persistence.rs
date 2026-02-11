@@ -5,12 +5,14 @@ use sqlx::PgPool;
 use crate::types::{PredictionRow, PredictorMeta, PredictorId};
 use serde_json::Value;
 
+use sqlx::types::Json;
+
 pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) -> Result<()> {
     if predictors.is_empty() {
         return Ok(());
     }
 
-    // Prepare the data for bulk insert
+    // Prepare the data for bulk insert - using Option types to preserve NULL values
     let mut prediction_ids = Vec::new();
     let mut times = Vec::new();
     let mut time_mss = Vec::new();
@@ -23,17 +25,20 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
     let mut predictor_ids = Vec::new();
     let mut score_norms = Vec::new();
     let mut values = Vec::new();
-    let mut value_lows = Vec::new();
-    let mut value_highs = Vec::new();
-    let mut sides = Vec::new();
-    let mut level_hashes = Vec::new();
-    let mut level_kinds = Vec::new();
-    let mut level_prices = Vec::new();
-    let mut level_strengths = Vec::new();
-    let mut level_distances_atr = Vec::new();
+    
+    let mut value_lows: Vec<Option<f64>> = Vec::new();
+    let mut value_highs: Vec<Option<f64>> = Vec::new();
+    let mut sides: Vec<Option<i16>> = Vec::new();
+    
+    let mut level_hashes: Vec<Option<String>> = Vec::new();
+    let mut level_kinds: Vec<Option<i16>> = Vec::new();
+    let mut level_prices: Vec<Option<f64>> = Vec::new();
+    let mut level_strengths: Vec<Option<f32>> = Vec::new();
+    let mut level_distances_atr: Vec<Option<f32>> = Vec::new();
+    
     let mut candle_is_finals = Vec::new();
-    let mut event_time_mss = Vec::new();
-    let mut details_jsons = Vec::new();
+    let mut event_time_mss: Vec<Option<i64>> = Vec::new();
+    let mut details_jsons: Vec<Option<Json<serde_json::Value>>> = Vec::new();
     let mut prediction_keys = Vec::new();
 
     for pred in predictors {
@@ -49,23 +54,26 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
         predictor_ids.push(pred.predictor_id);
         score_norms.push(pred.score_norm);
         values.push(pred.value);
-        value_lows.push(pred.value_low.unwrap_or(0.0));
-        value_highs.push(pred.value_high.unwrap_or(0.0));
-        sides.push(pred.side.unwrap_or(0));
-        level_hashes.push(pred.level_hash.unwrap_or_default());
-        level_kinds.push(pred.level_kind.unwrap_or(0));
-        level_prices.push(pred.level_price.unwrap_or(0.0));
-        level_strengths.push(pred.level_strength.unwrap_or(0.0));
-        level_distances_atr.push(pred.level_distance_atr.unwrap_or(0.0));
+        
+        // Preserve Option values without unwrapping
+        value_lows.push(pred.value_low);
+        value_highs.push(pred.value_high);
+        sides.push(pred.side);
+        
+        level_hashes.push(pred.level_hash);
+        level_kinds.push(pred.level_kind);
+        level_prices.push(pred.level_price);
+        level_strengths.push(pred.level_strength);
+        level_distances_atr.push(pred.level_distance_atr);
+        
         candle_is_finals.push(pred.candle_is_final);
-        event_time_mss.push(pred.event_time_ms.unwrap_or(0));
-        details_jsons.push(pred.details_json.unwrap_or(serde_json::Value::Null));
+        event_time_mss.push(pred.event_time_ms);
+        details_jsons.push(pred.details_json.map(Json));
         prediction_keys.push(pred.prediction_key);
     }
 
-    // Perform bulk upsert
-    sqlx::query!(
-        r#"
+    // Perform bulk upsert using query + bind to handle Vec<Option<T>>
+    let sql = r#"
         INSERT INTO trade.predictors (
             time, time_ms, symbol_id, symbol, tf_minutes,
             horizon_bars, aspect, calc_source, predictor_id,
@@ -85,14 +93,17 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
             UNNEST($9::BIGINT[]),
             UNNEST($10::REAL[]),
             UNNEST($11::DOUBLE PRECISION[]),
+
             UNNEST($12::DOUBLE PRECISION[]),
             UNNEST($13::DOUBLE PRECISION[]),
             UNNEST($14::SMALLINT[]),
+
             UNNEST($15::TEXT[]),
             UNNEST($16::SMALLINT[]),
             UNNEST($17::DOUBLE PRECISION[]),
             UNNEST($18::REAL[]),
             UNNEST($19::REAL[]),
+
             UNNEST($20::BOOLEAN[]),
             UNNEST($21::BIGINT[]),
             UNNEST($22::JSONB[]),
@@ -112,35 +123,47 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
             candle_is_final = EXCLUDED.candle_is_final,
             event_time_ms = EXCLUDED.event_time_ms,
             details_json = EXCLUDED.details_json
-        "#,
-        &times,
-        &time_mss,
-        &symbol_ids,
-        &symbols,
-        &tf_minutes,
-        &horizon_bars,
-        &aspects,
-        &calc_sources,
-        &predictor_ids,
-        &score_norms,
-        &values,
-        &value_lows,
-        &value_highs,
-        &sides,
-        &level_hashes,
-        &level_kinds,
-        &level_prices,
-        &level_strengths,
-        &level_distances_atr,
-        &candle_is_finals,
-        &event_time_mss,
-        &details_jsons,
-        &prediction_keys
-    )
-    .execute(pool)
-    .await?;
+    "#;
+
+    sqlx::query(sql)
+        .bind(&times)
+        .bind(&time_mss)
+        .bind(&symbol_ids)
+        .bind(&symbols)
+        .bind(&tf_minutes)
+        .bind(&horizon_bars)
+        .bind(&aspects)
+        .bind(&calc_sources)
+        .bind(&predictor_ids)
+        .bind(&score_norms)
+        .bind(&values)
+
+        // Bind the optional fields as Vec<Option<_>>
+        .bind(&value_lows)
+        .bind(&value_highs)
+        .bind(&sides)
+
+        .bind(&level_hashes)
+        .bind(&level_kinds)
+        .bind(&level_prices)
+        .bind(&level_strengths)
+        .bind(&level_distances_atr)
+
+        .bind(&candle_is_finals)
+        .bind(&event_time_mss)
+        .bind(&details_jsons)
+        .bind(&prediction_keys)
+        .execute(pool)
+        .await?;
 
     Ok(())
+}
+
+pub async fn resolve_symbol_id(pool: &PgPool, symbol: &str) -> Result<i64> {
+    let row = sqlx::query!("SELECT symbol_id FROM market.pairs WHERE symbol = $1", symbol)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.symbol_id)
 }
 
 pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &PredictorMeta) -> Result<PredictorId> {
@@ -241,7 +264,7 @@ pub async fn get_recent_predictors(
             horizon_bars, aspect as "aspect: i16", calc_source as "calc_source: i16",
             predictor_id, score_norm, value, value_low, value_high, side,
             level_hash, level_kind, level_price, level_strength, level_distance_atr,
-            candle_is_final, event_time_ms, details_json, prediction_key
+            candle_is_final, event_time_ms, details_json::jsonb as "details_json: Json<serde_json::Value>", prediction_key
         FROM trade.predictors
         WHERE symbol_id = $1 AND tf_minutes = $2 AND aspect = $3
           AND score_norm >= $4
@@ -283,7 +306,7 @@ pub async fn get_recent_predictors(
             level_distance_atr: row.level_distance_atr,
             candle_is_final: row.candle_is_final,
             event_time_ms: row.event_time_ms,
-            details_json: row.details_json,
+            details_json: row.details_json.map(|json_val| json_val.0), // Unwrap Json wrapper
             prediction_key: row.prediction_key,
         });
     }

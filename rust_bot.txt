@@ -102,6 +102,18 @@ async fn main() -> Result<()> {
 }
 
 
+# reset_table.sh
+
+#!/bin/bash
+# Script to reset the indicators_wide table structure
+
+echo "Dropping market.indicators_wide table..."
+psql -h localhost -p 5433 -U postgres -d timescaledb_binance -c "DROP TABLE IF EXISTS market.indicators_wide CASCADE;"
+
+echo "Table dropped. Restart your Rust bot to recreate it with the correct schema."
+echo "Run: ./scripts/restart.sh"
+
+
 # connections/Cargo.toml
 
 [package]
@@ -2247,88 +2259,127 @@ import hashlib
 # --- КОНФИГУРАЦИЯ ---
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/timescaledb_binance")
 SYMBOL = "BTCUSDT"
-TIMEFRAME = 5 # 5 minutes
+TIMEFRAMES = [1, 5, 15, 60, 240, 1440]  # All 6 timeframes: 1m, 5m, 15m, 1h, 4h, 1d
 HORIZON = 10  # Предсказываем на 10 свечей вперед
 MODEL_DIR = "../models"
 
 # Список фичей, которые ДОЛЖНЫ совпадать с тем, что вы подаете в Rust (FeatureView)
 FEATURES = [
-    'close', 'high', 'low', 'open',
+    'close', 'high', 'low', 'open', 'volume',
     'rsi', 'macd', 'macd_signal', 'macd_hist',
     'ema_20', 'ema_50', 'ema_200', 'sma',
     'bb_upper', 'bb_lower', 'bb_mid',
     'atr', 'adx', 'vwap', 'obv', 'cci',
-    'stoch_k', 'stoch_d', 'williams',
-    'trend', 'trend_short', 'volume'
+    'stoch_k', 'stoch_d', 'williams_r',  # Fixed: was 'williams' in Python but mapped from 'williams' in DB
+    'trend', 'trend_short'
 ]
 
-def load_data():
+def load_data(timeframe):
     print(f"Connecting to {DB_URL}...")
     engine = sqlalchemy.create_engine(DB_URL)
-    
-    # Формируем SQL запрос. Важно: порядок колонок должен быть жестким, 
+
+    # Формируем SQL запрос. Важно: порядок колонок должен быть жестким,
     # либо в Rust мы должны маппить их по именам.
-    cols = ", ".join(FEATURES)
+    # Join candles and indicators tables to get both OHLCV and indicators
     query = f"""
-        SELECT {cols}
-        FROM market.indicators_wide
-        WHERE symbol = '{SYMBOL}' AND tf_minutes = {TIMEFRAME}
-        ORDER BY time ASC
+        SELECT 
+            c.close, c.high, c.low, c.open, c.volume,
+            i.rsi, i.macd, i.macd_signal, i.macd_hist,
+            i.ema_20, i.ema_50, i.ema_200, i.sma,
+            i.bb_upper, i.bb_lower, i.bb_mid,
+            i.atr, i.adx, i.vwap, i.obv, i.cci,
+            i.stoch_k, i.stoch_d, i.williams as williams_r,  -- Map williams to williams_r
+            i.trend, i.trend_short
+        FROM market.candles c
+        INNER JOIN market.indicators_wide i 
+            ON c.symbol_id = i.symbol_id AND c.time = i.time AND c.time_ms = i.time_ms
+        WHERE c.symbol = '{SYMBOL}' AND c.tf_minutes = {timeframe}
+        ORDER BY c.time ASC
     """
-    print("Fetching data...")
+    print(f"Fetching data for timeframe {timeframe}m...")
     df = pd.read_sql(query, engine)
-    
+
+    # Check if we have enough data
+    if len(df) < 200:
+        print(f"Warning: Not enough data for timeframe {timeframe}m (got {len(df)} rows). Skipping...")
+        return None
+
     # Заменяем NULL на 0 (или среднее), чтобы XGBoost не падал при конвертации
     df = df.fillna(0.0)
-    
+
     # Конвертируем все в float32 (требование ONNX Runtime в Rust)
     for c in df.columns:
         df[c] = df[c].astype(np.float32)
-        
+
     return df
 
 def train_price_model(df):
     print("Training Price Prediction Model...")
-    
+
     # Target: Percentage return after N candles
     y = (df['close'].shift(-HORIZON) / df['close']) - 1
     X = df[FEATURES]
-    
+
     # Fill infinities that might result from division by zero
     y = y.replace([np.inf, -np.inf], 0.0)
 
     # Remove last N rows where target is NaN
     X = X.iloc[:-HORIZON]
     y = y.iloc[:-HORIZON]
-    
-    # TimeSeriesSplit for cross-validation
-    tscv = TimeSeriesSplit(n_splits=5)
-    
+
+    # Check if we have enough data for training
+    if len(X) < 50:  # Need at least 50 samples for meaningful training
+        print(f"  Not enough data after removing {HORIZON} rows for target. Available: {len(X)} rows.")
+        return None
+
+    # TimeSeriesSplit for cross-validation (adjust splits based on available data)
+    n_splits = min(5, len(X) // 20)  # At least 20 samples per fold
+    if n_splits < 2:
+        print("  Not enough data for cross-validation, skipping CV and training directly...")
+        model = xgb.XGBRegressor(
+            n_estimators=100,
+            max_depth=5,
+            learning_rate=0.05,
+            objective='reg:squarederror',
+            n_jobs=-1
+        )
+        model.fit(X, y)
+        return model
+
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+
     model = xgb.XGBRegressor(
-        n_estimators=100, 
-        max_depth=5, 
-        learning_rate=0.05, 
+        n_estimators=100,
+        max_depth=5,
+        learning_rate=0.05,
         objective='reg:squarederror',
         n_jobs=-1
     )
-    
-    print("Cross-validating...")
+
+    print(f"  Cross-validating with {n_splits} splits...")
     scores = []
     for train_index, test_index in tscv.split(X):
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        
+
+        # Skip folds with insufficient data
+        if len(X_train) < 10 or len(X_test) < 5:
+            continue
+
         model.fit(X_train, y_train)
         score = model.score(X_test, y_test)
         scores.append(score)
-        print(f"  Split score: {score:.4f}")
+        print(f"    Split score: {score:.4f}")
 
-    print(f"Average R^2 Score on cross-validation: {np.mean(scores):.4f}")
+    if scores:
+        print(f"  Average R^2 Score on cross-validation: {np.mean(scores):.4f}")
+    else:
+        print("  Could not perform cross-validation due to insufficient data in folds")
 
     # Final fit on all data
-    print("Fitting final model on all data...")
+    print("  Fitting final model on all data...")
     model.fit(X, y)
-    
+
     return model
 
 def export_to_onnx(model, filename, features, schema_id):
@@ -2356,30 +2407,36 @@ def export_to_onnx(model, filename, features, schema_id):
 
 def train_level_model(df):
     print("Training Level Prediction Model...")
-    
+
     # Target: классификация (пробой/отскок от уровня)
     # Для примера, создадим искусственную целевую переменную
     # В реальности это будет более сложная логика на основе SR уровней
-    
+
     # Создаем фиктивные уровни (в реальности они будут из SR уровней)
-    df['avg_price'] = df['close'].rolling(window=20).mean()
-    df['is_near_level'] = abs(df['close'] - df['avg_price']) < (df['atr'] * 0.5)  # Рядом с уровнем
-    
+    df_copy = df.copy()
+    df_copy['avg_price'] = df_copy['close'].rolling(window=20).mean()
+    df_copy['is_near_level'] = abs(df_copy['close'] - df_copy['avg_price']) < (df_copy['atr'] * 0.5)  # Рядом с уровнем
+
     # Целевая переменная: 1 если пробой, 0 если отскок (упрощенно)
-    df['next_direction'] = (df['close'].shift(-HORIZON) > df['close']).astype(int)
-    
-    y = df['next_direction']
-    X = df[FEATURES]
-    
+    df_copy['next_direction'] = (df_copy['close'].shift(-HORIZON) > df_copy['close']).astype(int)
+
+    y = df_copy['next_direction']
+    X = df_copy[FEATURES]
+
     # Удаляем последние N строк, где нет target
     X = X.iloc[:-HORIZON]
     y = y.iloc[:-HORIZON]
-    
+
     # Убираем строки с NaN
     mask = ~(X.isna().any(axis=1) | y.isna())
     X = X[mask]
     y = y[mask]
-    
+
+    # Check if we have enough data for training
+    if len(X) < 50:  # Need at least 50 samples for meaningful training
+        print(f"  Not enough data for level model. Available: {len(X)} rows after cleaning.")
+        return None
+
     # Обучение модели классификации
     model = xgb.XGBClassifier(
         n_estimators=100,
@@ -2388,32 +2445,44 @@ def train_level_model(df):
         n_jobs=-1
     )
     model.fit(X, y)
-    
+
     # Оценка
     score = model.score(X, y)
-    print(f"Accuracy Score on train set: {score:.4f}")
-    
+    print(f"  Accuracy Score on train set: {score:.4f}")
+
     return model
 
 if __name__ == "__main__":
     try:
-        df = load_data()
-        if len(df) < 200:
-            print("Not enough data to train! Run the bot to collect candles first.")
-        else:
-            # Create schema_id from FEATURES list
-            feature_string = ",".join(FEATURES)
-            schema_id = hashlib.sha256(feature_string.encode('utf-8')).hexdigest()
+        # Create schema_id from FEATURES list
+        feature_string = ",".join(FEATURES)
+        schema_id = hashlib.sha256(feature_string.encode('utf-8')).hexdigest()
 
+        for timeframe in TIMEFRAMES:
+            print(f"\n=== Training models for timeframe {timeframe}m ===")
+            
+            df = load_data(timeframe)
+            if df is None or len(df) < 200:
+                print(f"Not enough data to train for timeframe {timeframe}m! Run the bot to collect candles first.")
+                continue
+            
             # Обучаем модель предсказания цены
             price_model = train_price_model(df.copy())
-            export_to_onnx(price_model, "price_v1.onnx", FEATURES, schema_id)
-            
+            if price_model is not None:
+                export_to_onnx(price_model, f"price_v1_tf{timeframe}.onnx", FEATURES, f"{schema_id}_tf{timeframe}")
+            else:
+                print(f"  Skipping price model export for timeframe {timeframe}m due to insufficient data.")
+
             # Обучаем модель предсказания уровней
             level_model = train_level_model(df.copy())
-            export_to_onnx(level_model, "levels_v1.onnx", FEATURES, schema_id)
-            
-            print("Training complete.")
+            if level_model is not None:
+                export_to_onnx(level_model, f"levels_v1_tf{timeframe}.onnx", FEATURES, f"{schema_id}_tf{timeframe}")
+            else:
+                print(f"  Skipping level model export for timeframe {timeframe}m due to insufficient data.")
+
+            print(f"Training complete for timeframe {timeframe}m.")
+
+        print("\nAll training completed!")
     except Exception as e:
         print(f"Error: {e}")
 
@@ -4721,40 +4790,7 @@ echo "ROOT: $ROOT_DIR"
 echo "LOG : $STOP_LOG"
 echo "==========================================="
 
-# env (опционально, чтобы stop знал KAFKA_BROKERS/и т.д.)
-load_env_file() {
-  local f="$1"
-  echo "Loading env: $f"
-  set -a
-  # shellcheck disable=SC1090
-  source "$f"
-  set +a
-}
-
-if [[ -n "${ENV_FILE:-}" && -f "${ENV_FILE}" ]]; then
-  load_env_file "$ENV_FILE"
-elif [[ -f "$ROOT_DIR/.env" ]]; then
-  load_env_file "$ROOT_DIR/.env"
-elif [[ -f "$ROOT_DIR/connections/.env" ]]; then
-  load_env_file "$ROOT_DIR/connections/.env"
-fi
-
-# args
-WITH_INFRA_DOWN=0
-usage() {
-  cat <<EOF
-Usage: ./scripts/stop.sh [options]
-  --down     also stop docker compose infra (compose down)
-EOF
-}
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --down) WITH_INFRA_DOWN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "Unknown arg: $1"; usage; exit 2 ;;
-  esac
-done
-
+# ------------------ helpers ------------------
 compose() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     docker compose "$@"
@@ -4765,11 +4801,84 @@ compose() {
   fi
 }
 
-COMPOSE_FILE=""
-if [[ -f "$ROOT_DIR/infra/docker-compose.yaml" ]]; then
-  COMPOSE_FILE="$ROOT_DIR/infra/docker-compose.yaml"
-elif [[ -f "$ROOT_DIR/infra/docker-compose.yml" ]]; then
-  COMPOSE_FILE="$ROOT_DIR/infra/docker-compose.yml"
+load_env_file() {
+  local f="$1"
+  echo "Loading env: $f"
+  set -a
+  # shellcheck disable=SC1090
+  source "$f"
+  set +a
+}
+
+kill_pid_force() {
+  local pid="$1" name="${2:-proc}"
+  if [[ -z "$pid" ]]; then return 0; fi
+  if ! kill -0 "$pid" 2>/dev/null; then
+    echo "Already dead: $name pid=$pid"
+    return 0
+  fi
+
+  echo "TERM: $name pid=$pid"
+  kill -TERM "$pid" 2>/dev/null || true
+
+  for _ in {1..6}; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "Stopped: $name pid=$pid"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "KILL: $name pid=$pid"
+  kill -KILL "$pid" 2>/dev/null || true
+}
+
+# env (опционально, чтобы stop знал KAFKA_BROKERS/и т.д.)
+if [[ -n "${ENV_FILE:-}" && -f "${ENV_FILE}" ]]; then
+  load_env_file "$ENV_FILE"
+elif [[ -f "$ROOT_DIR/.env" ]]; then
+  load_env_file "$ROOT_DIR/.env"
+elif [[ -f "$ROOT_DIR/connections/.env" ]]; then
+  load_env_file "$ROOT_DIR/connections/.env"
+fi
+
+# args
+WITH_INFRA_DOWN=0
+WITH_DOCKER=1
+NUKE_DOCKER_ALL=0
+REMOVE_VOLUMES=1
+
+usage() {
+  cat <<EOF
+Usage: ./scripts/stop.sh [options]
+  --down           also stop docker compose infra (compose down)
+  --no-docker      do not touch docker at all
+  --nuke-docker    DANGEROUS: stop ALL running docker containers on the machine
+  --keep-volumes   do NOT remove compose volumes (no -v)
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --down) WITH_INFRA_DOWN=1; shift ;;
+    --no-docker) WITH_DOCKER=0; shift ;;
+    --nuke-docker) NUKE_DOCKER_ALL=1; shift ;;
+    --keep-volumes) REMOVE_VOLUMES=0; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown arg: $1"; usage; exit 2 ;;
+  esac
+done
+
+# stop connections
+if [[ -f "./run/connections.pid" ]]; then
+  PID="$(cat ./run/connections.pid)"
+  if kill -0 "$PID" 2>/dev/null; then
+    echo "Stopping connections (pid $PID)..."
+    kill "$PID" || true
+    sleep 1
+    kill -9 "$PID" 2>/dev/null || true
+  fi
+  rm -f ./run/connections.pid
 fi
 
 # stop by pidfiles first (надежно, без pgrep -f по всему миру)
@@ -4807,10 +4916,32 @@ stop_pidfile() {
   rm -f "$pidfile" || true
 }
 
+# ------------------ 1) Stop by pidfiles ------------------
+echo "--- Stopping by pidfiles in $PID_DIR ---"
 shopt -s nullglob
 pidfiles=("$PID_DIR"/*.pid)
 if [[ ${#pidfiles[@]} -eq 0 ]]; then
-  echo "No pidfiles in $PID_DIR. Nothing to stop via pidfiles."
+  echo "No pidfiles found."
+  # Try to find and stop Rust compute process that includes predictor module
+  echo "Looking for Rust compute processes with predictor module..."
+  while read -r pid cmd; do
+    [[ -z "$pid" ]] && continue
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    echo "TERM compute process: pid=$pid cmd=$cmd"
+    kill -TERM "$pid" 2>/dev/null || true
+  done < <(pgrep -f "compute.*--module.*predictors?" -l || true)
+  
+  sleep 2
+  
+  # Force kill if still running
+  while read -r pid cmd; do
+    [[ -z "$pid" ]] && continue
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "KILL compute process: pid=$pid cmd=$cmd"
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+  done < <(pgrep -f "compute.*--module.*predictors?" -l || true)
 else
   for pf in "${pidfiles[@]}"; do
     stop_pidfile "$pf"
@@ -4818,19 +4949,99 @@ else
 fi
 shopt -u nullglob
 
-# убираем артефакт старого health-loop (в твоем текущем варианте он есть) :contentReference[oaicite:5]{index=5}
+# ------------------ 2) Kill leftover ONLY from this repo ------------------
+# ВАЖНО: больше не убиваем процессы "по словам" (writer/backfill и т.д.) по всей системе.
+# Убиваем только то, что в cmdline содержит ROOT_DIR (т.е. реально процессы этого репо).
+echo "--- Killing leftover processes that belong to this repo only (cmdline contains ROOT_DIR) ---"
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  # защита от пустых/битых строк
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  echo "TERM leftover: pid=$pid cmd=$cmd"
+  kill -TERM "$pid" 2>/dev/null || true
+done < <(ps -eo pid=,cmd= | grep -F "$ROOT_DIR" | grep -v grep || true)
+
+sleep 2
+
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "KILL leftover: pid=$pid cmd=$cmd"
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+done < <(ps -eo pid=,cmd= | grep -F "$ROOT_DIR" | grep -v grep || true)
+
+# убираем артефакт старого health-loop (в твоем текущем варианте он есть) :contentReference[oaicite:0]{index=0}
 rm -f /tmp/health_monitor_running 2>/dev/null || true
 
-# optionally: infra down
-if [[ "$WITH_INFRA_DOWN" -eq 1 ]]; then
-  if [[ -n "$COMPOSE_FILE" ]]; then
-    echo "Stopping infra via compose down: $COMPOSE_FILE"
-    compose -f "$COMPOSE_FILE" down
+# ------------------ 3) Docker: stop infra containers ------------------
+if [[ "$WITH_DOCKER" -eq 1 ]]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "docker not found -> skipping docker stop"
   else
-    echo "infra/docker-compose.(yml|yaml) not found -> skipping down"
+    if [[ "$NUKE_DOCKER_ALL" -eq 1 ]]; then
+      echo "!!! NUKE DOCKER: stopping ALL running containers !!!"
+      ids="$(docker ps -q || true)"
+      if [[ -n "$ids" ]]; then
+        docker rm -f $ids || true
+      fi
+      echo "All containers stopped."
+    else
+      COMPOSE_FILE=""
+      if [[ -f "$ROOT_DIR/infra/docker-compose.yaml" ]]; then
+        COMPOSE_FILE="$ROOT_DIR/infra/docker-compose.yaml"
+      elif [[ -f "$ROOT_DIR/infra/docker-compose.yml" ]]; then
+        COMPOSE_FILE="$ROOT_DIR/infra/docker-compose.yml"
+      fi
+
+      # optionally: infra down
+      if [[ "$WITH_INFRA_DOWN" -eq 1 ]]; then
+        if [[ -n "$COMPOSE_FILE" ]]; then
+          echo "Stopping infra via compose down: $COMPOSE_FILE"
+          compose -f "$COMPOSE_FILE" down
+        else
+          echo "infra/docker-compose.(yml|yaml) not found -> skipping down"
+        fi
+      else
+        echo "Leaving infra running (use --down to stop docker compose)."
+        
+        # Still try to bring down compose if file exists (but don't force)
+        if [[ -n "$COMPOSE_FILE" ]] && compose -f "$COMPOSE_FILE" ps >/dev/null 2>&1; then
+          echo "--- docker compose down (force) ---"
+          if [[ "$REMOVE_VOLUMES" -eq 1 ]]; then
+            compose -f "$COMPOSE_FILE" down -v --remove-orphans || true
+          else
+            compose -f "$COMPOSE_FILE" down --remove-orphans || true
+          fi
+        else
+          echo "compose file not found or compose not available -> fallback to container-name stop"
+        fi
+      fi
+
+      # Fallback by known container names
+      CONTAINERS="${BOT_DOCKER_CONTAINERS:-redpanda redpanda_console redpanda-console timescaledb}"
+      echo "--- docker rm -f known bot containers: $CONTAINERS ---"
+      for c in $CONTAINERS; do
+        if docker ps -a --format '{{.Names}}' | grep -qx "$c"; then
+          echo "docker rm -f $c"
+          docker rm -f "$c" || true
+        fi
+      done
+
+      # Optional: remove bot networks if exist
+      NETS="${BOT_DOCKER_NETWORKS:-infra_botnet botnet}"
+      echo "--- removing known bot networks (if exist): $NETS ---"
+      for n in $NETS; do
+        if docker network ls --format '{{.Name}}' | grep -qx "$n"; then
+          echo "docker network rm $n"
+          docker network rm "$n" || true
+        fi
+      done
+    fi
   fi
 else
-  echo "Leaving infra running (use --down to stop docker compose)."
+  echo "Docker untouched (--no-docker)."
 fi
 
 # stop healthcheck grafana services
@@ -4857,7 +5068,6 @@ echo "==========================================="
 echo "STOP DONE @ $(date)"
 echo "Logs in : $LOG_DIR"
 echo "==========================================="
-
 
 
 # scripts/teacher.sh
@@ -5282,7 +5492,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
     if chunk.is_empty() {
         return Ok(());
     }
-    tracing::info!("Persistor: Flushing {} signals...", chunk.len());
+    tracing::debug!("Persistor: Flushing {} signals...", chunk.len());
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -5491,7 +5701,7 @@ async fn flush_wide_indicators_chunk(
 ) -> Result<()> {
     if chunk.is_empty() { return Ok(()); }
     
-    tracing::info!("Persistor: Flushing {} wide indicator rows...", chunk.len());
+    tracing::debug!("Persistor: Flushing {} wide indicator rows...", chunk.len());
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -7059,7 +7269,17 @@ CREATE TABLE IF NOT EXISTS trade.predictors (
   -- to do UPSERT without dancing
   prediction_key    text        NOT NULL,
 
-  PRIMARY KEY(time, symbol_id, tf_minutes, prediction_key, predictor_id)
+  PRIMARY KEY(time, symbol_id, tf_minutes, prediction_key, predictor_id),
+  
+  -- Logical constraints to prevent incorrect data combinations
+  -- For price_target (aspect=1), level-related fields should be NULL
+  CONSTRAINT chk_price_has_no_levels
+    CHECK (aspect <> 1 OR (level_hash IS NULL AND level_kind IS NULL AND level_price IS NULL 
+                           AND level_strength IS NULL AND level_distance_atr IS NULL)),
+  
+  -- For level aspects (aspect=2,3), level-related fields should NOT be NULL
+  CONSTRAINT chk_levels_required_for_level_aspects
+    CHECK (aspect NOT IN (2, 3) OR (level_hash IS NOT NULL AND level_kind IS NOT NULL AND level_price IS NOT NULL))
 );
 
 -- Timescale hypertable
@@ -18697,12 +18917,14 @@ use sqlx::PgPool;
 use crate::types::{PredictionRow, PredictorMeta, PredictorId};
 use serde_json::Value;
 
+use sqlx::types::Json;
+
 pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) -> Result<()> {
     if predictors.is_empty() {
         return Ok(());
     }
 
-    // Prepare the data for bulk insert
+    // Prepare the data for bulk insert - using Option types to preserve NULL values
     let mut prediction_ids = Vec::new();
     let mut times = Vec::new();
     let mut time_mss = Vec::new();
@@ -18715,17 +18937,20 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
     let mut predictor_ids = Vec::new();
     let mut score_norms = Vec::new();
     let mut values = Vec::new();
-    let mut value_lows = Vec::new();
-    let mut value_highs = Vec::new();
-    let mut sides = Vec::new();
-    let mut level_hashes = Vec::new();
-    let mut level_kinds = Vec::new();
-    let mut level_prices = Vec::new();
-    let mut level_strengths = Vec::new();
-    let mut level_distances_atr = Vec::new();
+    
+    let mut value_lows: Vec<Option<f64>> = Vec::new();
+    let mut value_highs: Vec<Option<f64>> = Vec::new();
+    let mut sides: Vec<Option<i16>> = Vec::new();
+    
+    let mut level_hashes: Vec<Option<String>> = Vec::new();
+    let mut level_kinds: Vec<Option<i16>> = Vec::new();
+    let mut level_prices: Vec<Option<f64>> = Vec::new();
+    let mut level_strengths: Vec<Option<f32>> = Vec::new();
+    let mut level_distances_atr: Vec<Option<f32>> = Vec::new();
+    
     let mut candle_is_finals = Vec::new();
-    let mut event_time_mss = Vec::new();
-    let mut details_jsons = Vec::new();
+    let mut event_time_mss: Vec<Option<i64>> = Vec::new();
+    let mut details_jsons: Vec<Option<Json<serde_json::Value>>> = Vec::new();
     let mut prediction_keys = Vec::new();
 
     for pred in predictors {
@@ -18741,23 +18966,26 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
         predictor_ids.push(pred.predictor_id);
         score_norms.push(pred.score_norm);
         values.push(pred.value);
-        value_lows.push(pred.value_low.unwrap_or(0.0));
-        value_highs.push(pred.value_high.unwrap_or(0.0));
-        sides.push(pred.side.unwrap_or(0));
-        level_hashes.push(pred.level_hash.unwrap_or_default());
-        level_kinds.push(pred.level_kind.unwrap_or(0));
-        level_prices.push(pred.level_price.unwrap_or(0.0));
-        level_strengths.push(pred.level_strength.unwrap_or(0.0));
-        level_distances_atr.push(pred.level_distance_atr.unwrap_or(0.0));
+        
+        // Preserve Option values without unwrapping
+        value_lows.push(pred.value_low);
+        value_highs.push(pred.value_high);
+        sides.push(pred.side);
+        
+        level_hashes.push(pred.level_hash);
+        level_kinds.push(pred.level_kind);
+        level_prices.push(pred.level_price);
+        level_strengths.push(pred.level_strength);
+        level_distances_atr.push(pred.level_distance_atr);
+        
         candle_is_finals.push(pred.candle_is_final);
-        event_time_mss.push(pred.event_time_ms.unwrap_or(0));
-        details_jsons.push(pred.details_json.unwrap_or(serde_json::Value::Null));
+        event_time_mss.push(pred.event_time_ms);
+        details_jsons.push(pred.details_json.map(Json));
         prediction_keys.push(pred.prediction_key);
     }
 
-    // Perform bulk upsert
-    sqlx::query!(
-        r#"
+    // Perform bulk upsert using query + bind to handle Vec<Option<T>>
+    let sql = r#"
         INSERT INTO trade.predictors (
             time, time_ms, symbol_id, symbol, tf_minutes,
             horizon_bars, aspect, calc_source, predictor_id,
@@ -18777,14 +19005,17 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
             UNNEST($9::BIGINT[]),
             UNNEST($10::REAL[]),
             UNNEST($11::DOUBLE PRECISION[]),
+
             UNNEST($12::DOUBLE PRECISION[]),
             UNNEST($13::DOUBLE PRECISION[]),
             UNNEST($14::SMALLINT[]),
+
             UNNEST($15::TEXT[]),
             UNNEST($16::SMALLINT[]),
             UNNEST($17::DOUBLE PRECISION[]),
             UNNEST($18::REAL[]),
             UNNEST($19::REAL[]),
+
             UNNEST($20::BOOLEAN[]),
             UNNEST($21::BIGINT[]),
             UNNEST($22::JSONB[]),
@@ -18804,35 +19035,47 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
             candle_is_final = EXCLUDED.candle_is_final,
             event_time_ms = EXCLUDED.event_time_ms,
             details_json = EXCLUDED.details_json
-        "#,
-        &times,
-        &time_mss,
-        &symbol_ids,
-        &symbols,
-        &tf_minutes,
-        &horizon_bars,
-        &aspects,
-        &calc_sources,
-        &predictor_ids,
-        &score_norms,
-        &values,
-        &value_lows,
-        &value_highs,
-        &sides,
-        &level_hashes,
-        &level_kinds,
-        &level_prices,
-        &level_strengths,
-        &level_distances_atr,
-        &candle_is_finals,
-        &event_time_mss,
-        &details_jsons,
-        &prediction_keys
-    )
-    .execute(pool)
-    .await?;
+    "#;
+
+    sqlx::query(sql)
+        .bind(&times)
+        .bind(&time_mss)
+        .bind(&symbol_ids)
+        .bind(&symbols)
+        .bind(&tf_minutes)
+        .bind(&horizon_bars)
+        .bind(&aspects)
+        .bind(&calc_sources)
+        .bind(&predictor_ids)
+        .bind(&score_norms)
+        .bind(&values)
+
+        // Bind the optional fields as Vec<Option<_>>
+        .bind(&value_lows)
+        .bind(&value_highs)
+        .bind(&sides)
+
+        .bind(&level_hashes)
+        .bind(&level_kinds)
+        .bind(&level_prices)
+        .bind(&level_strengths)
+        .bind(&level_distances_atr)
+
+        .bind(&candle_is_finals)
+        .bind(&event_time_mss)
+        .bind(&details_jsons)
+        .bind(&prediction_keys)
+        .execute(pool)
+        .await?;
 
     Ok(())
+}
+
+pub async fn resolve_symbol_id(pool: &PgPool, symbol: &str) -> Result<i64> {
+    let row = sqlx::query!("SELECT symbol_id FROM market.pairs WHERE symbol = $1", symbol)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.symbol_id)
 }
 
 pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &PredictorMeta) -> Result<PredictorId> {
@@ -18933,7 +19176,7 @@ pub async fn get_recent_predictors(
             horizon_bars, aspect as "aspect: i16", calc_source as "calc_source: i16",
             predictor_id, score_norm, value, value_low, value_high, side,
             level_hash, level_kind, level_price, level_strength, level_distance_atr,
-            candle_is_final, event_time_ms, details_json, prediction_key
+            candle_is_final, event_time_ms, details_json::jsonb as "details_json: Json<serde_json::Value>", prediction_key
         FROM trade.predictors
         WHERE symbol_id = $1 AND tf_minutes = $2 AND aspect = $3
           AND score_norm >= $4
@@ -18975,7 +19218,7 @@ pub async fn get_recent_predictors(
             level_distance_atr: row.level_distance_atr,
             candle_is_final: row.candle_is_final,
             event_time_ms: row.event_time_ms,
-            details_json: row.details_json,
+            details_json: row.details_json.map(|json_val| json_val.0), // Unwrap Json wrapper
             prediction_key: row.prediction_key,
         });
     }
@@ -19007,7 +19250,7 @@ use crate::types::{PredictionRow, PredictionAspect, CalcSource};
 use crate::feature_view::{FeatureView, IndicatorsWideRow};
 use crate::level_view::LevelView;
 use crate::config::PredictorsConfig;
-use crate::persistence;
+use crate::persistence::{self, resolve_symbol_id};
 use sqlx::PgPool;
 use common::MessageBus;
 use crate::consensus::ConsensusEngine;
@@ -19114,8 +19357,8 @@ impl PredictorsPipeline {
         if !final_preds.is_empty() {
             persistence::upsert_predictors(&self.db_pool, final_preds.clone()).await?;
 
-            tracing::info!(target: "compute_predictors", 
-                "Symbol: {}, TF: {}, predictors: {}, Time: {:?}", 
+            tracing::debug!(target: "compute_predictors",
+                "Symbol: {}, TF: {}, predictors: {}, Time: {:?}",
                 snapshot.symbol, snapshot.timeframe, final_preds.len(), start.elapsed()
             );
         }
@@ -19129,6 +19372,7 @@ impl PredictorsPipeline {
 
         let hc_price = crate::future_predictor::heuristic_predictor::FuturePriceHeuristic::new();
         if let Some((predicted_prices, score)) = hc_price.predict(&view.symbol, &view.timeframe, view)? {
+            let sid = resolve_symbol_id(&self.db_pool, &view.symbol).await?;
             let predictor_meta = crate::types::PredictorMeta {
                 predictor_id: 0,
                 name: "price10_hard".to_string(),
@@ -19143,14 +19387,14 @@ impl PredictorsPipeline {
             let prediction_row = PredictionRow {
                 time: view.timestamp,
                 time_ms: view.timestamp.timestamp_millis(),
-                symbol_id: 0,
+                symbol_id: sid,
                 symbol: view.symbol.clone(),
                 tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
                 horizon_bars: self.config.horizon_bars as i32,
                 aspect: PredictionAspect::PriceTarget,
                 calc_source: CalcSource::Hard,
                 predictor_id,
-                score_norm: score as f32,
+                score_norm: score.abs() as f32,
                 value: predicted_prices.last().copied().unwrap_or(view_close),
                 value_low: None,
                 value_high: None,
@@ -19183,6 +19427,8 @@ impl PredictorsPipeline {
         let mut predictors = Vec::new();
         let view_close = view.indicators.close as f64;
 
+        let sid = resolve_symbol_id(&self.db_pool, &view.symbol).await?;
+
         if let Some(schema) = self.ml_manager.get_schema("price") {
             let input_vec = schema.build_vector(view);
             if let Some(predicted_prices) = self.ml_manager.predict("price", &input_vec)? {
@@ -19198,10 +19444,14 @@ impl PredictorsPipeline {
                 };
                 let predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
                 let score = if !predicted_prices.is_empty() { predicted_prices[0].abs().min(1.0) as f64 } else { 0.5 };
+                let last_predicted_price = predicted_prices.last().copied().unwrap_or(view_close as f32) as f64;
+                // Ensure the predicted price is positive
+                let safe_predicted_price = last_predicted_price.max(0.00000001);
+                
                 let prediction_row = PredictionRow {
                     time: view.timestamp,
                     time_ms: view.timestamp.timestamp_millis(),
-                    symbol_id: 0,
+                    symbol_id: sid,
                     symbol: view.symbol.clone(),
                     tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?,
                     horizon_bars: self.config.horizon_bars as i32,
@@ -19209,10 +19459,10 @@ impl PredictorsPipeline {
                     calc_source: CalcSource::Ml,
                     predictor_id,
                     score_norm: score as f32,
-                    value: predicted_prices.last().copied().unwrap_or(view_close as f32) as f64,
+                    value: safe_predicted_price,
                     value_low: None,
                     value_high: None,
-                    side: self.determine_side(view_close, predicted_prices.last().copied().unwrap_or(view_close as f32) as f64),
+                    side: self.determine_side(view_close, safe_predicted_price),
                     level_hash: None,
                     level_kind: None,
                     level_price: None,
@@ -19248,12 +19498,12 @@ impl PredictorsPipeline {
                             // Bounce
                             let bounce_predictor_meta = crate::types::PredictorMeta { predictor_id: 0, name: "level_bounce_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
                             let bounce_predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &bounce_predictor_meta).await?.0;
-                            let bounce_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: 0, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, predictor_id: bounce_predictor_id, score_norm: prob_bounce as f32, value: prob_bounce, value_low: None, value_high: None, side: Some(if view_close < level.level_price { 1 } else { -1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_bounce", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
+                            let bounce_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: sid, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBounce, calc_source: CalcSource::Ml, predictor_id: bounce_predictor_id, score_norm: prob_bounce as f32, value: prob_bounce, value_low: None, value_high: None, side: Some(if view_close < level.level_price { 1 } else { -1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_bounce", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("bounce_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
                             predictors.push(bounce_prediction);
                             // Breakout
                             let break_predictor_meta = crate::types::PredictorMeta { predictor_id: 0, name: "level_breakout_ml".to_string(), version: "1.0".to_string(), aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, framework: "onnx".to_string(), artifact_path: Some(self.config.model_path_levels.clone()), feature_schema_id: schema.schema_id.clone() };
                             let break_predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &break_predictor_meta).await?.0;
-                            let break_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: 0, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, predictor_id: break_predictor_id, score_norm: prob_break as f32, value: prob_break, value_low: None, value_high: None, side: Some(if view_close < level.level_price { -1 } else { 1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_breakout", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
+                            let break_prediction = PredictionRow { time: view.timestamp, time_ms: view.timestamp.timestamp_millis(), symbol_id: sid, symbol: view.symbol.clone(), tf_minutes: self.parse_timeframe_minutes(&view.timeframe)?, horizon_bars: self.config.horizon_bars as i32, aspect: PredictionAspect::LevelBreakout, calc_source: CalcSource::Ml, predictor_id: break_predictor_id, score_norm: prob_break as f32, value: prob_break, value_low: None, value_high: None, side: Some(if view_close < level.level_price { -1 } else { 1 }), level_hash: Some(level.level_hash.clone()), level_kind: Some(level.level_kind.as_i16()), level_price: Some(level.level_price), level_strength: Some(level.level_strength), level_distance_atr: Some(level.distance_atr), candle_is_final: true, event_time_ms: None, details_json: Some(serde_json::json!({ "method": "ml_level_breakout", "level_price": level.level_price, "prob_bounce": prob_bounce, "prob_break": prob_break, "score": score, "model_used": &self.config.model_path_levels })), prediction_key: format!("breakout_ml_{}_{}_{}", view.symbol, level.level_hash, view.timestamp.timestamp()) };
                             predictors.push(break_prediction);
                         }
                     }
@@ -19647,13 +19897,17 @@ impl FuturePriceHeuristic {
         
         let score = score.clamp(-1.0, 1.0);
 
-        // Price prediction logic
+        // Price prediction logic - ensure prices remain positive
         let current_price = view.indicators.close as f64;
         let mut predicted_prices = Vec::with_capacity(10);
         for i in 1..=10 {
             let step = (i as f64) * 0.1;
-            let movement = score * atr * step; 
-            predicted_prices.push(current_price + movement);
+            let movement = score * atr * step;
+            let predicted_price = current_price + movement;
+            
+            // Ensure the predicted price is positive
+            let safe_predicted_price = predicted_price.max(0.00000001); // minimum positive value to avoid zero/negative prices
+            predicted_prices.push(safe_predicted_price);
         }
         
         if score.abs() > 0.1 {
