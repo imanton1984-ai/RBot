@@ -1,0 +1,31 @@
+{
+  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf15",
+  "features": [
+    "close",
+    "high",
+    "low",
+    "open",
+    "volume",
+    "rsi",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "sma",
+    "bb_upper",
+    "bb_lower",
+    "bb_mid",
+    "atr",
+    "adx",
+    "vwap",
+    "obv",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams_r",
+    "trend",
+    "trend_short"
+  ]
+}

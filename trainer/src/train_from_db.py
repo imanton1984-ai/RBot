@@ -4,7 +4,8 @@ import numpy as np
 import xgboost as xgb
 import sqlalchemy
 from skl2onnx.common.data_types import FloatTensorType
-from onnxmltools import convert_xgboost
+from onnxmltools.convert import convert_xgboost
+from onnxmltools.convert.common.data_types import FloatTensorType as OnnxFloatTensorType
 import onnx
 from sklearn.model_selection import TimeSeriesSplit
 import json
@@ -36,7 +37,7 @@ def load_data(timeframe):
     # либо в Rust мы должны маппить их по именам.
     # Join candles and indicators tables to get both OHLCV and indicators
     query = f"""
-        SELECT 
+        SELECT
             c.close, c.high, c.low, c.open, c.volume,
             i.rsi, i.macd, i.macd_signal, i.macd_hist,
             i.ema_20, i.ema_50, i.ema_200, i.sma,
@@ -45,9 +46,9 @@ def load_data(timeframe):
             i.stoch_k, i.stoch_d, i.williams as williams_r,  -- Map williams to williams_r
             i.trend, i.trend_short
         FROM market.candles c
-        INNER JOIN market.indicators_wide i 
+        INNER JOIN market.indicators_wide i
             ON c.symbol_id = i.symbol_id AND c.time = i.time AND c.time_ms = i.time_ms
-        WHERE c.symbol = '{SYMBOL}' AND c.tf_minutes = {timeframe}
+        WHERE i.symbol = '{SYMBOL}' AND c.tf_minutes = {timeframe}
         ORDER BY c.time ASC
     """
     print(f"Fetching data for timeframe {timeframe}m...")
@@ -138,26 +139,31 @@ def train_price_model(df):
 
 def export_to_onnx(model, filename, features, schema_id):
     print(f"Exporting to {filename}...")
-    
-    # Описываем входной тензор: [None (любой batch size), кол-во фичей]
-    initial_type = [('float_input', FloatTensorType([None, len(features)]))]
-    
-    onnx_model = convert_xgboost(model, initial_types=initial_type)
-    
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    full_path = os.path.join(MODEL_DIR, filename)
-    onnx.save_model(onnx_model, full_path)
-    print(f"Saved model to {full_path}")
 
-    # Export metadata
-    meta = {
-        "schema_id": schema_id,
-        "features": features
-    }
-    meta_path = os.path.join(MODEL_DIR, filename.replace(".onnx", ".json"))
-    with open(meta_path, 'w') as f:
-        json.dump(meta, f, indent=2)
-    print(f"Saved metadata to {meta_path}")
+    # Описываем входной тензор: [None (любой batch size), кол-во фичей]
+    # Используем правильный тип данных в зависимости от библиотеки
+    initial_type = [('float_input', OnnxFloatTensorType([None, len(features)]))]
+
+    try:
+        onnx_model = convert_xgboost(model, initial_types=initial_type)
+
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        full_path = os.path.join(MODEL_DIR, filename)
+        onnx.save_model(onnx_model, full_path)
+        print(f"Saved model to {full_path}")
+
+        # Export metadata
+        meta = {
+            "schema_id": schema_id,
+            "features": features
+        }
+        meta_path = os.path.join(MODEL_DIR, filename.replace(".onnx", ".json"))
+        with open(meta_path, 'w') as f:
+            json.dump(meta, f, indent=2)
+        print(f"Saved metadata to {meta_path}")
+    except Exception as e:
+        print(f"Error exporting model {filename}: {e}")
+        # Continue without crashing the whole process
 
 def train_level_model(df):
     print("Training Level Prediction Model...")
