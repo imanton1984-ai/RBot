@@ -282,7 +282,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
     if chunk.is_empty() {
         return Ok(());
     }
-    tracing::info!("Persistor: Flushing {} signals...", chunk.len());
+    tracing::debug!("Persistor: Flushing {} signals...", chunk.len());
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -491,7 +491,7 @@ async fn flush_wide_indicators_chunk(
 ) -> Result<()> {
     if chunk.is_empty() { return Ok(()); }
     
-    tracing::info!("Persistor: Flushing {} wide indicator rows...", chunk.len());
+    tracing::debug!("Persistor: Flushing {} wide indicator rows...", chunk.len());
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());

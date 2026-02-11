@@ -113,8 +113,8 @@ impl PredictorsPipeline {
         if !final_preds.is_empty() {
             persistence::upsert_predictors(&self.db_pool, final_preds.clone()).await?;
 
-            tracing::info!(target: "compute_predictors", 
-                "Symbol: {}, TF: {}, predictors: {}, Time: {:?}", 
+            tracing::debug!(target: "compute_predictors",
+                "Symbol: {}, TF: {}, predictors: {}, Time: {:?}",
                 snapshot.symbol, snapshot.timeframe, final_preds.len(), start.elapsed()
             );
         }
@@ -149,7 +149,7 @@ impl PredictorsPipeline {
                 aspect: PredictionAspect::PriceTarget,
                 calc_source: CalcSource::Hard,
                 predictor_id,
-                score_norm: score as f32,
+                score_norm: score.abs() as f32,
                 value: predicted_prices.last().copied().unwrap_or(view_close),
                 value_low: None,
                 value_high: None,
