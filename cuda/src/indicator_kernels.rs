@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cudarc::driver::{LaunchAsync, LaunchConfig};
+use cudarc::driver::{LaunchAsync, LaunchConfig, CudaSlice};
 use crate::get_cuda_device;
 
 pub struct IndicatorKernelRunner;
@@ -7,248 +7,401 @@ pub struct IndicatorKernelRunner;
 impl IndicatorKernelRunner {
     pub fn new() -> Self { Self }
 
-    pub fn calculate_rsi(&self, input: &[f64], period: usize) -> Result<Vec<f64>> {
+    pub fn calculate_rsi_batch(&self, input: &CudaSlice<f64>, n: usize, period: usize) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = input.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let inp_dev = device.htod_copy(input.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
-
-        let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "rsi_kernel").unwrap();
         
-        unsafe { func.launch(cfg, (&inp_dev, &mut out_dev, n as i32, period as i32)) }?;
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
+        let cfg = LaunchConfig::for_num_elems(n as u32);
+        let func = device.get_func("indicators", "rsi_batch_kernel").unwrap();
 
-        let result = device.dtoh_sync_copy(&out_dev)?;
-        Ok(result)
+        unsafe { func.launch(cfg, (input, &mut output_dev, n as i32, period as i32))? };
+        
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_sma(&self, input: &[f64], period: usize) -> Result<Vec<f64>> {
+    pub fn calculate_sma_batch(&self, input: &CudaSlice<f64>, n: usize, period: usize) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = input.len();
-        if n == 0 { return Ok(vec![]); }
         
-        let inp_dev = device.htod_copy(input.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
-        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "sma_kernel").unwrap();
+        let func = device.get_func("indicators", "sma_batch_kernel").unwrap();
+
+        unsafe { func.launch(cfg, (input, &mut output_dev, n as i32, period as i32))? };
         
-        unsafe { func.launch(cfg, (&inp_dev, &mut out_dev, n as i32, period as i32)) }?;
-        
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_ema(&self, input: &[f64], period: usize) -> Result<Vec<f64>> {
+    pub fn calculate_ema_batch(&self, input: &CudaSlice<f64>, n: usize, period: usize) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = input.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let inp_dev = device.htod_copy(input.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
-
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "ema_kernel").unwrap();
+        let func = device.get_func("indicators", "ema_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&inp_dev, &mut out_dev, n as i32, period as i32)) }?;
-
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        unsafe { func.launch(cfg, (input, &mut output_dev, n as i32, period as i32))? };
+        
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
-    
-    pub fn calculate_bollinger_bands(&self, input: &[f64], period: usize, std_dev: f64) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
-        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = input.len();
-        if n == 0 { return Ok((vec![], vec![], vec![])); }
 
-        let inp_dev = device.htod_copy(input.to_vec())?;
+    pub fn calculate_bollinger_bands_batch(
+        &self, 
+        input: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize, 
+        std_dev: f64
+    ) -> Result<(CudaSlice<f64>, CudaSlice<f64>, CudaSlice<f64>)> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        
         let mut upper_dev = device.alloc_zeros::<f64>(n)?;
         let mut mid_dev = device.alloc_zeros::<f64>(n)?;
         let mut lower_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "bb_kernel").unwrap();
+        let func = device.get_func("indicators", "bb_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&inp_dev, &mut upper_dev, &mut mid_dev, &mut lower_dev, n as i32, period as i32, std_dev)) }?;
+        unsafe { 
+            func.launch(cfg, (input, &mut upper_dev, &mut mid_dev, &mut lower_dev, n as i32, period as i32, std_dev))? 
+        };
 
-        let upper = device.dtoh_sync_copy(&upper_dev)?;
-        let mid = device.dtoh_sync_copy(&mid_dev)?;
-        let lower = device.dtoh_sync_copy(&lower_dev)?;
-
-        Ok((upper, mid, lower))
+        Ok((upper_dev, mid_dev, lower_dev)) // Return CudaSlices, keeping data on GPU
     }
 
-    pub fn calculate_macd(&self, input: &[f64], fast_period: usize, slow_period: usize, signal_period: usize) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
+    pub fn calculate_macd_batch(
+        &self, 
+        input: &CudaSlice<f64>, 
+        n: usize, 
+        fast_period: usize, 
+        slow_period: usize, 
+        signal_period: usize
+    ) -> Result<(CudaSlice<f64>, CudaSlice<f64>, CudaSlice<f64>)> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = input.len();
-        if n == 0 { return Ok((vec![], vec![], vec![])); }
-
-        let inp_dev = device.htod_copy(input.to_vec())?;
+        
         let mut macd_line_dev = device.alloc_zeros::<f64>(n)?;
         let mut signal_line_dev = device.alloc_zeros::<f64>(n)?;
         let mut histogram_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "macd_kernel").unwrap();
+        let func = device.get_func("indicators", "macd_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&inp_dev, &mut macd_line_dev, &mut signal_line_dev, &mut histogram_dev, n as i32, fast_period as i32, slow_period as i32, signal_period as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (
+                input, 
+                &mut macd_line_dev, 
+                &mut signal_line_dev, 
+                &mut histogram_dev, 
+                n as i32, 
+                fast_period as i32, 
+                slow_period as i32, 
+                signal_period as i32
+            ))? 
+        };
 
-        let macd_line = device.dtoh_sync_copy(&macd_line_dev)?;
-        let signal_line = device.dtoh_sync_copy(&signal_line_dev)?;
-        let histogram = device.dtoh_sync_copy(&histogram_dev)?;
-
-        Ok((macd_line, signal_line, histogram))
+        Ok((macd_line_dev, signal_line_dev, histogram_dev)) // Return CudaSlices, keeping data on GPU
     }
 
-    pub fn calculate_obv(&self, close_prices: &[f64], volumes: &[f64]) -> Result<Vec<f64>> {
+    pub fn calculate_obv_batch(
+        &self, 
+        close_prices: &CudaSlice<f64>, 
+        volumes: &CudaSlice<f64>, 
+        n: usize
+    ) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = close_prices.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let close_dev = device.htod_copy(close_prices.to_vec())?;
-        let vol_dev = device.htod_copy(volumes.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "obv_kernel").unwrap();
+        let func = device.get_func("indicators", "obv_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&close_dev, &vol_dev, &mut out_dev, n as i32)) }?;
+        unsafe { func.launch(cfg, (close_prices, volumes, &mut output_dev, n as i32))? };
 
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_adx(&self, high: &[f64], low: &[f64], close: &[f64], period: usize) -> Result<Vec<f64>> {
+    pub fn calculate_adx_batch(
+        &self, 
+        high: &CudaSlice<f64>, 
+        low: &CudaSlice<f64>, 
+        close: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize
+    ) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = high.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let high_dev = device.htod_copy(high.to_vec())?;
-        let low_dev = device.htod_copy(low.to_vec())?;
-        let close_dev = device.htod_copy(close.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "adx_kernel").unwrap();
+        let func = device.get_func("indicators", "adx_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&high_dev, &low_dev, &close_dev, &mut out_dev, n as i32, period as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (high, low, close, &mut output_dev, n as i32, period as i32))? 
+        };
 
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_atr(&self, high: &[f64], low: &[f64], close: &[f64], period: usize) -> Result<Vec<f64>> {
+    pub fn calculate_atr_batch(
+        &self, 
+        high: &CudaSlice<f64>, 
+        low: &CudaSlice<f64>, 
+        close: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize
+    ) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = high.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let high_dev = device.htod_copy(high.to_vec())?;
-        let low_dev = device.htod_copy(low.to_vec())?;
-        let close_dev = device.htod_copy(close.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "atr_kernel").unwrap();
+        let func = device.get_func("indicators", "atr_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&high_dev, &low_dev, &close_dev, &mut out_dev, n as i32, period as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (high, low, close, &mut output_dev, n as i32, period as i32))? 
+        };
 
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_cci(&self, high: &[f64], low: &[f64], close: &[f64], period: usize) -> Result<Vec<f64>> {
+    pub fn calculate_cci_batch(
+        &self, 
+        high: &CudaSlice<f64>, 
+        low: &CudaSlice<f64>, 
+        close: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize
+    ) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = high.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let high_dev = device.htod_copy(high.to_vec())?;
-        let low_dev = device.htod_copy(low.to_vec())?;
-        let close_dev = device.htod_copy(close.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "cci_kernel").unwrap();
+        let func = device.get_func("indicators", "cci_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&high_dev, &low_dev, &close_dev, &mut out_dev, n as i32, period as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (high, low, close, &mut output_dev, n as i32, period as i32))? 
+        };
 
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_stochastic(&self, high: &[f64], low: &[f64], close: &[f64], k_period: usize, d_period: usize) -> Result<(Vec<f64>, Vec<f64>)> {
+    pub fn calculate_stochastic_batch(
+        &self, 
+        high: &CudaSlice<f64>, 
+        low: &CudaSlice<f64>, 
+        close: &CudaSlice<f64>, 
+        n: usize, 
+        k_period: usize, 
+        d_period: usize
+    ) -> Result<(CudaSlice<f64>, CudaSlice<f64>)> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = high.len();
-        if n == 0 { return Ok((vec![], vec![])); }
-
-        let high_dev = device.htod_copy(high.to_vec())?;
-        let low_dev = device.htod_copy(low.to_vec())?;
-        let close_dev = device.htod_copy(close.to_vec())?;
+        
         let mut k_dev = device.alloc_zeros::<f64>(n)?;
         let mut d_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "stochastic_kernel").unwrap();
+        let func = device.get_func("indicators", "stochastic_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&high_dev, &low_dev, &close_dev, &mut k_dev, &mut d_dev, n as i32, k_period as i32, d_period as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (high, low, close, &mut k_dev, &mut d_dev, n as i32, k_period as i32, d_period as i32))? 
+        };
 
-        let k_values = device.dtoh_sync_copy(&k_dev)?;
-        let d_values = device.dtoh_sync_copy(&d_dev)?;
+        Ok((k_dev, d_dev)) // Return CudaSlices, keeping data on GPU
+    }
+
+    pub fn calculate_vwap_batch(
+        &self, 
+        high: &CudaSlice<f64>, 
+        low: &CudaSlice<f64>, 
+        close: &CudaSlice<f64>, 
+        volume: &CudaSlice<f64>, 
+        n: usize
+    ) -> Result<CudaSlice<f64>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
         
-        Ok((k_values, d_values))
-    }
-
-    pub fn calculate_vwap(&self, high: &[f64], low: &[f64], close: &[f64], volume: &[f64]) -> Result<Vec<f64>> {
-        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = high.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let high_dev = device.htod_copy(high.to_vec())?;
-        let low_dev = device.htod_copy(low.to_vec())?;
-        let close_dev = device.htod_copy(close.to_vec())?;
-        let vol_dev = device.htod_copy(volume.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "vwap_kernel").unwrap();
+        let func = device.get_func("indicators", "vwap_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&high_dev, &low_dev, &close_dev, &vol_dev, &mut out_dev, n as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (high, low, close, volume, &mut output_dev, n as i32))? 
+        };
 
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_williams_r(&self, high: &[f64], low: &[f64], close: &[f64], period: usize) -> Result<Vec<f64>> {
+    pub fn calculate_williams_r_batch(
+        &self, 
+        high: &CudaSlice<f64>, 
+        low: &CudaSlice<f64>, 
+        close: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize
+    ) -> Result<CudaSlice<f64>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = high.len();
-        if n == 0 { return Ok(vec![]); }
-
-        let high_dev = device.htod_copy(high.to_vec())?;
-        let low_dev = device.htod_copy(low.to_vec())?;
-        let close_dev = device.htod_copy(close.to_vec())?;
-        let mut out_dev = device.alloc_zeros::<f64>(n)?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "williams_r_kernel").unwrap();
+        let func = device.get_func("indicators", "williams_r_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&high_dev, &low_dev, &close_dev, &mut out_dev, n as i32, period as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (high, low, close, &mut output_dev, n as i32, period as i32))? 
+        };
 
-        Ok(device.dtoh_sync_copy(&out_dev)?)
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 
-    pub fn calculate_alligator(&self, source: &[f64], jaw_period: usize, teeth_period: usize, lips_period: usize, jaw_offset: usize, teeth_offset: usize, lips_offset: usize) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
+    pub fn calculate_alligator_batch(
+        &self, 
+        source: &CudaSlice<f64>, 
+        n: usize, 
+        jaw_period: usize, 
+        teeth_period: usize, 
+        lips_period: usize, 
+        jaw_offset: usize, 
+        teeth_offset: usize, 
+        lips_offset: usize
+    ) -> Result<(CudaSlice<f64>, CudaSlice<f64>, CudaSlice<f64>)> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
-        let n = source.len();
-        if n == 0 { return Ok((vec![], vec![], vec![])); }
-
-        let source_dev = device.htod_copy(source.to_vec())?;
+        
         let mut jaw_dev = device.alloc_zeros::<f64>(n)?;
         let mut teeth_dev = device.alloc_zeros::<f64>(n)?;
         let mut lips_dev = device.alloc_zeros::<f64>(n)?;
 
         let cfg = LaunchConfig::for_num_elems(n as u32);
-        let func = device.get_func("indicators", "alligator_kernel").unwrap();
+        let func = device.get_func("indicators", "alligator_batch_kernel").unwrap();
 
-        unsafe { func.launch(cfg, (&source_dev, &mut jaw_dev, &mut teeth_dev, &mut lips_dev, n as i32, jaw_period as i32, teeth_period as i32, lips_period as i32, jaw_offset as i32, teeth_offset as i32, lips_offset as i32)) }?;
+        unsafe { 
+            func.launch(cfg, (
+                source, 
+                &mut jaw_dev, 
+                &mut teeth_dev, 
+                &mut lips_dev, 
+                n as i32, 
+                jaw_period as i32, 
+                teeth_period as i32, 
+                lips_period as i32, 
+                jaw_offset as i32, 
+                teeth_offset as i32, 
+                lips_offset as i32
+            ))? 
+        };
 
-        let jaw = device.dtoh_sync_copy(&jaw_dev)?;
-        let teeth = device.dtoh_sync_copy(&teeth_dev)?;
-        let lips = device.dtoh_sync_copy(&lips_dev)?;
+        Ok((jaw_dev, teeth_dev, lips_dev)) // Return CudaSlices, keeping data on GPU
+    }
 
-        Ok((jaw, teeth, lips))
+    // Heuristic predictor methods that work with CudaSlices
+    pub fn calculate_rsi_divergence_batch(
+        &self, 
+        prices: &CudaSlice<f64>, 
+        rsi_values: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize
+    ) -> Result<CudaSlice<f64>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
+        let cfg = LaunchConfig::for_num_elems(n as u32);
+        let func = device.get_func("predictors", "rsi_divergence_predictor_kernel").unwrap();
+
+        unsafe { 
+            func.launch(cfg, (prices, rsi_values, &mut output_dev, n as i32, period as i32))? 
+        };
+        
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
+    }
+
+    pub fn calculate_sr_levels_batch(
+        &self, 
+        high: &CudaSlice<f64>, 
+        low: &CudaSlice<f64>, 
+        close: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize
+    ) -> Result<CudaSlice<f64>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
+        let cfg = LaunchConfig::for_num_elems(n as u32);
+        let func = device.get_func("predictors", "sr_level_predictor_kernel").unwrap();
+
+        unsafe { 
+            func.launch(cfg, (high, low, close, &mut output_dev, n as i32, period as i32))? 
+        };
+        
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
+    }
+
+    pub fn calculate_momentum_reversal_batch(
+        &self, 
+        prices: &CudaSlice<f64>, 
+        rsi_values: &CudaSlice<f64>, 
+        n: usize, 
+        period: usize
+    ) -> Result<CudaSlice<f64>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        
+        let mut output_dev = device.alloc_zeros::<f64>(n)?;
+        let cfg = LaunchConfig::for_num_elems(n as u32);
+        let func = device.get_func("predictors", "momentum_reversal_predictor_kernel").unwrap();
+
+        unsafe { 
+            func.launch(cfg, (prices, rsi_values, &mut output_dev, n as i32, period as i32))? 
+        };
+        
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
+    }
+
+    // Consensus kernel methods
+    pub fn run_final_consensus(
+        &self, 
+        ml_1: &CudaSlice<f32>, 
+        ml_2: &CudaSlice<f32>, 
+        heur_1: &CudaSlice<f32>, 
+        heur_2: &CudaSlice<f32>, 
+        n: usize
+    ) -> Result<CudaSlice<u8>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        
+        let mut output_dev = device.alloc_zeros::<u8>(n)?;
+        let cfg = LaunchConfig::for_num_elems(n as u32);
+        let func = device.get_func("consensus", "final_consensus_kernel").unwrap();
+
+        unsafe { 
+            func.launch(cfg, (ml_1, ml_2, heur_1, heur_2, &mut output_dev, n as i32))? 
+        };
+        
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
+    }
+
+    // Raw signals combiner that works with CudaSlices
+    pub fn combine_raw_signals_batch(
+        &self,
+        rsi_values: &CudaSlice<f64>,
+        sma_values: &CudaSlice<f64>,
+        ema_values: &CudaSlice<f64>,
+        atr_values: &CudaSlice<f64>,
+        bb_upper: &CudaSlice<f64>,
+        bb_lower: &CudaSlice<f64>,
+        bb_mid: &CudaSlice<f64>,
+        n: usize,
+        num_features: usize
+    ) -> Result<CudaSlice<f64>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        
+        let total_elements = n * num_features;
+        let mut output_dev = device.alloc_zeros::<f64>(total_elements)?;
+        let cfg = LaunchConfig::for_num_elems(n as u32);
+        let func = device.get_func("consensus", "raw_signals_combiner_kernel").unwrap();
+
+        unsafe { 
+            func.launch(cfg, (
+                rsi_values, sma_values, ema_values, atr_values,
+                bb_upper, bb_lower, bb_mid,
+                &mut output_dev, n as i32, num_features as i32
+            ))? 
+        };
+        
+        Ok(output_dev) // Return CudaSlice, keeping data on GPU
     }
 }
