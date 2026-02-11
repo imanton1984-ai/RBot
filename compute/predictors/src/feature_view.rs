@@ -203,13 +203,106 @@ impl FeatureView {
     pub fn get_sr_levels(&self) -> Result<Vec<SrLevel>> {
         match &self.sr_levels {
             Some(json_val) => {
-                // Parse the JSON value into a vector of SR levels
-                let levels: Vec<SrLevel> = serde_json::from_value(json_val.clone())
-                    .map_err(|e| anyhow::anyhow!("Failed to parse SR levels: {}", e))?;
-                Ok(levels)
+                // Check if the JSON value is an object (the SRLLevels struct format)
+                if let serde_json::Value::Object(ref obj) = json_val {
+                    // Handle the SRLLevels struct format by converting to individual SrLevel objects
+                    let levels = self.convert_srl_levels_to_sr_levels(obj)?;
+                    Ok(levels)
+                } else {
+                    // If it's already an array of SrLevel objects, parse directly
+                    let levels: Vec<SrLevel> = serde_json::from_value(json_val.clone())
+                        .map_err(|e| anyhow::anyhow!("Failed to parse SR levels: {}", e))?;
+                    Ok(levels)
+                }
             }
             None => Ok(Vec::new()),
         }
+    }
+
+    /// Converts SRLLevels struct format to individual SrLevel objects
+    fn convert_srl_levels_to_sr_levels(&self, obj: &serde_json::Map<String, serde_json::Value>) -> Result<Vec<SrLevel>> {
+        let mut levels = Vec::new();
+
+        // Extract individual level values from the SRLLevels struct
+        if let Some(strong_support_val) = obj.get("strong_support") {
+            if let Some(price) = strong_support_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Support,
+                        strength: 0.9, // Strong support
+                        hash: format!("support_strong_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(mid_support_val) = obj.get("mid_support") {
+            if let Some(price) = mid_support_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Support,
+                        strength: 0.6, // Mid support
+                        hash: format!("support_mid_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(light_support_val) = obj.get("light_support") {
+            if let Some(price) = light_support_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Support,
+                        strength: 0.3, // Light support
+                        hash: format!("support_light_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(strong_resistance_val) = obj.get("strong_resistance") {
+            if let Some(price) = strong_resistance_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Resistance,
+                        strength: 0.9, // Strong resistance
+                        hash: format!("resistance_strong_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(mid_resistance_val) = obj.get("mid_resistance") {
+            if let Some(price) = mid_resistance_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Resistance,
+                        strength: 0.6, // Mid resistance
+                        hash: format!("resistance_mid_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        if let Some(light_resistance_val) = obj.get("light_resistance") {
+            if let Some(price) = light_resistance_val.as_f64() {
+                if !price.is_nan() {
+                    levels.push(SrLevel {
+                        price,
+                        kind: SrLevelKind::Resistance,
+                        strength: 0.3, // Light resistance
+                        hash: format!("resistance_light_{:.6}", price),
+                    });
+                }
+            }
+        }
+
+        Ok(levels)
     }
     pub fn get_value(&self, name: &str) -> f32 {
         if let Some(val) = self.custom_features.get(name) {
