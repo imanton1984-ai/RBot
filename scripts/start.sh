@@ -2,7 +2,7 @@
 # scripts/start.sh
 
 # 1. Основной путь к библиотеке
-export ONNXRUNTIME_ROOTDIR="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.19.0"
+export ONNXRUNTIME_ROOTDIR="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.23.1"
 
 # 2. Проверка наличия библиотеки перед сборкой
 if [ ! -d "$ONNXRUNTIME_ROOTDIR" ]; then
@@ -13,8 +13,8 @@ if [ ! -d "$ONNXRUNTIME_ROOTDIR" ]; then
     mkdir -p "$DOWNLOAD_DIR"
     cd "$DOWNLOAD_DIR"
     
-    wget https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-gpu-1.19.0.tgz
-    tar -xzvf onnxruntime-linux-x64-gpu-1.19.0.tgz
+    wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-gpu-1.23.1.tgz
+    tar -xzvf onnxruntime-linux-x64-gpu-1.23.1.tgz
     cd - > /dev/null
 fi
 

@@ -38,10 +38,52 @@ impl OnnxRunner {
         let mut session_guard = self.session.lock().unwrap();
         let outputs = session_guard.run(ort::inputs![input_name.as_str() => input_value])?;
 
-        // 5. Извлекаем результат (предполагаем, что выход 0 - это то, что нам нужно)
-        let output_tensor = outputs[0].try_extract_tensor::<f32>()?;
+        // 5. Extract results. 
+        // Heuristic: If we have multiple outputs and the second one looks like a probability tensor (len > 1 for batch 1), use it.
+        // Otherwise, default to the first output (labels or regression value).
+        
+        let mut best_result: Option<Vec<f32>> = None;
 
-        let result: Vec<f32> = output_tensor.1.to_vec(); // .1 is the data slice &[f32]
-        Ok(result)
+        // Try extracting output 1 (probabilities) if it exists
+        if outputs.len() > 1 {
+            if let Ok(output_tensor) = outputs[1].try_extract_tensor::<f32>() {
+                let vec = output_tensor.1.to_vec();
+                if vec.len() > 1 {
+                    best_result = Some(vec);
+                }
+            }
+        }
+
+        if let Some(res) = best_result {
+            return Ok(res);
+        }
+
+        // Fallback to output 0 (label or regression)
+        // First, try extracting as f32 (most common case)
+        if let Ok(output_tensor) = outputs[0].try_extract_tensor::<f32>() {
+            let result: Vec<f32> = output_tensor.1.to_vec();
+            Ok(result)
+        } else {
+            // If f32 extraction fails, try i64 (for level prediction models labels)
+            if let Ok(output_tensor) = outputs[0].try_extract_tensor::<i64>() {
+                let result: Vec<f32> = output_tensor.1.iter().map(|&x| x as f32).collect();
+                Ok(result)
+            } else {
+                // If i64 fails, try i32
+                if let Ok(output_tensor) = outputs[0].try_extract_tensor::<i32>() {
+                    let result: Vec<f32> = output_tensor.1.iter().map(|&x| x as f32).collect();
+                    Ok(result)
+                } else {
+                    // If i32 fails, try f64
+                    if let Ok(output_tensor) = outputs[0].try_extract_tensor::<f64>() {
+                        let result: Vec<f32> = output_tensor.1.iter().map(|&x| x as f32).collect();
+                        Ok(result)
+                    } else {
+                        // If all attempts fail, return an error
+                        anyhow::bail!("Cannot extract tensor: unsupported data type in output 0")
+                    }
+                }
+            }
+        }
     }
 }

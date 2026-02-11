@@ -145,7 +145,14 @@ def export_to_onnx(model, filename, features, schema_id):
     initial_type = [('float_input', OnnxFloatTensorType([None, len(features)]))]
 
     try:
-        onnx_model = convert_xgboost(model, initial_types=initial_type)
+        # Convert XGBoost model to ONNX
+        # options={'zipmap': False} forces classifiers to output probabilities as a Tensor (Array),
+        # not a sequence of maps. This is critical for Rust ORT to read probabilities easily.
+        onnx_model = convert_xgboost(
+            model, 
+            initial_types=initial_type,
+            options={'zipmap': False} 
+        )
 
         os.makedirs(MODEL_DIR, exist_ok=True)
         full_path = os.path.join(MODEL_DIR, filename)
