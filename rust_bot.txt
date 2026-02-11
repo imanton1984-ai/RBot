@@ -4182,47 +4182,38 @@ exit $START_RESULT
 #!/usr/bin/env bash
 # scripts/start.sh
 
-# ONNX Runtime library location
-ORT_LIB_LOCATION="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.19.0/lib"
+# 1. Основной путь к библиотеке
+export ONNXRUNTIME_ROOTDIR="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.19.0"
 
-# Check if ONNX Runtime library exists
-if [ ! -d "$ORT_LIB_LOCATION" ]; then
-    echo "ONNX Runtime library not found at $ORT_LIB_LOCATION"
+# 2. Проверка наличия библиотеки перед сборкой
+if [ ! -d "$ONNXRUNTIME_ROOTDIR" ]; then
+    echo "ONNX Runtime not found at $ONNXRUNTIME_ROOTDIR"
     echo "Installing ONNX Runtime..."
     
-    # Create download directory if it doesn't exist
     DOWNLOAD_DIR="/home/anton/Downloads"
-    if [ ! -d "$DOWNLOAD_DIR" ]; then
-        mkdir -p "$DOWNLOAD_DIR"
-    fi
-    
-    # Change to download directory
+    mkdir -p "$DOWNLOAD_DIR"
     cd "$DOWNLOAD_DIR"
     
-    # Download ONNX Runtime
-    echo "Downloading ONNX Runtime..."
     wget https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-gpu-1.19.0.tgz
-    
-    # Extract the archive
-    echo "Extracting ONNX Runtime..."
     tar -xzvf onnxruntime-linux-x64-gpu-1.19.0.tgz
-    
-    # Verify installation
-    if [ -d "$ORT_LIB_LOCATION" ]; then
-        echo "ONNX Runtime successfully installed at $ORT_LIB_LOCATION"
-    else
-        echo "Error: Failed to install ONNX Runtime"
-        exit 1
-    fi
-else
-    echo "ONNX Runtime library found at $ORT_LIB_LOCATION"
+    cd - > /dev/null
 fi
 
-# Set environment variables for the build
-export ORT_LIB_LOCATION=$(dirname "$ORT_LIB_LOCATION")
-export LD_LIBRARY_PATH=$ORT_LIB_LOCATION/lib:$LD_LIBRARY_PATH
+# 3. КРИТИЧЕСКИЕ ПЕРЕМЕННЫЕ ДЛЯ КОМПИЛЯЦИИ И ЗАПУСКА
+# Путь к директории с .so файлами
+export ORT_LIB_LOCATION="$ONNXRUNTIME_ROOTDIR/lib"
 
+# Для линковщика (чтобы cargo build видел библиотеку)
+export LIBRARY_PATH="$ORT_LIB_LOCATION:$LIBRARY_PATH"
 
+# Для работы программы (чтобы бинарник находил библиотеку при старте)
+export LD_LIBRARY_PATH="$ORT_LIB_LOCATION:$LD_LIBRARY_PATH"
+
+# Если используется CUDA
+export CUDA_HOME=/usr/local/cuda
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
+
+# ----------------- Продолжение основного скрипта -----------------
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

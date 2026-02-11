@@ -323,14 +323,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // FORM FEATURE SNAPSHOT FOR predictors PIPELINE
-            // For real-time: send the last candle's data
-            // For backfill: could send all candles in batch
-            if feature_window.is_realtime && n > 0 {
-                let last_idx = n - 1;
-                
+            // CHANGED: Logic to handle both Realtime and Historical
+            // For real-time: send only the last candle (latest update)
+            // For backfill: send ALL valid candles in the batch
+            
+            let snapshot_range = if feature_window.is_realtime {
+                if n > 0 { (n - 1)..n } else { 0..0 }
+            } else {
+                // For history: use start_idx calculated earlier (which skips warmup/NaNs) up to n
+                start_idx..n
+            };
+
+            for idx in snapshot_range {
                 let get_f32 = |name: &str, default: f32| -> f32 {
                     feature_window.batch.get_f64(name)
-                        .and_then(|v| v.get(last_idx))
+                        .and_then(|v| v.get(idx)) // Use idx instead of last_idx
                         .map(|&v| v as f32)
                         .unwrap_or(default)
                 };
@@ -361,26 +368,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     stoch_d: get_f32("stoch_d", 50.0),
                     williams_r: get_f32("williams_r", -50.0),
                     trend_short: get_f32("trend_short", 0.0),
-                    trend_medium: get_f32("trend_medium", 0.0),
+                    trend_medium: get_f32("trend", 0.0), // Mapped "trend" to "trend_medium"
                     trend_long: get_f32("trend_long", 0.0),
                     volume_sma: get_f32("volume_sma", 0.0),
                     volume_spike: get_f32("volume_spike", 0.0),
                 };
             
                 let sr_levels = feature_window.batch.get_json("sr_levels")
-                    .and_then(|v| v.get(last_idx))
+                    .and_then(|v| v.get(idx)) // Use idx instead of last_idx
                     .cloned();
 
+                // ВАЖНО: Для исторических данных timestamp берется из батча по индексу
+                let ts_ms = feature_window.batch.timestamps[idx];
+                let timestamp = chrono::DateTime::from_timestamp(ts_ms / 1000, ((ts_ms % 1000) * 1_000_000) as u32)
+                    .unwrap_or(chrono::Utc::now());
+
                 let snapshot = FeatureSnapshot {
-                    timestamp: chrono::DateTime::from_timestamp(feature_window.batch.timestamps[last_idx] / 1000, 0).unwrap_or(chrono::Utc::now()),
+                    timestamp,
                     symbol: feature_window.symbol.to_string(),
                     timeframe: feature_window.timeframe.as_str().to_string(),
                     indicators,
-                    raw_signals_data: None, // Could be populated if needed
+                    raw_signals_data: None, 
                     sr_levels,
                 };
 
-                let _ = feature_tx_clone.send(snapshot);
+                // Отправляем снапшот. Используем try_send или send, но для истории лучше send, чтобы не дропать
+                if let Err(e) = feature_tx_clone.send(snapshot) {
+                    tracing::error!("Failed to send feature snapshot: {}", e);
+                    break; // Если канал закрыт, нет смысла продолжать цикл
+                }
             }
         }
     });
