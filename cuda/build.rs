@@ -1,27 +1,31 @@
-// build.rs
+use std::process::Command;
 use std::env;
-use std::path::PathBuf;
 
 fn main() {
-    // Get the CUDA installation path
-    let cuda_path = env::var("CUDA_PATH")
-        .or_else(|_| env::var("CUDA_ROOT"))
-        .unwrap_or_else(|_| "/usr/local/cuda".to_string());
+    println!("cargo:rerun-if-changed=kernels/indicators.cu");
+    println!("cargo:rerun-if-changed=kernels/predictors.cu");
 
-    let _cuda_include = PathBuf::from(&cuda_path).join("include");
-    let cuda_lib = if PathBuf::from(&cuda_path).join("lib64").exists() {
-        PathBuf::from(&cuda_path).join("lib64")
-    } else {
-        PathBuf::from(&cuda_path).join("lib")
-    };
+    // Проверяем наличие nvcc
+    if Command::new("nvcc").arg("--version").output().is_err() {
+        println!("cargo:warning=nvcc not found. CUDA kernels will not be recompiled.");
+        return;
+    }
 
-    // Tell cargo to look for CUDA libraries in the specified directory
-    println!("cargo:rustc-link-search=native={}", cuda_lib.display());
+    let out_dir = env::var("OUT_DIR").unwrap();
+    
+    // Компилируем indicators.cu -> indicators.ptx
+    let status = Command::new("nvcc")
+        .args(&[
+            "-ptx",
+            "-o", &format!("{}/indicators.ptx", out_dir),
+            "kernels/indicators.cu",
+            "--gpu-architecture=compute_75", // Или compute_60+ для совместимости
+            "--use_fast_math"
+        ])
+        .status()
+        .expect("Failed to execute nvcc");
 
-    // Link to the CUDA runtime and driver libraries
-    println!("cargo:rustc-link-lib=cudart");
-    println!("cargo:rustc-link-lib=cuda");
-
-    // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=build.rs");
+    if !status.success() {
+        panic!("NVCC compilation failed for indicators.cu");
+    }
 }

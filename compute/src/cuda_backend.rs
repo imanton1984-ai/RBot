@@ -4,6 +4,7 @@ use crate::{
     ComputeBackend, ComputeJob, FeatureWindow,
     BatchTensor
 };
+use tracing;
 
 pub struct CudaBackend {
     #[allow(dead_code)]
@@ -20,17 +21,14 @@ impl CudaBackend {
     }
 
     pub fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if self.is_cuda_available() {
+        if cuda::get_cuda_device().is_some() {
             self.initialized = true;
-            Ok(())
+            tracing::info!("CudaBackend initialized successfully.");
         } else {
-            self.initialized = true; 
-            Ok(())
+            self.initialized = false;
+            tracing::warn!("CudaBackend initialization failed. Falling back to CPU where applicable.");
         }
-    }
-
-    fn is_cuda_available(&self) -> bool {
-        cfg!(feature = "cuda")
+        Ok(())
     }
 
     fn run_rsi_kernel(
@@ -38,12 +36,18 @@ impl CudaBackend {
         input: &[f64],
         period: usize,
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_rsi(input, period));
         }
 
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_rsi(input, period)
+        match runner.calculate_rsi(input, period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA RSI failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_rsi(input, period))
+            }
+        }
     }
 
     fn run_ema_kernel(
@@ -51,12 +55,18 @@ impl CudaBackend {
         input: &[f64],
         period: usize,
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_ema(input, period));
         }
 
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_ema(input, period)
+        match runner.calculate_ema(input, period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA EMA failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_ema(input, period))
+            }
+        }
     }
 
     fn run_macd_kernel(
@@ -66,34 +76,52 @@ impl CudaBackend {
         slow_period: usize,
         signal_period: usize,
     ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized{
             return Ok(super::cpu_backend::CpuBackend::calculate_macd(input, fast_period, slow_period, signal_period));
         }
 
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_macd(input, fast_period, slow_period, signal_period)
+        match runner.calculate_macd(input, fast_period, slow_period, signal_period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA MACD failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_macd(input, fast_period, slow_period, signal_period))
+            }
+        }
     }
 
     fn run_adx_kernel(
         &self,
         high: &[f64], low: &[f64], close: &[f64], period: usize
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_adx(high, low, close, period));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_adx(high, low, close, period)
+        match runner.calculate_adx(high, low, close, period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA ADX failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_adx(high, low, close, period))
+            }
+        }
     }
 
     fn run_atr_kernel(
         &self,
         high: &[f64], low: &[f64], close: &[f64], period: usize
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_atr(high, low, close, period));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_atr(high, low, close, period)
+        match runner.calculate_atr(high, low, close, period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA ATR failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_atr(high, low, close, period))
+            }
+        }
     }
 
     fn run_bollinger_bands_kernel(
@@ -102,33 +130,51 @@ impl CudaBackend {
         period: usize,
         num_std_dev: f64,
     ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_bollinger_bands(prices, period, num_std_dev));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_bollinger_bands(prices, period, num_std_dev)
+        match runner.calculate_bollinger_bands(prices, period, num_std_dev) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA Bollinger Bands failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_bollinger_bands(prices, period, num_std_dev))
+            }
+        }
     }
     
     fn run_cci_kernel(
         &self,
         high: &[f64], low: &[f64], close: &[f64], period: usize
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_cci(high, low, close, period));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_cci(high, low, close, period)
+        match runner.calculate_cci(high, low, close, period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA CCI failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_cci(high, low, close, period))
+            }
+        }
     }
 
     fn run_obv_kernel(
         &self,
         close: &[f64], volume: &[f64]
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_obv(close, volume));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_obv(close, volume)
+        match runner.calculate_obv(close, volume) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA OBV failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_obv(close, volume))
+            }
+        }
     }
 
     fn run_stochastic_kernel(
@@ -139,33 +185,51 @@ impl CudaBackend {
         k_period: usize,
         d_period: usize,
     ) -> Result<(Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_stochastic(high, low, close, k_period, d_period));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_stochastic(high, low, close, k_period, d_period)
+        match runner.calculate_stochastic(high, low, close, k_period, d_period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA Stochastic failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_stochastic(high, low, close, k_period, d_period))
+            }
+        }
     }
 
     fn run_vwap_kernel(
         &self,
         high: &[f64], low: &[f64], close: &[f64], volume: &[f64]
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_vwap(high, low, close, volume));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_vwap(high, low, close, volume)
+        match runner.calculate_vwap(high, low, close, volume) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA VWAP failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_vwap(high, low, close, volume))
+            }
+        }
     }
 
     fn run_williams_r_kernel(
         &self,
         high: &[f64], low: &[f64], close: &[f64], period: usize
     ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_williams_r(high, low, close, period));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_williams_r(high, low, close, period)
+        match runner.calculate_williams_r(high, low, close, period) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA Williams %R failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_williams_r(high, low, close, period))
+            }
+        }
     }
     
     fn run_alligator_kernel(
@@ -178,11 +242,17 @@ impl CudaBackend {
         teeth_offset: usize,
         lips_offset: usize,
     ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>), Box<dyn std::error::Error + Send + Sync>> {
-        if !self.initialized || !self.is_cuda_available() {
+        if !self.initialized {
             return Ok(super::cpu_backend::CpuBackend::calculate_alligator(source, jaw_period, teeth_period, lips_period, jaw_offset, teeth_offset, lips_offset));
         }
         let runner = cuda::IndicatorKernelRunner::new();
-        runner.calculate_alligator(source, jaw_period, teeth_period, lips_period, jaw_offset, teeth_offset, lips_offset)
+        match runner.calculate_alligator(source, jaw_period, teeth_period, lips_period, jaw_offset, teeth_offset, lips_offset) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::error!("CUDA Alligator failed: {}. Falling back to CPU", e);
+                Ok(super::cpu_backend::CpuBackend::calculate_alligator(source, jaw_period, teeth_period, lips_period, jaw_offset, teeth_offset, lips_offset))
+            }
+        }
     }
 
 

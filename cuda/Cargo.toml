@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+cudarc = { version = "0.11.2", features = ["f16", "cuda-12050"] } # Основная библиотека для CUDA
 lazy_static = "1.4"
-async-trait = "0.1"
-common = { path = "../common" }
+tracing = "0.1"
