@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cudarc::driver::{LaunchAsync, LaunchConfig, CudaSlice};
+use cudarc::driver::{LaunchAsync, LaunchConfig, CudaSlice, DevicePtr};
 use crate::get_cuda_device;
 
 pub struct IndicatorKernelRunner;
@@ -403,5 +403,58 @@ impl IndicatorKernelRunner {
         };
         
         Ok(output_dev) // Return CudaSlice, keeping data on GPU
+    }
+
+    pub fn calculate_raw_signals_batch(
+        &self,
+        rsi: &CudaSlice<f64>,
+        bb_upper: &CudaSlice<f64>,
+        bb_mid: &CudaSlice<f64>,
+        bb_lower: &CudaSlice<f64>,
+        close: &CudaSlice<f64>,
+        stoch_k: &CudaSlice<f64>,
+        stoch_d: &CudaSlice<f64>,
+        atr: &CudaSlice<f64>,
+        cci: &CudaSlice<f64>,
+        macd_line: &CudaSlice<f64>,
+        macd_histogram: &CudaSlice<f64>,
+        obv: &CudaSlice<f64>,
+        williams_r: &CudaSlice<f64>,
+        sma: &CudaSlice<f64>,
+        n: usize
+    ) -> Result<(CudaSlice<f32>, CudaSlice<i8>)> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA"))?;
+
+        const NUM_SIGNALS: usize = 10;
+        let total_size = n * NUM_SIGNALS;
+
+        let mut scores_dev = device.alloc_zeros::<f32>(total_size)?;
+        let mut sides_dev = device.alloc_zeros::<i8>(total_size)?;
+
+        // Collect pointers to all buffers
+        let h_ptrs = [
+            *rsi.device_ptr(), *bb_upper.device_ptr(), *bb_mid.device_ptr(),
+            *bb_lower.device_ptr(), *close.device_ptr(), *stoch_k.device_ptr(),
+            *stoch_d.device_ptr(), *atr.device_ptr(), *cci.device_ptr(),
+            *macd_line.device_ptr(), *macd_histogram.device_ptr(), *obv.device_ptr(),
+            *williams_r.device_ptr(), *sma.device_ptr()
+        ];
+
+        // Move this pointer array to the GPU temporarily
+        let d_ptrs = device.htod_copy(h_ptrs.to_vec())?;
+
+        let cfg = LaunchConfig::for_num_elems(n as u32);
+        let func = device.get_func("raw_signals", "calculate_raw_signals_kernel").unwrap();
+
+        unsafe {
+            func.launch(cfg, (
+                &d_ptrs,
+                &mut scores_dev, 
+                &mut sides_dev,
+                n as i32
+            ))?
+        };
+
+        Ok((scores_dev, sides_dev))
     }
 }

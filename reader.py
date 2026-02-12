@@ -3,7 +3,7 @@ from pathlib import Path
 
 OUTPUT_FILE   = "rust_bot.txt"
 THIS_SCRIPT   = Path(__file__).resolve()
-IGNORED_DIRS  = {".venv", "External Libraries", "Scratches and Consoles", "__pycache__", ".git", "node_modules", "target", "dist", "build", "venv"}
+IGNORED_DIRS  = {".venv", "External Libraries", "Scratches and Consoles", "__pycache__", ".git", "node_modules", "target", "dist", "build", "venv", "third_party", "target"}
 IGNORED_FILES = {"reverse.py"}  # ← исключаем конкретные файлы
 EXTENSIONS    = {".py", ".cu", ".ptx", ".rs", ".sh", ".toml", ".json", ".yaml", ".yml", ".cfg", ".ini", ".env", ".sql", ".cu", "dockerfile"}
 

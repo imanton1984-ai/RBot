@@ -12,7 +12,6 @@ use common::MessageBus;
 use crate::consensus::ConsensusEngine;
 
 use crate::ml::model_manager::ModelManager;
-use std::sync::Arc;
 
 pub struct PredictorsPipeline {
     config: PredictorsConfig,
@@ -100,6 +99,7 @@ impl PredictorsPipeline {
             snapshot.timestamp,
             snapshot.symbol.clone(),
             snapshot.timeframe.clone(),
+            snapshot.is_realtime,
             snapshot.indicators,
             snapshot.raw_signals_data.as_ref(),
             snapshot.sr_levels,
@@ -1020,11 +1020,22 @@ impl PredictorsPipeline {
 }
 
 // Helper function to build batch for batch predictions
+#[allow(dead_code)]
 fn build_batch(schema: &crate::feature_schema::FeatureSchema, views: &[FeatureSnapshot]) -> (Vec<f32>, usize) {
     let ncol = schema.features.len();
     let mut flat = Vec::with_capacity(views.len() * ncol);
     for v in views {
-        let fv = schema.build_vector(v);
+        let view = FeatureView::new(
+            v.timestamp,
+            v.symbol.clone(),
+            v.timeframe.clone(),
+            v.is_realtime,
+            v.indicators.clone(),
+            v.raw_signals_data.as_ref(),
+            v.sr_levels.clone(),
+        )
+        .expect("Failed to create FeatureView in build_batch");
+        let fv = schema.build_vector(&view);
         flat.extend_from_slice(&fv);
     }
     (flat, ncol)

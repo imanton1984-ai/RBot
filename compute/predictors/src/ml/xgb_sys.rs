@@ -2,6 +2,7 @@ use std::ffi::c_char;
 use std::os::raw::c_int;
 use std::ffi::c_void;
 
+#[allow(non_camel_case_types)]
 pub type bst_ulong = u64;
 
 pub type DMatrixHandle = *mut c_void;

@@ -4,7 +4,7 @@ use crate::{
     ComputeBackend, ComputeJob, FeatureWindow
 };
 use tracing;
-use cudarc::driver::CudaSlice;
+use cudarc::driver::{CudaSlice, DevicePtr, DeviceSlice};
 use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
 
 pub struct CudaBackend {
@@ -37,6 +37,7 @@ impl CudaBackend {
     pub fn process_all_history_optimized(
         &self,
         prices: Vec<f64>,
+        volumes: Vec<f64>,
         model_names: &[String]  // Base model names (without _gpu suffix)
     ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         if !self.initialized {
@@ -51,6 +52,7 @@ impl CudaBackend {
         // 1. Copy prices to GPU ONCE
         let device = cuda::get_cuda_device().ok_or("No CUDA device")?;
         let prices_dev = device.htod_copy(prices)?;
+        let volumes_dev = device.htod_copy(volumes)?;
 
         // 2. Calculate indicators (results stay in GPU memory)
         let rsi_dev = self.indicator_runner.calculate_rsi_batch(&prices_dev, n, 14)?;
@@ -58,6 +60,21 @@ impl CudaBackend {
         let ema_dev = self.indicator_runner.calculate_ema_batch(&prices_dev, n, 20)?;
         let atr_dev = self.indicator_runner.calculate_atr_batch(&prices_dev, &prices_dev, &prices_dev, n, 14)?; // Using same data for demo
         let (bb_upper, bb_mid, bb_lower) = self.indicator_runner.calculate_bollinger_bands_batch(&prices_dev, n, 20, 2.0)?;
+        let (stoch_k_dev, stoch_d_dev) = self.indicator_runner.calculate_stochastic_batch(&prices_dev, &prices_dev, &prices_dev, n, 14, 3)?;
+        let cci_dev = self.indicator_runner.calculate_cci_batch(&prices_dev, &prices_dev, &prices_dev, n, 20)?;
+        let (macd_line_dev, _, macd_histogram_dev) = self.indicator_runner.calculate_macd_batch(&prices_dev, n, 12, 26, 9)?;
+        let obv_dev = self.indicator_runner.calculate_obv_batch(&prices_dev, &volumes_dev, n)?;
+        let williams_r_dev = self.indicator_runner.calculate_williams_r_batch(&prices_dev, &prices_dev, &prices_dev, n, 14)?;
+
+
+        // NEW: Calc Raw Signals on GPU
+        let (raw_scores_dev, raw_sides_dev) = self.indicator_runner.calculate_raw_signals_batch(
+            &rsi_dev, &bb_upper, &bb_mid, &bb_lower, &prices_dev, &stoch_k_dev, &stoch_d_dev, &atr_dev, &cci_dev, &macd_line_dev, &macd_histogram_dev, &obv_dev, &williams_r_dev, &sma_dev, n
+        )?;
+
+        // Download Raw Signals (Very small transfer compared to full indicators)
+        let raw_scores_host = device.dtoh_sync_copy(&raw_scores_dev)?;
+        let raw_sides_host = device.dtoh_sync_copy(&raw_sides_dev)?;
 
         // 3. Run ML models via XGBoost Booster with GPU acceleration
         let mut ml_results = Vec::new();
@@ -83,10 +100,11 @@ impl CudaBackend {
             let kind = if model_name.contains("levels") { ModelKind::BinaryProb2 } else { ModelKind::Regressor1 };
 
             // Get raw device pointer for zero-copy prediction
-            let device_ptr = *features_dev.device_ptr() as u64;
+            let device_ptr = *features_dev.device_ptr();
+            let device_ptr_u64 = device_ptr as u64;
             
             // Use the XGBoost GPU prediction method directly
-            let out = booster.predict_from_cuda_array(device_ptr, n, ncol, kind)?;
+            let out = booster.predict_from_cuda_array(device_ptr_u64, n, ncol, kind)?;
             ml_results.push(out);
         }
 
@@ -214,10 +232,11 @@ impl CudaBackend {
         let kind = if base_model_name.contains("levels") { ModelKind::BinaryProb2 } else { ModelKind::Regressor1 };
         
         // Get raw device pointer for zero-copy prediction
-        let device_ptr = *features.device_ptr() as u64;
+        let device_ptr = *features.device_ptr();
+        let device_ptr_u64 = device_ptr as u64;
         
         // Run prediction using CUDA array interface for true zero-copy
-        let results = booster.predict_from_cuda_array(device_ptr, n, ncol, kind)?;
+        let results = booster.predict_from_cuda_array(device_ptr_u64, n, ncol, kind)?;
         
         // Upload results back to GPU
         let output_dev = device.htod_copy(results)?;

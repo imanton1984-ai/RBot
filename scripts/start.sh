@@ -1,5 +1,52 @@
 #!/usr/bin/env bash
 
+# --- 1. ОПРЕДЕЛЕНИЕ ФУНКЦИЙ (Сначала это!) ---
+C_RESET='\033[0m'
+C_BOLD='\033[1m'
+C_RED='\033[31m'
+C_GREEN='\033[32m'
+C_YELLOW='\033[33m'
+
+log() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} $*"; }
+ok() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} ${C_GREEN}OK:${C_RESET} $*"; }
+warn() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} ${C_YELLOW}WARN:${C_RESET} $*"; }
+die() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} ${C_RED}ERROR:${C_RESET} $*"; exit 1; }
+section() { echo -e "\n${C_BOLD}=== $* ===${C_RESET}"; }
+
+# --- 2. НАСТРОЙКА CUDA 13.1 ---
+# Проверяем разные варианты путей
+POSSIBLE_CUDA_PATHS=("/usr/local/cuda-13.1" "/usr/local/cuda-13.0" "/usr/local/cuda-13")
+SELECTED_CUDA=""
+
+for path in "${POSSIBLE_CUDA_PATHS[@]}"; do
+    if [ -f "$path/bin/nvcc" ]; then
+        SELECTED_CUDA="$path"
+        break
+    fi
+done
+
+if [ -z "$SELECTED_CUDA" ]; then
+    die "CUDA 13 binaries not found in /usr/local/. Please check installation."
+fi
+
+export CUDA_HOME="$SELECTED_CUDA"
+export PATH="$CUDA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
+export CUDA_ROOT="$CUDA_HOME"
+
+section "CUDA ENVIRONMENT"
+ok "Using CUDA from: $CUDA_HOME"
+log "NVCC Version: $(nvcc --version | grep release)"
+
+# --- 3. НАСТРОЙКА XGBOOST PATHS ---
+XGB_LIB_PATH="/home/anton/Desktop/Rust_trader/third_party/xgboost/install/lib"
+export LIBRARY_PATH="${LIBRARY_PATH:-}:$XGB_LIB_PATH"
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$XGB_LIB_PATH"
+
+# Проверка для логов
+log "Building with CUDA from: $(which nvcc)"
+log "CUDA Version: $(nvcc --version | grep release)"
+
 # ==============================================================================
 # Automatic cuDNN Installation for GPU Acceleration
 # ==============================================================================
@@ -44,19 +91,79 @@ fi
 
 # ==============================================================================
 
+# Check CUDA version compatibility for XGBoost
+echo "Checking CUDA version compatibility for XGBoost..."
+CUDA_VERSION=$(nvcc --version | grep "V[0-9]" | cut -d' ' -f6 | sed 's/V//')
+REQUIRED_CUDA_VERSION="12.9"
+
+echo "Detected CUDA version: $CUDA_VERSION"
+echo "Required CUDA version for XGBoost GPU support: >= $REQUIRED_CUDA_VERSION"
+
+# Compare versions using sort -V (version sort) to properly handle version comparison
+if [ "$(printf '%s\n%s' "$REQUIRED_CUDA_VERSION" "$CUDA_VERSION" | sort -V | head -n1)" = "$REQUIRED_CUDA_VERSION" ]; then
+    echo "CUDA version is sufficient for latest XGBoost."
+    XGBOOST_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build_xgboost_cuda.sh"
+else
+    echo "WARNING: CUDA version $CUDA_VERSION is less than required $REQUIRED_CUDA_VERSION"
+    echo ""
+    echo "********************************************************************************"
+    echo "CUDA VERSION ISSUE:"
+    echo "Your CUDA version ($CUDA_VERSION) is insufficient for the latest XGBoost."
+    echo "Checking for newer CUDA installations..."
+    
+    # Check if newer CUDA versions are installed but not properly linked
+    if [ -d "/usr/local/cuda-13.1" ] || [ -d "/usr/local/cuda-13.0" ] || [ -d "/usr/local/cuda-12.9" ]; then
+        echo "Newer CUDA versions found but not properly linked!"
+        echo "Current nvcc path: $(which nvcc)"
+        echo "Available CUDA versions:"
+        ls -la /usr/local/cuda* | grep -E "(cuda-13|cuda-12\\.[9-9])" || echo "No newer CUDA versions found"
+        echo ""
+        echo "To fix this, you may need to update your CUDA symlink:"
+        echo "sudo ln -sf /usr/local/cuda-13.1 /usr/local/cuda"
+        echo "Then restart your shell or run: source ~/.bashrc"
+        echo ""
+        echo "Would you like to continue with an older XGBoost version instead? (y/n): \c"
+        read -p "" -n 1 -r REPLY
+        echo
+    else
+        echo "No newer CUDA versions found on the system."
+        echo ""
+        echo "To upgrade CUDA:"
+        echo "1. Visit https://developer.nvidia.com/cuda-downloads"
+        echo "2. Download CUDA 12.9 or higher for your system"
+        echo "3. Follow the installation instructions"
+        echo "4. Restart your terminal/shell after installation"
+        echo "5. Verify with: nvcc --version"
+        echo ""
+        read -p "Would you like to continue with an older XGBoost version instead? (y/n): " -n 1 -r REPLY
+        echo
+    fi
+    
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Using compatible XGBoost version v2.1.1 for CUDA $CUDA_VERSION..."
+        XGBOOST_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build_xgboost_cuda_compat.sh"
+        if [ ! -f "$XGBOOST_SCRIPT_PATH" ]; then
+            echo "Creating compatible build script..."
+            sed 's/XGB_VER="v3.2.0"/XGB_VER="v2.1.1"/' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build_xgboost_cuda.sh" > "$XGBOOST_SCRIPT_PATH"
+        fi
+    else
+        echo "Exiting. Please update your CUDA installation and try again."
+        exit 1
+    fi
+fi
+
 # Build XGBoost with CUDA support
-echo "Building XGBoost with CUDA support..."
-XGBOOST_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build_xgboost_cuda.sh"
+echo "Building XGBoost with detected compatible script..."
 if [ -f "$XGBOOST_SCRIPT_PATH" ]; then
-    echo "Running XGBoost build script..."
+    echo "Running XGBoost build script: $XGBOOST_SCRIPT_PATH"
     chmod +x "$XGBOOST_SCRIPT_PATH"
     "$XGBOOST_SCRIPT_PATH"
-    
+
     # Set XGBoost library path
     export XGBOOST_LIB_DIR="/home/anton/Desktop/Rust_trader/third_party/xgboost/install/lib"
     export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:$LD_LIBRARY_PATH"
     export LIBRARY_PATH="$XGBOOST_LIB_DIR:$LIBRARY_PATH"
-    
+
     echo "XGBoost library path set to: $XGBOOST_LIB_DIR"
 else
     echo "WARNING: XGBoost build script not found at $XGBOOST_SCRIPT_PATH"

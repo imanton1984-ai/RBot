@@ -15,7 +15,7 @@ pub struct ModelManager {
 
 impl ModelManager {
     pub fn new(use_cuda: bool) -> Self {
-        let mut manager = Self {
+        let manager = Self {
             models_cpu: HashMap::new(),
             models_gpu: HashMap::new(),
             schemas: HashMap::new(),

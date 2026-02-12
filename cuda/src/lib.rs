@@ -18,13 +18,19 @@ impl CudaContext {
         let device = CudaDevice::new(0)?;
         
         // Загружаем PTX (компилируется build.rs и кладется в OUT_DIR)
-        // В продакшене лучше вшить его через include_str! или include_bytes!
-        // Но cudarc умеет грузить PTX текст.
-        
-        // Вариант А: Загрузка во время компиляции (надежнее)
-        let ptx_src = include_str!(concat!(env!("OUT_DIR"), "/indicators.ptx"));
-        device.load_ptx(Ptx::from_src(ptx_src), "indicators", &["sma_kernel", "ema_kernel", "rsi_kernel", "macd_kernel", "adx_kernel", "atr_kernel", "bb_kernel", "obv_kernel", "cci_kernel", "stochastic_kernel", "vwap_kernel", "williams_r_kernel", "alligator_kernel"])?;
+        let indicators_ptx = include_str!(concat!(env!("OUT_DIR"), "/indicators.ptx"));
+        device.load_ptx(Ptx::from_src(indicators_ptx), "indicators", &["sma_kernel", "ema_kernel", "rsi_kernel", "macd_kernel", "adx_kernel", "atr_kernel", "bb_kernel", "obv_kernel", "cci_kernel", "stochastic_kernel", "vwap_kernel", "williams_r_kernel", "alligator_kernel"])?;
 
+        let predictors_ptx = include_str!(concat!(env!("OUT_DIR"), "/predictors.ptx"));
+        device.load_ptx(Ptx::from_src(predictors_ptx), "predictors", &["rsi_divergence_predictor_kernel", "sr_level_predictor_kernel", "momentum_reversal_predictor_kernel", "heuristic_combiner_kernel", "heuristic_to_signal_kernel"])?;
+
+        let raw_signals_ptx = include_str!(concat!(env!("OUT_DIR"), "/raw_signals.ptx"));
+        device.load_ptx(
+            Ptx::from_src(raw_signals_ptx), 
+            "raw_signals", 
+            &["calculate_raw_signals_kernel"]
+        )?;
+        
         Ok(Self { device })
     }
 }

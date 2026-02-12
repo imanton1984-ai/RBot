@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-XGB_VER="v3.2.0"
+XGB_VER="v2.1.1"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TP_DIR="${ROOT_DIR}/third_party/xgboost"
 SRC_DIR="${TP_DIR}/src"

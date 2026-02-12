@@ -1,18 +1,23 @@
 use std::sync::Arc;
-use dotenvy::dotenv;
+use anyhow::{Context, Result};
+use common::{Symbol, Timeframe};
 use compute_lib::*;
 use database_lib;
-use common::{Symbol, Timeframe};
-use sqlx::PgPool;
+use dotenvy::dotenv;
+use sqlx::{PgPool, Row};
 use std::time::Duration;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     dotenv().ok();
+    tracing_subscriber::fmt::init();
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
-    database_lib::init_db::initialize_database(&db_url).await?;
+    
+    database_lib::init_db::initialize_database(&db_url)
+        .await
+        .map_err(|e| anyhow::anyhow!("Database init failed: {}", e))?;
 
     // фиксируем CUDA backend (если бинарь собран с --features cuda)
     let backend_type = if cfg!(feature = "cuda") {
@@ -73,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "SELECT MIN(time) as first_time, MAX(time) as last_time
                  FROM {} c
                  JOIN market.pairs p ON c.symbol_id = p.symbol_id
-                 WHERE p.symbol = $1",
+                 WHERE p.symbol = ",
                 table_name
             );
 
@@ -83,30 +88,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
 
             if let Some(row) = row {
-                let first_time: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
-                let last_time: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
+                let first_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
+                let last_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
 
-                if let (Some(start_time), Some(end_time)) = (first_time, last_time) {
+                if let (Some(start_time), Some(end_time)) = (first_time_opt, last_time_opt) {
                     println!("Processing {} for {} from {} to {}", symbol.as_str(), timeframe.as_str(), start_time, end_time);
 
-                    // Submit batch job for this symbol/timeframe combination
-                    let job = ComputeJob {
-                        symbol: symbol.clone(),
-                        timeframe: *timeframe,
-                        window_start: start_time.timestamp_millis(),
-                        window_end: end_time.timestamp_millis(),
-                        indicators: vec![
-                            "adx".to_string(), "atr".to_string(), "bb".to_string(),
-                            "cci".to_string(), "ema".to_string(), "macd".to_string(),
-                            "obv".to_string(), "rsi".to_string(), "sma".to_string(),
-                            "stoch".to_string(), "vwap".to_string(), "williams".to_string(),
-                            "alligator".to_string(), "sr_levels".to_string(),
-                        ],
-                        candle_window: None,
-                        is_realtime: false, // Guarantee is_realtime = false for history
+                    let duration_in_minutes = (end_time - start_time).num_minutes();
+                    let timeframe_in_minutes = timeframe.to_minutes() as i64;
+                    let length = if timeframe_in_minutes > 0 {
+                        (duration_in_minutes / timeframe_in_minutes) as usize
+                    } else {
+                        0
                     };
 
-                    if let Err(e) = job_scheduler.submit_batch(vec![job]).await {
+                    let window_spec = WindowSpec {
+                        length,
+                        warmup: 0,
+                    };
+
+                    if let Err(e) = job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
                         eprintln!("Error submitting batch job for {} {}: {}", symbol.as_str(), timeframe.as_str(), e);
                     } else {
                         println!("Submitted batch job for {} {}", symbol.as_str(), timeframe.as_str());
@@ -125,49 +126,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 // Function to fetch active symbols from the database
 async fn fetch_active_symbols_from_db(
     db_pool: &PgPool,
-) -> Result<Vec<Symbol>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Vec<Symbol>> {
     // First check if the table exists
-    let table_exists_result = sqlx::query_scalar::<_, bool>(
+    let table_exists: bool = sqlx::query_scalar(
         r#"SELECT EXISTS (
             SELECT FROM information_schema.tables
             WHERE table_schema = 'market' AND table_name = 'pairs'
-        )"#
+        )"#,
     )
     .fetch_one(db_pool)
-    .await;
+    .await
+    .context("Failed to check for 'market.pairs' table existence")?;
 
-    match table_exists_result {
-        Ok(table_exists) => {
-            if !table_exists {
-                return Ok(Vec::new()); // Return empty vector if table doesn't exist
-            }
-        },
-        Err(_) => {
-            return Ok(Vec::new()); // Return empty vector if table check fails
-        }
+    if !table_exists {
+        return Ok(Vec::new()); // Return empty vector if table doesn't exist
     }
 
     // If table exists, try to fetch symbols
-    let rows_result = sqlx::query(
-        r#"SELECT symbol FROM market.pairs WHERE is_active = true"#
-    )
-    .fetch_all(db_pool)
-    .await;
+    let rows = sqlx::query("SELECT symbol FROM market.pairs WHERE is_active = true")
+        .fetch_all(db_pool)
+        .await
+        .context("Failed to fetch active symbols from 'market.pairs'")?;
 
-    match rows_result {
-        Ok(rows) => {
-            let symbols: Vec<Symbol> = rows
-                .into_iter()
-                .map(|row| {
-                    let symbol: String = row.get("symbol");
-                    Symbol::from(symbol)
-                })
-                .collect();
-            Ok(symbols)
-        },
-        Err(e) => {
-            eprintln!("Error fetching symbols: {}", e);
-            Ok(Vec::new()) // Return empty vector if fetch fails
-        }
-    }
+    let symbols: Vec<Symbol> = rows
+        .into_iter()
+        .map(|row| {
+            let symbol: String = row.get("symbol");
+            Symbol::from(symbol)
+        })
+        .collect();
+    Ok(symbols)
 }

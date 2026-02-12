@@ -52,15 +52,16 @@ pub struct FeatureView {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub symbol: String,
     pub timeframe: String,
-    
+    pub is_realtime: bool,
+
     pub indicators: IndicatorsWideRow,
-    
+
     // Support/Resistance levels
     pub sr_levels: Option<serde_json::Value>, // JSON representation of levels
-    
+
     // Raw signals summary
     pub raw_signals_summary: Option<serde_json::Value>,
-    
+
     // Custom computed features
     pub custom_features: HashMap<String, f64>,
 }
@@ -71,6 +72,7 @@ impl FeatureView {
         timestamp: chrono::DateTime<chrono::Utc>,
         symbol: String,
         timeframe: String,
+        is_realtime: bool,
         indicators: IndicatorsWideRow,
         raw_signals_data: Option<&serde_json::Value>,
         sr_levels: Option<serde_json::Value>,
@@ -79,16 +81,22 @@ impl FeatureView {
             timestamp,
             symbol,
             timeframe,
+            is_realtime,
             indicators,
             sr_levels,
             raw_signals_summary: raw_signals_data.cloned(),
             custom_features: HashMap::new(),
         };
-        
+
         // Compute derived features
         feature_view.compute_derived_features();
-        
+
         Ok(feature_view)
+    }
+
+    /// Returns true if the feature view is for a real-time candle
+    pub fn is_realtime(&self) -> bool {
+        self.is_realtime
     }
     
     /// Computes derived features based on the raw data
@@ -363,5 +371,4 @@ impl SrLevelKind {
     }
 }
 
-// NOTE: Tests are removed because they depend on the old `new` method and `serde_json`.
-// They need to be rewritten to use `IndicatorsWideRow`.
+
