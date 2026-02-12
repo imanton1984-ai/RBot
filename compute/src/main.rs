@@ -114,7 +114,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Initial load can take 20-60+ seconds depending on network and rate limits.
         // We poll every 2 seconds, no fixed retry limit — just wait until data appears.
         println!("Waiting for historical data to be ingested...");
-        let mut data_found = false;
         let start = std::time::Instant::now();
         
         loop {
@@ -126,9 +125,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(Some(_)) = row {
                 println!("Data detected in DB after {:.1}s. Starting historical compute...",
                     start.elapsed().as_secs_f64());
-                data_found = true;
                 // Brief grace time for bulk copy to fully commit
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+                if let Err(e) = trigger_historical_compute(&bootstrap_coordinator_clone, &db_pool_clone).await {
+                    eprintln!("Error triggering historical compute: {}", e);
+                }
                 break;
             }
             
@@ -137,12 +139,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Waiting for ingestor... ({:.0}s elapsed)", start.elapsed().as_secs_f64());
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        }
-
-        if data_found {
-            if let Err(e) = trigger_historical_compute(&bootstrap_coordinator_clone, &db_pool_clone).await {
-                eprintln!("Error triggering historical compute: {}", e);
-            }
         }
     });
 

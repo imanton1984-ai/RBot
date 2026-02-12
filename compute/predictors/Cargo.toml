@@ -18,3 +18,4 @@ ndarray = "0.16"
 ort = { version = "2.0.0-rc.11", features = ["cuda"] }
 dashmap = "5.5"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+cudarc = "0.11.0"

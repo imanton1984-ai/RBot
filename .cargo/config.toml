@@ -7,7 +7,6 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 [build]
 # Включает кэширование (требуется установка: cargo install sccache)
 rustc-wrapper = "sccache"
-rustc-link-search = ["/usr/local/cuda/lib64", "/usr/local/cuda/extras/CUPTI/lib64"]
 
 [profile.dev]
 # Оптимизация для более быстрой разработки

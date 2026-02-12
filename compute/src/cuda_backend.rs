@@ -1,26 +1,26 @@
 use std::sync::Arc;
 use common::{Symbol, Timeframe};
 use crate::{
-    ComputeBackend, ComputeJob, FeatureWindow,
-    BatchTensor
+    ComputeBackend, ComputeJob, FeatureWindow
 };
 use tracing;
 use cudarc::driver::CudaSlice;
+use predictors::ml::{ModelPool, OnnxRunner};
 
 pub struct CudaBackend {
-    device_id: usize,
+    _device_id: usize,
     initialized: bool,
     indicator_runner: cuda::IndicatorKernelRunner,
-    model_pool: std::sync::Arc<predictors::model_pool::ModelPool>,
+    model_pool: std::sync::Arc<ModelPool>,
 }
 
 impl CudaBackend {
     pub fn new() -> Self {
         Self {
-            device_id: 0, // Default to first device
+            _device_id: 0, // Default to first device
             initialized: false,
             indicator_runner: cuda::IndicatorKernelRunner::new(),
-            model_pool: std::sync::Arc::new(predictors::model_pool::ModelPool::new()),
+            model_pool: std::sync::Arc::new(ModelPool::new()),
         }
     }
 
@@ -67,7 +67,7 @@ impl CudaBackend {
         for model_name in model_names {
             // Pass the base model name - the OnnxRunner will handle the _gpu suffix logic
             let base_model_path = format!("../../models/{}", model_name);
-            let onnx_runner = predictors::ml::OnnxRunner::new(&base_model_path, true, self.model_pool.clone())?;
+            let onnx_runner = OnnxRunner::new(&base_model_path, true, self.model_pool.clone())?;
             
             // Convert indicators to the format expected by the model
             // For this example, we'll combine RSI and SMA into a feature matrix
@@ -80,21 +80,28 @@ impl CudaBackend {
             // Create output slice for model predictions
             let mut ml_output_dev = device.alloc_zeros::<f32>(n)?;
             
+            // HACK: Convert f64 features to f32 on CPU because model expects f32.
+            // This breaks the zero-copy pipeline for this step but is a necessary evil
+            // without a dedicated f64->f32 CUDA kernel.
+            let features_f64_host = device.dtoh_sync_copy(&features_dev)?;
+            let features_f32_host: Vec<f32> = features_f64_host.into_iter().map(|x| x as f32).collect();
+            let features_f32_dev = device.htod_copy(features_f32_host)?;
+            
             // Run model with zero-copy binding
-            onnx_runner.predict_with_cuda_slice(&features_dev, &mut ml_output_dev, n)?;
+            onnx_runner.predict_with_cuda_slice(&features_f32_dev, &mut ml_output_dev, n)?;
             
             ml_results.push(ml_output_dev);
         }
 
         // 4. Calculate heuristic signals (results stay in GPU memory)
-        let heur_1_dev = self.indicator_runner.calculate_rsi_divergence_batch(&prices_dev, &rsi_dev, n, 14)?;
-        let heur_2_dev = self.indicator_runner.calculate_momentum_reversal_batch(&prices_dev, &rsi_dev, n, 14)?;
+        let _heur_1_dev = self.indicator_runner.calculate_rsi_divergence_batch(&prices_dev, &rsi_dev, n, 14)?;
+        let _heur_2_dev = self.indicator_runner.calculate_momentum_reversal_batch(&prices_dev, &rsi_dev, n, 14)?;
 
         // 5. Convert heuristic results to float format for consensus kernel
         // Note: This would require additional kernels to convert between data types
         // For now, we'll create placeholder float slices
-        let mut heur_1_float_dev = device.alloc_zeros::<f32>(n)?;
-        let mut heur_2_float_dev = device.alloc_zeros::<f32>(n)?;
+        let heur_1_float_dev = device.alloc_zeros::<f32>(n)?;
+        let heur_2_float_dev = device.alloc_zeros::<f32>(n)?;
 
         // 6. Run consensus kernel (stays in GPU memory)
         let final_signals_dev = if ml_results.len() >= 2 {
@@ -144,15 +151,15 @@ impl CudaBackend {
         let rsi_dev = self.indicator_runner.calculate_rsi_batch(&close_dev, n, 14)?;
         let sma_dev = self.indicator_runner.calculate_sma_batch(&close_dev, n, 20)?;
         let ema_dev = self.indicator_runner.calculate_ema_batch(&close_dev, n, 20)?;
-        let atr_dev = self.indicator_runner.calculate_atr_batch(&high_dev, &low_dev, &close_dev, n, 14)?;
-        let adx_dev = self.indicator_runner.calculate_adx_batch(&high_dev, &low_dev, &close_dev, n, 14)?;
-        let cci_dev = self.indicator_runner.calculate_cci_batch(&high_dev, &low_dev, &close_dev, n, 20)?;
-        let obv_dev = self.indicator_runner.calculate_obv_batch(&close_dev, &vol_dev, n)?;
-        let vwap_dev = self.indicator_runner.calculate_vwap_batch(&high_dev, &low_dev, &close_dev, &vol_dev, n)?;
+        let _atr_dev = self.indicator_runner.calculate_atr_batch(&high_dev, &low_dev, &close_dev, n, 14)?;
+        let _adx_dev = self.indicator_runner.calculate_adx_batch(&high_dev, &low_dev, &close_dev, n, 14)?;
+        let _cci_dev = self.indicator_runner.calculate_cci_batch(&high_dev, &low_dev, &close_dev, n, 20)?;
+        let _obv_dev = self.indicator_runner.calculate_obv_batch(&close_dev, &vol_dev, n)?;
+        let _vwap_dev = self.indicator_runner.calculate_vwap_batch(&high_dev, &low_dev, &close_dev, &vol_dev, n)?;
         
-        let (bb_upper, bb_mid, bb_lower) = self.indicator_runner.calculate_bollinger_bands_batch(&close_dev, n, 20, 2.0)?;
-        let (stoch_k, stoch_d) = self.indicator_runner.calculate_stochastic_batch(&high_dev, &low_dev, &close_dev, n, 14, 3)?;
-        let williams_r_dev = self.indicator_runner.calculate_williams_r_batch(&high_dev, &low_dev, &close_dev, n, 14)?;
+        let (_bb_upper, _bb_mid, _bb_lower) = self.indicator_runner.calculate_bollinger_bands_batch(&close_dev, n, 20, 2.0)?;
+        let (_stoch_k, _stoch_d) = self.indicator_runner.calculate_stochastic_batch(&high_dev, &low_dev, &close_dev, n, 14, 3)?;
+        let _williams_r_dev = self.indicator_runner.calculate_williams_r_batch(&high_dev, &low_dev, &close_dev, n, 14)?;
 
         // Download results selectively (only what's needed for the next step)
         let rsi_values = device.dtoh_sync_copy(&rsi_dev)?;
@@ -162,7 +169,7 @@ impl CudaBackend {
 
         // Create feature window with computed indicators
         // This is a simplified representation
-        let mut batch = crate::FeatureBatch::new((0..n as u64).collect());
+        let mut batch = crate::FeatureBatch::new((0..n).map(|v| v as i64).collect());
         batch.push_f64("rsi", rsi_values);
         batch.push_f64("sma", sma_values);
         batch.push_f64("ema", ema_values);
@@ -195,15 +202,15 @@ impl CudaBackend {
 
         // Use the base model name - the OnnxRunner will handle the _gpu suffix logic
         let base_model_path = format!("../../models/{}", base_model_name);
-        let onnx_runner = predictors::ml::OnnxRunner::new(&base_model_path, true, self.model_pool.clone())
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        let onnx_runner = OnnxRunner::new(&base_model_path, true, self.model_pool.clone())
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(format!("{}", e)))?;
 
         let mut output_dev = cuda::get_cuda_device()
             .ok_or("No CUDA device")?
             .alloc_zeros::<f32>(n)?;
 
         onnx_runner.predict_with_cuda_slice(features, &mut output_dev, n)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(format!("{}", e)))?;
 
         Ok(output_dev)
     }
@@ -249,7 +256,7 @@ impl ComputeBackend for CudaBackend {
             let close_dev = device.htod_copy(candle_window.close.clone())?;
             let high_dev = device.htod_copy(candle_window.high.clone())?;
             let low_dev = device.htod_copy(candle_window.low.clone())?;
-            let vol_dev = device.htod_copy(candle_window.volume.clone())?;
+            let _vol_dev = device.htod_copy(candle_window.volume.clone())?;
 
             // Calculate indicators in batch on GPU
             for indicator in &job.indicators {
