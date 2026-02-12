@@ -1,6 +1,8 @@
+pub mod xgb_sys;
+pub mod xgb_runtime;
 pub mod model_manager;
-pub mod onnx_runtime;
+// Keep for potential future use
 pub mod model_pool;
 
-pub use onnx_runtime::OnnxRunner;
+// Remove OnnxRunner as it's no longer needed
 pub use model_pool::ModelPool;

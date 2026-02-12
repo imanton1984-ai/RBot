@@ -3,9 +3,6 @@ pandas
 scikit-learn
 xgboost
 lightgbm
-onnx
-onnxmltools
-skl2onnx
 psycopg2-binary
 sqlalchemy
 jupyter

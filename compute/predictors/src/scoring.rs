@@ -17,7 +17,7 @@ impl Predictorscore {
         Self {
             raw_output: output,
             confidence,
-            source: "ml_onnx".to_string(),
+            source: "ml_xgboost".to_string(),
         }
     }
 

@@ -2242,409 +2242,201 @@ networks:
 
 
 
-# trainer/src/convert_to_hb.py
-
-#!/usr/bin/env python3
-"""
-Script to convert existing ONNX models to Hummingbird-optimized ONNX models
-for GPU acceleration with tensor cores.
-"""
-import os
-import sys
-import argparse
-import onnx
-import hummingbird.ml
-import xgboost as xgb
-import lightgbm as lgb
-import joblib
-import pickle
-from pathlib import Path
-
-
-def convert_model_to_hummingbird(original_model_path, output_path, model_type="xgboost"):
-    """
-    Convert a trained model (XGBoost/LightGBM) to Hummingbird-optimized ONNX format.
-    """
-    print(f"Converting {original_model_path} to Hummingbird-optimized ONNX...")
-    
-    # Determine the model type and load accordingly
-    if model_type.lower() == "xgboost":
-        # For XGBoost, we need the original model file (not ONNX) to convert with Hummingbird
-        # Since we only have ONNX, we'll need to work differently
-        print("Note: Converting from ONNX to Hummingbird-optimized ONNX requires original model format.")
-        print("For best results, use original XGBoost/LightGBM model files.")
-        # For now, just copy the original ONNX file
-        original_onnx = onnx.load(original_model_path)
-        onnx.save(original_onnx, output_path)
-    elif model_type.lower() == "lightgbm":
-        # Same issue - we need the original model format
-        print("Note: Converting from ONNX to Hummingbird-optimized ONNX requires original model format.")
-        print("For best results, use original LightGBM model files.")
-        original_onnx = onnx.load(original_model_path)
-        onnx.save(original_onnx, output_path)
-    else:
-        # If we have the original model file format, we can convert properly
-        # Example for when we have the original model:
-        try:
-            # Load the original model (this would be from .pkl, .txt, or .json)
-            if original_model_path.endswith('.pkl'):
-                with open(original_model_path, 'rb') as f:
-                    model = pickle.load(f)
-            elif original_model_path.endswith('.txt') or original_model_path.endswith('.model'):
-                model = lgb.Booster(model_file=original_model_path)
-            elif original_model_path.endswith('.json'):
-                # For XGBoost JSON models
-                model = xgb.Booster()
-                model.load_model(original_model_path)
-            else:
-                raise ValueError(f"Unsupported model format: {original_model_path}")
-            
-            # Convert using Hummingbird with batch support
-            hb_model = hummingbird.ml.convert(
-                model, 
-                'onnx', 
-                extra_config={
-                    "container": "PyTorch",  # Use PyTorch backend for better GPU compatibility
-                    "onnx_target_opset": 15  # Use newer opset for better GPU support
-                }
-            )
-            
-            # Save the converted model
-            hb_model.save(output_path)
-            print(f"Successfully converted model to Hummingbird format: {output_path}")
-        except Exception as e:
-            print(f"Error converting model: {e}")
-            print("Falling back to copying original ONNX file...")
-            original_onnx = onnx.load(original_model_path)
-            onnx.save(original_onnx, output_path)
-
-
-def convert_onnx_to_hummingbird_format(input_path, output_path):
-    """
-    Wrapper function to handle ONNX to Hummingbird conversion.
-    In practice, you'd want to convert from original model format (XGBoost/LightGBM) to Hummingbird ONNX.
-    """
-    print(f"Processing: {input_path} -> {output_path}")
-    
-    # For now, since we only have ONNX files, we'll just validate and copy
-    # In a real scenario, you'd have the original model files to convert from
-    try:
-        model = onnx.load(input_path)
-        onnx.checker.check_model(model)
-        print("Original model is valid.")
-        
-        # Copy the model (in real scenario, this would be the converted Hummingbird model)
-        onnx.save(model, output_path)
-        print(f"Saved model to {output_path}")
-    except Exception as e:
-        print(f"Error processing {input_path}: {e}")
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Convert models to Hummingbird-optimized ONNX format")
-    parser.add_argument("--input-dir", type=str, default="../../models", help="Input directory containing ONNX models")
-    parser.add_argument("--output-dir", type=str, default="../../models", help="Output directory for converted models")
-    parser.add_argument("--model-type", type=str, default="xgboost", 
-                       choices=["xgboost", "lightgbm", "onnx"], 
-                       help="Type of original model format")
-    
-    args = parser.parse_args()
-    
-    input_dir = Path(args.input_dir)
-    output_dir = Path(args.output_dir)
-    
-    # Create output directory if it doesn't exist
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Find all ONNX files in the input directory
-    onnx_files = list(input_dir.glob("*.onnx"))
-    
-    if not onnx_files:
-        print(f"No ONNX files found in {input_dir}")
-        return
-    
-    print(f"Found {len(onnx_files)} ONNX files to process")
-    
-    for onnx_file in onnx_files:
-        # Create output filename with "_gpu" suffix to indicate Hummingbird optimization
-        stem = onnx_file.stem
-        suffix = onnx_file.suffix
-        output_filename = f"{stem}_gpu{suffix}"
-        output_path = output_dir / output_filename
-        
-        print(f"\nProcessing: {onnx_file.name}")
-        convert_onnx_to_hummingbird_format(str(onnx_file), str(output_path))
-        
-        # Also copy the corresponding JSON metadata file if it exists
-        json_file = input_dir / f"{stem}.json"
-        if json_file.exists():
-            output_json = output_dir / f"{stem}_gpu.json"
-            import shutil
-            shutil.copy2(json_file, output_json)
-            print(f"Copied metadata to {output_json}")
-
-
-if __name__ == "__main__":
-    main()
-
-
 # trainer/src/train_from_db.py
 
 import os
-import pandas as pd
-import numpy as np
-import xgboost as xgb
-import sqlalchemy
-from skl2onnx.common.data_types import FloatTensorType
-from onnxmltools.convert import convert_xgboost
-from onnxmltools.convert.common.data_types import FloatTensorType as OnnxFloatTensorType
-import onnx
-from sklearn.model_selection import TimeSeriesSplit
+import sys
 import json
 import hashlib
+import numpy as np
+import pandas as pd
 
-# --- КОНФИГУРАЦИЯ ---
-DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/timescaledb_binance")
-SYMBOL = "BTCUSDT"
-TIMEFRAMES = [1, 5, 15, 60, 240, 1440]  # All 6 timeframes: 1m, 5m, 15m, 1h, 4h, 1d
-HORIZON = 10  # Предсказываем на 10 свечей вперед
-MODEL_DIR = "../models"
+from sqlalchemy import create_engine
+from sklearn.model_selection import TimeSeriesSplit
+import xgboost as xgb
 
-# Список фичей, которые ДОЛЖНЫ совпадать с тем, что вы подаете в Rust (FeatureView)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/timescaledb_binance")
+MODELS_DIR = os.getenv("MODELS_DIR", "models")
+
+TIMEFRAMES = [1, 5, 15, 60, 240, 1440]  # minutes
+HORIZON = int(os.getenv("HORIZON_BARS", "10"))
+
 FEATURES = [
-    'close', 'high', 'low', 'open', 'volume',
-    'rsi', 'macd', 'macd_signal', 'macd_hist',
-    'ema_20', 'ema_50', 'ema_200', 'sma',
-    'bb_upper', 'bb_lower', 'bb_mid',
-    'atr', 'adx', 'vwap', 'obv', 'cci',
-    'stoch_k', 'stoch_d', 'williams_r',  # Fixed: was 'williams' in Python but mapped from 'williams' in DB
-    'trend', 'trend_short'
+    "rsi","cci","stoch_k","stoch_d","williams_r",
+    "macd","macd_signal","macd_hist","adx","sma","ema_20","ema_50","ema_200",
+    "bb_upper","bb_mid","bb_lower","atr",
+    "obv","vwap","volume_spike",
+    "alligator_jaw","alligator_teeth","alligator_lips",
+    "trend","trend_short","poc",
 ]
 
-def load_data(timeframe):
-    print(f"Connecting to {DB_URL}...")
-    engine = sqlalchemy.create_engine(DB_URL)
+def ensure_dirs():
+    os.makedirs(MODELS_DIR, exist_ok=True)
 
-    # Формируем SQL запрос. Важно: порядок колонок должен быть жестким,
-    # либо в Rust мы должны маппить их по именам.
-    # Join candles and indicators tables to get both OHLCV and indicators
-    query = f"""
-        SELECT
-            c.close, c.high, c.low, c.open, c.volume,
-            i.rsi, i.macd, i.macd_signal, i.macd_hist,
-            i.ema_20, i.ema_50, i.ema_200, i.sma,
-            i.bb_upper, i.bb_lower, i.bb_mid,
-            i.atr, i.adx, i.vwap, i.obv, i.cci,
-            i.stoch_k, i.stoch_d, i.williams as williams_r,  -- Map williams to williams_r
-            i.trend, i.trend_short
-        FROM market.candles c
-        INNER JOIN market.indicators_wide i
-            ON c.symbol_id = i.symbol_id AND c.time = i.time AND c.time_ms = i.time_ms
-        WHERE i.symbol = '{SYMBOL}' AND c.tf_minutes = {timeframe}
-        ORDER BY c.time ASC
+def load_data(timeframe_min: int) -> pd.DataFrame:
+    engine = create_engine(DATABASE_URL)
+    # Берём wide индикаторы + close из свечей (подстрой под свою схему если надо)
+    # ВАЖНО: здесь пример. Если у тебя другой join — агент поправит.
+    # Determine the appropriate candle table based on timeframe
+    candle_table = f"market.candles_{timeframe_min}m"
+    
+    q = f"""
+    SELECT
+      i.time,
+      i.tf_minutes,
+      i.symbol,
+      c.close,
+      i.rsi, i.cci, i.stoch_k, i.stoch_d, i.williams_r,
+      i.macd, i.macd_signal, i.macd_hist, i.adx, i.sma, i.ema_20, i.ema_50, i.ema_200,
+      i.bb_upper, i.bb_mid, i.bb_lower, i.atr,
+      i.obv, i.vwap, i.volume_spike,
+      i.alligator_jaw, i.alligator_teeth, i.alligator_lips,
+      i.trend, i.trend_short, i.poc
+    FROM market.indicators_wide i
+    JOIN {candle_table} c
+      ON c.symbol_id = i.symbol_id AND c.tf_minutes = i.tf_minutes AND c.time = i.time
+    WHERE i.tf_minutes = {timeframe_min}
+    ORDER BY i.time ASC
     """
-    print(f"Fetching data for timeframe {timeframe}m...")
-    df = pd.read_sql(query, engine)
-
-    # Check if we have enough data
-    if len(df) < 200:
-        print(f"Warning: Not enough data for timeframe {timeframe}m (got {len(df)} rows). Skipping...")
+    df = pd.read_sql(q, engine)
+    if df is None or len(df) == 0:
         return None
 
-    # Заменяем NULL на 0 (или среднее), чтобы XGBoost не падал при конвертации
-    df = df.fillna(0.0)
-
-    # Конвертируем все в float32 (требование ONNX Runtime в Rust)
-    for c in df.columns:
-        df[c] = df[c].astype(np.float32)
-
+    # cleanup
+    df = df.sort_values("time").reset_index(drop=True)
+    for col in FEATURES + ["close"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["close"])
     return df
 
-def train_price_model(df):
-    print("Training Price Prediction Model...")
+def export_xgb(model, model_name: str, schema: dict):
+    ensure_dirs()
+    model_path = os.path.join(MODELS_DIR, model_name)
+    schema_path = os.path.join(MODELS_DIR, model_name.replace(".ubj", ".json"))
 
-    # Target: Percentage return after N candles
-    y = (df['close'].shift(-HORIZON) / df['close']) - 1
+    # save model
+    model.save_model(model_path)
+
+    # save schema/meta
+    with open(schema_path, "w", encoding="utf-8") as f:
+        json.dump(schema, f, ensure_ascii=False, indent=2)
+
+    print(f"  saved: {model_path}")
+    print(f"  saved: {schema_path}")
+
+def train_price_model(df: pd.DataFrame):
+    print("Training Price Model (regression return)...")
+
+    y = (df["close"].shift(-HORIZON) / df["close"]) - 1.0
     X = df[FEATURES]
 
-    # Fill infinities that might result from division by zero
     y = y.replace([np.inf, -np.inf], 0.0)
-
-    # Remove last N rows where target is NaN
     X = X.iloc[:-HORIZON]
     y = y.iloc[:-HORIZON]
 
-    # Check if we have enough data for training
-    if len(X) < 50:  # Need at least 50 samples for meaningful training
-        print(f"  Not enough data after removing {HORIZON} rows for target. Available: {len(X)} rows.")
-        return None
-
-    # TimeSeriesSplit for cross-validation (adjust splits based on available data)
-    n_splits = min(5, len(X) // 20)  # At least 20 samples per fold
-    if n_splits < 2:
-        print("  Not enough data for cross-validation, skipping CV and training directly...")
-        model = xgb.XGBRegressor(
-            n_estimators=100,
-            max_depth=5,
-            learning_rate=0.05,
-            objective='reg:squarederror',
-            n_jobs=-1
-        )
-        model.fit(X, y)
-        return model
-
-    tscv = TimeSeriesSplit(n_splits=n_splits)
-
-    model = xgb.XGBRegressor(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.05,
-        objective='reg:squarederror',
-        n_jobs=-1
-    )
-
-    print(f"  Cross-validating with {n_splits} splits...")
-    scores = []
-    for train_index, test_index in tscv.split(X):
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-
-        # Skip folds with insufficient data
-        if len(X_train) < 10 or len(X_test) < 5:
-            continue
-
-        model.fit(X_train, y_train)
-        score = model.score(X_test, y_test)
-        scores.append(score)
-        print(f"    Split score: {score:.4f}")
-
-    if scores:
-        print(f"  Average R^2 Score on cross-validation: {np.mean(scores):.4f}")
-    else:
-        print("  Could not perform cross-validation due to insufficient data in folds")
-
-    # Final fit on all data
-    print("  Fitting final model on all data...")
-    model.fit(X, y)
-
-    return model
-
-def export_to_onnx(model, filename, features, schema_id):
-    print(f"Exporting to {filename}...")
-
-    # Описываем входной тензор: [None (любой batch size), кол-во фичей]
-    # Используем правильный тип данных в зависимости от библиотеки
-    initial_type = [('float_input', OnnxFloatTensorType([None, len(features)]))]
-
-    try:
-        # Convert XGBoost model to ONNX
-        # options={'zipmap': False} forces classifiers to output probabilities as a Tensor (Array),
-        # not a sequence of maps. This is critical for Rust ORT to read probabilities easily.
-        onnx_model = convert_xgboost(
-            model, 
-            initial_types=initial_type,
-            options={'zipmap': False} 
-        )
-
-        os.makedirs(MODEL_DIR, exist_ok=True)
-        full_path = os.path.join(MODEL_DIR, filename)
-        onnx.save_model(onnx_model, full_path)
-        print(f"Saved model to {full_path}")
-
-        # Export metadata
-        meta = {
-            "schema_id": schema_id,
-            "features": features
-        }
-        meta_path = os.path.join(MODEL_DIR, filename.replace(".onnx", ".json"))
-        with open(meta_path, 'w') as f:
-            json.dump(meta, f, indent=2)
-        print(f"Saved metadata to {meta_path}")
-    except Exception as e:
-        print(f"Error exporting model {filename}: {e}")
-        # Continue without crashing the whole process
-
-def train_level_model(df):
-    print("Training Level Prediction Model...")
-
-    # Target: классификация (пробой/отскок от уровня)
-    # Для примера, создадим искусственную целевую переменную
-    # В реальности это будет более сложная логика на основе SR уровней
-
-    # Создаем фиктивные уровни (в реальности они будут из SR уровней)
-    df_copy = df.copy()
-    df_copy['avg_price'] = df_copy['close'].rolling(window=20).mean()
-    df_copy['is_near_level'] = abs(df_copy['close'] - df_copy['avg_price']) < (df_copy['atr'] * 0.5)  # Рядом с уровнем
-
-    # Целевая переменная: 1 если пробой, 0 если отскок (упрощенно)
-    df_copy['next_direction'] = (df_copy['close'].shift(-HORIZON) > df_copy['close']).astype(int)
-
-    y = df_copy['next_direction']
-    X = df_copy[FEATURES]
-
-    # Удаляем последние N строк, где нет target
-    X = X.iloc[:-HORIZON]
-    y = y.iloc[:-HORIZON]
-
-    # Убираем строки с NaN
     mask = ~(X.isna().any(axis=1) | y.isna())
     X = X[mask]
     y = y[mask]
 
-    # Check if we have enough data for training
-    if len(X) < 50:  # Need at least 50 samples for meaningful training
-        print(f"  Not enough data for level model. Available: {len(X)} rows after cleaning.")
+    if len(X) < 50:
+        print(f"  Not enough rows: {len(X)}")
         return None
 
-    # Обучение модели классификации
-    model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
+    model = xgb.XGBRegressor(
+        n_estimators=200,
+        max_depth=6,
         learning_rate=0.05,
-        n_jobs=-1
+        objective="reg:squarederror",
+        n_jobs=-1,
+        # Enable GPU training if available
+        tree_method="gpu_hist",
+        predictor="gpu_predictor"
+    )
+
+    # CV (optional)
+    n_splits = min(5, len(X) // 200)
+    if n_splits >= 2:
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+        scores = []
+        for tr, te in tscv.split(X):
+            model.fit(X.iloc[tr], y.iloc[tr])
+            scores.append(model.score(X.iloc[te], y.iloc[te]))
+        print(f"  CV mean score: {float(np.mean(scores)):.4f}")
+
+    model.fit(X, y)
+    print(f"  train score: {model.score(X, y):.4f}")
+    return model
+
+def train_level_model(df: pd.DataFrame):
+    print("Training Levels Model (binary direction)...")
+
+    # target: direction after HORIZON candles
+    future = df["close"].shift(-HORIZON)
+    y = (future > df["close"]).astype(int)
+
+    X = df[FEATURES]
+    X = X.iloc[:-HORIZON]
+    y = y.iloc[:-HORIZON]
+
+    mask = ~(X.isna().any(axis=1) | y.isna())
+    X = X[mask]
+    y = y[mask]
+
+    if len(X) < 50:
+        print(f"  Not enough rows: {len(X)}")
+        return None
+
+    model = xgb.XGBClassifier(
+        n_estimators=300,
+        max_depth=6,
+        learning_rate=0.05,
+        n_jobs=-1,
+        eval_metric="logloss",
+        # Enable GPU training if available
+        tree_method="gpu_hist",
+        predictor="gpu_predictor"
     )
     model.fit(X, y)
-
-    # Оценка
-    score = model.score(X, y)
-    print(f"  Accuracy Score on train set: {score:.4f}")
-
+    print(f"  train acc: {model.score(X, y):.4f}")
     return model
 
 if __name__ == "__main__":
-    try:
-        # Create schema_id from FEATURES list
-        feature_string = ",".join(FEATURES)
-        schema_id = hashlib.sha256(feature_string.encode('utf-8')).hexdigest()
+    ensure_dirs()
 
-        for timeframe in TIMEFRAMES:
-            print(f"\n=== Training models for timeframe {timeframe}m ===")
-            
-            df = load_data(timeframe)
-            if df is None or len(df) < 200:
-                print(f"Not enough data to train for timeframe {timeframe}m! Run the bot to collect candles first.")
-                continue
-            
-            # Обучаем модель предсказания цены
-            price_model = train_price_model(df.copy())
-            if price_model is not None:
-                export_to_onnx(price_model, f"price_v1_tf{timeframe}.onnx", FEATURES, f"{schema_id}_tf{timeframe}")
-            else:
-                print(f"  Skipping price model export for timeframe {timeframe}m due to insufficient data.")
+    feature_string = ",".join(FEATURES)
+    schema_base = hashlib.sha256(feature_string.encode("utf-8")).hexdigest()
 
-            # Обучаем модель предсказания уровней
-            level_model = train_level_model(df.copy())
-            if level_model is not None:
-                export_to_onnx(level_model, f"levels_v1_tf{timeframe}.onnx", FEATURES, f"{schema_id}_tf{timeframe}")
-            else:
-                print(f"  Skipping level model export for timeframe {timeframe}m due to insufficient data.")
+    for tf in TIMEFRAMES:
+        print(f"\n=== timeframe {tf}m ===")
+        df = load_data(tf)
+        if df is None or len(df) < 200:
+            print("  Not enough data. Run collector first.")
+            continue
 
-            print(f"Training complete for timeframe {timeframe}m.")
+        price = train_price_model(df.copy())
+        if price is not None:
+            schema = {
+                "schema_id": f"{schema_base}_tf{tf}",
+                "features": FEATURES,
+                "task": "price_regression_return",
+                "horizon_bars": HORIZON,
+                "tf_minutes": tf,
+            }
+            export_xgb(price, f"price_v1_tf{tf}.ubj", schema)
 
-        print("\nAll training completed!")
-    except Exception as e:
-        print(f"Error: {e}")
+        levels = train_level_model(df.copy())
+        if levels is not None:
+            schema = {
+                "schema_id": f"{schema_base}_tf{tf}",
+                "features": FEATURES,
+                "task": "levels_binary_direction",
+                "horizon_bars": HORIZON,
+                "tf_minutes": tf,
+            }
+            export_xgb(levels, f"levels_v1_tf{tf}.ubj", schema)
 
+    print("\nAll training completed.")
 
 
 # cuda/Cargo.toml
@@ -4814,6 +4606,60 @@ impl<T> Drop for DevicePtr<T> {
 # palceholder for predictors
 
 
+# scripts/build_xgboost_cuda.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+XGB_VER="v3.2.0"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TP_DIR="${ROOT_DIR}/third_party/xgboost"
+SRC_DIR="${TP_DIR}/src"
+BUILD_DIR="${TP_DIR}/build"
+INSTALL_DIR="${TP_DIR}/install"
+
+echo "[xgb] root=${ROOT_DIR}"
+echo "[xgb] installing deps (ubuntu/debian expected)..."
+sudo apt-get update
+sudo apt-get install -y git cmake ninja-build build-essential libomp-dev
+
+mkdir -p "${TP_DIR}"
+if [ ! -d "${SRC_DIR}" ]; then
+  git clone --recursive https://github.com/dmlc/xgboost.git "${SRC_DIR}"
+fi
+
+cd "${SRC_DIR}"
+git fetch --tags
+git checkout "${XGB_VER}"
+git submodule update --init --recursive
+
+rm -rf "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}"
+cd "${BUILD_DIR}"
+
+# IMPORTANT:
+# - USE_CUDA=ON включает GPU predictor/inference
+# - BUILD_SHARED_LIBS=ON чтобы получить libxgboost.so для Rust
+# - CMAKE_CUDA_ARCHITECTURES можно поставить "native" или явно (например 75)
+cmake -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DUSE_CUDA=ON \
+  -DUSE_OPENMP=ON \
+  -DBUILD_SHARED_LIBS=ON \
+  -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+  -DCMAKE_CUDA_ARCHITECTURES=native \
+  ..
+
+ninja
+ninja install
+
+echo
+echo "[xgb] installed to: ${INSTALL_DIR}"
+echo "[xgb] export for current shell:"
+echo "  export XGBOOST_LIB_DIR=${INSTALL_DIR}/lib"
+echo "  export LD_LIBRARY_PATH=${INSTALL_DIR}/lib:\$LD_LIBRARY_PATH"
+
+
 # scripts/clean_market_tables.sh
 
 #!/bin/bash
@@ -4867,47 +4713,6 @@ SELECT 'Tables cleaned successfully' AS status;
 "
 
 echo "Market and trade tables have been cleaned. You can now restart your services."
-
-
-# scripts/convert.sh
-
-#!/bin/bash
-
-# Script to convert ONNX models to Hummingbird-optimized format
-# This enables GPU acceleration with tensor cores
-
-set -e  # Exit on any error
-
-echo "Starting ONNX to Hummingbird conversion..."
-
-# Check if virtual environment exists in trainer folder, create if not
-if [ ! -d "/home/anton/Desktop/Rust_trader/trainer/.venv" ]; then
-    echo "Creating virtual environment in trainer folder..."
-    python3 -m venv /home/anton/Desktop/Rust_trader/trainer/.venv
-fi
-
-# Activate the virtual environment
-echo "Activating virtual environment..."
-source /home/anton/Desktop/Rust_trader/trainer/.venv/bin/activate
-
-# Upgrade pip
-pip install --upgrade pip
-
-# Install required packages including the ones needed for the conversion script
-echo "Installing required packages..."
-pip install onnx hummingbird-ml xgboost lightgbm
-
-# Change to the trainer/src directory where the Python script is located
-cd /home/anton/Desktop/Rust_trader/trainer/src
-
-# Run the conversion script
-python3 convert_to_hb.py --input-dir ../../models --output-dir ../../models
-
-echo "Conversion completed!"
-echo "New Hummingbird-optimized models have been saved with '_gpu' suffix in the models directory."
-
-echo "Virtual environment created at /home/anton/Desktop/Rust_trader/trainer/.venv"
-echo "To activate it in the future, run: source /home/anton/Desktop/Rust_trader/trainer/.venv/bin/activate"
 
 
 # scripts/full_stop.sh
@@ -5199,7 +5004,7 @@ exit $START_RESULT
 # ==============================================================================
 # Automatic cuDNN Installation for GPU Acceleration
 # ==============================================================================
-# This section checks if cuDNN 9 is installed, which is required for ONNX Runtime GPU support.
+# This section checks if cuDNN 9 is installed, which is required for XGBoost GPU support.
 # If it's not found, it will attempt to install it. This requires sudo privileges.
 
 # Check if we are on a debian-based system with apt-get
@@ -5208,7 +5013,7 @@ if command -v apt-get &> /dev/null; then
     if ! ldconfig -p | grep -q libcudnn.so.9; then
         echo "WARNING: libcudnn.so.9 not found. Attempting to install NVIDIA cuDNN 9 for CUDA 12."
         echo "This is required for GPU acceleration and will require sudo privileges."
-        
+
         # Check if running with sudo, if not, prompt
         if [ "$EUID" -ne 0 ]; then
             echo "Please enter your password for sudo to continue with the installation."
@@ -5240,36 +5045,27 @@ fi
 
 # ==============================================================================
 
-# scripts/start.sh
-
-# 1. Основной путь к библиотеке
-export ONNXRUNTIME_ROOTDIR="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.23.1"
-
-# 2. Проверка наличия библиотеки перед сборкой
-if [ ! -d "$ONNXRUNTIME_ROOTDIR" ]; then
-    echo "ONNX Runtime not found at $ONNXRUNTIME_ROOTDIR"
-    echo "Installing ONNX Runtime..."
+# Build XGBoost with CUDA support
+echo "Building XGBoost with CUDA support..."
+XGBOOST_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build_xgboost_cuda.sh"
+if [ -f "$XGBOOST_SCRIPT_PATH" ]; then
+    echo "Running XGBoost build script..."
+    chmod +x "$XGBOOST_SCRIPT_PATH"
+    "$XGBOOST_SCRIPT_PATH"
     
-    DOWNLOAD_DIR="/home/anton/Downloads"
-    mkdir -p "$DOWNLOAD_DIR"
-    cd "$DOWNLOAD_DIR"
+    # Set XGBoost library path
+    export XGBOOST_LIB_DIR="/home/anton/Desktop/Rust_trader/third_party/xgboost/install/lib"
+    export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:$LD_LIBRARY_PATH"
+    export LIBRARY_PATH="$XGBOOST_LIB_DIR:$LIBRARY_PATH"
     
-    wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-gpu-1.23.1.tgz
-    tar -xzvf onnxruntime-linux-x64-gpu-1.23.1.tgz
-    cd - > /dev/null
+    echo "XGBoost library path set to: $XGBOOST_LIB_DIR"
+else
+    echo "WARNING: XGBoost build script not found at $XGBOOST_SCRIPT_PATH"
 fi
 
-# 3. КРИТИЧЕСКИЕ ПЕРЕМЕННЫЕ ДЛЯ КОМПИЛЯЦИИ И ЗАПУСКА
-# Путь к директории с .so файлами
-export ORT_LIB_LOCATION="$ONNXRUNTIME_ROOTDIR/lib"
+# scripts/start.sh
 
-# Для линковщика (чтобы cargo build видел библиотеку)
-export LIBRARY_PATH="$ORT_LIB_LOCATION:$LIBRARY_PATH"
-
-# Для работы программы (чтобы бинарник находил библиотеку при старте)
-export LD_LIBRARY_PATH="$ORT_LIB_LOCATION:$LD_LIBRARY_PATH"
-
-# Если используется CUDA
+# CUDA Environment Variables
 export CUDA_HOME=/usr/local/cuda
 export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH"
 
@@ -5453,7 +5249,7 @@ log "cargo: $(cargo -V 2>/dev/null || echo 'not found')"
 
 COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
 BUILD_PROFILE="${BUILD_PROFILE:-release}" # release|debug
-SERVICE_BINS="${SERVICE_BINS:-connections ingestor compute}"
+SERVICE_BINS="${SERVICE_BINS:-connections ingestor}"
 
 if [[ -n "$SERVICES_OVERRIDE" ]]; then
   SERVICE_BINS="$SERVICES_OVERRIDE"
@@ -5645,12 +5441,18 @@ if [[ "$need_build" -eq 1 ]]; then
   log "Targets : ${C_BOLD}$SERVICE_BINS${C_RESET}"
 
   if [[ "$BUILD_PROFILE" == "release" ]]; then
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor -p compute --features compute/cuda}"
+    # Build history compute with CUDA features
+    cargo build --release -p compute --bin compute_history --features cuda
+    # Build realtime compute without CUDA features (for laptop fallback)
+    cargo build --release -p compute --bin compute_realtime
   else
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor -p compute --features compute/cuda}"
+    # Build history compute with CUDA features
+    cargo build -p compute --bin compute_history --features cuda
+    # Build realtime compute without CUDA features (for laptop fallback)
+    cargo build -p compute --bin compute_realtime
   fi
 
-  
+
   # Если хочешь ограничить сборку только нужными бинари (сильно ускоряет),
   # можно выставить: CARGO_BUILD_CMD="cargo build --release --bin svc_a --bin svc_b"
   log "+ ${C_BOLD}$CARGO_BUILD_CMD${C_RESET}"
@@ -5681,6 +5483,20 @@ docker exec redpanda rpk topic create orders.cmd --brokers=redpanda:29092 --part
 docker exec redpanda rpk topic create orders.events --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic orders.events already exists or error occurred"
 docker exec redpanda rpk topic create positions.events --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic positions.events already exists or error occurred"
 ok "Kafka topics setup completed."
+
+# Set recommended environment variables for history/realtime modes
+export DB_PERSIST_MODE=history
+export DB_PERSIST_CHUNK_SIZE_HISTORY=50000
+export DB_PERSIST_MAX_BATCH=200000
+export DB_PERSIST_FLUSH_MS=150
+export DB_PERSIST_HISTORY_SKIP_JSON=1   # огромный выигрыш, если jsonb тяжёлый
+export DB_PERSIST_HISTORY_UPSERT=0      # append
+
+# For realtime (безопасно):
+export DB_PERSIST_MODE_REALTIME=realtime
+export DB_PERSIST_CHUNK_SIZE_REALTIME=2000
+export DB_PERSIST_MAX_BATCH_REALTIME=20000
+export DB_PERSIST_FLUSH_MS_REALTIME=50
 
 # --- CANDLES: load historical candles and start real-time ingestion ---
 section "ONESHOT: load_candles"
@@ -5724,6 +5540,79 @@ start_one() {
 for b in $SERVICE_BINS; do
   start_one "$b"
 done
+
+# Start compute_history and compute_realtime separately
+section "START COMPUTE SERVICES"
+
+start_compute_history() {
+  local name="compute_history"
+  local pidfile="$PID_DIR/$name.pid"
+  local outfile="$LOG_DIR/${name}.out"
+
+  if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+    ok "Already running: ${C_BOLD}$name${C_RESET} (pid=$(cat "$pidfile"))"
+    return 0
+  fi
+
+  local bin_path="$TARGET_DIR/compute_history"
+  if [[ ! -x "$bin_path" ]]; then
+    die "compute_history binary not found at $bin_path"
+  fi
+
+  # Set environment for history mode
+  export DB_PERSIST_MODE=history
+  export DB_PERSIST_CHUNK_SIZE_HISTORY=50000
+  export DB_PERSIST_MAX_BATCH=200000
+  export DB_PERSIST_FLUSH_MS=150
+  export DB_PERSIST_HISTORY_SKIP_JSON=1
+  export DB_PERSIST_HISTORY_UPSERT=0
+
+  log "Starting: ${C_BOLD}$name${C_RESET}"
+  log "  bin: $bin_path"
+  log "  log: $outfile"
+
+  nohup "$bin_path" >>"$outfile" 2>&1 &
+  local pid=$!
+  echo "$pid" > "$pidfile"
+
+  ok "Started: ${C_BOLD}$name${C_RESET} pid=$pid"
+}
+
+start_compute_realtime() {
+  local name="compute_realtime"
+  local pidfile="$PID_DIR/$name.pid"
+  local outfile="$LOG_DIR/${name}.out"
+
+  if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+    ok "Already running: ${C_BOLD}$name${C_RESET} (pid=$(cat "$pidfile"))"
+    return 0
+  fi
+
+  local bin_path="$TARGET_DIR/compute_realtime"
+  if [[ ! -x "$bin_path" ]]; then
+    die "compute_realtime binary not found at $bin_path"
+  fi
+
+  # Set environment for realtime mode
+  export DB_PERSIST_MODE=realtime
+  export DB_PERSIST_CHUNK_SIZE_REALTIME=2000
+  export DB_PERSIST_MAX_BATCH_REALTIME=20000
+  export DB_PERSIST_FLUSH_MS_REALTIME=50
+
+  log "Starting: ${C_BOLD}$name${C_RESET}"
+  log "  bin: $bin_path"
+  log "  log: $outfile"
+
+  nohup "$bin_path" >>"$outfile" 2>&1 &
+  local pid=$!
+  echo "$pid" > "$pidfile"
+
+  ok "Started: ${C_BOLD}$name${C_RESET} pid=$pid"
+}
+
+# Start both compute services
+start_compute_history
+start_compute_realtime
 
 section "DONE"
 ok "START DONE @ $(date)"
@@ -5872,6 +5761,30 @@ if [[ -f "./run/connections.pid" ]]; then
   rm -f ./run/connections.pid
 fi
 
+# stop compute service
+if [[ -f "./run/compute.pid" ]]; then
+  PID="$(cat ./run/compute.pid)"
+  if kill -0 "$PID" 2>/dev/null; then
+    echo "Stopping compute service (pid $PID)..."
+    kill "$PID" || true
+    sleep 1
+    kill -9 "$PID" 2>/dev/null || true
+  fi
+  rm -f ./run/compute.pid
+fi
+
+# stop ingestor service
+if [[ -f "./run/ingestor.pid" ]]; then
+  PID="$(cat ./run/ingestor.pid)"
+  if kill -0 "$PID" 2>/dev/null; then
+    echo "Stopping ingestor service (pid $PID)..."
+    kill "$PID" || true
+    sleep 1
+    kill -9 "$PID" 2>/dev/null || true
+  fi
+  rm -f ./run/ingestor.pid
+fi
+
 # stop by pidfiles first (надежно, без pgrep -f по всему миру)
 stop_pidfile() {
   local pidfile="$1"
@@ -5962,6 +5875,27 @@ while read -r pid cmd; do
     kill -KILL "$pid" 2>/dev/null || true
   fi
 done < <(ps -eo pid=,cmd= | grep -F "$ROOT_DIR" | grep -v grep || true)
+
+# Also look for any remaining compute processes with predictor module
+echo "Looking for any remaining compute processes with predictor module..."
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  echo "TERM compute process: pid=$pid cmd=$cmd"
+  kill -TERM "$pid" 2>/dev/null || true
+done < <(pgrep -f "compute.*predictor" -l || true)
+
+sleep 2
+
+# Force kill if still running
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "KILL compute process: pid=$pid cmd=$cmd"
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+done < <(pgrep -f "compute.*predictor" -l || true)
 
 # убираем артефакт старого health-loop (в твоем текущем варианте он есть) :contentReference[oaicite:0]{index=0}
 rm -f /tmp/health_monitor_running 2>/dev/null || true
@@ -6063,29 +5997,42 @@ echo "==========================================="
 
 # scripts/teacher.sh
 
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Script to run the Python training script in the virtual environment
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_DIR="${ROOT_DIR}/.venv_trainer"
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TRAINER_DIR="$PROJECT_ROOT/trainer"
+echo "[teacher] root=${ROOT_DIR}"
 
-echo "Running Python training script in virtual environment..."
-echo "Project root: $PROJECT_ROOT"
-echo "Trainer directory: $TRAINER_DIR"
-
-# Activate the virtual environment and run the training script
-cd "$TRAINER_DIR" && source .venv/bin/activate && python src/train_from_db.py
-
-# Check if the command was successful
-if [ $? -eq 0 ]; then
-    echo "Training script executed successfully!"
-else
-    echo "Training script failed!"
-    exit 1
+if [ ! -d "${VENV_DIR}" ]; then
+  echo "[teacher] creating virtual environment..."
+  python3 -m venv "${VENV_DIR}"
 fi
+
+# shellcheck disable=SC1091
+source "${VENV_DIR}/bin/activate"
+
+python -m pip install --upgrade pip wheel setuptools
+
+# ТОЛЬКО обучение. Конвертеры не нужны.
+echo "[teacher] installing dependencies..."
+python -m pip install \
+  numpy pandas sqlalchemy psycopg2-binary scikit-learn \
+  xgboost
+
+echo "[teacher] starting training from DB -> models/*.ubj + schema json"
+
+# Set the correct database URL
+export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5433/timescaledb_binance}"
+
+# Ensure models directory exists
+mkdir -p "${ROOT_DIR}/models"
+
+# Run the training
+python "${ROOT_DIR}/trainer/src/train_from_db.py"
+
+echo "[teacher] training completed. Models saved to models/"
 
 
 # scripts/test_connection.sh
@@ -6199,34 +6146,116 @@ dotenvy = { workspace = true }
 
 # database/src/bulk_persistor.rs
 
+// database/src/bulk_persistor.rs
+
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{PgPool, Row};
-use sqlx::types::Json;
+use sqlx::{types::Json, PgPool, Row};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PersistMode {
+    History,
+    Realtime,
+}
+
+impl PersistMode {
+    pub fn from_env_var(v: Option<String>) -> Self {
+        match v.as_deref() {
+            Some("history") | Some("HISTORY") => PersistMode::History,
+            Some("realtime") | Some("REALTIME") => PersistMode::Realtime,
+            _ => PersistMode::Realtime,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct BulkPersistorConfig {
     pub database_url: String,
+
+    // общий
     pub flush_interval_ms: u64,
     pub max_batch: usize,
+
+    // per-mode
+    pub mode: PersistMode,
     pub chunk_size: usize,
+
+    // history knobs
+    pub history_upsert: bool,      // если 1 — будет DO UPDATE (медленнее, но “перезапись” возможна)
+    pub history_skip_json: bool,   // если 1 — не пишем jsonb поля для истории (ускоряет сильно)
 }
 
 impl BulkPersistorConfig {
     pub fn from_env() -> Result<Self> {
-        let database_url = std::env::var("DATABASE_URL")
-            .map_err(|_| anyhow!("DATABASE_URL is not set"))?;
-        let flush_interval_ms = std::env::var("DB_PERSIST_FLUSH_MS").ok()
-            .and_then(|v| v.parse().ok()).unwrap_or(50);
-        let max_batch = std::env::var("DB_PERSIST_MAX_BATCH").ok()
-            .and_then(|v| v.parse().ok()).unwrap_or(10_000);
-        let chunk_size = std::env::var("DB_PERSIST_CHUNK_SIZE").ok()
-            .and_then(|v| v.parse().ok()).unwrap_or(2_000);
+        let database_url =
+            std::env::var("DATABASE_URL").map_err(|_| anyhow!("DATABASE_URL is not set"))?;
 
-        Ok(Self { database_url, flush_interval_ms, max_batch, chunk_size })
+        let flush_interval_ms = std::env::var("DB_PERSIST_FLUSH_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(50);
+
+        let max_batch = std::env::var("DB_PERSIST_MAX_BATCH")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(20_000);
+
+        let mode = PersistMode::from_env_var(std::env::var("DB_PERSIST_MODE").ok());
+
+        // chunk size зависит от режима
+        let chunk_size = match mode {
+            PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50_000),
+            PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2_000),
+        };
+
+        let history_upsert = std::env::var("DB_PERSIST_HISTORY_UPSERT")
+            .ok()
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        let history_skip_json = std::env::var("DB_PERSIST_HISTORY_SKIP_JSON")
+            .ok()
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        Ok(Self {
+            database_url,
+            flush_interval_ms,
+            max_batch,
+            mode,
+            chunk_size,
+            history_upsert,
+            history_skip_json,
+        })
+    }
+
+    /// Удобный конструктор для двух стримов: history/realtime из одних env,
+    /// но с разными параметрами.
+    pub fn from_env_with_mode(mode: PersistMode) -> Result<Self> {
+        let mut cfg = Self::from_env()?;
+        cfg.mode = mode;
+
+        cfg.chunk_size = match mode {
+            PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50_000),
+            PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2_000),
+        };
+
+        Ok(cfg)
     }
 }
 
@@ -6234,7 +6263,7 @@ impl BulkPersistorConfig {
 pub enum PersistRecord {
     Indicator {
         symbol: common::Symbol,
-        timeframe: i16,        // tf_minutes
+        timeframe: i16,
         time_ms: i64,
 
         indicator_name: String,
@@ -6242,13 +6271,13 @@ pub enum PersistRecord {
         value_json: Option<Value>,
 
         candle_is_final: bool,
-        calc_source: i16,   // indicators DDL: TEXT
+        calc_source: i16,
         event_time_ms: Option<i64>,
     },
 
     RawSignal {
         symbol: common::Symbol,
-        timeframe: i16, // tf_minutes
+        timeframe: i16,
         time_ms: i64,
 
         indicator_id: i16,
@@ -6261,7 +6290,7 @@ pub enum PersistRecord {
 
         details: Option<Value>,
         candle_is_final: bool,
-        calc_source: i16,      // raw_signals DDL: SMALLINT
+        calc_source: i16,
         event_time_ms: Option<i64>,
 
         features_json: Option<Value>,
@@ -6269,20 +6298,17 @@ pub enum PersistRecord {
         predictors_json: Option<Value>,
     },
 
-    // NEW VARIANT for wide indicators
     IndicatorsWide {
         symbol: common::Symbol,
         timeframe: i16,
         time_ms: i64,
-        // Using a Map for flexibility in the persistor, or a struct if strictly typed
-        indicators: std::collections::HashMap<String, f64>, 
+        indicators: std::collections::HashMap<String, f64>,
         json_data: std::collections::HashMap<String, serde_json::Value>,
         candle_is_final: bool,
         calc_source: i16,
         event_time_ms: Option<i64>,
     },
 
-    // NEW VARIANT for aggregated signals
     AggregatedSignal {
         symbol: common::Symbol,
         timeframe: i16,
@@ -6316,34 +6342,38 @@ impl BulkPersistor {
         Self::new(BulkPersistorConfig::from_env()?).await
     }
 
+    pub async fn new_from_env_mode(mode: PersistMode) -> Result<Self> {
+        Self::new(BulkPersistorConfig::from_env_with_mode(mode)?).await
+    }
+
     pub async fn new(cfg: BulkPersistorConfig) -> Result<Self> {
         let pool = PgPool::connect(&cfg.database_url).await?;
         let (tx, mut rx) = mpsc::channel::<PersistRecord>(cfg.max_batch * 2);
 
-        // persistence loop
         let mut tick = tokio::time::interval(Duration::from_millis(cfg.flush_interval_ms));
         let pool2 = pool.clone();
         let cfg2 = cfg.clone();
+
         tokio::spawn(async move {
             let mut batch: Vec<PersistRecord> = Vec::with_capacity(cfg2.max_batch);
-            let cache = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
-            // Pre-fill the cache
+
+            // symbol cache
+            let cache = Arc::new(tokio::sync::RwLock::new(HashMap::<String, i64>::new()));
             {
                 let rows = sqlx::query("SELECT symbol_id, symbol FROM market.pairs")
                     .fetch_all(&pool2)
                     .await;
                 if let Ok(rows) = rows {
-                    let mut cache_write = cache.write().await;
+                    let mut w = cache.write().await;
                     for r in rows {
                         if let (Ok(id), Ok(sym)) = (r.try_get("symbol_id"), r.try_get("symbol")) {
-                             let id: i64 = id;
-                             let sym: String = sym;
-                            cache_write.insert(sym, id);
+                            let id: i64 = id;
+                            let sym: String = sym;
+                            w.insert(sym, id);
                         }
                     }
                 }
             }
-
 
             loop {
                 tokio::select! {
@@ -6376,9 +6406,7 @@ impl BulkPersistor {
             }
         });
 
-        Ok(Self {
-            tx,
-        })
+        Ok(Self { tx })
     }
 
     pub fn sender(&self) -> mpsc::Sender<PersistRecord> {
@@ -6386,10 +6414,11 @@ impl BulkPersistor {
     }
 
     pub async fn enqueue(&self, record: PersistRecord) -> Result<()> {
-        self.tx.send(record).await.map_err(|e| anyhow!("persist queue closed: {}", e))
+        self.tx
+            .send(record)
+            .await
+            .map_err(|e| anyhow!("persist queue closed: {}", e))
     }
-
-
 }
 
 async fn get_symbol_id(
@@ -6426,30 +6455,37 @@ async fn flush_all(
 
     for r in batch.drain(..) {
         match r {
-            PersistRecord::Indicator { .. } => {
-                // Старый формат игнорируем или логируем warning
-            }, 
             PersistRecord::RawSignal { .. } => signals.push(r),
             PersistRecord::IndicatorsWide { .. } => wide_indicators.push(r),
+            PersistRecord::Indicator { .. } => {
+                // старый формат — игнорируем (или можно добавить отдельный writer)
+            }
             PersistRecord::AggregatedSignal { .. } => {
-                 // Игнорируем aggregated, так как используем raw_signals
-            },
+                // сейчас не используем
+            }
         }
     }
 
-    if !signals.is_empty() {
-        if let Err(e) = flush_raw_signals(pool, cache, cfg, &signals).await {
-            tracing::error!("Failed to flush raw signals: {}", e);
+    // Важно: flush параллельно
+    let s1 = async {
+        if !signals.is_empty() {
+            flush_raw_signals(pool, cache, cfg, &signals).await?;
         }
-    }
-    if !wide_indicators.is_empty() {
-        if let Err(e) = flush_wide_indicators(pool, cache, cfg, &wide_indicators).await {
-            tracing::error!("Failed to flush wide indicators: {}", e);
+        Ok::<(), anyhow::Error>(())
+    };
+
+    let s2 = async {
+        if !wide_indicators.is_empty() {
+            flush_wide_indicators(pool, cache, cfg, &wide_indicators).await?;
         }
-    }
+        Ok::<(), anyhow::Error>(())
+    };
+
+    let (r1, r2) = tokio::join!(s1, s2);
+    r1?;
+    r2?;
     Ok(())
 }
-
 
 async fn flush_raw_signals(
     pool: &PgPool,
@@ -6461,7 +6497,16 @@ async fn flush_raw_signals(
     let mut dedup: HashMap<(i64, i16, i64, i16, i16, i16), (PersistRecord, i64)> = HashMap::new();
 
     for it in items {
-        if let PersistRecord::RawSignal { symbol, timeframe, time_ms, indicator_id, signal_kind, signal_sub_id, .. } = it {
+        if let PersistRecord::RawSignal {
+            symbol,
+            timeframe,
+            time_ms,
+            indicator_id,
+            signal_kind,
+            signal_sub_id,
+            ..
+        } = it
+        {
             let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
             let k = (sym_id, *timeframe, *time_ms, *indicator_id, *signal_kind, *signal_sub_id);
             dedup.insert(k, (it.clone(), sym_id));
@@ -6473,17 +6518,17 @@ async fn flush_raw_signals(
     while !vec.is_empty() {
         let take = vec.len().min(cfg.chunk_size);
         let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
-        flush_raw_signals_chunk(pool, chunk).await?;
+        flush_raw_signals_chunk(pool, cfg, chunk).await?;
     }
 
     Ok(())
 }
 
-async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>) -> Result<()> {
+async fn flush_raw_signals_chunk(pool: &PgPool, cfg: &BulkPersistorConfig, chunk: Vec<(PersistRecord, i64)>) -> Result<()> {
     if chunk.is_empty() {
         return Ok(());
     }
-    tracing::debug!("Persistor: Flushing {} signals...", chunk.len());
+
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -6505,12 +6550,15 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
     let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
     let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
 
+    // json payloads (можно обнулить в history для скорости)
     let mut features_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
     let mut scores_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
     let mut predictors_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
 
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
 
     for (rec, sym_id) in chunk {
         if let PersistRecord::RawSignal {
@@ -6530,7 +6578,8 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
             features_json: fj,
             scores_json: sj,
             predictors_json: pj,
-        } = rec {
+        } = rec
+        {
             time.push(ms_to_ts(tms));
             time_ms.push(tms);
             symbol_id.push(sym_id);
@@ -6550,60 +6599,33 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
             calc_source.push(cs);
             event_time_ms.push(etm);
 
-            features_json.push(fj.map(Json));
-            scores_json.push(sj.map(Json));
-            predictors_json.push(pj.map(Json));
+            if skip_json {
+                features_json.push(None);
+                scores_json.push(None);
+                predictors_json.push(None);
+            } else {
+                features_json.push(fj.map(Json));
+                scores_json.push(sj.map(Json));
+                predictors_json.push(pj.map(Json));
+            }
 
             created_at.push(now);
             updated_at.push(now);
         }
     }
 
-    let sql = r#"
-        INSERT INTO market.raw_signals
-        (time, time_ms, symbol_id, symbol, tf_minutes,
-         indicator_id, signal_kind, signal_sub_id,
-         side, score, value,
-         details, candle_is_final, calc_source, event_time_ms,
-         features_json, scores_json, predictors_json,
-         created_at, updated_at)
-        SELECT * FROM UNNEST(
-            $1::timestamptz[],
-            $2::bigint[],
-            $3::bigint[],
-            $4::text[],
-            $5::smallint[],
-            $6::smallint[],
-            $7::smallint[],
-            $8::smallint[],
-            $9::smallint[],
-            $10::real[],
-            $11::real[],
-            $12::jsonb[],
-            $13::boolean[],
-            $14::smallint[],
-            $15::bigint[],
-            $16::jsonb[],
-            $17::jsonb[],
-            $18::jsonb[],
-            $19::timestamptz[],
-            $20::timestamptz[]
-        )
-        ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET
-            side = EXCLUDED.side,
-            score = EXCLUDED.score,
-            value = EXCLUDED.value,
-            details = EXCLUDED.details,
-            candle_is_final = EXCLUDED.candle_is_final,
-            calc_source = EXCLUDED.calc_source,
-            event_time_ms = EXCLUDED.event_time_ms,
-            features_json = EXCLUDED.features_json,
-            scores_json = EXCLUDED.scores_json,
-            predictors_json = EXCLUDED.predictors_json,
-            updated_at = now()
-    "#;
+    let sql = match cfg.mode {
+        PersistMode::Realtime => raw_signals_sql_realtime(),
+        PersistMode::History => {
+            if cfg.history_upsert {
+                raw_signals_sql_history_upsert()
+            } else {
+                raw_signals_sql_history_append()
+            }
+        }
+    };
 
-    if let Err(e) = sqlx::query(sql)
+    sqlx::query(sql)
         .bind(time)
         .bind(time_ms)
         .bind(symbol_id)
@@ -6625,10 +6647,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
         .bind(created_at)
         .bind(updated_at)
         .execute(pool)
-        .await {
-            tracing::error!("CRITICAL: Failed to insert signals: {:?}", e);
-            return Err(e.into());
-        }
+        .await?;
 
     Ok(())
 }
@@ -6639,17 +6658,27 @@ async fn flush_wide_indicators(
     cfg: &BulkPersistorConfig,
     items: &[PersistRecord],
 ) -> Result<()> {
-    // Group by symbol_id and time to merge indicators for the same candle
-    let mut grouped: HashMap<(i64, i16, i64), (String, String, i16, i64, std::collections::HashMap<String, f64>, std::collections::HashMap<String, serde_json::Value>, bool, i16, Option<i64>)> = HashMap::new();
+    // Group by (symbol_id, timeframe, time_ms) and merge
+    let mut grouped: HashMap<(i64, i16, i64), (String, String, i16, i64, HashMap<String, f64>, HashMap<String, serde_json::Value>, bool, i16, Option<i64>)> =
+        HashMap::new();
 
     for item in items {
-        if let PersistRecord::IndicatorsWide { symbol, timeframe, time_ms, indicators, json_data, candle_is_final, calc_source, event_time_ms } = item {
+        if let PersistRecord::IndicatorsWide {
+            symbol,
+            timeframe,
+            time_ms,
+            indicators,
+            json_data,
+            candle_is_final,
+            calc_source,
+            event_time_ms,
+        } = item
+        {
             let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
             let key = (sym_id, *timeframe, *time_ms);
-            
+
             match grouped.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
-                    // Merge indicators
                     let (_, _, _, _, existing_indicators, existing_json, _, _, _) = entry.get_mut();
                     for (k, v) in indicators {
                         existing_indicators.insert(k.clone(), *v);
@@ -6659,27 +6688,36 @@ async fn flush_wide_indicators(
                     }
                 }
                 std::collections::hash_map::Entry::Vacant(entry) => {
-                    let mut new_indicators = std::collections::HashMap::new();
-                    let mut new_json_data = std::collections::HashMap::new();
+                    let mut new_ind = HashMap::new();
+                    let mut new_json = HashMap::new();
                     for (k, v) in indicators {
-                        new_indicators.insert(k.clone(), *v);
+                        new_ind.insert(k.clone(), *v);
                     }
                     for (k, v) in json_data {
-                        new_json_data.insert(k.clone(), v.clone());
+                        new_json.insert(k.clone(), v.clone());
                     }
-                    entry.insert((symbol.0.clone(), symbol.0.clone(), *timeframe, *time_ms, new_indicators, new_json_data, *candle_is_final, *calc_source, *event_time_ms));
+                    entry.insert((
+                        symbol.0.clone(),
+                        symbol.0.clone(),
+                        *timeframe,
+                        *time_ms,
+                        new_ind,
+                        new_json,
+                        *candle_is_final,
+                        *calc_source,
+                        *event_time_ms,
+                    ));
                 }
             }
         }
     }
 
-    // Convert grouped data to vectors for bulk insert
     let mut records: Vec<_> = grouped.into_values().collect();
-    
+
     while !records.is_empty() {
         let take = records.len().min(cfg.chunk_size);
         let chunk: Vec<_> = records.drain(0..take).collect();
-        flush_wide_indicators_chunk(pool, cache, chunk).await?;
+        flush_wide_indicators_chunk(pool, cache, cfg, chunk).await?;
     }
 
     Ok(())
@@ -6688,12 +6726,15 @@ async fn flush_wide_indicators(
 async fn flush_wide_indicators_chunk(
     pool: &PgPool,
     cache: &tokio::sync::RwLock<HashMap<String, i64>>,
-    chunk: Vec<(String, String, i16, i64, std::collections::HashMap<String, f64>, std::collections::HashMap<String, serde_json::Value>, bool, i16, Option<i64>)>,
+    cfg: &BulkPersistorConfig,
+    chunk: Vec<(String, String, i16, i64, HashMap<String, f64>, HashMap<String, serde_json::Value>, bool, i16, Option<i64>)>,
 ) -> Result<()> {
-    if chunk.is_empty() { return Ok(()); }
-    
-    tracing::debug!("Persistor: Flushing {} wide indicator rows...", chunk.len());
+    if chunk.is_empty() {
+        return Ok(());
+    }
+
     let now: DateTime<Utc> = Utc::now();
+    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
@@ -6701,13 +6742,12 @@ async fn flush_wide_indicators_chunk(
     let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
     let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
 
-    // Vectors for all columns in DDL order
     let mut rsi: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut cci: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut stoch_k: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut stoch_d: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut williams: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut macd: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut macd_signal: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut macd_hist: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
@@ -6716,44 +6756,33 @@ async fn flush_wide_indicators_chunk(
     let mut ema_20: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut ema_50: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut ema_200: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut bb_upper: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut bb_mid: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut bb_lower: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut atr: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut obv: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
     let mut vwap: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
     let mut volume_spike: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut alligator_jaw: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut alligator_teeth: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut alligator_lips: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut trend: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
     let mut trend_short: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
     let mut poc: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut sr_levels: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
-    
+
     let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
     let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
     let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
 
-    // Log indicator fill stats for first row in chunk (diagnostic)
-    if let Some((_, _, _, _, ref first_indicators, _, _, _, _)) = chunk.first() {
-        let non_null_count = first_indicators.len();
-        tracing::debug!(
-            "Wide indicator sample: {} non-null indicators in first row (keys: {:?})",
-            non_null_count,
-            first_indicators.keys().collect::<Vec<_>>()
-        );
-    }
-
     for (sym_id_str, sym_str, tf, tms, indicators, json_data, final_flag, cs, etm) in chunk {
-        // Resolve symbol_id (reuse cache logic)
         let sym_id = get_symbol_id(pool, cache, &sym_id_str).await?;
 
         time.push(ms_to_ts(tms));
@@ -6762,41 +6791,44 @@ async fn flush_wide_indicators_chunk(
         symbol.push(sym_str);
         tf_minutes.push(tf);
 
-        // Extraction matching Compute backend names
-        rsi.push(extract_indicator_value(&indicators, "rsi"));
-        cci.push(extract_indicator_value(&indicators, "cci"));
-        stoch_k.push(extract_indicator_value(&indicators, "stoch_k"));
-        stoch_d.push(extract_indicator_value(&indicators, "stoch_d"));
-        williams.push(extract_indicator_value(&indicators, "williams"));
-        
-        macd.push(extract_indicator_value(&indicators, "macd"));
-        macd_signal.push(extract_indicator_value(&indicators, "macd_signal"));
-        macd_hist.push(extract_indicator_value(&indicators, "macd_hist"));
-        adx.push(extract_indicator_value(&indicators, "adx"));
-        sma.push(extract_indicator_value(&indicators, "sma"));
-        ema_20.push(extract_indicator_value(&indicators, "ema_20"));
-        ema_50.push(extract_indicator_value(&indicators, "ema_50"));
-        ema_200.push(extract_indicator_value(&indicators, "ema_200"));
-        
-        bb_upper.push(extract_indicator_value(&indicators, "bb_upper"));
-        bb_mid.push(extract_indicator_value(&indicators, "bb_mid"));
-        bb_lower.push(extract_indicator_value(&indicators, "bb_lower"));
-        atr.push(extract_indicator_value(&indicators, "atr"));
-        
-        obv.push(extract_indicator_value_as_double(&indicators, "obv"));
-        vwap.push(extract_indicator_value_as_double(&indicators, "vwap"));
-        volume_spike.push(extract_indicator_value(&indicators, "volume_spike"));
-        
-        alligator_jaw.push(extract_indicator_value(&indicators, "alligator_jaw"));
-        alligator_teeth.push(extract_indicator_value(&indicators, "alligator_teeth"));
-        alligator_lips.push(extract_indicator_value(&indicators, "alligator_lips"));
-        
-        trend.push(extract_indicator_value_as_i16(&indicators, "trend"));
-        trend_short.push(extract_indicator_value_as_i16(&indicators, "trend_short"));
-        poc.push(extract_indicator_value(&indicators, "poc"));
-        
-        sr_levels.push(json_data.get("sr_levels").cloned().map(Json));
-        
+        rsi.push(extract_f32(&indicators, "rsi"));
+        cci.push(extract_f32(&indicators, "cci"));
+        stoch_k.push(extract_f32(&indicators, "stoch_k"));
+        stoch_d.push(extract_f32(&indicators, "stoch_d"));
+        williams.push(extract_f32(&indicators, "williams"));
+
+        macd.push(extract_f32(&indicators, "macd"));
+        macd_signal.push(extract_f32(&indicators, "macd_signal"));
+        macd_hist.push(extract_f32(&indicators, "macd_hist"));
+        adx.push(extract_f32(&indicators, "adx"));
+        sma.push(extract_f32(&indicators, "sma"));
+        ema_20.push(extract_f32(&indicators, "ema_20"));
+        ema_50.push(extract_f32(&indicators, "ema_50"));
+        ema_200.push(extract_f32(&indicators, "ema_200"));
+
+        bb_upper.push(extract_f32(&indicators, "bb_upper"));
+        bb_mid.push(extract_f32(&indicators, "bb_mid"));
+        bb_lower.push(extract_f32(&indicators, "bb_lower"));
+        atr.push(extract_f32(&indicators, "atr"));
+
+        obv.push(extract_f64(&indicators, "obv"));
+        vwap.push(extract_f64(&indicators, "vwap"));
+        volume_spike.push(extract_f32(&indicators, "volume_spike"));
+
+        alligator_jaw.push(extract_f32(&indicators, "alligator_jaw"));
+        alligator_teeth.push(extract_f32(&indicators, "alligator_teeth"));
+        alligator_lips.push(extract_f32(&indicators, "alligator_lips"));
+
+        trend.push(extract_i16(&indicators, "trend"));
+        trend_short.push(extract_i16(&indicators, "trend_short"));
+        poc.push(extract_f32(&indicators, "poc"));
+
+        if skip_json {
+            sr_levels.push(None);
+        } else {
+            sr_levels.push(json_data.get("sr_levels").cloned().map(Json));
+        }
+
         candle_is_final.push(final_flag);
         calc_source.push(cs);
         event_time_ms.push(etm);
@@ -6804,75 +6836,58 @@ async fn flush_wide_indicators_chunk(
         updated_at.push(now);
     }
 
-    // SQL MUST match the column list exactly
-    let sql = r#"
-        INSERT INTO market.indicators_wide
-        (time, time_ms, symbol_id, symbol, tf_minutes,
-         rsi, cci, stoch_k, stoch_d, williams,
-         macd, macd_signal, macd_hist, adx, sma, ema_20, ema_50, ema_200,
-         bb_upper, bb_mid, bb_lower, atr,
-         obv, vwap, volume_spike,
-         alligator_jaw, alligator_teeth, alligator_lips,
-         trend, trend_short, poc,
-         sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
-        SELECT * FROM UNNEST(
-            $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
-            $6::real[], $7::real[], $8::real[], $9::real[], $10::real[],
-            $11::real[], $12::real[], $13::real[], $14::real[], $15::real[], $16::real[], $17::real[], $18::real[],
-            $19::real[], $20::real[], $21::real[], $22::real[],
-            $23::double precision[], $24::double precision[], $25::real[],
-            $26::real[], $27::real[], $28::real[],
-            $29::smallint[], $30::smallint[], $31::real[],
-            $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
-        )
-        ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
-            rsi = COALESCE(EXCLUDED.rsi, market.indicators_wide.rsi),
-            cci = COALESCE(EXCLUDED.cci, market.indicators_wide.cci),
-            stoch_k = COALESCE(EXCLUDED.stoch_k, market.indicators_wide.stoch_k),
-            stoch_d = COALESCE(EXCLUDED.stoch_d, market.indicators_wide.stoch_d),
-            williams = COALESCE(EXCLUDED.williams, market.indicators_wide.williams),
-            macd = COALESCE(EXCLUDED.macd, market.indicators_wide.macd),
-            macd_signal = COALESCE(EXCLUDED.macd_signal, market.indicators_wide.macd_signal),
-            macd_hist = COALESCE(EXCLUDED.macd_hist, market.indicators_wide.macd_hist),
-            adx = COALESCE(EXCLUDED.adx, market.indicators_wide.adx),
-            sma = COALESCE(EXCLUDED.sma, market.indicators_wide.sma),
-            ema_20 = COALESCE(EXCLUDED.ema_20, market.indicators_wide.ema_20),
-            ema_50 = COALESCE(EXCLUDED.ema_50, market.indicators_wide.ema_50),
-            ema_200 = COALESCE(EXCLUDED.ema_200, market.indicators_wide.ema_200),
-            bb_upper = COALESCE(EXCLUDED.bb_upper, market.indicators_wide.bb_upper),
-            bb_mid = COALESCE(EXCLUDED.bb_mid, market.indicators_wide.bb_mid),
-            bb_lower = COALESCE(EXCLUDED.bb_lower, market.indicators_wide.bb_lower),
-            atr = COALESCE(EXCLUDED.atr, market.indicators_wide.atr),
-            obv = COALESCE(EXCLUDED.obv, market.indicators_wide.obv),
-            vwap = COALESCE(EXCLUDED.vwap, market.indicators_wide.vwap),
-            volume_spike = COALESCE(EXCLUDED.volume_spike, market.indicators_wide.volume_spike),
-            alligator_jaw = COALESCE(EXCLUDED.alligator_jaw, market.indicators_wide.alligator_jaw),
-            alligator_teeth = COALESCE(EXCLUDED.alligator_teeth, market.indicators_wide.alligator_teeth),
-            alligator_lips = COALESCE(EXCLUDED.alligator_lips, market.indicators_wide.alligator_lips),
-            trend = COALESCE(EXCLUDED.trend, market.indicators_wide.trend),
-            trend_short = COALESCE(EXCLUDED.trend_short, market.indicators_wide.trend_short),
-            poc = COALESCE(EXCLUDED.poc, market.indicators_wide.poc),
-            sr_levels = COALESCE(EXCLUDED.sr_levels, market.indicators_wide.sr_levels),
-            candle_is_final = EXCLUDED.candle_is_final,
-            calc_source = EXCLUDED.calc_source,
-            event_time_ms = EXCLUDED.event_time_ms,
-            updated_at = now()
-    "#;
+    let sql = match cfg.mode {
+        PersistMode::Realtime => wide_sql_realtime(),
+        PersistMode::History => {
+            if cfg.history_upsert {
+                wide_sql_history_upsert()
+            } else {
+                wide_sql_history_append()
+            }
+        }
+    };
 
-    if let Err(e) = sqlx::query(sql)
-        .bind(time).bind(time_ms).bind(symbol_id).bind(symbol).bind(tf_minutes)
-        .bind(rsi).bind(cci).bind(stoch_k).bind(stoch_d).bind(williams)
-        .bind(macd).bind(macd_signal).bind(macd_hist).bind(adx).bind(sma).bind(ema_20).bind(ema_50).bind(ema_200)
-        .bind(bb_upper).bind(bb_mid).bind(bb_lower).bind(atr)
-        .bind(obv).bind(vwap).bind(volume_spike)
-        .bind(alligator_jaw).bind(alligator_teeth).bind(alligator_lips)
-        .bind(trend).bind(trend_short).bind(poc)
-        .bind(sr_levels).bind(candle_is_final).bind(calc_source).bind(event_time_ms).bind(created_at).bind(updated_at)
-        .execute(pool).await 
-    {
-        tracing::error!("CRITICAL: Failed to insert wide indicators: {:?}", e);
-        return Err(e.into());
-    }
+    sqlx::query(sql)
+        .bind(time)
+        .bind(time_ms)
+        .bind(symbol_id)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .bind(rsi)
+        .bind(cci)
+        .bind(stoch_k)
+        .bind(stoch_d)
+        .bind(williams)
+        .bind(macd)
+        .bind(macd_signal)
+        .bind(macd_hist)
+        .bind(adx)
+        .bind(sma)
+        .bind(ema_20)
+        .bind(ema_50)
+        .bind(ema_200)
+        .bind(bb_upper)
+        .bind(bb_mid)
+        .bind(bb_lower)
+        .bind(atr)
+        .bind(obv)
+        .bind(vwap)
+        .bind(volume_spike)
+        .bind(alligator_jaw)
+        .bind(alligator_teeth)
+        .bind(alligator_lips)
+        .bind(trend)
+        .bind(trend_short)
+        .bind(poc)
+        .bind(sr_levels)
+        .bind(candle_is_final)
+        .bind(calc_source)
+        .bind(event_time_ms)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(pool)
+        .await?;
+
     Ok(())
 }
 
@@ -6882,18 +6897,191 @@ fn ms_to_ts(ms: i64) -> DateTime<Utc> {
     DateTime::<Utc>::from_timestamp(secs, nsec).unwrap_or_else(|| Utc::now())
 }
 
-// Helper functions to extract indicator values
-fn extract_indicator_value(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<f32> {
-    indicators.get(key).copied().map(|v| v as f32)
+fn extract_f32(ind: &HashMap<String, f64>, key: &str) -> Option<f32> {
+    ind.get(key).copied().map(|v| v as f32)
+}
+fn extract_f64(ind: &HashMap<String, f64>, key: &str) -> Option<f64> {
+    ind.get(key).copied()
+}
+fn extract_i16(ind: &HashMap<String, f64>, key: &str) -> Option<i16> {
+    ind.get(key).copied().map(|v| v as i16)
 }
 
-fn extract_indicator_value_as_double(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<f64> {
-    indicators.get(key).copied()
+/* ---------------- SQL builders ---------------- */
+
+fn raw_signals_sql_realtime() -> &'static str {
+    r#"
+    INSERT INTO market.raw_signals
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     indicator_id, signal_kind, signal_sub_id,
+     side, score, value,
+     details, candle_is_final, calc_source, event_time_ms,
+     features_json, scores_json, predictors_json,
+     created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[],
+        $2::bigint[],
+        $3::bigint[],
+        $4::text[],
+        $5::smallint[],
+        $6::smallint[],
+        $7::smallint[],
+        $8::smallint[],
+        $9::smallint[],
+        $10::real[],
+        $11::real[],
+        $12::jsonb[],
+        $13::boolean[],
+        $14::smallint[],
+        $15::bigint[],
+        $16::jsonb[],
+        $17::jsonb[],
+        $18::jsonb[],
+        $19::timestamptz[],
+        $20::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET
+        side = EXCLUDED.side,
+        score = EXCLUDED.score,
+        value = EXCLUDED.value,
+        details = EXCLUDED.details,
+        candle_is_final = EXCLUDED.candle_is_final,
+        calc_source = EXCLUDED.calc_source,
+        event_time_ms = EXCLUDED.event_time_ms,
+        features_json = EXCLUDED.features_json,
+        scores_json = EXCLUDED.scores_json,
+        predictors_json = EXCLUDED.predictors_json,
+        updated_at = now()
+    "#
 }
 
-fn extract_indicator_value_as_i16(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<i16> {
-    indicators.get(key).copied().map(|v| v as i16)
+fn raw_signals_sql_history_append() -> &'static str {
+    r#"
+    INSERT INTO market.raw_signals
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     indicator_id, signal_kind, signal_sub_id,
+     side, score, value,
+     details, candle_is_final, calc_source, event_time_ms,
+     features_json, scores_json, predictors_json,
+     created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[],
+        $2::bigint[],
+        $3::bigint[],
+        $4::text[],
+        $5::smallint[],
+        $6::smallint[],
+        $7::smallint[],
+        $8::smallint[],
+        $9::smallint[],
+        $10::real[],
+        $11::real[],
+        $12::jsonb[],
+        $13::boolean[],
+        $14::smallint[],
+        $15::bigint[],
+        $16::jsonb[],
+        $17::jsonb[],
+        $18::jsonb[],
+        $19::timestamptz[],
+        $20::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO NOTHING
+    "#
 }
+
+fn raw_signals_sql_history_upsert() -> &'static str {
+    // если хочешь перезаписывать историю при повторном прогоне
+    raw_signals_sql_realtime()
+}
+
+fn wide_sql_realtime() -> &'static str {
+    r#"
+    INSERT INTO market.indicators_wide
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     rsi, cci, stoch_k, stoch_d, williams,
+     macd, macd_signal, macd_hist, adx, sma, ema_20, ema_50, ema_200,
+     bb_upper, bb_mid, bb_lower, atr,
+     obv, vwap, volume_spike,
+     alligator_jaw, alligator_teeth, alligator_lips,
+     trend, trend_short, poc,
+     sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
+        $6::real[], $7::real[], $8::real[], $9::real[], $10::real[],
+        $11::real[], $12::real[], $13::real[], $14::real[], $15::real[], $16::real[], $17::real[], $18::real[],
+        $19::real[], $20::real[], $21::real[], $22::real[],
+        $23::double precision[], $24::double precision[], $25::real[],
+        $26::real[], $27::real[], $28::real[],
+        $29::smallint[], $30::smallint[], $31::real[],
+        $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+        rsi = COALESCE(EXCLUDED.rsi, market.indicators_wide.rsi),
+        cci = COALESCE(EXCLUDED.cci, market.indicators_wide.cci),
+        stoch_k = COALESCE(EXCLUDED.stoch_k, market.indicators_wide.stoch_k),
+        stoch_d = COALESCE(EXCLUDED.stoch_d, market.indicators_wide.stoch_d),
+        williams = COALESCE(EXCLUDED.williams, market.indicators_wide.williams),
+        macd = COALESCE(EXCLUDED.macd, market.indicators_wide.macd),
+        macd_signal = COALESCE(EXCLUDED.macd_signal, market.indicators_wide.macd_signal),
+        macd_hist = COALESCE(EXCLUDED.macd_hist, market.indicators_wide.macd_hist),
+        adx = COALESCE(EXCLUDED.adx, market.indicators_wide.adx),
+        sma = COALESCE(EXCLUDED.sma, market.indicators_wide.sma),
+        ema_20 = COALESCE(EXCLUDED.ema_20, market.indicators_wide.ema_20),
+        ema_50 = COALESCE(EXCLUDED.ema_50, market.indicators_wide.ema_50),
+        ema_200 = COALESCE(EXCLUDED.ema_200, market.indicators_wide.ema_200),
+        bb_upper = COALESCE(EXCLUDED.bb_upper, market.indicators_wide.bb_upper),
+        bb_mid = COALESCE(EXCLUDED.bb_mid, market.indicators_wide.bb_mid),
+        bb_lower = COALESCE(EXCLUDED.bb_lower, market.indicators_wide.bb_lower),
+        atr = COALESCE(EXCLUDED.atr, market.indicators_wide.atr),
+        obv = COALESCE(EXCLUDED.obv, market.indicators_wide.obv),
+        vwap = COALESCE(EXCLUDED.vwap, market.indicators_wide.vwap),
+        volume_spike = COALESCE(EXCLUDED.volume_spike, market.indicators_wide.volume_spike),
+        alligator_jaw = COALESCE(EXCLUDED.alligator_jaw, market.indicators_wide.alligator_jaw),
+        alligator_teeth = COALESCE(EXCLUDED.alligator_teeth, market.indicators_wide.alligator_teeth),
+        alligator_lips = COALESCE(EXCLUDED.alligator_lips, market.indicators_wide.alligator_lips),
+        trend = COALESCE(EXCLUDED.trend, market.indicators_wide.trend),
+        trend_short = COALESCE(EXCLUDED.trend_short, market.indicators_wide.trend_short),
+        poc = COALESCE(EXCLUDED.poc, market.indicators_wide.poc),
+        sr_levels = COALESCE(EXCLUDED.sr_levels, market.indicators_wide.sr_levels),
+        candle_is_final = EXCLUDED.candle_is_final,
+        calc_source = EXCLUDED.calc_source,
+        event_time_ms = EXCLUDED.event_time_ms,
+        updated_at = now()
+    "#
+}
+
+fn wide_sql_history_append() -> &'static str {
+    // быстрый режим: вставить один раз и не трогать
+    r#"
+    INSERT INTO market.indicators_wide
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     rsi, cci, stoch_k, stoch_d, williams,
+     macd, macd_signal, macd_hist, adx, sma, ema_20, ema_50, ema_200,
+     bb_upper, bb_mid, bb_lower, atr,
+     obv, vwap, volume_spike,
+     alligator_jaw, alligator_teeth, alligator_lips,
+     trend, trend_short, poc,
+     sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
+        $6::real[], $7::real[], $8::real[], $9::real[], $10::real[],
+        $11::real[], $12::real[], $13::real[], $14::real[], $15::real[], $16::real[], $17::real[], $18::real[],
+        $19::real[], $20::real[], $21::real[], $22::real[],
+        $23::double precision[], $24::double precision[], $25::real[],
+        $26::real[], $27::real[], $28::real[],
+        $29::smallint[], $30::smallint[], $31::real[],
+        $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO NOTHING
+    "#
+}
+
+fn wide_sql_history_upsert() -> &'static str {
+    // если надо повторно прогонять историю и “дозаписывать”
+    wide_sql_realtime()
+}
+
 
 
 # database/src/db_logger.rs
@@ -8177,14 +8365,14 @@ CREATE TABLE IF NOT EXISTS trade.predictor_registry (
 
   -- how we calculate
   calc_source        smallint NOT NULL,  -- 1=hard, 2=ml
-  framework          text     NOT NULL,  -- "hardcode" | "onnx" | "xgboost" | "lightgbm"
+  framework          text     NOT NULL,  -- "hardcode" | "xgboost" | "lightgbm"
 
   name               text     NOT NULL,  -- "price10_v1", "levels_v2"...
   version            text     NOT NULL,  -- semver/date/commit
   code_hash          text     NULL,      -- for hardcode (git commit), for models too
 
-  -- ML artifact (for Rust inference better to keep ONNX)
-  artifact_path      text     NULL,      -- path to .onnx on disk/volume
+  -- ML artifact (for Rust inference using XGBoost)
+  artifact_path      text     NULL,      -- path to .ubj/.json on disk/volume
   artifact_sha256    text     NULL,
 
   -- feature schema
@@ -8389,8 +8577,8 @@ prefer_ml = true
 max_levels_per_side = 2
 use_cuda = true
 # Пути к моделям
-model_path_price = "models/price_v1.onnx"
-model_path_levels = "models/levels_v1.onnx"
+model_path_price  = "models/price_v1_tf{tf}.ubj"
+model_path_levels = "models/levels_v1_tf{tf}.ubj"
 
 
 # config/database.toml
@@ -11227,846 +11415,6 @@ impl PairHealthChecker {
 
 
 
-# models/levels_v1_tf1.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf1440.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1440",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf1440_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1440",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf15.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf15",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf15_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf15",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf1_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf240.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf240",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf240_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf240",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf5.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf5",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf5_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf5",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf60.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf60",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/levels_v1_tf60_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf60",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf1.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf1440.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1440",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf1440_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1440",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf15.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf15",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf15_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf15",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf1_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf1",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf240.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf240",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf240_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf240",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf5.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf5",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf5_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf5",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf60.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf60",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
-# models/price_v1_tf60_gpu.json
-
-{
-  "schema_id": "7f7e54458ffa277c59175a660a334eeecc5ef92d97d9f59a7267076af32e24fe_tf60",
-  "features": [
-    "close",
-    "high",
-    "low",
-    "open",
-    "volume",
-    "rsi",
-    "macd",
-    "macd_signal",
-    "macd_hist",
-    "ema_20",
-    "ema_50",
-    "ema_200",
-    "sma",
-    "bb_upper",
-    "bb_lower",
-    "bb_mid",
-    "atr",
-    "adx",
-    "vwap",
-    "obv",
-    "cci",
-    "stoch_k",
-    "stoch_d",
-    "williams_r",
-    "trend",
-    "trend_short"
-  ]
-}
-
-
 # compute/Cargo.toml
 
 [package]
@@ -12077,6 +11425,14 @@ edition = "2021"
 [[bin]]
 name = "compute"
 path = "src/main.rs"
+
+[[bin]]
+name = "compute_history"
+path = "src/bin/compute_history.rs"
+
+[[bin]]
+name = "compute_realtime"
+path = "src/bin/compute_realtime.rs"
 
 [lib]
 name = "compute_lib"
@@ -12103,7 +11459,6 @@ rdkafka = { version = "0.39.0", features = ["tokio"] }
 dotenvy = "0.15"
 futures-util = "0.3"
 tokio-stream = "0.1"
-ort = { version = "2.0.0-rc.11", features = ["cuda"] }
 ndarray = "0.16"
 tracing-appender = "0.2"
 dashmap = "5.5"
@@ -12111,7 +11466,7 @@ cudarc = { version = "0.11.2", optional = true, features = ["f16", "cuda-12050"]
 
 [features]
 default = []
-cuda = ["dep:cuda", "dep:cudarc", "ort/cuda"]
+cuda = ["dep:cuda", "dep:cudarc", "predictors/cuda"]
 
 
 
@@ -19585,6 +18940,11 @@ fn derive_situation(global_dir: i8, short_dir: i8) -> MarketSituation {
 name = "predictors"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
+
+[features]
+default = []
+cuda = ["dep:cudarc"]   # needed only for real zero-copy via cuda array interface
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
@@ -19598,10 +18958,29 @@ compute_indicators = { path = "../indicators" }
 database_lib = { package = "database", path = "../../database" }
 chrono = { version = "0.4", features = ["serde"] }
 ndarray = "0.16"
-ort = { version = "2.0.0-rc.11", features = ["cuda"] }
 dashmap = "5.5"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-cudarc = "0.11.0"
+cudarc = { version = "0.11.2", optional = true, features = ["driver"] }
+
+# Remove ort dependency as we're using XGBoost directly
+# ort = { version = "2.0.0-rc.11", features = ["cuda"] }
+
+
+# compute/predictors/build.rs
+
+fn main() {
+    // If you built xgboost via scripts/build_xgboost_cuda.sh:
+    // export XGBOOST_LIB_DIR=.../third_party/xgboost/install/lib
+    if let Ok(dir) = std::env::var("XGBOOST_LIB_DIR") {
+        println!("cargo:rustc-link-search=native={}", dir);
+    }
+
+    // dynamic lib name on linux: libxgboost.so
+    println!("cargo:rustc-link-lib=dylib=xgboost");
+
+    // Rebuild if these change
+    println!("cargo:rerun-if-env-changed=XGBOOST_LIB_DIR");
+}
 
 
 # compute/predictors/src/config.rs
@@ -19617,8 +18996,11 @@ pub struct PredictorsConfig {
     pub prefer_ml: bool,
     pub max_levels_per_side: usize,
     pub use_cuda: bool,
-    pub model_path_price: String,
-    pub model_path_levels: String,
+    pub use_gpu_history: bool,   // true on GPU machine
+    pub use_gpu_realtime: bool,  // usually false
+    pub model_path_price: String,   // "models/price_v1_tf{tf}.ubj"
+    pub model_path_levels: String,  // "models/levels_v1_tf{tf}.ubj"
+    pub ml_batch_size: usize,
 }
 
 
@@ -21182,7 +20564,6 @@ use common::MessageBus;
 use crate::consensus::ConsensusEngine;
 
 use crate::ml::model_manager::ModelManager;
-use crate::ml::model_pool::ModelPool;
 use std::sync::Arc;
 
 pub struct PredictorsPipeline {
@@ -21200,16 +20581,15 @@ impl PredictorsPipeline {
         _message_bus: MessageBus,
         shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
-        let pool = Arc::new(ModelPool::new());
-        let mut ml_manager = ModelManager::new(config.use_cuda, pool);
-        
+        let mut ml_manager = ModelManager::new(config.use_cuda);
+
         // Загружаем модели для всех таймфреймов
         let timeframes = vec![1, 5, 15, 60, 240, 1440]; // Все поддерживаемые таймфреймы
-        
-        if let Err(e) = ml_manager.load_models_for_timeframes("price", &config.model_path_price, &timeframes) {
+
+        if let Err(e) = ml_manager.load_models_for_timeframes("price", &config.model_path_price, &timeframes, config.use_gpu_history) {
             tracing::error!("Failed to load price models for timeframes: {}", e);
         }
-        if let Err(e) = ml_manager.load_models_for_timeframes("level", &config.model_path_levels, &timeframes) {
+        if let Err(e) = ml_manager.load_models_for_timeframes("level", &config.model_path_levels, &timeframes, config.use_gpu_history) {
             tracing::error!("Failed to load level models for timeframes: {}", e);
         }
 
@@ -21617,7 +20997,7 @@ impl PredictorsPipeline {
             tf_minutes, if price_model_exists { "FOUND" } else { "NOT FOUND" }
         );
 
-        if let Some(schema) = self.ml_manager.get_schema_for_timeframe("price", tf_minutes) {
+        if let Some(schema) = self.ml_manager.get_schema(&format!("price_tf{}", tf_minutes)) {
             tracing::debug!(target: "compute_predictors",
                 "Price schema found for {}:{}, proceeding with ML prediction",
                 view.symbol, view.timeframe
@@ -21629,7 +21009,14 @@ impl PredictorsPipeline {
                 input_vec.len()
             );
 
-            match self.ml_manager.predict(&format!("price_tf{}", tf_minutes), &input_vec) {
+            // Use the new predict_one method with appropriate GPU flag based on context
+            let use_gpu = if view.is_realtime() { 
+                self.config.use_gpu_realtime 
+            } else { 
+                self.config.use_gpu_history 
+            };
+            
+            match self.ml_manager.predict_one(&format!("price_tf{}", tf_minutes), &input_vec, use_gpu) {
                 Ok(Some(predicted_prices)) => {
                     tracing::debug!(target: "compute_predictors",
                         "ML price prediction succeeded for {}:{}, prices: {:?}",
@@ -21642,16 +21029,16 @@ impl PredictorsPipeline {
                         version: "1.0".to_string(),
                         aspect: PredictionAspect::PriceTarget,
                         calc_source: CalcSource::Ml,
-                        framework: "onnx".to_string(),
-                        artifact_path: Some(self.config.model_path_price.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                        framework: "xgboost".to_string(),
+                        artifact_path: Some(self.config.model_path_price.replace("{tf}", &tf_minutes.to_string())),
                         feature_schema_id: schema.schema_id.clone(),
                     };
-                    
+
                     tracing::debug!(target: "compute_predictors",
                         "Registering price predictor for timeframe {} with meta: {}",
                         tf_minutes, predictor_meta.name
                     );
-                    
+
                     let predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
                     let score = if !predicted_prices.is_empty() { predicted_prices[0].abs().min(1.0) as f64 } else { 0.5 };
                     let last_predicted_price = predicted_prices.last().copied().unwrap_or(view_close as f32) as f64;
@@ -21690,12 +21077,12 @@ impl PredictorsPipeline {
                             "method": "ml_price10",
                             "predicted_prices": predicted_prices,
                             "confidence": score,
-                            "model_used": self.config.model_path_price.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))
+                            "model_used": self.config.model_path_price.replace("{tf}", &tf_minutes.to_string())
                         })),
                         prediction_key: format!("price10_ml_{}_{}", view.symbol, view.timestamp.timestamp()),
                     };
                     predictors.push(prediction_row);
-                    
+
                     tracing::debug!(target: "compute_predictors",
                         "Added price prediction for {}:{}, total predictors now: {}",
                         view.symbol, view.timeframe, predictors.len()
@@ -21728,7 +21115,7 @@ impl PredictorsPipeline {
             tf_minutes, if level_model_exists { "FOUND" } else { "NOT FOUND" }
         );
 
-        if let Some(schema) = self.ml_manager.get_schema_for_timeframe("level", tf_minutes) {
+        if let Some(schema) = self.ml_manager.get_schema(&format!("level_tf{}", tf_minutes)) {
             tracing::debug!(target: "compute_predictors",
                 "Level schema found for {}:{}, proceeding with ML level prediction",
                 view.symbol, view.timeframe
@@ -21740,14 +21127,21 @@ impl PredictorsPipeline {
                 input_vec.len()
             );
 
-            match self.ml_manager.predict(&format!("level_tf{}", tf_minutes), &input_vec) {
+            // Use the new predict_one method with appropriate GPU flag based on context
+            let use_gpu = if view.is_realtime() { 
+                self.config.use_gpu_realtime 
+            } else { 
+                self.config.use_gpu_history 
+            };
+            
+            match self.ml_manager.predict_one(&format!("level_tf{}", tf_minutes), &input_vec, use_gpu) {
                 Ok(Some(level_outputs)) => {
                     tracing::debug!(target: "compute_predictors",
                         "ML level prediction succeeded for {}:{}, outputs: {:?}",
                         view.symbol, view.timeframe, level_outputs
                     );
 
-                    // Handle different output formats from ONNX (classification often outputs label first)
+                    // Handle different output formats from XGBoost (classification often outputs probabilities)
                     let (prob_bounce, prob_break) = if level_outputs.len() >= 2 {
                         // Standard case: [prob_class_0, prob_class_1]
                         (level_outputs[0].max(0.0).min(1.0) as f64, level_outputs[1].max(0.0).min(1.0) as f64)
@@ -21796,8 +21190,8 @@ impl PredictorsPipeline {
                                                 version: "1.0".to_string(),
                                                 aspect: PredictionAspect::LevelBounce,
                                                 calc_source: CalcSource::Ml,
-                                                framework: "onnx".to_string(),
-                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                framework: "xgboost".to_string(),
+                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                 feature_schema_id: schema.schema_id.clone(),
                                             };
 
@@ -21836,7 +21230,7 @@ impl PredictorsPipeline {
                                                     "prob_bounce": prob_bounce,
                                                     "prob_break": prob_break,
                                                     "score": score,
-                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                     "level_info": {
                                                         "hash": &level.level_hash,
                                                         "kind": level.level_kind.as_i16(),
@@ -21859,8 +21253,8 @@ impl PredictorsPipeline {
                                                 version: "1.0".to_string(),
                                                 aspect: PredictionAspect::LevelBreakout,
                                                 calc_source: CalcSource::Ml,
-                                                framework: "onnx".to_string(),
-                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                framework: "xgboost".to_string(),
+                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                 feature_schema_id: schema.schema_id.clone(),
                                             };
 
@@ -21899,7 +21293,7 @@ impl PredictorsPipeline {
                                                     "prob_bounce": prob_bounce,
                                                     "prob_break": prob_break,
                                                     "score": score,
-                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                     "level_info": {
                                                         "hash": &level.level_hash,
                                                         "kind": level.level_kind.as_i16(),
@@ -21951,8 +21345,8 @@ impl PredictorsPipeline {
                                                                 version: "1.0".to_string(),
                                                                 aspect: PredictionAspect::LevelBounce,
                                                                 calc_source: CalcSource::Ml,
-                                                                framework: "onnx".to_string(),
-                                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                                framework: "xgboost".to_string(),
+                                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                                 feature_schema_id: schema.schema_id.clone(),
                                                             };
 
@@ -21986,7 +21380,7 @@ impl PredictorsPipeline {
                                                                     "prob_bounce": prob_bounce,
                                                                     "prob_break": prob_break,
                                                                     "score": score,
-                                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                                     "level_info": {
                                                                         "hash": &l_hash,
                                                                         "kind": l_kind,
@@ -22010,8 +21404,8 @@ impl PredictorsPipeline {
                                                                 version: "1.0".to_string(),
                                                                 aspect: PredictionAspect::LevelBreakout,
                                                                 calc_source: CalcSource::Ml,
-                                                                framework: "onnx".to_string(),
-                                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                                framework: "xgboost".to_string(),
+                                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                                 feature_schema_id: schema.schema_id.clone(),
                                                             };
 
@@ -22045,7 +21439,7 @@ impl PredictorsPipeline {
                                                                     "prob_bounce": prob_bounce,
                                                                     "prob_break": prob_break,
                                                                     "score": score,
-                                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                                     "level_info": {
                                                                         "hash": &l_hash,
                                                                         "kind": l_kind,
@@ -22177,6 +21571,17 @@ impl PredictorsPipeline {
     }
 }
 
+// Helper function to build batch for batch predictions
+fn build_batch(schema: &crate::feature_schema::FeatureSchema, views: &[FeatureSnapshot]) -> (Vec<f32>, usize) {
+    let ncol = schema.features.len();
+    let mut flat = Vec::with_capacity(views.len() * ncol);
+    for v in views {
+        let fv = schema.build_vector(v);
+        flat.extend_from_slice(&fv);
+    }
+    (flat, ncol)
+}
+
 #[derive(Debug, Clone)]
 pub struct FeatureSnapshot {
     pub timestamp: chrono::DateTime<chrono::Utc>,
@@ -22185,6 +21590,13 @@ pub struct FeatureSnapshot {
     pub indicators: IndicatorsWideRow,
     pub raw_signals_data: Option<serde_json::Value>,
     pub sr_levels: Option<serde_json::Value>,
+    pub is_realtime: bool,
+}
+
+impl FeatureSnapshot {
+    pub fn is_realtime(&self) -> bool {
+        self.is_realtime
+    }
 }
 
 #[cfg(test)]
@@ -22217,7 +21629,7 @@ impl Predictorscore {
         Self {
             raw_output: output,
             confidence,
-            source: "ml_onnx".to_string(),
+            source: "ml_xgboost".to_string(),
         }
     }
 
@@ -22435,23 +21847,23 @@ impl LevelPredictorHeuristic {
 
 use anyhow::Result;
 use crate::feature_view::FeatureVector;
-use crate::ml::onnx_runtime::OnnxRunner;
-use crate::ml::model_pool::ModelPool;
+use crate::ml::model_manager::ModelManager;
 use std::sync::Arc;
 
 pub struct LevelPredictorMl {
-    runner: OnnxRunner,
+    mm: Arc<ModelManager>,
+    model_key: String,
+    use_gpu: bool,
 }
 
 impl LevelPredictorMl {
-    pub fn new(model_path: &str, use_cuda: bool, pool: Arc<ModelPool>) -> Result<Self> {
-        let runner = OnnxRunner::new(model_path, use_cuda, pool)?;
-        Ok(Self { runner })
+    pub fn new(model_key: impl Into<String>, use_gpu: bool, mm: Arc<ModelManager>) -> Result<Self> {
+        Ok(Self { mm, model_key: model_key.into(), use_gpu })
     }
 
     pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector, _level_price: f64) -> Result<Option<(f64, f64, f64)>> {
-        // Преобразование Vec<f32> в формат для ONNX (slice)
-        let outputs = self.runner.run(&features.values)?;
+        let out = self.mm.predict_one(&self.model_key, &features.values, self.use_gpu)?;
+        let Some(outputs) = out else { return Ok(None); };
 
         if outputs.len() >= 2 {
             let prob_bounce = outputs[0] as f64;
@@ -22478,28 +21890,29 @@ pub mod level_ml_predictor;
 
 use anyhow::Result;
 use crate::feature_view::FeatureVector;
-use crate::ml::onnx_runtime::OnnxRunner; // Предполагаем, что runner тут
+use crate::ml::model_manager::ModelManager;
 use std::sync::Arc;
-use crate::ml::model_pool::ModelPool;
 
 pub struct FuturePriceMl {
-    runner: OnnxRunner,
+    mm: Arc<ModelManager>,
+    model_key: String,
+    use_gpu: bool,
 }
 
 impl FuturePriceMl {
-    pub fn new(model_path: &str, use_cuda: bool, pool: Arc<ModelPool>) -> Result<Self> {
-        let runner = OnnxRunner::new(model_path, use_cuda, pool)?;
-        Ok(Self { runner })
+    pub fn new(model_key: impl Into<String>, use_gpu: bool, mm: Arc<ModelManager>) -> Result<Self> {
+        Ok(Self { mm, model_key: model_key.into(), use_gpu })
     }
 
     pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector) -> Result<Option<(Vec<f64>, f64)>> {
-        // Преобразование Vec<f32> в формат для ONNX (slice)
-        let prices = self.runner.run(&features.values)?;
+        // XGBoost: 1-row prediction
+        let out = self.mm.predict_one(&self.model_key, &features.values, self.use_gpu)?;
+        let Some(prices) = out else { return Ok(None); };
 
         if !prices.is_empty() {
-            let avg_price = prices.iter().sum::<f32>() as f64 / prices.len() as f64;
-            let prices_f64: Vec<f64> = prices.iter().map(|&x| x as f64).collect();
-            Ok(Some((prices_f64, avg_price.abs())))
+            let avg = prices.iter().copied().sum::<f32>() as f64 / prices.len() as f64;
+            let prices_f64: Vec<f64> = prices.into_iter().map(|x| x as f64).collect();
+            Ok(Some((prices_f64, avg.abs())))
         } else {
             Ok(None)
         }
@@ -22570,130 +21983,140 @@ pub mod future_ml_predictor;
 
 # compute/predictors/src/ml/mod.rs
 
+pub mod xgb_sys;
+pub mod xgb_runtime;
 pub mod model_manager;
-pub mod onnx_runtime;
+// Keep for potential future use
 pub mod model_pool;
 
-pub use onnx_runtime::OnnxRunner;
+// Remove OnnxRunner as it's no longer needed
 pub use model_pool::ModelPool;
 
 
 
 # compute/predictors/src/ml/model_manager.rs
 
-use super::onnx_runtime::OnnxRunner;
-use super::model_pool::ModelPool;
-use crate::feature_schema::FeatureSchema;
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::{info, warn};
 
+use crate::feature_schema::FeatureSchema;
+
+use super::xgb_runtime::{Booster, Device, ModelKind};
+
 pub struct ModelManager {
-    models: HashMap<String, OnnxRunner>,
-    schemas: HashMap<String, FeatureSchema>,
-    use_cuda: bool,
-    pool: Arc<ModelPool>,
+    // ключ: price_tf5 / level_tf1440 и т.д.
+    models_cpu: HashMap<String, (Booster, ModelKind)>,
+    models_gpu: HashMap<String, (Booster, ModelKind)>,
+    pub schemas: HashMap<String, FeatureSchema>,
 }
 
 impl ModelManager {
-    pub fn new(use_cuda: bool, pool: Arc<ModelPool>) -> Self {
-        Self {
-            models: HashMap::new(),
+    pub fn new(use_cuda: bool) -> Self {
+        let mut manager = Self {
+            models_cpu: HashMap::new(),
+            models_gpu: HashMap::new(),
             schemas: HashMap::new(),
-            use_cuda,
-            pool,
-        }
-    }
-
-    /// Загружает модель по указанному пути и присваивает ей имя (ключ)
-    pub fn load_model(&mut self, key: &str, path: &str) -> Result<()> {
-        if std::path::Path::new(path).exists() {
-            info!("Loading model '{}' from {}", key, path);
-            let runner = OnnxRunner::new(path, self.use_cuda, self.pool.clone())?;
-            self.models.insert(key.to_string(), runner);
-
-            // Load schema
-            let schema_path = path.replace(".onnx", ".json");
-            if std::path::Path::new(&schema_path).exists() {
-                let schema = FeatureSchema::from_json_file(&schema_path)?;
-                self.schemas.insert(key.to_string(), schema);
-            } else {
-                warn!("Schema file not found at {}", schema_path);
-            }
-
-        } else {
-            warn!("Model file not found at {}. ML prediction for '{}' will be disabled.", path, key);
-        }
-        Ok(())
-    }
-
-    pub fn get_schema(&self, key: &str) -> Option<&FeatureSchema> {
-        self.schemas.get(key)
-    }
-
-    /// Проверяет, загружена ли модель
-    pub fn has_model(&self, key: &str) -> bool {
-        self.models.contains_key(key)
-    }
-
-    /// Запускает инференс для конкретной модели
-    pub fn predict(&self, key: &str, features: &[f32]) -> Result<Option<Vec<f32>>> {
-        if let Some(runner) = self.models.get(key) {
-            let result = runner.run(features)?;
-            Ok(Some(result))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Загружает модели для всех таймфреймов по заданному шаблону
-    pub fn load_models_for_timeframes(&mut self, model_type: &str, base_path: &str, timeframes: &[i32]) -> Result<()> {
-        info!("Starting to load {} models for timeframes: {:?}", model_type, timeframes);
+        };
         
+        // Load models based on CUDA availability
+        if use_cuda {
+            info!("CUDA is enabled, will attempt to load GPU models");
+        } else {
+            info!("CUDA is disabled, will only load CPU models");
+        }
+        
+        manager
+    }
+
+    pub fn load_models_for_timeframes(
+        &mut self,
+        model_type: &str,                // "price" | "levels"
+        model_template: &str,            // "models/price_v1_tf{tf}.ubj"
+        timeframes: &[i32],
+        enable_gpu: bool,
+    ) -> Result<()> {
+        info!("Loading {} models for {:?}...", model_type, timeframes);
+
+        let kind = match model_type {
+            "price" => ModelKind::Regressor1,
+            "levels" => ModelKind::BinaryProb2,
+            other => {
+                warn!("Unknown model_type '{}', defaulting to Regressor1", other);
+                ModelKind::Regressor1
+            }
+        };
+
         for &tf in timeframes {
             let key = format!("{}_tf{}", model_type, tf);
-            let path = base_path.replace(".onnx", &format!("_tf{}.onnx", tf));
-            
-            info!("Attempting to load {} model: {} from path: {}", model_type, key, path);
-            
-            if std::path::Path::new(&path).exists() {
-                info!("Loading {} model for timeframe {}m: {} from {}", model_type, tf, key, path);
-                let runner = OnnxRunner::new(&path, self.use_cuda, self.pool.clone())?;
-                self.models.insert(key.clone(), runner);
+            let path = model_template.replace("{tf}", &tf.to_string());
+            let schema_path = path.replace(".ubj", ".json"); // schema рядом
 
-                // Load schema
-                let schema_path = path.replace(".onnx", ".json");
-                info!("Attempting to load schema for {} model from: {}", model_type, schema_path);
-                
-                if std::path::Path::new(&schema_path).exists() {
-                    let schema = FeatureSchema::from_json_file(&schema_path)?;
-                    self.schemas.insert(key.clone(), schema);
-                    info!("Successfully loaded schema for {} model: {}", model_type, key);
-                } else {
-                    warn!("Schema file not found at {} for {} model", schema_path, key);
-                }
-                
-                info!("Successfully loaded {} model: {} with schema present: {}", model_type, key, self.schemas.contains_key(&key));
+            if std::path::Path::new(&schema_path).exists() {
+                let schema = FeatureSchema::from_json_file(&schema_path)?;
+                self.schemas.insert(key.clone(), schema);
             } else {
-                warn!("Model file not found at {} for timeframe {}m. ML prediction for '{}' will be disabled.", path, tf, key);
+                warn!("Schema not found: {}", schema_path);
+            }
+
+            if std::path::Path::new(&path).exists() {
+                info!("Loading model: {} -> {}", key, path);
+
+                let cpu = Booster::load(&path, Device::Cpu)?;
+                self.models_cpu.insert(key.clone(), (cpu, kind));
+
+                if enable_gpu {
+                    match Booster::load(&path, Device::Cuda) {
+                        Ok(gpu) => {
+                            self.models_gpu.insert(key.clone(), (gpu, kind));
+                            info!("Successfully loaded GPU model: {}", key);
+                        }
+                        Err(e) => {
+                            warn!("Failed to load GPU model for {}: {}, falling back to CPU", key, e);
+                        }
+                    }
+                }
+            } else {
+                warn!("Model file not found: {}", path);
             }
         }
-        
-        info!("Completed loading {} models. Total {} models loaded.", model_type, self.models.len());
+
         Ok(())
     }
 
-    /// Получает модель по типу и таймфрейму
-    pub fn get_model_for_timeframe(&self, model_type: &str, timeframe_minutes: i32) -> Option<&OnnxRunner> {
-        let key = format!("{}_tf{}", model_type, timeframe_minutes);
-        self.models.get(&key)
+    /// Batch predict: inputs = row-major [nrow * ncol]
+    pub fn predict_batch(&self, key: &str, inputs: &[f32], nrow: usize, ncol: usize, use_gpu: bool) -> Result<Option<Vec<f32>>> {
+        let map = if use_gpu { &self.models_gpu } else { &self.models_cpu };
+
+        if let Some((booster, kind)) = map.get(key) {
+            // When booster is loaded with device="cuda", XGBoost will use GPU internally
+            // even when data comes from CPU memory
+            let out = booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
+            Ok(Some(out))
+        } else {
+            // Fallback to CPU if GPU model not available
+            if let Some((cpu_booster, kind)) = self.models_cpu.get(key) {
+                let out = cpu_booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
+                Ok(Some(out))
+            } else {
+                Ok(None)
+            }
+        }
     }
 
-    /// Получает схему по типу и таймфрейму
-    pub fn get_schema_for_timeframe(&self, model_type: &str, timeframe_minutes: i32) -> Option<&FeatureSchema> {
-        let key = format!("{}_tf{}", model_type, timeframe_minutes);
-        self.schemas.get(&key)
+    /// Single-row helper (realtime)
+    pub fn predict_one(&self, key: &str, features: &[f32], use_gpu: bool) -> Result<Option<Vec<f32>>> {
+        self.predict_batch(key, features, 1, features.len(), use_gpu)
+    }
+    
+    /// Check if a model exists for a given key
+    pub fn has_model(&self, key: &str) -> bool {
+        self.models_cpu.contains_key(key) || self.models_gpu.contains_key(key)
+    }
+    
+    /// Get schema for a given key
+    pub fn get_schema(&self, key: &str) -> Option<&FeatureSchema> {
+        self.schemas.get(key)
     }
 }
 
@@ -22701,29 +22124,25 @@ impl ModelManager {
 # compute/predictors/src/ml/model_pool.rs
 
 use std::sync::Arc;
-use ort::session::Session;
 use dashmap::DashMap;
 
+// Placeholder for potential future use with XGBoost models
+// Currently not used but kept for compatibility
 pub struct ModelPool {
-    sessions: DashMap<String, Arc<Session>>,
+    _placeholder: DashMap<String, Arc<String>>, // Placeholder - not actually used
 }
 
 impl ModelPool {
     pub fn new() -> Self {
         Self {
-            sessions: DashMap::new(),
+            _placeholder: DashMap::new(),
         }
     }
 
-    pub fn get_or_load(&self, path: &str, _use_cuda: bool) -> anyhow::Result<Arc<Session>> {
-        if let Some(s) = self.sessions.get(path) {
-            return Ok(s.clone());
-        }
-
-        let session = Session::builder()?.commit_from_file(path)?;
-        let shared = Arc::new(session);
-        self.sessions.insert(path.to_string(), shared.clone());
-        Ok(shared)
+    pub fn get_or_load(&self, path: &str, _use_cuda: bool) -> anyhow::Result<Arc<String>> {
+        // This is a placeholder implementation
+        // In the XGBoost implementation, models are loaded directly by the Booster
+        Ok(Arc::new(path.to_string()))
     }
 }
 
@@ -22735,211 +22154,287 @@ impl Default for ModelPool {
 
 
 
-# compute/predictors/src/ml/onnx_runtime.rs
+# compute/predictors/src/ml/xgb_runtime.rs
 
-use anyhow::Result;
-use ndarray::Array2;
-use ort::{
-    AsPointer,
-    session::Session,
-    value::{Value, Tensor},
-    memory::{MemoryInfo, AllocationDevice, MemoryType},
-    tensor::{IntoTensorElementType, Shape},
-    ortsys,
-    sys,
-};
-use std::sync::{Arc, Mutex};
-use cudarc::driver::{CudaSlice, DevicePtr, DevicePtrMut, DeviceSlice};
-use std::{mem::size_of, ptr, ffi::c_void};
+use anyhow::{anyhow, Result};
+use std::ffi::{CStr, CString};
+use std::ptr;
 
-use super::model_pool::ModelPool;
+use super::xgb_sys::*;
 
-pub struct OnnxRunner {
-    session: Arc<Mutex<Session>>,
+#[derive(Clone, Copy, Debug)]
+pub enum Device {
+    Cpu,
+    Cuda,
 }
 
-/// Create an `ort` tensor that *borrows* an existing buffer (CPU or CUDA) without copying.
-///
-/// This replaces the removed `Tensor::from_raw` API in `ort >= 2.0.0-rc.11`.
-///
-/// # Safety
-/// - `data` must be valid for `shape.num_elements()` elements of `f32`.
-/// - The underlying buffer must outlive the returned `Tensor` (and any inference run using it).
-unsafe fn tensor_f32_from_raw(
-    mem_info: &MemoryInfo,
-    data: *mut c_void,
-    shape: impl Into<Shape>,
-) -> ort::Result<Tensor<f32>> {
-    let shape: Shape = shape.into();
-    let mut raw: *mut sys::OrtValue = ptr::null_mut();
-
-    // В rc.11 эта форма ожидает `; nonNull(...)` в аргументах макроса.
-    // После `nonNull(raw)` макрос делает raw = NonNull<...> (shadowing).
-    ortsys![
-        unsafe CreateTensorWithDataAsOrtValue(
-            mem_info.ptr(),
-            data,
-            shape.num_elements() * size_of::<f32>(),
-            shape.as_ptr(),
-            shape.len(),
-            <f32 as IntoTensorElementType>::into_tensor_element_type().into(),
-            &mut raw
-        )?;
-        nonNull(raw)
-    ];
-
-    // IMPORTANT: тут raw уже NonNull<OrtValue>
-    Ok(Tensor::<f32>::from_ptr(raw, None))
+#[derive(Clone, Copy, Debug)]
+pub enum ModelKind {
+    Regressor1,     // output: [value]
+    BinaryProb2,    // output: [1-p, p]
 }
 
-impl OnnxRunner {
-    pub fn new(base_model_path: &str, use_cuda: bool, _pool: Arc<ModelPool>) -> Result<Self> {
-        let actual_model_path = if use_cuda {
-            let gpu_model_path = base_model_path.trim_end_matches(".onnx").to_string() + "_gpu.onnx";
-            if std::path::Path::new(&gpu_model_path).exists() {
-                tracing::info!("Using GPU-optimized model: {}", gpu_model_path);
-                gpu_model_path
-            } else {
-                tracing::info!("GPU-optimized model not found, falling back to: {}", base_model_path);
-                base_model_path.to_string()
-            }
+fn last_err() -> String {
+    unsafe {
+        let p = XGBGetLastError();
+        if p.is_null() {
+            "xgboost: unknown error".to_string()
         } else {
-            base_model_path.to_string()
-        };
-
-        let session = if use_cuda {
-            let cuda_provider = ort::execution_providers::CUDAExecutionProvider::default();
-            match Session::builder()?.with_execution_providers([cuda_provider.build()]) {
-                Ok(builder) => {
-                    tracing::info!("CUDA provider registered for model: {}", actual_model_path);
-                    builder.commit_from_file(&actual_model_path)?
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to register CUDA provider for ONNX, falling back to CPU: {}", e);
-                    Session::builder()?.commit_from_file(&actual_model_path)?
-                }
-            }
-        } else {
-            Session::builder()?.commit_from_file(&actual_model_path)?
-        };
-
-        Ok(Self { session: Arc::new(Mutex::new(session)) })
-    }
-
-    pub fn run(&self, features: &[f32]) -> Result<Vec<f32>> {
-        let input_array = Array2::from_shape_vec((1, features.len()), features.to_vec())?;
-
-        let mut session_guard = self.session.lock().unwrap();
-        let input_name = session_guard.inputs()[0].name().to_string();
-        let input_value = Value::from_array((input_array.shape().to_vec(), input_array.as_slice().unwrap().to_vec()))?;
-
-        let outputs = session_guard.run(ort::inputs![input_name.as_str() => input_value])?;
-
-        let mut best_result: Option<Vec<f32>> = None;
-        if outputs.len() > 1 {
-            if let Ok(output_tensor) = outputs[1].try_extract_tensor::<f32>() {
-                let vec = output_tensor.1.to_vec();
-                if vec.len() > 1 {
-                    best_result = Some(vec);
-                }
-            }
+            CStr::from_ptr(p).to_string_lossy().to_string()
         }
-        if let Some(res) = best_result {
-            return Ok(res);
-        }
-
-        if let Ok(output_tensor) = outputs[0].try_extract_tensor::<f32>() {
-            return Ok(output_tensor.1.to_vec());
-        }
-
-        anyhow::bail!("Output extraction failed")
-    }
-
-    /// Zero-copy prediction method that works with CudaSlice from cudarc
-    pub fn predict_with_cuda_slice(
-        &self,
-        input_slice: &CudaSlice<f32>,
-        output_slice: &mut CudaSlice<f32>,
-        batch_size: usize,
-    ) -> Result<()> {
-        let mut session_guard = self.session.lock().unwrap();
-
-        // cudarc дает адрес как u64
-        let input_ptr = (*input_slice.device_ptr()) as *mut c_void;
-        let output_ptr = (*output_slice.device_ptr_mut()) as *mut c_void;
-
-        let feature_count = input_slice.len() / batch_size;
-
-        let mut io_binding = session_guard.create_binding()?;
-
-        let input_name = session_guard.inputs()[0].name().to_string();
-        let output_name = session_guard.outputs()[0].name().to_string();
-
-        // Важно держать mem_info живым на время run_binding, раз мы используем external memory.
-        let mem_info = MemoryInfo::new(
-            AllocationDevice::CUDA,
-            0,
-            ort::memory::AllocatorType::Device,
-            MemoryType::Default,
-        )?;
-
-        let input_tensor = unsafe {
-            tensor_f32_from_raw(&mem_info, input_ptr, [batch_size, feature_count])
-                .map_err(anyhow::Error::from)?
-        };
-        io_binding.bind_input(&input_name, &input_tensor)?;
-
-        let output_tensor = unsafe {
-            tensor_f32_from_raw(&mem_info, output_ptr, [batch_size, 1usize])
-                .map_err(anyhow::Error::from)?
-        };
-        io_binding.bind_output(&output_name, output_tensor)?;
-
-        session_guard.run_binding(&io_binding)?;
-
-        Ok(())
-    }
-
-    /// Alternative method: raw device pointers
-    pub fn predict_batch_zero_copy(
-        &self,
-        input_device_ptr: *const f32,
-        output_device_ptr: *mut f32,
-        batch_size: usize,
-        feature_count: usize,
-    ) -> Result<()> {
-        let mut session_guard = self.session.lock().unwrap();
-
-        let mut io_binding = session_guard.create_binding()?;
-
-        let input_name = session_guard.inputs()[0].name().to_string();
-        let output_name = session_guard.outputs()[0].name().to_string();
-
-        let mem_info = MemoryInfo::new(
-            AllocationDevice::CUDA,
-            0,
-            ort::memory::AllocatorType::Device,
-            MemoryType::Default,
-        )?;
-
-        let input_tensor = unsafe {
-            tensor_f32_from_raw(&mem_info, input_device_ptr as *mut c_void, [batch_size, feature_count])
-                .map_err(anyhow::Error::from)?
-        };
-        io_binding.bind_input(&input_name, &input_tensor)?;
-
-        let output_tensor = unsafe {
-            tensor_f32_from_raw(&mem_info, output_device_ptr as *mut c_void, [batch_size, 1usize])
-                .map_err(anyhow::Error::from)?
-        };
-        io_binding.bind_output(&output_name, output_tensor)?;
-
-        session_guard.run_binding(&io_binding)?;
-
-        Ok(())
     }
 }
 
+fn check(code: i32) -> Result<()> {
+    if code == 0 { Ok(()) } else { Err(anyhow!(last_err())) }
+}
+
+pub struct DMatrix {
+    h: DMatrixHandle,
+}
+impl Drop for DMatrix {
+    fn drop(&mut self) {
+        unsafe { let _ = XGDMatrixFree(self.h); }
+    }
+}
+
+pub struct Booster {
+    h: BoosterHandle,
+}
+impl Drop for Booster {
+    fn drop(&mut self) {
+        unsafe { let _ = XGBoosterFree(self.h); }
+    }
+}
+
+impl Booster {
+    pub fn load(model_path: &str, device: Device) -> Result<Self> {
+        unsafe {
+            let mut h: BoosterHandle = ptr::null_mut();
+            check(XGBoosterCreate(ptr::null(), 0, &mut h))?;
+
+            let path = CString::new(model_path)?;
+            check(XGBoosterLoadModel(h, path.as_ptr()))?;
+
+            // Современный способ: device = "cuda"/"cpu" (см c-api-demo)
+            // :contentReference[oaicite:4]{index=4} — этот параметр реально применяется.
+            let (k, v) = match device {
+                Device::Cpu => ("device", "cpu"),
+                Device::Cuda => ("device", "cuda"),
+            };
+            let k = CString::new(k)?;
+            let v = CString::new(v)?;
+            check(XGBoosterSetParam(h, k.as_ptr(), v.as_ptr()))?;
+
+            // Устанавливаем predictor для лучшей GPU оптимизации
+            let (k2, v2) = match device {
+                Device::Cpu => ("predictor", "cpu_predictor"),
+                Device::Cuda => ("predictor", "gpu_predictor"),
+            };
+            let k2 = CString::new(k2)?;
+            let v2 = CString::new(v2)?;
+            check(XGBoosterSetParam(h, k2.as_ptr(), v2.as_ptr()))?;
+
+            // Разумно также задать nthread для CPU, но оставим внешней настройкой позже.
+            Ok(Self { h })
+        }
+    }
+
+    pub fn predict_dense_cpu(&self, data: &[f32], nrow: usize, ncol: usize, kind: ModelKind) -> Result<Vec<f32>> {
+        unsafe {
+            let mut dm: DMatrixHandle = ptr::null_mut();
+            check(XGDMatrixCreateFromMat(
+                data.as_ptr(),
+                nrow as bst_ulong,
+                ncol as bst_ulong,
+                f32::NAN,
+                &mut dm,
+            ))?;
+            let dm = DMatrix { h: dm };
+            self.predict_from_dmatrix(&dm, nrow, kind)
+        }
+    }
+
+    #[cfg(feature = "cuda")]
+    pub fn predict_dense_cuda_array_interface(
+        &self,
+        device_ptr_u64: u64,
+        nrow: usize,
+        ncol: usize,
+        kind: ModelKind,
+    ) -> Result<Vec<f32>> {
+        use std::ffi::CString;
+
+        // __cuda_array_interface__ (пример формата есть в xgboost c-api docs)
+        // :contentReference[oaicite:5]{index=5}
+        let data_json = format!(
+            r#"{{
+              "data": [{}, true],
+              "shape": [{}, {}],
+              "typestr": "<f4",
+              "version": 3
+            }}"#,
+            device_ptr_u64, nrow, ncol
+        );
+
+        // XGBoost принимает NaN в config (как в c-api-demo)
+        let cfg_json = r#"{"missing": NaN, "nthread": 0}"#;
+
+        unsafe {
+            let mut dm: DMatrixHandle = ptr::null_mut();
+            let data_c = CString::new(data_json)?;
+            let cfg_c = CString::new(cfg_json)?;
+            check(XGDMatrixCreateFromCudaArrayInterface(data_c.as_ptr(), cfg_c.as_ptr(), &mut dm))?;
+            let dm = DMatrix { h: dm };
+            self.predict_from_dmatrix(&dm, nrow, kind)
+        }
+    }
+
+    fn predict_from_dmatrix(&self, dm: &DMatrix, nrow: usize, kind: ModelKind) -> Result<Vec<f32>> {
+        // Конфиг предикта из c-api-demo
+        // :contentReference[oaicite:6]{index=6}
+        let cfg = r#"{"type":0,"training":false,"iteration_begin":0,"iteration_end":0,"strict_shape":true}"#;
+        let cfg = CString::new(cfg)?;
+
+        unsafe {
+            let mut out_shape: *const bst_ulong = ptr::null();
+            let mut out_dim: bst_ulong = 0;
+            let mut out_result: *const f32 = ptr::null();
+
+            check(XGBoosterPredictFromDMatrix(
+                self.h,
+                dm.h,
+                cfg.as_ptr(),
+                &mut out_shape,
+                &mut out_dim,
+                &mut out_result,
+            ))?;
+
+            if out_shape.is_null() || out_result.is_null() {
+                return Err(anyhow!("xgboost returned null output"));
+            }
+
+            let dim = out_dim as usize;
+            let shape = std::slice::from_raw_parts(out_shape, dim);
+
+            // Обычно shape = [nrow] для бинарной вероятности, или [nrow, k] для multi.
+            let out_len: usize = shape.iter().copied().map(|v| v as usize).product();
+            let raw = std::slice::from_raw_parts(out_result, out_len);
+
+            match kind {
+                ModelKind::Regressor1 => Ok(raw.to_vec()),
+                ModelKind::BinaryProb2 => {
+                    // XGBoost binary:logistic: usually gives p(class=1) as length nrow.
+                    // Convert to expected format [1-p, p] for each row.
+                    if out_len != nrow {
+                        // if it's already 2-column format - just return as is
+                        return Ok(raw.to_vec());
+                    }
+                    let mut v = Vec::with_capacity(nrow * 2);
+                    for &p in raw {
+                        let p = p.max(0.0).min(1.0);
+                        v.push(1.0 - p);
+                        v.push(p);
+                    }
+                    Ok(v)
+                }
+            }
+        }
+    }
+
+    /// GPU prediction method that accepts raw device pointer for zero-copy
+    #[cfg(feature = "cuda")]
+    pub fn predict_from_cuda_array(
+        &self,
+        device_ptr: u64,
+        nrow: usize,
+        ncol: usize,
+        kind: ModelKind,
+    ) -> Result<Vec<f32>> {
+        use std::ffi::CString;
+
+        // Create CUDA array interface JSON - proper format for XGBoost
+        let data_json = format!(
+            r#"{{
+              "data": [{}],
+              "shape": [{}, {}],
+              "typestr": "<f4",
+              "version": 3
+            }}"#,
+            device_ptr, nrow, ncol
+        );
+
+        let cfg_json = r#"{"missing": NaN, "nthread": 0}"#;
+
+        unsafe {
+            let mut dm: DMatrixHandle = ptr::null_mut();
+            let data_c = CString::new(data_json)?;
+            let cfg_c = CString::new(cfg_json)?;
+            check(XGDMatrixCreateFromCudaArrayInterface(
+                data_c.as_ptr(),
+                cfg_c.as_ptr(),
+                &mut dm,
+            ))?;
+            let dm = DMatrix { h: dm };
+            self.predict_from_dmatrix(&dm, nrow, kind)
+        }
+    }
+}
+
+
+# compute/predictors/src/ml/xgb_sys.rs
+
+use std::ffi::c_char;
+use std::os::raw::c_int;
+use std::ffi::c_void;
+
+pub type bst_ulong = u64;
+
+pub type DMatrixHandle = *mut c_void;
+pub type BoosterHandle = *mut c_void;
+
+#[link(name = "xgboost")]
+extern "C" {
+    pub fn XGBGetLastError() -> *const c_char;
+
+    pub fn XGDMatrixCreateFromMat(
+        data: *const f32,
+        nrow: bst_ulong,
+        ncol: bst_ulong,
+        missing: f32,
+        out: *mut DMatrixHandle,
+    ) -> c_int;
+
+    pub fn XGDMatrixCreateFromCudaArrayInterface(
+        data_json: *const c_char,
+        config_json: *const c_char,
+        out: *mut DMatrixHandle,
+    ) -> c_int;
+
+    pub fn XGDMatrixFree(handle: DMatrixHandle) -> c_int;
+
+    pub fn XGBoosterCreate(
+        dmats: *const DMatrixHandle,
+        len: bst_ulong,
+        out: *mut BoosterHandle,
+    ) -> c_int;
+
+    pub fn XGBoosterFree(handle: BoosterHandle) -> c_int;
+
+    pub fn XGBoosterLoadModel(handle: BoosterHandle, fname: *const c_char) -> c_int;
+
+    pub fn XGBoosterSetParam(handle: BoosterHandle, name: *const c_char, value: *const c_char) -> c_int;
+
+    // shape/dims/result are owned by XGBoost; you must copy immediately.
+    pub fn XGBoosterPredictFromDMatrix(
+        handle: BoosterHandle,
+        dmat: DMatrixHandle,
+        config: *const c_char,
+        out_shape: *mut *const bst_ulong,
+        out_dim: *mut bst_ulong,
+        out_result: *mut *const f32,
+    ) -> c_int;
+}
 
 
 # compute/src/bootstrap_coordinator.rs
@@ -23771,13 +23266,12 @@ use crate::{
 };
 use tracing;
 use cudarc::driver::CudaSlice;
-use predictors::ml::{ModelPool, OnnxRunner};
+use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
 
 pub struct CudaBackend {
     _device_id: usize,
     initialized: bool,
     indicator_runner: cuda::IndicatorKernelRunner,
-    model_pool: std::sync::Arc<ModelPool>,
 }
 
 impl CudaBackend {
@@ -23786,7 +23280,6 @@ impl CudaBackend {
             _device_id: 0, // Default to first device
             initialized: false,
             indicator_runner: cuda::IndicatorKernelRunner::new(),
-            model_pool: std::sync::Arc::new(ModelPool::new()),
         }
     }
 
@@ -23827,36 +23320,35 @@ impl CudaBackend {
         let atr_dev = self.indicator_runner.calculate_atr_batch(&prices_dev, &prices_dev, &prices_dev, n, 14)?; // Using same data for demo
         let (bb_upper, bb_mid, bb_lower) = self.indicator_runner.calculate_bollinger_bands_batch(&prices_dev, n, 20, 2.0)?;
 
-        // 3. Run ML models via ONNX I/O Binding (results stay in GPU memory)
-        // Use GPU-optimized models (with _gpu suffix) when CUDA is available
+        // 3. Run ML models via XGBoost Booster with GPU acceleration
         let mut ml_results = Vec::new();
         for model_name in model_names {
-            // Pass the base model name - the OnnxRunner will handle the _gpu suffix logic
+            // Pass the base model name
             let base_model_path = format!("../../models/{}", model_name);
-            let onnx_runner = OnnxRunner::new(&base_model_path, true, self.model_pool.clone())?;
-            
-            // Convert indicators to the format expected by the model
-            // For this example, we'll combine RSI and SMA into a feature matrix
+
+            // Get features on GPU
             let features_dev = self.indicator_runner.combine_raw_signals_batch(
                 &rsi_dev, &sma_dev, &ema_dev, &atr_dev,
                 &bb_upper, &bb_lower, &bb_mid,
                 n, 7  // 7 features
             )?;
+
+            // Calculate number of features per row (ncol)
+            let ncol = 7;
+            assert_eq!(features_dev.len(), n * ncol, "Feature matrix should be n x 7 in row-major format");
+
+            // Load XGBoost model with GPU support
+            let booster = Booster::load(&base_model_path, Device::Cuda)?;
+
+            // Determine model kind based on name
+            let kind = if model_name.contains("levels") { ModelKind::BinaryProb2 } else { ModelKind::Regressor1 };
+
+            // Get raw device pointer for zero-copy prediction
+            let device_ptr = *features_dev.device_ptr() as u64;
             
-            // Create output slice for model predictions
-            let mut ml_output_dev = device.alloc_zeros::<f32>(n)?;
-            
-            // HACK: Convert f64 features to f32 on CPU because model expects f32.
-            // This breaks the zero-copy pipeline for this step but is a necessary evil
-            // without a dedicated f64->f32 CUDA kernel.
-            let features_f64_host = device.dtoh_sync_copy(&features_dev)?;
-            let features_f32_host: Vec<f32> = features_f64_host.into_iter().map(|x| x as f32).collect();
-            let features_f32_dev = device.htod_copy(features_f32_host)?;
-            
-            // Run model with zero-copy binding
-            onnx_runner.predict_with_cuda_slice(&features_f32_dev, &mut ml_output_dev, n)?;
-            
-            ml_results.push(ml_output_dev);
+            // Use the XGBoost GPU prediction method directly
+            let out = booster.predict_from_cuda_array(device_ptr, n, ncol, kind)?;
+            ml_results.push(out);
         }
 
         // 4. Calculate heuristic signals (results stay in GPU memory)
@@ -23872,8 +23364,8 @@ impl CudaBackend {
         // 6. Run consensus kernel (stays in GPU memory)
         let final_signals_dev = if ml_results.len() >= 2 {
             self.indicator_runner.run_final_consensus(
-                &ml_results[0],  // First ML model result
-                &ml_results[1],  // Second ML model result
+                &heur_1_float_dev,  // First heuristic result
+                &heur_2_float_dev,  // Second heuristic result
                 &heur_1_float_dev,  // First heuristic result
                 &heur_2_float_dev,  // Second heuristic result
                 n
@@ -23885,7 +23377,7 @@ impl CudaBackend {
 
         // 7. ONLY NOW download the final result to CPU
         let final_signals = device.dtoh_sync_copy(&final_signals_dev)?;
-        
+
         Ok(final_signals)
     }
 
@@ -23955,7 +23447,7 @@ impl CudaBackend {
         Ok(vec![feature_window])
     }
 
-    /// Run ML prediction with zero-copy pipeline
+    /// Run ML prediction with XGBoost using CUDA array interface for zero-copy
     pub fn run_ml_prediction_optimized(
         &self,
         features: &CudaSlice<f32>,
@@ -23966,18 +23458,31 @@ impl CudaBackend {
             return Err("CudaBackend not initialized".into());
         }
 
-        // Use the base model name - the OnnxRunner will handle the _gpu suffix logic
+        // Use the base model name
         let base_model_path = format!("../../models/{}", base_model_name);
-        let onnx_runner = OnnxRunner::new(&base_model_path, true, self.model_pool.clone())
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(format!("{}", e)))?;
-
-        let mut output_dev = cuda::get_cuda_device()
-            .ok_or("No CUDA device")?
-            .alloc_zeros::<f32>(n)?;
-
-        onnx_runner.predict_with_cuda_slice(features, &mut output_dev, n)
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(format!("{}", e)))?;
-
+        
+        // Get device pointer for zero-copy
+        let device = cuda::get_cuda_device().ok_or("No CUDA device")?;
+        
+        // Calculate number of features per row (ncol)
+        let ncol = features.len() / n;
+        assert_eq!(features.len() % n, 0, "Features length must be divisible by n");
+        
+        // Load XGBoost model with GPU support
+        let booster = Booster::load(&base_model_path, Device::Cuda)?;
+        
+        // Determine model kind based on name
+        let kind = if base_model_name.contains("levels") { ModelKind::BinaryProb2 } else { ModelKind::Regressor1 };
+        
+        // Get raw device pointer for zero-copy prediction
+        let device_ptr = *features.device_ptr() as u64;
+        
+        // Run prediction using CUDA array interface for true zero-copy
+        let results = booster.predict_from_cuda_array(device_ptr, n, ncol, kind)?;
+        
+        // Upload results back to GPU
+        let output_dev = device.htod_copy(results)?;
+        
         Ok(output_dev)
     }
 }
@@ -24188,118 +23693,6 @@ mod tests {
                 println!("Indicator computation failed as expected in test env: {}", e);
                 // We still consider this a pass in test environments without CUDA
             }
-        }
-    }
-}
-
-
-# compute/src/cuda_backend_test.rs
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Arc;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_cuda_backend_initialization() {
-        let mut backend = CudaBackend::new();
-        let result = backend.initialize();
-        assert!(result.is_ok());
-        assert!(backend.initialized);
-    }
-
-    #[tokio::test]
-    async fn test_compute_indicators_with_cuda() {
-        let mut backend = CudaBackend::new();
-        backend.initialize().unwrap();
-
-        // Create mock candle data
-        let timestamps: Vec<u64> = (0..100).collect();
-        let close_prices: Vec<f64> = (0..100).map(|i| 100.0 + (i as f64) * 0.1).collect();
-        let high_prices: Vec<f64> = close_prices.iter().map(|p| p + 0.5).collect();
-        let low_prices: Vec<f64> = close_prices.iter().map(|p| p - 0.5).collect();
-        let open_prices: Vec<f64> = close_prices.iter().map(|p| p - 0.1).collect();
-        let volumes: Vec<f64> = (0..100).map(|_| 1000.0).collect();
-
-        let candle_window = common::CandleWindow {
-            timestamps: timestamps.clone(),
-            open: open_prices,
-            high: high_prices,
-            low: low_prices,
-            close: close_prices,
-            volume: volumes,
-        };
-
-        let job = ComputeJob {
-            symbol: Symbol::from("BTCUSDT"),
-            timeframe: Timeframe::M1,
-            indicators: vec!["rsi".to_string(), "sma".to_string()],
-            window_start: 0,
-            window_end: 100,
-            is_realtime: false,
-            candle_window: Some(Arc::new(candle_window)),
-        };
-
-        let results = backend.compute_indicators(vec![job]).await.unwrap();
-        assert!(!results.is_empty());
-        
-        let result = &results[0];
-        assert!(result.batch.get_f64("rsi").is_some());
-        assert!(result.batch.get_f64("sma").is_some());
-    }
-
-    #[tokio::test]
-    async fn test_process_all_history_optimized() {
-        let mut backend = CudaBackend::new();
-        backend.initialize().unwrap();
-
-        // Generate sample price data
-        let prices: Vec<f64> = (0..1000).map(|i| 100.0 + (i as f64) * 0.01).collect();
-        
-        // Use existing model files if they exist
-        let model_paths = vec![
-            String::from("../../models/levels_v1_tf1440.onnx"), // Use existing model
-        ];
-
-        // Test the optimized pipeline
-        let result = backend.process_all_history_optimized(prices, &model_paths);
-        
-        // The test might fail if CUDA isn't available or models don't exist,
-        // but that's expected in test environments without GPU
-        if backend.initialized {
-            // If CUDA is initialized, we expect either success or a model-related error
-            // (not a CUDA initialization error)
-            match result {
-                Ok(_) => println!("Pipeline executed successfully"),
-                Err(e) => {
-                    let err_str = e.to_string();
-                    // Allow model loading errors but not CUDA initialization errors
-                    if !err_str.contains("CUDA") && !err_str.contains("device") {
-                        println!("Expected model-related error: {}", e);
-                    } else {
-                        panic!("Unexpected CUDA error: {}", e);
-                    }
-                }
-            }
-        } else {
-            // If CUDA isn't initialized, we expect an error
-            assert!(result.is_err());
-        }
-    }
-
-    #[test]
-    fn test_indicator_runner_creation() {
-        let runner = cuda::IndicatorKernelRunner::new();
-        
-        // Test that we can call a method without panicking
-        let input = vec![1.0, 2.0, 3.0, 4.0, 5.0];
-        let result = runner.calculate_rsi(&input, 3);
-        
-        // This test might fail if CUDA isn't available, which is expected
-        match result {
-            Ok(_) => println!("RSI calculation succeeded"),
-            Err(e) => println!("RSI calculation failed as expected in test env: {}", e),
         }
     }
 }
@@ -24766,14 +24159,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
-    // Initialize BulkPersistor
-    let bulk_persistor =
-        database_lib::bulk_persistor::BulkPersistor::new(database_lib::bulk_persistor::BulkPersistorConfig::from_env()?).await?;
-    let bulk_persistor_sender = bulk_persistor.sender();
+    // Initialize TWO DB streams: history and realtime
+    let bulk_history = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(database_lib::bulk_persistor::PersistMode::History).await?;
+    let bulk_realtime = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(database_lib::bulk_persistor::PersistMode::Realtime).await?;
 
-    // Initialize indicator persistor
-    let (persistor, _persist_sender) = IndicatorPersistor::new(bulk_persistor_sender.clone());
-    let persistor = Arc::new(persistor);
+    let bulk_history_sender = bulk_history.sender();
+    let bulk_realtime_sender = bulk_realtime.sender();
+
+    // Initialize TWO indicator persistors (wide)
+    let (indicator_persistor_hist, _indicator_tx_hist) = IndicatorPersistor::new(bulk_history_sender.clone());
+    let (indicator_persistor_rt, _indicator_tx_rt) = IndicatorPersistor::new(bulk_realtime_sender.clone());
+
+    let indicator_persistor_hist = Arc::new(indicator_persistor_hist);
+    let indicator_persistor_rt = Arc::new(indicator_persistor_rt);
 
     // Initialize bootstrap coordinator
     let required_lookback = env_usize("COMPUTE_REQUIRED_LOOKBACK", 1000);
@@ -24831,9 +24229,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Initialize RawSignal persistor
-    let raw_signal_persistor = RawSignalPersistor::new(bulk_persistor_sender);
-    let raw_signal_persistor = Arc::new(raw_signal_persistor);
+    // Initialize TWO RawSignal persistors
+    let raw_signal_persistor_hist = RawSignalPersistor::new(bulk_history_sender.clone());
+    let raw_signal_persistor_rt = RawSignalPersistor::new(bulk_realtime_sender.clone());
+
+    let raw_signal_persistor_hist = Arc::new(raw_signal_persistor_hist);
+    let raw_signal_persistor_rt = Arc::new(raw_signal_persistor_rt);
 
     // Initialize RawSignal processor
     let raw_cfg = SignalConfig {
@@ -24847,9 +24248,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
 
     // Spawn result processor to handle computed indicators and raw signals
-    let persistor_clone2 = persistor.clone();
+    let indicator_persistor_hist_clone = indicator_persistor_hist.clone();
+    let indicator_persistor_rt_clone = indicator_persistor_rt.clone();
     let raw_signal_processor_clone = raw_signal_processor.clone();
-    let raw_signal_persistor_clone = Arc::clone(&raw_signal_persistor);
+    let raw_signal_persistor_hist_clone = Arc::clone(&raw_signal_persistor_hist);
+    let raw_signal_persistor_rt_clone = Arc::clone(&raw_signal_persistor_rt);
     let feature_tx_clone = feature_tx.clone(); // Clone for sending feature snapshots
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
@@ -24915,6 +24318,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
 
+            // Select the appropriate persistor based on whether this is real-time or historical
+            let selected_indicator_persistor = if feature_window.is_realtime {
+                &indicator_persistor_rt_clone
+            } else {
+                &indicator_persistor_hist_clone
+            };
+
             // Handle indicators
             let mut records = Vec::new();
             let ignored_names: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
@@ -24967,7 +24377,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     n - 1,
                     start_idx
                 );
-                persistor_clone2.queue_records(records).await;
+                selected_indicator_persistor.queue_records(records).await;
             }
 
             // Handle raw signals
@@ -24995,16 +24405,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .collect::<Vec<_>>()
             };
 
+            // Select the appropriate raw signal persistor based on whether this is real-time or historical
+            let selected_raw_signal_persistor = if feature_window.is_realtime {
+                &raw_signal_persistor_rt_clone
+            } else {
+                &raw_signal_persistor_hist_clone
+            };
+
             // Send signals directly to persistor (no aggregation needed)
             if !signals_to_persist.is_empty() {
                 println!(
                     "  Persisting {} raw signals for {} on {} (filtered from {} total)",
-                    signals_to_persist.len(),
+                    signals_to_persistor.len(),
                     feature_window.symbol,
                     feature_window.timeframe,
                     all_raw_signals_count
                 );
-                raw_signal_persistor_clone.queue_records(signals_to_persist).await;
+                selected_raw_signal_persistor.queue_records(signals_to_persist).await;
             }
 
             // FORM FEATURE SNAPSHOT FOR predictors PIPELINE
@@ -25080,8 +24497,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     symbol: feature_window.symbol.to_string(),
                     timeframe: feature_window.timeframe.as_str().to_string(),
                     indicators,
-                    raw_signals_data: None, 
+                    raw_signals_data: None,
                     sr_levels,
+                    is_realtime: feature_window.is_realtime,
                 };
 
                 // Отправляем снапшот. Используем try_send или send, но для истории лучше send, чтобы не дропать
@@ -25142,8 +24560,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: config.use_cuda,
-        model_path_price: "models/price_v1.onnx".to_string(),
-        model_path_levels: "models/levels_v1.onnx".to_string(),
+        use_gpu_history: config.use_cuda,  // Use GPU for history if CUDA is available
+        use_gpu_realtime: false,         // Usually use CPU for realtime (faster for small batches)
+        model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
+        model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
+        ml_batch_size: 4096,  // Default batch size for ML inference
     };
 
     let mut predictors_pipeline = crate::predictors::pipeline::PredictorsPipeline::new(
@@ -26019,6 +25440,371 @@ impl FeatureBatch {
         }
         None
     }
+}
+
+
+# compute/src/bin/compute_history.rs
+
+use std::sync::Arc;
+use dotenvy::dotenv;
+use compute_lib::*;
+use database_lib;
+use common::{Symbol, Timeframe};
+use sqlx::PgPool;
+use std::time::Duration;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv().ok();
+
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+    database_lib::init_db::initialize_database(&db_url).await?;
+
+    // фиксируем CUDA backend (если бинарь собран с --features cuda)
+    let backend_type = if cfg!(feature = "cuda") {
+        ComputeBackendType::Cuda
+    } else {
+        eprintln!("CUDA feature not enabled, falling back to CPU for history");
+        ComputeBackendType::Cpu
+    };
+    
+    let compute_backend_manager = ComputeBackendManager::new(backend_type);
+    let compute_backend = compute_backend_manager.get_backend();
+
+    // load config
+    let config = ComputeConfig {
+        batch_size: 100,
+        max_concurrent_jobs: 4,
+        use_cuda: cfg!(feature = "cuda"),
+        cuda_device_id: Some(0),
+    };
+
+    let db_pool = sqlx::PgPool::connect(&db_url).await?;
+    let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
+
+    let (job_scheduler, _result_receiver) = JobScheduler::new(
+        compute_backend,
+        config.clone(),
+        candle_fetcher.clone(),
+    );
+    let job_scheduler = Arc::new(job_scheduler);
+
+    // Set environment for history mode
+    std::env::set_var("DB_PERSIST_MODE", "history");
+    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); // Large chunks for history
+    std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); // Slower flushing for history
+    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); // Skip heavy JSON for history
+    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); // Append mode for history
+
+    // 1) получаем список активных пар из БД (market.pairs)
+    let symbols = fetch_active_symbols_from_db(&db_pool).await?;
+
+    // 2) для каждого TF запускаем submit_batch(…, window_spec)
+    let timeframes = [
+        Timeframe::M1,
+        Timeframe::M5,
+        Timeframe::M15,
+        Timeframe::H1,
+        Timeframe::H4,
+        Timeframe::D1,
+    ];
+
+    for timeframe in &timeframes {
+        println!("Processing historical data for timeframe: {:?}", timeframe);
+
+        for symbol in &symbols {
+            // Determine the historical range to process
+            let table_name = format!("market.candles_{}", timeframe.as_str());
+            let query = format!(
+                "SELECT MIN(time) as first_time, MAX(time) as last_time
+                 FROM {} c
+                 JOIN market.pairs p ON c.symbol_id = p.symbol_id
+                 WHERE p.symbol = $1",
+                table_name
+            );
+
+            let row = sqlx::query(&query)
+                .bind(symbol.as_str())
+                .fetch_optional(&db_pool)
+                .await?;
+
+            if let Some(row) = row {
+                let first_time: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
+                let last_time: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
+
+                if let (Some(start_time), Some(end_time)) = (first_time, last_time) {
+                    println!("Processing {} for {} from {} to {}", symbol.as_str(), timeframe.as_str(), start_time, end_time);
+
+                    // Submit batch job for this symbol/timeframe combination
+                    let job = ComputeJob {
+                        symbol: symbol.clone(),
+                        timeframe: *timeframe,
+                        window_start: start_time.timestamp_millis(),
+                        window_end: end_time.timestamp_millis(),
+                        indicators: vec![
+                            "adx".to_string(), "atr".to_string(), "bb".to_string(),
+                            "cci".to_string(), "ema".to_string(), "macd".to_string(),
+                            "obv".to_string(), "rsi".to_string(), "sma".to_string(),
+                            "stoch".to_string(), "vwap".to_string(), "williams".to_string(),
+                            "alligator".to_string(), "sr_levels".to_string(),
+                        ],
+                        candle_window: None,
+                        is_realtime: false, // Guarantee is_realtime = false for history
+                    };
+
+                    if let Err(e) = job_scheduler.submit_batch(vec![job]).await {
+                        eprintln!("Error submitting batch job for {} {}: {}", symbol.as_str(), timeframe.as_str(), e);
+                    } else {
+                        println!("Submitted batch job for {} {}", symbol.as_str(), timeframe.as_str());
+                    }
+                }
+            }
+        }
+    }
+
+    // Wait a bit to allow jobs to complete
+    tokio::time::sleep(Duration::from_secs(10)).await;
+
+    Ok(())
+}
+
+// Function to fetch active symbols from the database
+async fn fetch_active_symbols_from_db(
+    db_pool: &PgPool,
+) -> Result<Vec<Symbol>, Box<dyn std::error::Error + Send + Sync>> {
+    // First check if the table exists
+    let table_exists_result = sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'market' AND table_name = 'pairs'
+        )"#
+    )
+    .fetch_one(db_pool)
+    .await;
+
+    match table_exists_result {
+        Ok(table_exists) => {
+            if !table_exists {
+                return Ok(Vec::new()); // Return empty vector if table doesn't exist
+            }
+        },
+        Err(_) => {
+            return Ok(Vec::new()); // Return empty vector if table check fails
+        }
+    }
+
+    // If table exists, try to fetch symbols
+    let rows_result = sqlx::query(
+        r#"SELECT symbol FROM market.pairs WHERE is_active = true"#
+    )
+    .fetch_all(db_pool)
+    .await;
+
+    match rows_result {
+        Ok(rows) => {
+            let symbols: Vec<Symbol> = rows
+                .into_iter()
+                .map(|row| {
+                    let symbol: String = row.get("symbol");
+                    Symbol::from(symbol)
+                })
+                .collect();
+            Ok(symbols)
+        },
+        Err(e) => {
+            eprintln!("Error fetching symbols: {}", e);
+            Ok(Vec::new()) // Return empty vector if fetch fails
+        }
+    }
+}
+
+
+# compute/src/bin/compute_realtime.rs
+
+use std::sync::Arc;
+use dotenvy::dotenv;
+use compute_lib::*;
+use database_lib;
+use common::{Symbol, Timeframe};
+use tokio::sync::broadcast;
+use rdkafka::{config::ClientConfig, consumer::{CommitMode, Consumer, StreamConsumer, DefaultConsumerContext}, message::Message, types::RDKafkaErrorCode, error::KafkaError};
+use sqlx::PgPool;
+use crate::compute_lib::{ComputeJob, FeatureWindow};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv().ok();
+
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+    database_lib::init_db::initialize_database(&db_url).await?;
+
+    // фиксируем CPU backend
+    let backend_type = ComputeBackendType::Cpu;
+    let compute_backend_manager = ComputeBackendManager::new(backend_type);
+    let compute_backend = compute_backend_manager.get_backend();
+
+    // load config
+    let config = ComputeConfig {
+        batch_size: 100,
+        max_concurrent_jobs: 4,
+        use_cuda: false, // CPU only for realtime
+        cuda_device_id: None,
+    };
+
+    let db_pool = sqlx::PgPool::connect(&db_url).await?;
+    let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
+
+    let (job_scheduler, _result_receiver) = JobScheduler::new(
+        compute_backend,
+        config.clone(),
+        candle_fetcher.clone(),
+    );
+    let job_scheduler = Arc::new(job_scheduler);
+
+    // Set environment for realtime mode
+    std::env::set_var("DB_PERSIST_MODE", "realtime");
+    std::env::set_var("DB_PERSIST_CHUNK_SIZE_REALTIME", "2000"); // Small chunks for realtime
+    std::env::set_var("DB_PERSIST_FLUSH_MS", "50"); // Faster flushing for realtime
+
+    // realtime consumer loop (copy from your main.rs)
+    run_realtime_consumer(job_scheduler, db_pool).await?;
+
+    Ok(())
+}
+
+async fn run_realtime_consumer(
+    job_scheduler: Arc<JobScheduler>,
+    db_pool: PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use rdkafka::{
+        config::ClientConfig,
+        consumer::{CommitMode, Consumer, StreamConsumer, DefaultConsumerContext},
+        message::Message,
+        types::RDKafkaErrorCode,
+        error::KafkaError,
+    };
+    use std::time::Duration;
+
+    let brokers = std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "127.0.0.1:19092".to_string());
+    let topic = std::env::var("KAFKA_CANDLES_CLOSE_TOPIC").unwrap_or_else(|_| "candles.close".to_string());
+    let group_id = std::env::var("COMPUTE_CONSUMER_GROUP").unwrap_or_else(|_| "compute_group".to_string());
+
+    let mut backoff = Duration::from_secs(1);
+    const MAX_BACKOFF: Duration = Duration::from_secs(64);
+
+    loop {
+        let consumer: StreamConsumer<DefaultConsumerContext> = match ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("group.id", &group_id)
+            .set("enable.partition.eof", "false")
+            .set("session.timeout.ms", "6000")
+            .set("enable.auto.commit", "false") // Disable auto-commit
+            .set("auto.offset.reset", "latest")
+            .create() {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to create Kafka consumer: {}. Retrying in {:?}...", e, backoff);
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(MAX_BACKOFF);
+                    continue;
+                }
+            };
+
+        match consumer.subscribe(&[&topic]) {
+            Ok(_) => {
+                println!("Started Kafka consumer, listening on topic: {}", topic);
+                backoff = Duration::from_secs(1); // Reset backoff on successful connection
+
+                loop {
+                    match consumer.recv().await {
+                        Err(e) => {
+                            eprintln!("Kafka consumer error: {}", e);
+                            if let KafkaError::MessageConsumption(RDKafkaErrorCode::AllBrokersDown) = e {
+                                eprintln!("All brokers down. Breaking to reconnect...");
+                                tokio::time::sleep(Duration::from_secs(5)).await; // Wait before reconnecting
+                                break; // Break from inner loop to recreate consumer
+                            }
+                        }
+                        Ok(msg) => {
+                            match msg.payload() {
+                                None => {
+                                    println!("Received message with no payload");
+                                }
+                                Some(payload) => {
+                                    match serde_json::from_slice::<CandleCloseEvent>(payload) {
+                                        Ok(event) => {
+                                            println!("Received candle close event: {} {} at {}", event.symbol, event.timeframe, event.close_time);
+
+                                            let timeframe = match event.timeframe.as_str() {
+                                                "1m" => Timeframe::M1,
+                                                "5m" => Timeframe::M5,
+                                                "15m" => Timeframe::M15,
+                                                "1h" => Timeframe::H1,
+                                                "4h" => Timeframe::H4,
+                                                "1d" => Timeframe::D1,
+                                                _ => {
+                                                    eprintln!("Unknown timeframe: {}", event.timeframe);
+                                                    continue;
+                                                }
+                                            };
+
+                                            let tf_ms = timeframe.to_minutes() as i64 * 60_000;
+                                            let window_end = event.close_time;
+                                            let window_start = window_end - (120 as i64) * tf_ms; // Lookback 120 candles for indicators
+
+                                            let job = ComputeJob {
+                                                symbol: Symbol::from(event.symbol),
+                                                timeframe,
+                                                window_start,
+                                                window_end,
+                                                indicators: vec![
+                                                    "adx".to_string(), "atr".to_string(), "bb".to_string(),
+                                                    "cci".to_string(), "ema".to_string(), "macd".to_string(),
+                                                    "obv".to_string(), "rsi".to_string(), "sma".to_string(),
+                                                    "stoch".to_string(), "vwap".to_string(), "williams".to_string(),
+                                                    "alligator".to_string(), "sr_levels".to_string(),
+                                                ],
+                                                candle_window: None,
+                                                is_realtime: true, // Guarantee realtime = true
+                                            };
+
+                                            if let Err(e) = job_scheduler.process_single_job(job).await {
+                                                eprintln!("Error processing job: {}", e);
+                                                // Do not commit if processing fails
+                                            } else {
+                                                // Manually commit the offset after successful processing
+                                                if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
+                                                    eprintln!("Failed to commit Kafka offset: {}", e);
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            eprintln!("Failed to deserialize candle close event: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            Err(e) => {
+                eprintln!("Failed to subscribe to topic '{}': {}. Retrying in {:?}...", topic, e, backoff);
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(MAX_BACKOFF);
+            }
+        };
+    }
+}
+
+// Define the structure for candle close events
+#[derive(serde::Deserialize, Debug)]
+struct CandleCloseEvent {
+    symbol: String,
+    timeframe: String,  // This will need to be parsed to Timeframe
+    close_time: i64,
 }
 
 

@@ -5,13 +5,12 @@ use crate::{
 };
 use tracing;
 use cudarc::driver::CudaSlice;
-use predictors::ml::{ModelPool, OnnxRunner};
+use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
 
 pub struct CudaBackend {
     _device_id: usize,
     initialized: bool,
     indicator_runner: cuda::IndicatorKernelRunner,
-    model_pool: std::sync::Arc<ModelPool>,
 }
 
 impl CudaBackend {
@@ -20,7 +19,6 @@ impl CudaBackend {
             _device_id: 0, // Default to first device
             initialized: false,
             indicator_runner: cuda::IndicatorKernelRunner::new(),
-            model_pool: std::sync::Arc::new(ModelPool::new()),
         }
     }
 
@@ -61,36 +59,35 @@ impl CudaBackend {
         let atr_dev = self.indicator_runner.calculate_atr_batch(&prices_dev, &prices_dev, &prices_dev, n, 14)?; // Using same data for demo
         let (bb_upper, bb_mid, bb_lower) = self.indicator_runner.calculate_bollinger_bands_batch(&prices_dev, n, 20, 2.0)?;
 
-        // 3. Run ML models via ONNX I/O Binding (results stay in GPU memory)
-        // Use GPU-optimized models (with _gpu suffix) when CUDA is available
+        // 3. Run ML models via XGBoost Booster with GPU acceleration
         let mut ml_results = Vec::new();
         for model_name in model_names {
-            // Pass the base model name - the OnnxRunner will handle the _gpu suffix logic
+            // Pass the base model name
             let base_model_path = format!("../../models/{}", model_name);
-            let onnx_runner = OnnxRunner::new(&base_model_path, true, self.model_pool.clone())?;
-            
-            // Convert indicators to the format expected by the model
-            // For this example, we'll combine RSI and SMA into a feature matrix
+
+            // Get features on GPU
             let features_dev = self.indicator_runner.combine_raw_signals_batch(
                 &rsi_dev, &sma_dev, &ema_dev, &atr_dev,
                 &bb_upper, &bb_lower, &bb_mid,
                 n, 7  // 7 features
             )?;
+
+            // Calculate number of features per row (ncol)
+            let ncol = 7;
+            assert_eq!(features_dev.len(), n * ncol, "Feature matrix should be n x 7 in row-major format");
+
+            // Load XGBoost model with GPU support
+            let booster = Booster::load(&base_model_path, Device::Cuda)?;
+
+            // Determine model kind based on name
+            let kind = if model_name.contains("levels") { ModelKind::BinaryProb2 } else { ModelKind::Regressor1 };
+
+            // Get raw device pointer for zero-copy prediction
+            let device_ptr = *features_dev.device_ptr() as u64;
             
-            // Create output slice for model predictions
-            let mut ml_output_dev = device.alloc_zeros::<f32>(n)?;
-            
-            // HACK: Convert f64 features to f32 on CPU because model expects f32.
-            // This breaks the zero-copy pipeline for this step but is a necessary evil
-            // without a dedicated f64->f32 CUDA kernel.
-            let features_f64_host = device.dtoh_sync_copy(&features_dev)?;
-            let features_f32_host: Vec<f32> = features_f64_host.into_iter().map(|x| x as f32).collect();
-            let features_f32_dev = device.htod_copy(features_f32_host)?;
-            
-            // Run model with zero-copy binding
-            onnx_runner.predict_with_cuda_slice(&features_f32_dev, &mut ml_output_dev, n)?;
-            
-            ml_results.push(ml_output_dev);
+            // Use the XGBoost GPU prediction method directly
+            let out = booster.predict_from_cuda_array(device_ptr, n, ncol, kind)?;
+            ml_results.push(out);
         }
 
         // 4. Calculate heuristic signals (results stay in GPU memory)
@@ -106,8 +103,8 @@ impl CudaBackend {
         // 6. Run consensus kernel (stays in GPU memory)
         let final_signals_dev = if ml_results.len() >= 2 {
             self.indicator_runner.run_final_consensus(
-                &ml_results[0],  // First ML model result
-                &ml_results[1],  // Second ML model result
+                &heur_1_float_dev,  // First heuristic result
+                &heur_2_float_dev,  // Second heuristic result
                 &heur_1_float_dev,  // First heuristic result
                 &heur_2_float_dev,  // Second heuristic result
                 n
@@ -119,7 +116,7 @@ impl CudaBackend {
 
         // 7. ONLY NOW download the final result to CPU
         let final_signals = device.dtoh_sync_copy(&final_signals_dev)?;
-        
+
         Ok(final_signals)
     }
 
@@ -189,7 +186,7 @@ impl CudaBackend {
         Ok(vec![feature_window])
     }
 
-    /// Run ML prediction with zero-copy pipeline
+    /// Run ML prediction with XGBoost using CUDA array interface for zero-copy
     pub fn run_ml_prediction_optimized(
         &self,
         features: &CudaSlice<f32>,
@@ -200,18 +197,31 @@ impl CudaBackend {
             return Err("CudaBackend not initialized".into());
         }
 
-        // Use the base model name - the OnnxRunner will handle the _gpu suffix logic
+        // Use the base model name
         let base_model_path = format!("../../models/{}", base_model_name);
-        let onnx_runner = OnnxRunner::new(&base_model_path, true, self.model_pool.clone())
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(format!("{}", e)))?;
-
-        let mut output_dev = cuda::get_cuda_device()
-            .ok_or("No CUDA device")?
-            .alloc_zeros::<f32>(n)?;
-
-        onnx_runner.predict_with_cuda_slice(features, &mut output_dev, n)
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(format!("{}", e)))?;
-
+        
+        // Get device pointer for zero-copy
+        let device = cuda::get_cuda_device().ok_or("No CUDA device")?;
+        
+        // Calculate number of features per row (ncol)
+        let ncol = features.len() / n;
+        assert_eq!(features.len() % n, 0, "Features length must be divisible by n");
+        
+        // Load XGBoost model with GPU support
+        let booster = Booster::load(&base_model_path, Device::Cuda)?;
+        
+        // Determine model kind based on name
+        let kind = if base_model_name.contains("levels") { ModelKind::BinaryProb2 } else { ModelKind::Regressor1 };
+        
+        // Get raw device pointer for zero-copy prediction
+        let device_ptr = *features.device_ptr() as u64;
+        
+        // Run prediction using CUDA array interface for true zero-copy
+        let results = booster.predict_from_cuda_array(device_ptr, n, ncol, kind)?;
+        
+        // Upload results back to GPU
+        let output_dev = device.htod_copy(results)?;
+        
         Ok(output_dev)
     }
 }

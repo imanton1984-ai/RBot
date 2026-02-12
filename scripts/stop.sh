@@ -109,6 +109,30 @@ if [[ -f "./run/connections.pid" ]]; then
   rm -f ./run/connections.pid
 fi
 
+# stop compute service
+if [[ -f "./run/compute.pid" ]]; then
+  PID="$(cat ./run/compute.pid)"
+  if kill -0 "$PID" 2>/dev/null; then
+    echo "Stopping compute service (pid $PID)..."
+    kill "$PID" || true
+    sleep 1
+    kill -9 "$PID" 2>/dev/null || true
+  fi
+  rm -f ./run/compute.pid
+fi
+
+# stop ingestor service
+if [[ -f "./run/ingestor.pid" ]]; then
+  PID="$(cat ./run/ingestor.pid)"
+  if kill -0 "$PID" 2>/dev/null; then
+    echo "Stopping ingestor service (pid $PID)..."
+    kill "$PID" || true
+    sleep 1
+    kill -9 "$PID" 2>/dev/null || true
+  fi
+  rm -f ./run/ingestor.pid
+fi
+
 # stop by pidfiles first (надежно, без pgrep -f по всему миру)
 stop_pidfile() {
   local pidfile="$1"
@@ -199,6 +223,27 @@ while read -r pid cmd; do
     kill -KILL "$pid" 2>/dev/null || true
   fi
 done < <(ps -eo pid=,cmd= | grep -F "$ROOT_DIR" | grep -v grep || true)
+
+# Also look for any remaining compute processes with predictor module
+echo "Looking for any remaining compute processes with predictor module..."
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  echo "TERM compute process: pid=$pid cmd=$cmd"
+  kill -TERM "$pid" 2>/dev/null || true
+done < <(pgrep -f "compute.*predictor" -l || true)
+
+sleep 2
+
+# Force kill if still running
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "KILL compute process: pid=$pid cmd=$cmd"
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+done < <(pgrep -f "compute.*predictor" -l || true)
 
 # убираем артефакт старого health-loop (в твоем текущем варианте он есть) :contentReference[oaicite:0]{index=0}
 rm -f /tmp/health_monitor_running 2>/dev/null || true

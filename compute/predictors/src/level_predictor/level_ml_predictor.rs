@@ -2,23 +2,23 @@
 
 use anyhow::Result;
 use crate::feature_view::FeatureVector;
-use crate::ml::onnx_runtime::OnnxRunner;
-use crate::ml::model_pool::ModelPool;
+use crate::ml::model_manager::ModelManager;
 use std::sync::Arc;
 
 pub struct LevelPredictorMl {
-    runner: OnnxRunner,
+    mm: Arc<ModelManager>,
+    model_key: String,
+    use_gpu: bool,
 }
 
 impl LevelPredictorMl {
-    pub fn new(model_path: &str, use_cuda: bool, pool: Arc<ModelPool>) -> Result<Self> {
-        let runner = OnnxRunner::new(model_path, use_cuda, pool)?;
-        Ok(Self { runner })
+    pub fn new(model_key: impl Into<String>, use_gpu: bool, mm: Arc<ModelManager>) -> Result<Self> {
+        Ok(Self { mm, model_key: model_key.into(), use_gpu })
     }
 
     pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector, _level_price: f64) -> Result<Option<(f64, f64, f64)>> {
-        // Преобразование Vec<f32> в формат для ONNX (slice)
-        let outputs = self.runner.run(&features.values)?;
+        let out = self.mm.predict_one(&self.model_key, &features.values, self.use_gpu)?;
+        let Some(outputs) = out else { return Ok(None); };
 
         if outputs.len() >= 2 {
             let prob_bounce = outputs[0] as f64;

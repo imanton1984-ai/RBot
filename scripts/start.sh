@@ -3,7 +3,7 @@
 # ==============================================================================
 # Automatic cuDNN Installation for GPU Acceleration
 # ==============================================================================
-# This section checks if cuDNN 9 is installed, which is required for ONNX Runtime GPU support.
+# This section checks if cuDNN 9 is installed, which is required for XGBoost GPU support.
 # If it's not found, it will attempt to install it. This requires sudo privileges.
 
 # Check if we are on a debian-based system with apt-get
@@ -12,7 +12,7 @@ if command -v apt-get &> /dev/null; then
     if ! ldconfig -p | grep -q libcudnn.so.9; then
         echo "WARNING: libcudnn.so.9 not found. Attempting to install NVIDIA cuDNN 9 for CUDA 12."
         echo "This is required for GPU acceleration and will require sudo privileges."
-        
+
         # Check if running with sudo, if not, prompt
         if [ "$EUID" -ne 0 ]; then
             echo "Please enter your password for sudo to continue with the installation."
@@ -44,36 +44,27 @@ fi
 
 # ==============================================================================
 
-# scripts/start.sh
-
-# 1. Основной путь к библиотеке
-export ONNXRUNTIME_ROOTDIR="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.23.1"
-
-# 2. Проверка наличия библиотеки перед сборкой
-if [ ! -d "$ONNXRUNTIME_ROOTDIR" ]; then
-    echo "ONNX Runtime not found at $ONNXRUNTIME_ROOTDIR"
-    echo "Installing ONNX Runtime..."
+# Build XGBoost with CUDA support
+echo "Building XGBoost with CUDA support..."
+XGBOOST_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build_xgboost_cuda.sh"
+if [ -f "$XGBOOST_SCRIPT_PATH" ]; then
+    echo "Running XGBoost build script..."
+    chmod +x "$XGBOOST_SCRIPT_PATH"
+    "$XGBOOST_SCRIPT_PATH"
     
-    DOWNLOAD_DIR="/home/anton/Downloads"
-    mkdir -p "$DOWNLOAD_DIR"
-    cd "$DOWNLOAD_DIR"
+    # Set XGBoost library path
+    export XGBOOST_LIB_DIR="/home/anton/Desktop/Rust_trader/third_party/xgboost/install/lib"
+    export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:$LD_LIBRARY_PATH"
+    export LIBRARY_PATH="$XGBOOST_LIB_DIR:$LIBRARY_PATH"
     
-    wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-gpu-1.23.1.tgz
-    tar -xzvf onnxruntime-linux-x64-gpu-1.23.1.tgz
-    cd - > /dev/null
+    echo "XGBoost library path set to: $XGBOOST_LIB_DIR"
+else
+    echo "WARNING: XGBoost build script not found at $XGBOOST_SCRIPT_PATH"
 fi
 
-# 3. КРИТИЧЕСКИЕ ПЕРЕМЕННЫЕ ДЛЯ КОМПИЛЯЦИИ И ЗАПУСКА
-# Путь к директории с .so файлами
-export ORT_LIB_LOCATION="$ONNXRUNTIME_ROOTDIR/lib"
+# scripts/start.sh
 
-# Для линковщика (чтобы cargo build видел библиотеку)
-export LIBRARY_PATH="$ORT_LIB_LOCATION:$LIBRARY_PATH"
-
-# Для работы программы (чтобы бинарник находил библиотеку при старте)
-export LD_LIBRARY_PATH="$ORT_LIB_LOCATION:$LD_LIBRARY_PATH"
-
-# Если используется CUDA
+# CUDA Environment Variables
 export CUDA_HOME=/usr/local/cuda
 export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH"
 
@@ -257,7 +248,7 @@ log "cargo: $(cargo -V 2>/dev/null || echo 'not found')"
 
 COMPOSE_FILE="${COMPOSE_FILE:-infra/docker-compose.yaml}"
 BUILD_PROFILE="${BUILD_PROFILE:-release}" # release|debug
-SERVICE_BINS="${SERVICE_BINS:-connections ingestor compute}"
+SERVICE_BINS="${SERVICE_BINS:-connections ingestor}"
 
 if [[ -n "$SERVICES_OVERRIDE" ]]; then
   SERVICE_BINS="$SERVICES_OVERRIDE"
@@ -449,12 +440,18 @@ if [[ "$need_build" -eq 1 ]]; then
   log "Targets : ${C_BOLD}$SERVICE_BINS${C_RESET}"
 
   if [[ "$BUILD_PROFILE" == "release" ]]; then
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build --release -p connections -p ingestor -p compute --features compute/cuda}"
+    # Build history compute with CUDA features
+    cargo build --release -p compute --bin compute_history --features cuda
+    # Build realtime compute without CUDA features (for laptop fallback)
+    cargo build --release -p compute --bin compute_realtime
   else
-    CARGO_BUILD_CMD="${CARGO_BUILD_CMD:-cargo build -p connections -p ingestor -p compute --features compute/cuda}"
+    # Build history compute with CUDA features
+    cargo build -p compute --bin compute_history --features cuda
+    # Build realtime compute without CUDA features (for laptop fallback)
+    cargo build -p compute --bin compute_realtime
   fi
 
-  
+
   # Если хочешь ограничить сборку только нужными бинари (сильно ускоряет),
   # можно выставить: CARGO_BUILD_CMD="cargo build --release --bin svc_a --bin svc_b"
   log "+ ${C_BOLD}$CARGO_BUILD_CMD${C_RESET}"
@@ -485,6 +482,20 @@ docker exec redpanda rpk topic create orders.cmd --brokers=redpanda:29092 --part
 docker exec redpanda rpk topic create orders.events --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic orders.events already exists or error occurred"
 docker exec redpanda rpk topic create positions.events --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || echo "  Topic positions.events already exists or error occurred"
 ok "Kafka topics setup completed."
+
+# Set recommended environment variables for history/realtime modes
+export DB_PERSIST_MODE=history
+export DB_PERSIST_CHUNK_SIZE_HISTORY=50000
+export DB_PERSIST_MAX_BATCH=200000
+export DB_PERSIST_FLUSH_MS=150
+export DB_PERSIST_HISTORY_SKIP_JSON=1   # огромный выигрыш, если jsonb тяжёлый
+export DB_PERSIST_HISTORY_UPSERT=0      # append
+
+# For realtime (безопасно):
+export DB_PERSIST_MODE_REALTIME=realtime
+export DB_PERSIST_CHUNK_SIZE_REALTIME=2000
+export DB_PERSIST_MAX_BATCH_REALTIME=20000
+export DB_PERSIST_FLUSH_MS_REALTIME=50
 
 # --- CANDLES: load historical candles and start real-time ingestion ---
 section "ONESHOT: load_candles"
@@ -528,6 +539,79 @@ start_one() {
 for b in $SERVICE_BINS; do
   start_one "$b"
 done
+
+# Start compute_history and compute_realtime separately
+section "START COMPUTE SERVICES"
+
+start_compute_history() {
+  local name="compute_history"
+  local pidfile="$PID_DIR/$name.pid"
+  local outfile="$LOG_DIR/${name}.out"
+
+  if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+    ok "Already running: ${C_BOLD}$name${C_RESET} (pid=$(cat "$pidfile"))"
+    return 0
+  fi
+
+  local bin_path="$TARGET_DIR/compute_history"
+  if [[ ! -x "$bin_path" ]]; then
+    die "compute_history binary not found at $bin_path"
+  fi
+
+  # Set environment for history mode
+  export DB_PERSIST_MODE=history
+  export DB_PERSIST_CHUNK_SIZE_HISTORY=50000
+  export DB_PERSIST_MAX_BATCH=200000
+  export DB_PERSIST_FLUSH_MS=150
+  export DB_PERSIST_HISTORY_SKIP_JSON=1
+  export DB_PERSIST_HISTORY_UPSERT=0
+
+  log "Starting: ${C_BOLD}$name${C_RESET}"
+  log "  bin: $bin_path"
+  log "  log: $outfile"
+
+  nohup "$bin_path" >>"$outfile" 2>&1 &
+  local pid=$!
+  echo "$pid" > "$pidfile"
+
+  ok "Started: ${C_BOLD}$name${C_RESET} pid=$pid"
+}
+
+start_compute_realtime() {
+  local name="compute_realtime"
+  local pidfile="$PID_DIR/$name.pid"
+  local outfile="$LOG_DIR/${name}.out"
+
+  if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+    ok "Already running: ${C_BOLD}$name${C_RESET} (pid=$(cat "$pidfile"))"
+    return 0
+  fi
+
+  local bin_path="$TARGET_DIR/compute_realtime"
+  if [[ ! -x "$bin_path" ]]; then
+    die "compute_realtime binary not found at $bin_path"
+  fi
+
+  # Set environment for realtime mode
+  export DB_PERSIST_MODE=realtime
+  export DB_PERSIST_CHUNK_SIZE_REALTIME=2000
+  export DB_PERSIST_MAX_BATCH_REALTIME=20000
+  export DB_PERSIST_FLUSH_MS_REALTIME=50
+
+  log "Starting: ${C_BOLD}$name${C_RESET}"
+  log "  bin: $bin_path"
+  log "  log: $outfile"
+
+  nohup "$bin_path" >>"$outfile" 2>&1 &
+  local pid=$!
+  echo "$pid" > "$pidfile"
+
+  ok "Started: ${C_BOLD}$name${C_RESET} pid=$pid"
+}
+
+# Start both compute services
+start_compute_history
+start_compute_realtime
 
 section "DONE"
 ok "START DONE @ $(date)"

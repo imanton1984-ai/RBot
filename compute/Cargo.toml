@@ -7,6 +7,14 @@ edition = "2021"
 name = "compute"
 path = "src/main.rs"
 
+[[bin]]
+name = "compute_history"
+path = "src/bin/compute_history.rs"
+
+[[bin]]
+name = "compute_realtime"
+path = "src/bin/compute_realtime.rs"
+
 [lib]
 name = "compute_lib"
 
@@ -32,7 +40,6 @@ rdkafka = { version = "0.39.0", features = ["tokio"] }
 dotenvy = "0.15"
 futures-util = "0.3"
 tokio-stream = "0.1"
-ort = { version = "2.0.0-rc.11", features = ["cuda"] }
 ndarray = "0.16"
 tracing-appender = "0.2"
 dashmap = "5.5"
@@ -40,4 +47,4 @@ cudarc = { version = "0.11.2", optional = true, features = ["f16", "cuda-12050"]
 
 [features]
 default = []
-cuda = ["dep:cuda", "dep:cudarc", "ort/cuda"]
+cuda = ["dep:cuda", "dep:cudarc", "predictors/cuda"]

@@ -1,254 +1,193 @@
 import os
-import pandas as pd
-import numpy as np
-import xgboost as xgb
-import sqlalchemy
-from skl2onnx.common.data_types import FloatTensorType
-from onnxmltools.convert import convert_xgboost
-from onnxmltools.convert.common.data_types import FloatTensorType as OnnxFloatTensorType
-import onnx
-from sklearn.model_selection import TimeSeriesSplit
+import sys
 import json
 import hashlib
+import numpy as np
+import pandas as pd
 
-# --- КОНФИГУРАЦИЯ ---
-DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/timescaledb_binance")
-SYMBOL = "BTCUSDT"
-TIMEFRAMES = [1, 5, 15, 60, 240, 1440]  # All 6 timeframes: 1m, 5m, 15m, 1h, 4h, 1d
-HORIZON = 10  # Предсказываем на 10 свечей вперед
-MODEL_DIR = "../models"
+from sqlalchemy import create_engine
+from sklearn.model_selection import TimeSeriesSplit
+import xgboost as xgb
 
-# Список фичей, которые ДОЛЖНЫ совпадать с тем, что вы подаете в Rust (FeatureView)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/timescaledb_binance")
+MODELS_DIR = os.getenv("MODELS_DIR", "models")
+
+TIMEFRAMES = [1, 5, 15, 60, 240, 1440]  # minutes
+HORIZON = int(os.getenv("HORIZON_BARS", "10"))
+
 FEATURES = [
-    'close', 'high', 'low', 'open', 'volume',
-    'rsi', 'macd', 'macd_signal', 'macd_hist',
-    'ema_20', 'ema_50', 'ema_200', 'sma',
-    'bb_upper', 'bb_lower', 'bb_mid',
-    'atr', 'adx', 'vwap', 'obv', 'cci',
-    'stoch_k', 'stoch_d', 'williams_r',  # Fixed: was 'williams' in Python but mapped from 'williams' in DB
-    'trend', 'trend_short'
+    "rsi","cci","stoch_k","stoch_d","williams_r",
+    "macd","macd_signal","macd_hist","adx","sma","ema_20","ema_50","ema_200",
+    "bb_upper","bb_mid","bb_lower","atr",
+    "obv","vwap","volume_spike",
+    "alligator_jaw","alligator_teeth","alligator_lips",
+    "trend","trend_short","poc",
 ]
 
-def load_data(timeframe):
-    print(f"Connecting to {DB_URL}...")
-    engine = sqlalchemy.create_engine(DB_URL)
+def ensure_dirs():
+    os.makedirs(MODELS_DIR, exist_ok=True)
 
-    # Формируем SQL запрос. Важно: порядок колонок должен быть жестким,
-    # либо в Rust мы должны маппить их по именам.
-    # Join candles and indicators tables to get both OHLCV and indicators
-    query = f"""
-        SELECT
-            c.close, c.high, c.low, c.open, c.volume,
-            i.rsi, i.macd, i.macd_signal, i.macd_hist,
-            i.ema_20, i.ema_50, i.ema_200, i.sma,
-            i.bb_upper, i.bb_lower, i.bb_mid,
-            i.atr, i.adx, i.vwap, i.obv, i.cci,
-            i.stoch_k, i.stoch_d, i.williams as williams_r,  -- Map williams to williams_r
-            i.trend, i.trend_short
-        FROM market.candles c
-        INNER JOIN market.indicators_wide i
-            ON c.symbol_id = i.symbol_id AND c.time = i.time AND c.time_ms = i.time_ms
-        WHERE i.symbol = '{SYMBOL}' AND c.tf_minutes = {timeframe}
-        ORDER BY c.time ASC
+def load_data(timeframe_min: int) -> pd.DataFrame:
+    engine = create_engine(DATABASE_URL)
+    # Берём wide индикаторы + close из свечей (подстрой под свою схему если надо)
+    # ВАЖНО: здесь пример. Если у тебя другой join — агент поправит.
+    # Determine the appropriate candle table based on timeframe
+    candle_table = f"market.candles_{timeframe_min}m"
+    
+    q = f"""
+    SELECT
+      i.time,
+      i.tf_minutes,
+      i.symbol,
+      c.close,
+      i.rsi, i.cci, i.stoch_k, i.stoch_d, i.williams_r,
+      i.macd, i.macd_signal, i.macd_hist, i.adx, i.sma, i.ema_20, i.ema_50, i.ema_200,
+      i.bb_upper, i.bb_mid, i.bb_lower, i.atr,
+      i.obv, i.vwap, i.volume_spike,
+      i.alligator_jaw, i.alligator_teeth, i.alligator_lips,
+      i.trend, i.trend_short, i.poc
+    FROM market.indicators_wide i
+    JOIN {candle_table} c
+      ON c.symbol_id = i.symbol_id AND c.tf_minutes = i.tf_minutes AND c.time = i.time
+    WHERE i.tf_minutes = {timeframe_min}
+    ORDER BY i.time ASC
     """
-    print(f"Fetching data for timeframe {timeframe}m...")
-    df = pd.read_sql(query, engine)
-
-    # Check if we have enough data
-    if len(df) < 200:
-        print(f"Warning: Not enough data for timeframe {timeframe}m (got {len(df)} rows). Skipping...")
+    df = pd.read_sql(q, engine)
+    if df is None or len(df) == 0:
         return None
 
-    # Заменяем NULL на 0 (или среднее), чтобы XGBoost не падал при конвертации
-    df = df.fillna(0.0)
-
-    # Конвертируем все в float32 (требование ONNX Runtime в Rust)
-    for c in df.columns:
-        df[c] = df[c].astype(np.float32)
-
+    # cleanup
+    df = df.sort_values("time").reset_index(drop=True)
+    for col in FEATURES + ["close"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["close"])
     return df
 
-def train_price_model(df):
-    print("Training Price Prediction Model...")
+def export_xgb(model, model_name: str, schema: dict):
+    ensure_dirs()
+    model_path = os.path.join(MODELS_DIR, model_name)
+    schema_path = os.path.join(MODELS_DIR, model_name.replace(".ubj", ".json"))
 
-    # Target: Percentage return after N candles
-    y = (df['close'].shift(-HORIZON) / df['close']) - 1
+    # save model
+    model.save_model(model_path)
+
+    # save schema/meta
+    with open(schema_path, "w", encoding="utf-8") as f:
+        json.dump(schema, f, ensure_ascii=False, indent=2)
+
+    print(f"  saved: {model_path}")
+    print(f"  saved: {schema_path}")
+
+def train_price_model(df: pd.DataFrame):
+    print("Training Price Model (regression return)...")
+
+    y = (df["close"].shift(-HORIZON) / df["close"]) - 1.0
     X = df[FEATURES]
 
-    # Fill infinities that might result from division by zero
     y = y.replace([np.inf, -np.inf], 0.0)
-
-    # Remove last N rows where target is NaN
     X = X.iloc[:-HORIZON]
     y = y.iloc[:-HORIZON]
 
-    # Check if we have enough data for training
-    if len(X) < 50:  # Need at least 50 samples for meaningful training
-        print(f"  Not enough data after removing {HORIZON} rows for target. Available: {len(X)} rows.")
-        return None
-
-    # TimeSeriesSplit for cross-validation (adjust splits based on available data)
-    n_splits = min(5, len(X) // 20)  # At least 20 samples per fold
-    if n_splits < 2:
-        print("  Not enough data for cross-validation, skipping CV and training directly...")
-        model = xgb.XGBRegressor(
-            n_estimators=100,
-            max_depth=5,
-            learning_rate=0.05,
-            objective='reg:squarederror',
-            n_jobs=-1
-        )
-        model.fit(X, y)
-        return model
-
-    tscv = TimeSeriesSplit(n_splits=n_splits)
-
-    model = xgb.XGBRegressor(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.05,
-        objective='reg:squarederror',
-        n_jobs=-1
-    )
-
-    print(f"  Cross-validating with {n_splits} splits...")
-    scores = []
-    for train_index, test_index in tscv.split(X):
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-
-        # Skip folds with insufficient data
-        if len(X_train) < 10 or len(X_test) < 5:
-            continue
-
-        model.fit(X_train, y_train)
-        score = model.score(X_test, y_test)
-        scores.append(score)
-        print(f"    Split score: {score:.4f}")
-
-    if scores:
-        print(f"  Average R^2 Score on cross-validation: {np.mean(scores):.4f}")
-    else:
-        print("  Could not perform cross-validation due to insufficient data in folds")
-
-    # Final fit on all data
-    print("  Fitting final model on all data...")
-    model.fit(X, y)
-
-    return model
-
-def export_to_onnx(model, filename, features, schema_id):
-    print(f"Exporting to {filename}...")
-
-    # Описываем входной тензор: [None (любой batch size), кол-во фичей]
-    # Используем правильный тип данных в зависимости от библиотеки
-    initial_type = [('float_input', OnnxFloatTensorType([None, len(features)]))]
-
-    try:
-        # Convert XGBoost model to ONNX
-        # options={'zipmap': False} forces classifiers to output probabilities as a Tensor (Array),
-        # not a sequence of maps. This is critical for Rust ORT to read probabilities easily.
-        onnx_model = convert_xgboost(
-            model, 
-            initial_types=initial_type,
-            options={'zipmap': False} 
-        )
-
-        os.makedirs(MODEL_DIR, exist_ok=True)
-        full_path = os.path.join(MODEL_DIR, filename)
-        onnx.save_model(onnx_model, full_path)
-        print(f"Saved model to {full_path}")
-
-        # Export metadata
-        meta = {
-            "schema_id": schema_id,
-            "features": features
-        }
-        meta_path = os.path.join(MODEL_DIR, filename.replace(".onnx", ".json"))
-        with open(meta_path, 'w') as f:
-            json.dump(meta, f, indent=2)
-        print(f"Saved metadata to {meta_path}")
-    except Exception as e:
-        print(f"Error exporting model {filename}: {e}")
-        # Continue without crashing the whole process
-
-def train_level_model(df):
-    print("Training Level Prediction Model...")
-
-    # Target: классификация (пробой/отскок от уровня)
-    # Для примера, создадим искусственную целевую переменную
-    # В реальности это будет более сложная логика на основе SR уровней
-
-    # Создаем фиктивные уровни (в реальности они будут из SR уровней)
-    df_copy = df.copy()
-    df_copy['avg_price'] = df_copy['close'].rolling(window=20).mean()
-    df_copy['is_near_level'] = abs(df_copy['close'] - df_copy['avg_price']) < (df_copy['atr'] * 0.5)  # Рядом с уровнем
-
-    # Целевая переменная: 1 если пробой, 0 если отскок (упрощенно)
-    df_copy['next_direction'] = (df_copy['close'].shift(-HORIZON) > df_copy['close']).astype(int)
-
-    y = df_copy['next_direction']
-    X = df_copy[FEATURES]
-
-    # Удаляем последние N строк, где нет target
-    X = X.iloc[:-HORIZON]
-    y = y.iloc[:-HORIZON]
-
-    # Убираем строки с NaN
     mask = ~(X.isna().any(axis=1) | y.isna())
     X = X[mask]
     y = y[mask]
 
-    # Check if we have enough data for training
-    if len(X) < 50:  # Need at least 50 samples for meaningful training
-        print(f"  Not enough data for level model. Available: {len(X)} rows after cleaning.")
+    if len(X) < 50:
+        print(f"  Not enough rows: {len(X)}")
         return None
 
-    # Обучение модели классификации
-    model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
+    model = xgb.XGBRegressor(
+        n_estimators=200,
+        max_depth=6,
         learning_rate=0.05,
-        n_jobs=-1
+        objective="reg:squarederror",
+        n_jobs=-1,
+        # Enable GPU training if available
+        tree_method="gpu_hist",
+        predictor="gpu_predictor"
+    )
+
+    # CV (optional)
+    n_splits = min(5, len(X) // 200)
+    if n_splits >= 2:
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+        scores = []
+        for tr, te in tscv.split(X):
+            model.fit(X.iloc[tr], y.iloc[tr])
+            scores.append(model.score(X.iloc[te], y.iloc[te]))
+        print(f"  CV mean score: {float(np.mean(scores)):.4f}")
+
+    model.fit(X, y)
+    print(f"  train score: {model.score(X, y):.4f}")
+    return model
+
+def train_level_model(df: pd.DataFrame):
+    print("Training Levels Model (binary direction)...")
+
+    # target: direction after HORIZON candles
+    future = df["close"].shift(-HORIZON)
+    y = (future > df["close"]).astype(int)
+
+    X = df[FEATURES]
+    X = X.iloc[:-HORIZON]
+    y = y.iloc[:-HORIZON]
+
+    mask = ~(X.isna().any(axis=1) | y.isna())
+    X = X[mask]
+    y = y[mask]
+
+    if len(X) < 50:
+        print(f"  Not enough rows: {len(X)}")
+        return None
+
+    model = xgb.XGBClassifier(
+        n_estimators=300,
+        max_depth=6,
+        learning_rate=0.05,
+        n_jobs=-1,
+        eval_metric="logloss",
+        # Enable GPU training if available
+        tree_method="gpu_hist",
+        predictor="gpu_predictor"
     )
     model.fit(X, y)
-
-    # Оценка
-    score = model.score(X, y)
-    print(f"  Accuracy Score on train set: {score:.4f}")
-
+    print(f"  train acc: {model.score(X, y):.4f}")
     return model
 
 if __name__ == "__main__":
-    try:
-        # Create schema_id from FEATURES list
-        feature_string = ",".join(FEATURES)
-        schema_id = hashlib.sha256(feature_string.encode('utf-8')).hexdigest()
+    ensure_dirs()
 
-        for timeframe in TIMEFRAMES:
-            print(f"\n=== Training models for timeframe {timeframe}m ===")
-            
-            df = load_data(timeframe)
-            if df is None or len(df) < 200:
-                print(f"Not enough data to train for timeframe {timeframe}m! Run the bot to collect candles first.")
-                continue
-            
-            # Обучаем модель предсказания цены
-            price_model = train_price_model(df.copy())
-            if price_model is not None:
-                export_to_onnx(price_model, f"price_v1_tf{timeframe}.onnx", FEATURES, f"{schema_id}_tf{timeframe}")
-            else:
-                print(f"  Skipping price model export for timeframe {timeframe}m due to insufficient data.")
+    feature_string = ",".join(FEATURES)
+    schema_base = hashlib.sha256(feature_string.encode("utf-8")).hexdigest()
 
-            # Обучаем модель предсказания уровней
-            level_model = train_level_model(df.copy())
-            if level_model is not None:
-                export_to_onnx(level_model, f"levels_v1_tf{timeframe}.onnx", FEATURES, f"{schema_id}_tf{timeframe}")
-            else:
-                print(f"  Skipping level model export for timeframe {timeframe}m due to insufficient data.")
+    for tf in TIMEFRAMES:
+        print(f"\n=== timeframe {tf}m ===")
+        df = load_data(tf)
+        if df is None or len(df) < 200:
+            print("  Not enough data. Run collector first.")
+            continue
 
-            print(f"Training complete for timeframe {timeframe}m.")
+        price = train_price_model(df.copy())
+        if price is not None:
+            schema = {
+                "schema_id": f"{schema_base}_tf{tf}",
+                "features": FEATURES,
+                "task": "price_regression_return",
+                "horizon_bars": HORIZON,
+                "tf_minutes": tf,
+            }
+            export_xgb(price, f"price_v1_tf{tf}.ubj", schema)
 
-        print("\nAll training completed!")
-    except Exception as e:
-        print(f"Error: {e}")
+        levels = train_level_model(df.copy())
+        if levels is not None:
+            schema = {
+                "schema_id": f"{schema_base}_tf{tf}",
+                "features": FEATURES,
+                "task": "levels_binary_direction",
+                "horizon_bars": HORIZON,
+                "tf_minutes": tf,
+            }
+            export_xgb(levels, f"levels_v1_tf{tf}.ubj", schema)
+
+    print("\nAll training completed.")

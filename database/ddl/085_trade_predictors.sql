@@ -11,14 +11,14 @@ CREATE TABLE IF NOT EXISTS trade.predictor_registry (
 
   -- how we calculate
   calc_source        smallint NOT NULL,  -- 1=hard, 2=ml
-  framework          text     NOT NULL,  -- "hardcode" | "onnx" | "xgboost" | "lightgbm"
+  framework          text     NOT NULL,  -- "hardcode" | "xgboost" | "lightgbm"
 
   name               text     NOT NULL,  -- "price10_v1", "levels_v2"...
   version            text     NOT NULL,  -- semver/date/commit
   code_hash          text     NULL,      -- for hardcode (git commit), for models too
 
-  -- ML artifact (for Rust inference better to keep ONNX)
-  artifact_path      text     NULL,      -- path to .onnx on disk/volume
+  -- ML artifact (for Rust inference using XGBoost)
+  artifact_path      text     NULL,      -- path to .ubj/.json on disk/volume
   artifact_sha256    text     NULL,
 
   -- feature schema

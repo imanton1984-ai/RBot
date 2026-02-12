@@ -1,27 +1,23 @@
 use std::sync::Arc;
-use ort::session::Session;
 use dashmap::DashMap;
 
+// Placeholder for potential future use with XGBoost models
+// Currently not used but kept for compatibility
 pub struct ModelPool {
-    sessions: DashMap<String, Arc<Session>>,
+    _placeholder: DashMap<String, Arc<String>>, // Placeholder - not actually used
 }
 
 impl ModelPool {
     pub fn new() -> Self {
         Self {
-            sessions: DashMap::new(),
+            _placeholder: DashMap::new(),
         }
     }
 
-    pub fn get_or_load(&self, path: &str, _use_cuda: bool) -> anyhow::Result<Arc<Session>> {
-        if let Some(s) = self.sessions.get(path) {
-            return Ok(s.clone());
-        }
-
-        let session = Session::builder()?.commit_from_file(path)?;
-        let shared = Arc::new(session);
-        self.sessions.insert(path.to_string(), shared.clone());
-        Ok(shared)
+    pub fn get_or_load(&self, path: &str, _use_cuda: bool) -> anyhow::Result<Arc<String>> {
+        // This is a placeholder implementation
+        // In the XGBoost implementation, models are loaded directly by the Booster
+        Ok(Arc::new(path.to_string()))
     }
 }
 

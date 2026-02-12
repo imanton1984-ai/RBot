@@ -21,6 +21,4 @@ codegen-units = 16
 lto = "thin" # "Thin LTO" быстрее, чем "fat", но почти не уступает в оптимизации
 
 [env]
-ORT_LIB_LOCATION="/home/anton/Downloads/onnxruntime-linux-x64-gpu-1.23.1/lib"
-ORT_SKIP_DOWNLOAD = "1"
-ORT_PREFER_DYNAMIC_LINK = "1"
+# XGBoost library path (set via environment variables in start.sh)

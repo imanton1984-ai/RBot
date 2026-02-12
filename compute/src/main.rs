@@ -77,14 +77,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
-    // Initialize BulkPersistor
-    let bulk_persistor =
-        database_lib::bulk_persistor::BulkPersistor::new(database_lib::bulk_persistor::BulkPersistorConfig::from_env()?).await?;
-    let bulk_persistor_sender = bulk_persistor.sender();
+    // Initialize TWO DB streams: history and realtime
+    let bulk_history = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(database_lib::bulk_persistor::PersistMode::History).await?;
+    let bulk_realtime = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(database_lib::bulk_persistor::PersistMode::Realtime).await?;
 
-    // Initialize indicator persistor
-    let (persistor, _persist_sender) = IndicatorPersistor::new(bulk_persistor_sender.clone());
-    let persistor = Arc::new(persistor);
+    let bulk_history_sender = bulk_history.sender();
+    let bulk_realtime_sender = bulk_realtime.sender();
+
+    // Initialize TWO indicator persistors (wide)
+    let (indicator_persistor_hist, _indicator_tx_hist) = IndicatorPersistor::new(bulk_history_sender.clone());
+    let (indicator_persistor_rt, _indicator_tx_rt) = IndicatorPersistor::new(bulk_realtime_sender.clone());
+
+    let indicator_persistor_hist = Arc::new(indicator_persistor_hist);
+    let indicator_persistor_rt = Arc::new(indicator_persistor_rt);
 
     // Initialize bootstrap coordinator
     let required_lookback = env_usize("COMPUTE_REQUIRED_LOOKBACK", 1000);
@@ -142,9 +147,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Initialize RawSignal persistor
-    let raw_signal_persistor = RawSignalPersistor::new(bulk_persistor_sender);
-    let raw_signal_persistor = Arc::new(raw_signal_persistor);
+    // Initialize TWO RawSignal persistors
+    let raw_signal_persistor_hist = RawSignalPersistor::new(bulk_history_sender.clone());
+    let raw_signal_persistor_rt = RawSignalPersistor::new(bulk_realtime_sender.clone());
+
+    let raw_signal_persistor_hist = Arc::new(raw_signal_persistor_hist);
+    let raw_signal_persistor_rt = Arc::new(raw_signal_persistor_rt);
 
     // Initialize RawSignal processor
     let raw_cfg = SignalConfig {
@@ -158,9 +166,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
 
     // Spawn result processor to handle computed indicators and raw signals
-    let persistor_clone2 = persistor.clone();
+    let indicator_persistor_hist_clone = indicator_persistor_hist.clone();
+    let indicator_persistor_rt_clone = indicator_persistor_rt.clone();
     let raw_signal_processor_clone = raw_signal_processor.clone();
-    let raw_signal_persistor_clone = Arc::clone(&raw_signal_persistor);
+    let raw_signal_persistor_hist_clone = Arc::clone(&raw_signal_persistor_hist);
+    let raw_signal_persistor_rt_clone = Arc::clone(&raw_signal_persistor_rt);
     let feature_tx_clone = feature_tx.clone(); // Clone for sending feature snapshots
     tokio::spawn(async move {
         while let Some(feature_window) = result_receiver.recv().await {
@@ -226,6 +236,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
 
+            // Select the appropriate persistor based on whether this is real-time or historical
+            let selected_indicator_persistor = if feature_window.is_realtime {
+                &indicator_persistor_rt_clone
+            } else {
+                &indicator_persistor_hist_clone
+            };
+
             // Handle indicators
             let mut records = Vec::new();
             let ignored_names: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
@@ -278,7 +295,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     n - 1,
                     start_idx
                 );
-                persistor_clone2.queue_records(records).await;
+                selected_indicator_persistor.queue_records(records).await;
             }
 
             // Handle raw signals
@@ -306,16 +323,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .collect::<Vec<_>>()
             };
 
+            // Select the appropriate raw signal persistor based on whether this is real-time or historical
+            let selected_raw_signal_persistor = if feature_window.is_realtime {
+                &raw_signal_persistor_rt_clone
+            } else {
+                &raw_signal_persistor_hist_clone
+            };
+
             // Send signals directly to persistor (no aggregation needed)
             if !signals_to_persist.is_empty() {
                 println!(
                     "  Persisting {} raw signals for {} on {} (filtered from {} total)",
-                    signals_to_persist.len(),
+                    signals_to_persistor.len(),
                     feature_window.symbol,
                     feature_window.timeframe,
                     all_raw_signals_count
                 );
-                raw_signal_persistor_clone.queue_records(signals_to_persist).await;
+                selected_raw_signal_persistor.queue_records(signals_to_persist).await;
             }
 
             // FORM FEATURE SNAPSHOT FOR predictors PIPELINE
@@ -391,8 +415,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     symbol: feature_window.symbol.to_string(),
                     timeframe: feature_window.timeframe.as_str().to_string(),
                     indicators,
-                    raw_signals_data: None, 
+                    raw_signals_data: None,
                     sr_levels,
+                    is_realtime: feature_window.is_realtime,
                 };
 
                 // Отправляем снапшот. Используем try_send или send, но для истории лучше send, чтобы не дропать
@@ -453,8 +478,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: config.use_cuda,
-        model_path_price: "models/price_v1.onnx".to_string(),
-        model_path_levels: "models/levels_v1.onnx".to_string(),
+        use_gpu_history: config.use_cuda,  // Use GPU for history if CUDA is available
+        use_gpu_realtime: false,         // Usually use CPU for realtime (faster for small batches)
+        model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
+        model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
+        ml_batch_size: 4096,  // Default batch size for ML inference
     };
 
     let mut predictors_pipeline = crate::predictors::pipeline::PredictorsPipeline::new(

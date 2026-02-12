@@ -12,7 +12,6 @@ use common::MessageBus;
 use crate::consensus::ConsensusEngine;
 
 use crate::ml::model_manager::ModelManager;
-use crate::ml::model_pool::ModelPool;
 use std::sync::Arc;
 
 pub struct PredictorsPipeline {
@@ -30,16 +29,15 @@ impl PredictorsPipeline {
         _message_bus: MessageBus,
         shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
-        let pool = Arc::new(ModelPool::new());
-        let mut ml_manager = ModelManager::new(config.use_cuda, pool);
-        
+        let mut ml_manager = ModelManager::new(config.use_cuda);
+
         // Загружаем модели для всех таймфреймов
         let timeframes = vec![1, 5, 15, 60, 240, 1440]; // Все поддерживаемые таймфреймы
-        
-        if let Err(e) = ml_manager.load_models_for_timeframes("price", &config.model_path_price, &timeframes) {
+
+        if let Err(e) = ml_manager.load_models_for_timeframes("price", &config.model_path_price, &timeframes, config.use_gpu_history) {
             tracing::error!("Failed to load price models for timeframes: {}", e);
         }
-        if let Err(e) = ml_manager.load_models_for_timeframes("level", &config.model_path_levels, &timeframes) {
+        if let Err(e) = ml_manager.load_models_for_timeframes("level", &config.model_path_levels, &timeframes, config.use_gpu_history) {
             tracing::error!("Failed to load level models for timeframes: {}", e);
         }
 
@@ -447,7 +445,7 @@ impl PredictorsPipeline {
             tf_minutes, if price_model_exists { "FOUND" } else { "NOT FOUND" }
         );
 
-        if let Some(schema) = self.ml_manager.get_schema_for_timeframe("price", tf_minutes) {
+        if let Some(schema) = self.ml_manager.get_schema(&format!("price_tf{}", tf_minutes)) {
             tracing::debug!(target: "compute_predictors",
                 "Price schema found for {}:{}, proceeding with ML prediction",
                 view.symbol, view.timeframe
@@ -459,7 +457,14 @@ impl PredictorsPipeline {
                 input_vec.len()
             );
 
-            match self.ml_manager.predict(&format!("price_tf{}", tf_minutes), &input_vec) {
+            // Use the new predict_one method with appropriate GPU flag based on context
+            let use_gpu = if view.is_realtime() { 
+                self.config.use_gpu_realtime 
+            } else { 
+                self.config.use_gpu_history 
+            };
+            
+            match self.ml_manager.predict_one(&format!("price_tf{}", tf_minutes), &input_vec, use_gpu) {
                 Ok(Some(predicted_prices)) => {
                     tracing::debug!(target: "compute_predictors",
                         "ML price prediction succeeded for {}:{}, prices: {:?}",
@@ -472,16 +477,16 @@ impl PredictorsPipeline {
                         version: "1.0".to_string(),
                         aspect: PredictionAspect::PriceTarget,
                         calc_source: CalcSource::Ml,
-                        framework: "onnx".to_string(),
-                        artifact_path: Some(self.config.model_path_price.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                        framework: "xgboost".to_string(),
+                        artifact_path: Some(self.config.model_path_price.replace("{tf}", &tf_minutes.to_string())),
                         feature_schema_id: schema.schema_id.clone(),
                     };
-                    
+
                     tracing::debug!(target: "compute_predictors",
                         "Registering price predictor for timeframe {} with meta: {}",
                         tf_minutes, predictor_meta.name
                     );
-                    
+
                     let predictor_id = crate::persistence::register_predictor_if_missing(&self.db_pool, &predictor_meta).await?.0;
                     let score = if !predicted_prices.is_empty() { predicted_prices[0].abs().min(1.0) as f64 } else { 0.5 };
                     let last_predicted_price = predicted_prices.last().copied().unwrap_or(view_close as f32) as f64;
@@ -520,12 +525,12 @@ impl PredictorsPipeline {
                             "method": "ml_price10",
                             "predicted_prices": predicted_prices,
                             "confidence": score,
-                            "model_used": self.config.model_path_price.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))
+                            "model_used": self.config.model_path_price.replace("{tf}", &tf_minutes.to_string())
                         })),
                         prediction_key: format!("price10_ml_{}_{}", view.symbol, view.timestamp.timestamp()),
                     };
                     predictors.push(prediction_row);
-                    
+
                     tracing::debug!(target: "compute_predictors",
                         "Added price prediction for {}:{}, total predictors now: {}",
                         view.symbol, view.timeframe, predictors.len()
@@ -558,7 +563,7 @@ impl PredictorsPipeline {
             tf_minutes, if level_model_exists { "FOUND" } else { "NOT FOUND" }
         );
 
-        if let Some(schema) = self.ml_manager.get_schema_for_timeframe("level", tf_minutes) {
+        if let Some(schema) = self.ml_manager.get_schema(&format!("level_tf{}", tf_minutes)) {
             tracing::debug!(target: "compute_predictors",
                 "Level schema found for {}:{}, proceeding with ML level prediction",
                 view.symbol, view.timeframe
@@ -570,14 +575,21 @@ impl PredictorsPipeline {
                 input_vec.len()
             );
 
-            match self.ml_manager.predict(&format!("level_tf{}", tf_minutes), &input_vec) {
+            // Use the new predict_one method with appropriate GPU flag based on context
+            let use_gpu = if view.is_realtime() { 
+                self.config.use_gpu_realtime 
+            } else { 
+                self.config.use_gpu_history 
+            };
+            
+            match self.ml_manager.predict_one(&format!("level_tf{}", tf_minutes), &input_vec, use_gpu) {
                 Ok(Some(level_outputs)) => {
                     tracing::debug!(target: "compute_predictors",
                         "ML level prediction succeeded for {}:{}, outputs: {:?}",
                         view.symbol, view.timeframe, level_outputs
                     );
 
-                    // Handle different output formats from ONNX (classification often outputs label first)
+                    // Handle different output formats from XGBoost (classification often outputs probabilities)
                     let (prob_bounce, prob_break) = if level_outputs.len() >= 2 {
                         // Standard case: [prob_class_0, prob_class_1]
                         (level_outputs[0].max(0.0).min(1.0) as f64, level_outputs[1].max(0.0).min(1.0) as f64)
@@ -626,8 +638,8 @@ impl PredictorsPipeline {
                                                 version: "1.0".to_string(),
                                                 aspect: PredictionAspect::LevelBounce,
                                                 calc_source: CalcSource::Ml,
-                                                framework: "onnx".to_string(),
-                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                framework: "xgboost".to_string(),
+                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                 feature_schema_id: schema.schema_id.clone(),
                                             };
 
@@ -666,7 +678,7 @@ impl PredictorsPipeline {
                                                     "prob_bounce": prob_bounce,
                                                     "prob_break": prob_break,
                                                     "score": score,
-                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                     "level_info": {
                                                         "hash": &level.level_hash,
                                                         "kind": level.level_kind.as_i16(),
@@ -689,8 +701,8 @@ impl PredictorsPipeline {
                                                 version: "1.0".to_string(),
                                                 aspect: PredictionAspect::LevelBreakout,
                                                 calc_source: CalcSource::Ml,
-                                                framework: "onnx".to_string(),
-                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                framework: "xgboost".to_string(),
+                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                 feature_schema_id: schema.schema_id.clone(),
                                             };
 
@@ -729,7 +741,7 @@ impl PredictorsPipeline {
                                                     "prob_bounce": prob_bounce,
                                                     "prob_break": prob_break,
                                                     "score": score,
-                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                     "level_info": {
                                                         "hash": &level.level_hash,
                                                         "kind": level.level_kind.as_i16(),
@@ -781,8 +793,8 @@ impl PredictorsPipeline {
                                                                 version: "1.0".to_string(),
                                                                 aspect: PredictionAspect::LevelBounce,
                                                                 calc_source: CalcSource::Ml,
-                                                                framework: "onnx".to_string(),
-                                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                                framework: "xgboost".to_string(),
+                                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                                 feature_schema_id: schema.schema_id.clone(),
                                                             };
 
@@ -816,7 +828,7 @@ impl PredictorsPipeline {
                                                                     "prob_bounce": prob_bounce,
                                                                     "prob_break": prob_break,
                                                                     "score": score,
-                                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                                     "level_info": {
                                                                         "hash": &l_hash,
                                                                         "kind": l_kind,
@@ -840,8 +852,8 @@ impl PredictorsPipeline {
                                                                 version: "1.0".to_string(),
                                                                 aspect: PredictionAspect::LevelBreakout,
                                                                 calc_source: CalcSource::Ml,
-                                                                framework: "onnx".to_string(),
-                                                                artifact_path: Some(self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes))),
+                                                                framework: "xgboost".to_string(),
+                                                                artifact_path: Some(self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string())),
                                                                 feature_schema_id: schema.schema_id.clone(),
                                                             };
 
@@ -875,7 +887,7 @@ impl PredictorsPipeline {
                                                                     "prob_bounce": prob_bounce,
                                                                     "prob_break": prob_break,
                                                                     "score": score,
-                                                                    "model_used": self.config.model_path_levels.replace(".onnx", &format!("_tf{}.onnx", tf_minutes)),
+                                                                    "model_used": self.config.model_path_levels.replace("{tf}", &tf_minutes.to_string()),
                                                                     "level_info": {
                                                                         "hash": &l_hash,
                                                                         "kind": l_kind,
@@ -1007,6 +1019,17 @@ impl PredictorsPipeline {
     }
 }
 
+// Helper function to build batch for batch predictions
+fn build_batch(schema: &crate::feature_schema::FeatureSchema, views: &[FeatureSnapshot]) -> (Vec<f32>, usize) {
+    let ncol = schema.features.len();
+    let mut flat = Vec::with_capacity(views.len() * ncol);
+    for v in views {
+        let fv = schema.build_vector(v);
+        flat.extend_from_slice(&fv);
+    }
+    (flat, ncol)
+}
+
 #[derive(Debug, Clone)]
 pub struct FeatureSnapshot {
     pub timestamp: chrono::DateTime<chrono::Utc>,
@@ -1015,6 +1038,13 @@ pub struct FeatureSnapshot {
     pub indicators: IndicatorsWideRow,
     pub raw_signals_data: Option<serde_json::Value>,
     pub sr_levels: Option<serde_json::Value>,
+    pub is_realtime: bool,
+}
+
+impl FeatureSnapshot {
+    pub fn is_realtime(&self) -> bool {
+        self.is_realtime
+    }
 }
 
 #[cfg(test)]

@@ -1,31 +1,113 @@
+// database/src/bulk_persistor.rs
+
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{PgPool, Row};
-use sqlx::types::Json;
+use sqlx::{types::Json, PgPool, Row};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PersistMode {
+    History,
+    Realtime,
+}
+
+impl PersistMode {
+    pub fn from_env_var(v: Option<String>) -> Self {
+        match v.as_deref() {
+            Some("history") | Some("HISTORY") => PersistMode::History,
+            Some("realtime") | Some("REALTIME") => PersistMode::Realtime,
+            _ => PersistMode::Realtime,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct BulkPersistorConfig {
     pub database_url: String,
+
+    // общий
     pub flush_interval_ms: u64,
     pub max_batch: usize,
+
+    // per-mode
+    pub mode: PersistMode,
     pub chunk_size: usize,
+
+    // history knobs
+    pub history_upsert: bool,      // если 1 — будет DO UPDATE (медленнее, но “перезапись” возможна)
+    pub history_skip_json: bool,   // если 1 — не пишем jsonb поля для истории (ускоряет сильно)
 }
 
 impl BulkPersistorConfig {
     pub fn from_env() -> Result<Self> {
-        let database_url = std::env::var("DATABASE_URL")
-            .map_err(|_| anyhow!("DATABASE_URL is not set"))?;
-        let flush_interval_ms = std::env::var("DB_PERSIST_FLUSH_MS").ok()
-            .and_then(|v| v.parse().ok()).unwrap_or(50);
-        let max_batch = std::env::var("DB_PERSIST_MAX_BATCH").ok()
-            .and_then(|v| v.parse().ok()).unwrap_or(10_000);
-        let chunk_size = std::env::var("DB_PERSIST_CHUNK_SIZE").ok()
-            .and_then(|v| v.parse().ok()).unwrap_or(2_000);
+        let database_url =
+            std::env::var("DATABASE_URL").map_err(|_| anyhow!("DATABASE_URL is not set"))?;
 
-        Ok(Self { database_url, flush_interval_ms, max_batch, chunk_size })
+        let flush_interval_ms = std::env::var("DB_PERSIST_FLUSH_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(50);
+
+        let max_batch = std::env::var("DB_PERSIST_MAX_BATCH")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(20_000);
+
+        let mode = PersistMode::from_env_var(std::env::var("DB_PERSIST_MODE").ok());
+
+        // chunk size зависит от режима
+        let chunk_size = match mode {
+            PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50_000),
+            PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2_000),
+        };
+
+        let history_upsert = std::env::var("DB_PERSIST_HISTORY_UPSERT")
+            .ok()
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        let history_skip_json = std::env::var("DB_PERSIST_HISTORY_SKIP_JSON")
+            .ok()
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        Ok(Self {
+            database_url,
+            flush_interval_ms,
+            max_batch,
+            mode,
+            chunk_size,
+            history_upsert,
+            history_skip_json,
+        })
+    }
+
+    /// Удобный конструктор для двух стримов: history/realtime из одних env,
+    /// но с разными параметрами.
+    pub fn from_env_with_mode(mode: PersistMode) -> Result<Self> {
+        let mut cfg = Self::from_env()?;
+        cfg.mode = mode;
+
+        cfg.chunk_size = match mode {
+            PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50_000),
+            PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2_000),
+        };
+
+        Ok(cfg)
     }
 }
 
@@ -33,7 +115,7 @@ impl BulkPersistorConfig {
 pub enum PersistRecord {
     Indicator {
         symbol: common::Symbol,
-        timeframe: i16,        // tf_minutes
+        timeframe: i16,
         time_ms: i64,
 
         indicator_name: String,
@@ -41,13 +123,13 @@ pub enum PersistRecord {
         value_json: Option<Value>,
 
         candle_is_final: bool,
-        calc_source: i16,   // indicators DDL: TEXT
+        calc_source: i16,
         event_time_ms: Option<i64>,
     },
 
     RawSignal {
         symbol: common::Symbol,
-        timeframe: i16, // tf_minutes
+        timeframe: i16,
         time_ms: i64,
 
         indicator_id: i16,
@@ -60,7 +142,7 @@ pub enum PersistRecord {
 
         details: Option<Value>,
         candle_is_final: bool,
-        calc_source: i16,      // raw_signals DDL: SMALLINT
+        calc_source: i16,
         event_time_ms: Option<i64>,
 
         features_json: Option<Value>,
@@ -68,20 +150,17 @@ pub enum PersistRecord {
         predictors_json: Option<Value>,
     },
 
-    // NEW VARIANT for wide indicators
     IndicatorsWide {
         symbol: common::Symbol,
         timeframe: i16,
         time_ms: i64,
-        // Using a Map for flexibility in the persistor, or a struct if strictly typed
-        indicators: std::collections::HashMap<String, f64>, 
+        indicators: std::collections::HashMap<String, f64>,
         json_data: std::collections::HashMap<String, serde_json::Value>,
         candle_is_final: bool,
         calc_source: i16,
         event_time_ms: Option<i64>,
     },
 
-    // NEW VARIANT for aggregated signals
     AggregatedSignal {
         symbol: common::Symbol,
         timeframe: i16,
@@ -115,34 +194,38 @@ impl BulkPersistor {
         Self::new(BulkPersistorConfig::from_env()?).await
     }
 
+    pub async fn new_from_env_mode(mode: PersistMode) -> Result<Self> {
+        Self::new(BulkPersistorConfig::from_env_with_mode(mode)?).await
+    }
+
     pub async fn new(cfg: BulkPersistorConfig) -> Result<Self> {
         let pool = PgPool::connect(&cfg.database_url).await?;
         let (tx, mut rx) = mpsc::channel::<PersistRecord>(cfg.max_batch * 2);
 
-        // persistence loop
         let mut tick = tokio::time::interval(Duration::from_millis(cfg.flush_interval_ms));
         let pool2 = pool.clone();
         let cfg2 = cfg.clone();
+
         tokio::spawn(async move {
             let mut batch: Vec<PersistRecord> = Vec::with_capacity(cfg2.max_batch);
-            let cache = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
-            // Pre-fill the cache
+
+            // symbol cache
+            let cache = Arc::new(tokio::sync::RwLock::new(HashMap::<String, i64>::new()));
             {
                 let rows = sqlx::query("SELECT symbol_id, symbol FROM market.pairs")
                     .fetch_all(&pool2)
                     .await;
                 if let Ok(rows) = rows {
-                    let mut cache_write = cache.write().await;
+                    let mut w = cache.write().await;
                     for r in rows {
                         if let (Ok(id), Ok(sym)) = (r.try_get("symbol_id"), r.try_get("symbol")) {
-                             let id: i64 = id;
-                             let sym: String = sym;
-                            cache_write.insert(sym, id);
+                            let id: i64 = id;
+                            let sym: String = sym;
+                            w.insert(sym, id);
                         }
                     }
                 }
             }
-
 
             loop {
                 tokio::select! {
@@ -175,9 +258,7 @@ impl BulkPersistor {
             }
         });
 
-        Ok(Self {
-            tx,
-        })
+        Ok(Self { tx })
     }
 
     pub fn sender(&self) -> mpsc::Sender<PersistRecord> {
@@ -185,10 +266,11 @@ impl BulkPersistor {
     }
 
     pub async fn enqueue(&self, record: PersistRecord) -> Result<()> {
-        self.tx.send(record).await.map_err(|e| anyhow!("persist queue closed: {}", e))
+        self.tx
+            .send(record)
+            .await
+            .map_err(|e| anyhow!("persist queue closed: {}", e))
     }
-
-
 }
 
 async fn get_symbol_id(
@@ -225,30 +307,37 @@ async fn flush_all(
 
     for r in batch.drain(..) {
         match r {
-            PersistRecord::Indicator { .. } => {
-                // Старый формат игнорируем или логируем warning
-            }, 
             PersistRecord::RawSignal { .. } => signals.push(r),
             PersistRecord::IndicatorsWide { .. } => wide_indicators.push(r),
+            PersistRecord::Indicator { .. } => {
+                // старый формат — игнорируем (или можно добавить отдельный writer)
+            }
             PersistRecord::AggregatedSignal { .. } => {
-                 // Игнорируем aggregated, так как используем raw_signals
-            },
+                // сейчас не используем
+            }
         }
     }
 
-    if !signals.is_empty() {
-        if let Err(e) = flush_raw_signals(pool, cache, cfg, &signals).await {
-            tracing::error!("Failed to flush raw signals: {}", e);
+    // Важно: flush параллельно
+    let s1 = async {
+        if !signals.is_empty() {
+            flush_raw_signals(pool, cache, cfg, &signals).await?;
         }
-    }
-    if !wide_indicators.is_empty() {
-        if let Err(e) = flush_wide_indicators(pool, cache, cfg, &wide_indicators).await {
-            tracing::error!("Failed to flush wide indicators: {}", e);
+        Ok::<(), anyhow::Error>(())
+    };
+
+    let s2 = async {
+        if !wide_indicators.is_empty() {
+            flush_wide_indicators(pool, cache, cfg, &wide_indicators).await?;
         }
-    }
+        Ok::<(), anyhow::Error>(())
+    };
+
+    let (r1, r2) = tokio::join!(s1, s2);
+    r1?;
+    r2?;
     Ok(())
 }
-
 
 async fn flush_raw_signals(
     pool: &PgPool,
@@ -260,7 +349,16 @@ async fn flush_raw_signals(
     let mut dedup: HashMap<(i64, i16, i64, i16, i16, i16), (PersistRecord, i64)> = HashMap::new();
 
     for it in items {
-        if let PersistRecord::RawSignal { symbol, timeframe, time_ms, indicator_id, signal_kind, signal_sub_id, .. } = it {
+        if let PersistRecord::RawSignal {
+            symbol,
+            timeframe,
+            time_ms,
+            indicator_id,
+            signal_kind,
+            signal_sub_id,
+            ..
+        } = it
+        {
             let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
             let k = (sym_id, *timeframe, *time_ms, *indicator_id, *signal_kind, *signal_sub_id);
             dedup.insert(k, (it.clone(), sym_id));
@@ -272,17 +370,17 @@ async fn flush_raw_signals(
     while !vec.is_empty() {
         let take = vec.len().min(cfg.chunk_size);
         let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
-        flush_raw_signals_chunk(pool, chunk).await?;
+        flush_raw_signals_chunk(pool, cfg, chunk).await?;
     }
 
     Ok(())
 }
 
-async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>) -> Result<()> {
+async fn flush_raw_signals_chunk(pool: &PgPool, cfg: &BulkPersistorConfig, chunk: Vec<(PersistRecord, i64)>) -> Result<()> {
     if chunk.is_empty() {
         return Ok(());
     }
-    tracing::debug!("Persistor: Flushing {} signals...", chunk.len());
+
     let now: DateTime<Utc> = Utc::now();
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
@@ -304,12 +402,15 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
     let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
     let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
 
+    // json payloads (можно обнулить в history для скорости)
     let mut features_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
     let mut scores_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
     let mut predictors_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
 
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
 
     for (rec, sym_id) in chunk {
         if let PersistRecord::RawSignal {
@@ -329,7 +430,8 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
             features_json: fj,
             scores_json: sj,
             predictors_json: pj,
-        } = rec {
+        } = rec
+        {
             time.push(ms_to_ts(tms));
             time_ms.push(tms);
             symbol_id.push(sym_id);
@@ -349,60 +451,33 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
             calc_source.push(cs);
             event_time_ms.push(etm);
 
-            features_json.push(fj.map(Json));
-            scores_json.push(sj.map(Json));
-            predictors_json.push(pj.map(Json));
+            if skip_json {
+                features_json.push(None);
+                scores_json.push(None);
+                predictors_json.push(None);
+            } else {
+                features_json.push(fj.map(Json));
+                scores_json.push(sj.map(Json));
+                predictors_json.push(pj.map(Json));
+            }
 
             created_at.push(now);
             updated_at.push(now);
         }
     }
 
-    let sql = r#"
-        INSERT INTO market.raw_signals
-        (time, time_ms, symbol_id, symbol, tf_minutes,
-         indicator_id, signal_kind, signal_sub_id,
-         side, score, value,
-         details, candle_is_final, calc_source, event_time_ms,
-         features_json, scores_json, predictors_json,
-         created_at, updated_at)
-        SELECT * FROM UNNEST(
-            $1::timestamptz[],
-            $2::bigint[],
-            $3::bigint[],
-            $4::text[],
-            $5::smallint[],
-            $6::smallint[],
-            $7::smallint[],
-            $8::smallint[],
-            $9::smallint[],
-            $10::real[],
-            $11::real[],
-            $12::jsonb[],
-            $13::boolean[],
-            $14::smallint[],
-            $15::bigint[],
-            $16::jsonb[],
-            $17::jsonb[],
-            $18::jsonb[],
-            $19::timestamptz[],
-            $20::timestamptz[]
-        )
-        ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET
-            side = EXCLUDED.side,
-            score = EXCLUDED.score,
-            value = EXCLUDED.value,
-            details = EXCLUDED.details,
-            candle_is_final = EXCLUDED.candle_is_final,
-            calc_source = EXCLUDED.calc_source,
-            event_time_ms = EXCLUDED.event_time_ms,
-            features_json = EXCLUDED.features_json,
-            scores_json = EXCLUDED.scores_json,
-            predictors_json = EXCLUDED.predictors_json,
-            updated_at = now()
-    "#;
+    let sql = match cfg.mode {
+        PersistMode::Realtime => raw_signals_sql_realtime(),
+        PersistMode::History => {
+            if cfg.history_upsert {
+                raw_signals_sql_history_upsert()
+            } else {
+                raw_signals_sql_history_append()
+            }
+        }
+    };
 
-    if let Err(e) = sqlx::query(sql)
+    sqlx::query(sql)
         .bind(time)
         .bind(time_ms)
         .bind(symbol_id)
@@ -424,10 +499,7 @@ async fn flush_raw_signals_chunk(pool: &PgPool, chunk: Vec<(PersistRecord, i64)>
         .bind(created_at)
         .bind(updated_at)
         .execute(pool)
-        .await {
-            tracing::error!("CRITICAL: Failed to insert signals: {:?}", e);
-            return Err(e.into());
-        }
+        .await?;
 
     Ok(())
 }
@@ -438,17 +510,27 @@ async fn flush_wide_indicators(
     cfg: &BulkPersistorConfig,
     items: &[PersistRecord],
 ) -> Result<()> {
-    // Group by symbol_id and time to merge indicators for the same candle
-    let mut grouped: HashMap<(i64, i16, i64), (String, String, i16, i64, std::collections::HashMap<String, f64>, std::collections::HashMap<String, serde_json::Value>, bool, i16, Option<i64>)> = HashMap::new();
+    // Group by (symbol_id, timeframe, time_ms) and merge
+    let mut grouped: HashMap<(i64, i16, i64), (String, String, i16, i64, HashMap<String, f64>, HashMap<String, serde_json::Value>, bool, i16, Option<i64>)> =
+        HashMap::new();
 
     for item in items {
-        if let PersistRecord::IndicatorsWide { symbol, timeframe, time_ms, indicators, json_data, candle_is_final, calc_source, event_time_ms } = item {
+        if let PersistRecord::IndicatorsWide {
+            symbol,
+            timeframe,
+            time_ms,
+            indicators,
+            json_data,
+            candle_is_final,
+            calc_source,
+            event_time_ms,
+        } = item
+        {
             let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
             let key = (sym_id, *timeframe, *time_ms);
-            
+
             match grouped.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
-                    // Merge indicators
                     let (_, _, _, _, existing_indicators, existing_json, _, _, _) = entry.get_mut();
                     for (k, v) in indicators {
                         existing_indicators.insert(k.clone(), *v);
@@ -458,27 +540,36 @@ async fn flush_wide_indicators(
                     }
                 }
                 std::collections::hash_map::Entry::Vacant(entry) => {
-                    let mut new_indicators = std::collections::HashMap::new();
-                    let mut new_json_data = std::collections::HashMap::new();
+                    let mut new_ind = HashMap::new();
+                    let mut new_json = HashMap::new();
                     for (k, v) in indicators {
-                        new_indicators.insert(k.clone(), *v);
+                        new_ind.insert(k.clone(), *v);
                     }
                     for (k, v) in json_data {
-                        new_json_data.insert(k.clone(), v.clone());
+                        new_json.insert(k.clone(), v.clone());
                     }
-                    entry.insert((symbol.0.clone(), symbol.0.clone(), *timeframe, *time_ms, new_indicators, new_json_data, *candle_is_final, *calc_source, *event_time_ms));
+                    entry.insert((
+                        symbol.0.clone(),
+                        symbol.0.clone(),
+                        *timeframe,
+                        *time_ms,
+                        new_ind,
+                        new_json,
+                        *candle_is_final,
+                        *calc_source,
+                        *event_time_ms,
+                    ));
                 }
             }
         }
     }
 
-    // Convert grouped data to vectors for bulk insert
     let mut records: Vec<_> = grouped.into_values().collect();
-    
+
     while !records.is_empty() {
         let take = records.len().min(cfg.chunk_size);
         let chunk: Vec<_> = records.drain(0..take).collect();
-        flush_wide_indicators_chunk(pool, cache, chunk).await?;
+        flush_wide_indicators_chunk(pool, cache, cfg, chunk).await?;
     }
 
     Ok(())
@@ -487,12 +578,15 @@ async fn flush_wide_indicators(
 async fn flush_wide_indicators_chunk(
     pool: &PgPool,
     cache: &tokio::sync::RwLock<HashMap<String, i64>>,
-    chunk: Vec<(String, String, i16, i64, std::collections::HashMap<String, f64>, std::collections::HashMap<String, serde_json::Value>, bool, i16, Option<i64>)>,
+    cfg: &BulkPersistorConfig,
+    chunk: Vec<(String, String, i16, i64, HashMap<String, f64>, HashMap<String, serde_json::Value>, bool, i16, Option<i64>)>,
 ) -> Result<()> {
-    if chunk.is_empty() { return Ok(()); }
-    
-    tracing::debug!("Persistor: Flushing {} wide indicator rows...", chunk.len());
+    if chunk.is_empty() {
+        return Ok(());
+    }
+
     let now: DateTime<Utc> = Utc::now();
+    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
@@ -500,13 +594,12 @@ async fn flush_wide_indicators_chunk(
     let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
     let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
 
-    // Vectors for all columns in DDL order
     let mut rsi: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut cci: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut stoch_k: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut stoch_d: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut williams: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut macd: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut macd_signal: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut macd_hist: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
@@ -515,44 +608,33 @@ async fn flush_wide_indicators_chunk(
     let mut ema_20: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut ema_50: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut ema_200: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut bb_upper: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut bb_mid: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut bb_lower: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut atr: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut obv: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
     let mut vwap: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
     let mut volume_spike: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut alligator_jaw: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut alligator_teeth: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut alligator_lips: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut trend: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
     let mut trend_short: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
     let mut poc: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
-    
+
     let mut sr_levels: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
-    
+
     let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
     let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
     let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
 
-    // Log indicator fill stats for first row in chunk (diagnostic)
-    if let Some((_, _, _, _, ref first_indicators, _, _, _, _)) = chunk.first() {
-        let non_null_count = first_indicators.len();
-        tracing::debug!(
-            "Wide indicator sample: {} non-null indicators in first row (keys: {:?})",
-            non_null_count,
-            first_indicators.keys().collect::<Vec<_>>()
-        );
-    }
-
     for (sym_id_str, sym_str, tf, tms, indicators, json_data, final_flag, cs, etm) in chunk {
-        // Resolve symbol_id (reuse cache logic)
         let sym_id = get_symbol_id(pool, cache, &sym_id_str).await?;
 
         time.push(ms_to_ts(tms));
@@ -561,41 +643,44 @@ async fn flush_wide_indicators_chunk(
         symbol.push(sym_str);
         tf_minutes.push(tf);
 
-        // Extraction matching Compute backend names
-        rsi.push(extract_indicator_value(&indicators, "rsi"));
-        cci.push(extract_indicator_value(&indicators, "cci"));
-        stoch_k.push(extract_indicator_value(&indicators, "stoch_k"));
-        stoch_d.push(extract_indicator_value(&indicators, "stoch_d"));
-        williams.push(extract_indicator_value(&indicators, "williams"));
-        
-        macd.push(extract_indicator_value(&indicators, "macd"));
-        macd_signal.push(extract_indicator_value(&indicators, "macd_signal"));
-        macd_hist.push(extract_indicator_value(&indicators, "macd_hist"));
-        adx.push(extract_indicator_value(&indicators, "adx"));
-        sma.push(extract_indicator_value(&indicators, "sma"));
-        ema_20.push(extract_indicator_value(&indicators, "ema_20"));
-        ema_50.push(extract_indicator_value(&indicators, "ema_50"));
-        ema_200.push(extract_indicator_value(&indicators, "ema_200"));
-        
-        bb_upper.push(extract_indicator_value(&indicators, "bb_upper"));
-        bb_mid.push(extract_indicator_value(&indicators, "bb_mid"));
-        bb_lower.push(extract_indicator_value(&indicators, "bb_lower"));
-        atr.push(extract_indicator_value(&indicators, "atr"));
-        
-        obv.push(extract_indicator_value_as_double(&indicators, "obv"));
-        vwap.push(extract_indicator_value_as_double(&indicators, "vwap"));
-        volume_spike.push(extract_indicator_value(&indicators, "volume_spike"));
-        
-        alligator_jaw.push(extract_indicator_value(&indicators, "alligator_jaw"));
-        alligator_teeth.push(extract_indicator_value(&indicators, "alligator_teeth"));
-        alligator_lips.push(extract_indicator_value(&indicators, "alligator_lips"));
-        
-        trend.push(extract_indicator_value_as_i16(&indicators, "trend"));
-        trend_short.push(extract_indicator_value_as_i16(&indicators, "trend_short"));
-        poc.push(extract_indicator_value(&indicators, "poc"));
-        
-        sr_levels.push(json_data.get("sr_levels").cloned().map(Json));
-        
+        rsi.push(extract_f32(&indicators, "rsi"));
+        cci.push(extract_f32(&indicators, "cci"));
+        stoch_k.push(extract_f32(&indicators, "stoch_k"));
+        stoch_d.push(extract_f32(&indicators, "stoch_d"));
+        williams.push(extract_f32(&indicators, "williams"));
+
+        macd.push(extract_f32(&indicators, "macd"));
+        macd_signal.push(extract_f32(&indicators, "macd_signal"));
+        macd_hist.push(extract_f32(&indicators, "macd_hist"));
+        adx.push(extract_f32(&indicators, "adx"));
+        sma.push(extract_f32(&indicators, "sma"));
+        ema_20.push(extract_f32(&indicators, "ema_20"));
+        ema_50.push(extract_f32(&indicators, "ema_50"));
+        ema_200.push(extract_f32(&indicators, "ema_200"));
+
+        bb_upper.push(extract_f32(&indicators, "bb_upper"));
+        bb_mid.push(extract_f32(&indicators, "bb_mid"));
+        bb_lower.push(extract_f32(&indicators, "bb_lower"));
+        atr.push(extract_f32(&indicators, "atr"));
+
+        obv.push(extract_f64(&indicators, "obv"));
+        vwap.push(extract_f64(&indicators, "vwap"));
+        volume_spike.push(extract_f32(&indicators, "volume_spike"));
+
+        alligator_jaw.push(extract_f32(&indicators, "alligator_jaw"));
+        alligator_teeth.push(extract_f32(&indicators, "alligator_teeth"));
+        alligator_lips.push(extract_f32(&indicators, "alligator_lips"));
+
+        trend.push(extract_i16(&indicators, "trend"));
+        trend_short.push(extract_i16(&indicators, "trend_short"));
+        poc.push(extract_f32(&indicators, "poc"));
+
+        if skip_json {
+            sr_levels.push(None);
+        } else {
+            sr_levels.push(json_data.get("sr_levels").cloned().map(Json));
+        }
+
         candle_is_final.push(final_flag);
         calc_source.push(cs);
         event_time_ms.push(etm);
@@ -603,75 +688,58 @@ async fn flush_wide_indicators_chunk(
         updated_at.push(now);
     }
 
-    // SQL MUST match the column list exactly
-    let sql = r#"
-        INSERT INTO market.indicators_wide
-        (time, time_ms, symbol_id, symbol, tf_minutes,
-         rsi, cci, stoch_k, stoch_d, williams,
-         macd, macd_signal, macd_hist, adx, sma, ema_20, ema_50, ema_200,
-         bb_upper, bb_mid, bb_lower, atr,
-         obv, vwap, volume_spike,
-         alligator_jaw, alligator_teeth, alligator_lips,
-         trend, trend_short, poc,
-         sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
-        SELECT * FROM UNNEST(
-            $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
-            $6::real[], $7::real[], $8::real[], $9::real[], $10::real[],
-            $11::real[], $12::real[], $13::real[], $14::real[], $15::real[], $16::real[], $17::real[], $18::real[],
-            $19::real[], $20::real[], $21::real[], $22::real[],
-            $23::double precision[], $24::double precision[], $25::real[],
-            $26::real[], $27::real[], $28::real[],
-            $29::smallint[], $30::smallint[], $31::real[],
-            $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
-        )
-        ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
-            rsi = COALESCE(EXCLUDED.rsi, market.indicators_wide.rsi),
-            cci = COALESCE(EXCLUDED.cci, market.indicators_wide.cci),
-            stoch_k = COALESCE(EXCLUDED.stoch_k, market.indicators_wide.stoch_k),
-            stoch_d = COALESCE(EXCLUDED.stoch_d, market.indicators_wide.stoch_d),
-            williams = COALESCE(EXCLUDED.williams, market.indicators_wide.williams),
-            macd = COALESCE(EXCLUDED.macd, market.indicators_wide.macd),
-            macd_signal = COALESCE(EXCLUDED.macd_signal, market.indicators_wide.macd_signal),
-            macd_hist = COALESCE(EXCLUDED.macd_hist, market.indicators_wide.macd_hist),
-            adx = COALESCE(EXCLUDED.adx, market.indicators_wide.adx),
-            sma = COALESCE(EXCLUDED.sma, market.indicators_wide.sma),
-            ema_20 = COALESCE(EXCLUDED.ema_20, market.indicators_wide.ema_20),
-            ema_50 = COALESCE(EXCLUDED.ema_50, market.indicators_wide.ema_50),
-            ema_200 = COALESCE(EXCLUDED.ema_200, market.indicators_wide.ema_200),
-            bb_upper = COALESCE(EXCLUDED.bb_upper, market.indicators_wide.bb_upper),
-            bb_mid = COALESCE(EXCLUDED.bb_mid, market.indicators_wide.bb_mid),
-            bb_lower = COALESCE(EXCLUDED.bb_lower, market.indicators_wide.bb_lower),
-            atr = COALESCE(EXCLUDED.atr, market.indicators_wide.atr),
-            obv = COALESCE(EXCLUDED.obv, market.indicators_wide.obv),
-            vwap = COALESCE(EXCLUDED.vwap, market.indicators_wide.vwap),
-            volume_spike = COALESCE(EXCLUDED.volume_spike, market.indicators_wide.volume_spike),
-            alligator_jaw = COALESCE(EXCLUDED.alligator_jaw, market.indicators_wide.alligator_jaw),
-            alligator_teeth = COALESCE(EXCLUDED.alligator_teeth, market.indicators_wide.alligator_teeth),
-            alligator_lips = COALESCE(EXCLUDED.alligator_lips, market.indicators_wide.alligator_lips),
-            trend = COALESCE(EXCLUDED.trend, market.indicators_wide.trend),
-            trend_short = COALESCE(EXCLUDED.trend_short, market.indicators_wide.trend_short),
-            poc = COALESCE(EXCLUDED.poc, market.indicators_wide.poc),
-            sr_levels = COALESCE(EXCLUDED.sr_levels, market.indicators_wide.sr_levels),
-            candle_is_final = EXCLUDED.candle_is_final,
-            calc_source = EXCLUDED.calc_source,
-            event_time_ms = EXCLUDED.event_time_ms,
-            updated_at = now()
-    "#;
+    let sql = match cfg.mode {
+        PersistMode::Realtime => wide_sql_realtime(),
+        PersistMode::History => {
+            if cfg.history_upsert {
+                wide_sql_history_upsert()
+            } else {
+                wide_sql_history_append()
+            }
+        }
+    };
 
-    if let Err(e) = sqlx::query(sql)
-        .bind(time).bind(time_ms).bind(symbol_id).bind(symbol).bind(tf_minutes)
-        .bind(rsi).bind(cci).bind(stoch_k).bind(stoch_d).bind(williams)
-        .bind(macd).bind(macd_signal).bind(macd_hist).bind(adx).bind(sma).bind(ema_20).bind(ema_50).bind(ema_200)
-        .bind(bb_upper).bind(bb_mid).bind(bb_lower).bind(atr)
-        .bind(obv).bind(vwap).bind(volume_spike)
-        .bind(alligator_jaw).bind(alligator_teeth).bind(alligator_lips)
-        .bind(trend).bind(trend_short).bind(poc)
-        .bind(sr_levels).bind(candle_is_final).bind(calc_source).bind(event_time_ms).bind(created_at).bind(updated_at)
-        .execute(pool).await 
-    {
-        tracing::error!("CRITICAL: Failed to insert wide indicators: {:?}", e);
-        return Err(e.into());
-    }
+    sqlx::query(sql)
+        .bind(time)
+        .bind(time_ms)
+        .bind(symbol_id)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .bind(rsi)
+        .bind(cci)
+        .bind(stoch_k)
+        .bind(stoch_d)
+        .bind(williams)
+        .bind(macd)
+        .bind(macd_signal)
+        .bind(macd_hist)
+        .bind(adx)
+        .bind(sma)
+        .bind(ema_20)
+        .bind(ema_50)
+        .bind(ema_200)
+        .bind(bb_upper)
+        .bind(bb_mid)
+        .bind(bb_lower)
+        .bind(atr)
+        .bind(obv)
+        .bind(vwap)
+        .bind(volume_spike)
+        .bind(alligator_jaw)
+        .bind(alligator_teeth)
+        .bind(alligator_lips)
+        .bind(trend)
+        .bind(trend_short)
+        .bind(poc)
+        .bind(sr_levels)
+        .bind(candle_is_final)
+        .bind(calc_source)
+        .bind(event_time_ms)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(pool)
+        .await?;
+
     Ok(())
 }
 
@@ -681,15 +749,187 @@ fn ms_to_ts(ms: i64) -> DateTime<Utc> {
     DateTime::<Utc>::from_timestamp(secs, nsec).unwrap_or_else(|| Utc::now())
 }
 
-// Helper functions to extract indicator values
-fn extract_indicator_value(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<f32> {
-    indicators.get(key).copied().map(|v| v as f32)
+fn extract_f32(ind: &HashMap<String, f64>, key: &str) -> Option<f32> {
+    ind.get(key).copied().map(|v| v as f32)
+}
+fn extract_f64(ind: &HashMap<String, f64>, key: &str) -> Option<f64> {
+    ind.get(key).copied()
+}
+fn extract_i16(ind: &HashMap<String, f64>, key: &str) -> Option<i16> {
+    ind.get(key).copied().map(|v| v as i16)
 }
 
-fn extract_indicator_value_as_double(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<f64> {
-    indicators.get(key).copied()
+/* ---------------- SQL builders ---------------- */
+
+fn raw_signals_sql_realtime() -> &'static str {
+    r#"
+    INSERT INTO market.raw_signals
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     indicator_id, signal_kind, signal_sub_id,
+     side, score, value,
+     details, candle_is_final, calc_source, event_time_ms,
+     features_json, scores_json, predictors_json,
+     created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[],
+        $2::bigint[],
+        $3::bigint[],
+        $4::text[],
+        $5::smallint[],
+        $6::smallint[],
+        $7::smallint[],
+        $8::smallint[],
+        $9::smallint[],
+        $10::real[],
+        $11::real[],
+        $12::jsonb[],
+        $13::boolean[],
+        $14::smallint[],
+        $15::bigint[],
+        $16::jsonb[],
+        $17::jsonb[],
+        $18::jsonb[],
+        $19::timestamptz[],
+        $20::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO UPDATE SET
+        side = EXCLUDED.side,
+        score = EXCLUDED.score,
+        value = EXCLUDED.value,
+        details = EXCLUDED.details,
+        candle_is_final = EXCLUDED.candle_is_final,
+        calc_source = EXCLUDED.calc_source,
+        event_time_ms = EXCLUDED.event_time_ms,
+        features_json = EXCLUDED.features_json,
+        scores_json = EXCLUDED.scores_json,
+        predictors_json = EXCLUDED.predictors_json,
+        updated_at = now()
+    "#
 }
 
-fn extract_indicator_value_as_i16(indicators: &std::collections::HashMap<String, f64>, key: &str) -> Option<i16> {
-    indicators.get(key).copied().map(|v| v as i16)
+fn raw_signals_sql_history_append() -> &'static str {
+    r#"
+    INSERT INTO market.raw_signals
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     indicator_id, signal_kind, signal_sub_id,
+     side, score, value,
+     details, candle_is_final, calc_source, event_time_ms,
+     features_json, scores_json, predictors_json,
+     created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[],
+        $2::bigint[],
+        $3::bigint[],
+        $4::text[],
+        $5::smallint[],
+        $6::smallint[],
+        $7::smallint[],
+        $8::smallint[],
+        $9::smallint[],
+        $10::real[],
+        $11::real[],
+        $12::jsonb[],
+        $13::boolean[],
+        $14::smallint[],
+        $15::bigint[],
+        $16::jsonb[],
+        $17::jsonb[],
+        $18::jsonb[],
+        $19::timestamptz[],
+        $20::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time, indicator_id, signal_kind, signal_sub_id) DO NOTHING
+    "#
+}
+
+fn raw_signals_sql_history_upsert() -> &'static str {
+    // если хочешь перезаписывать историю при повторном прогоне
+    raw_signals_sql_realtime()
+}
+
+fn wide_sql_realtime() -> &'static str {
+    r#"
+    INSERT INTO market.indicators_wide
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     rsi, cci, stoch_k, stoch_d, williams,
+     macd, macd_signal, macd_hist, adx, sma, ema_20, ema_50, ema_200,
+     bb_upper, bb_mid, bb_lower, atr,
+     obv, vwap, volume_spike,
+     alligator_jaw, alligator_teeth, alligator_lips,
+     trend, trend_short, poc,
+     sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
+        $6::real[], $7::real[], $8::real[], $9::real[], $10::real[],
+        $11::real[], $12::real[], $13::real[], $14::real[], $15::real[], $16::real[], $17::real[], $18::real[],
+        $19::real[], $20::real[], $21::real[], $22::real[],
+        $23::double precision[], $24::double precision[], $25::real[],
+        $26::real[], $27::real[], $28::real[],
+        $29::smallint[], $30::smallint[], $31::real[],
+        $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+        rsi = COALESCE(EXCLUDED.rsi, market.indicators_wide.rsi),
+        cci = COALESCE(EXCLUDED.cci, market.indicators_wide.cci),
+        stoch_k = COALESCE(EXCLUDED.stoch_k, market.indicators_wide.stoch_k),
+        stoch_d = COALESCE(EXCLUDED.stoch_d, market.indicators_wide.stoch_d),
+        williams = COALESCE(EXCLUDED.williams, market.indicators_wide.williams),
+        macd = COALESCE(EXCLUDED.macd, market.indicators_wide.macd),
+        macd_signal = COALESCE(EXCLUDED.macd_signal, market.indicators_wide.macd_signal),
+        macd_hist = COALESCE(EXCLUDED.macd_hist, market.indicators_wide.macd_hist),
+        adx = COALESCE(EXCLUDED.adx, market.indicators_wide.adx),
+        sma = COALESCE(EXCLUDED.sma, market.indicators_wide.sma),
+        ema_20 = COALESCE(EXCLUDED.ema_20, market.indicators_wide.ema_20),
+        ema_50 = COALESCE(EXCLUDED.ema_50, market.indicators_wide.ema_50),
+        ema_200 = COALESCE(EXCLUDED.ema_200, market.indicators_wide.ema_200),
+        bb_upper = COALESCE(EXCLUDED.bb_upper, market.indicators_wide.bb_upper),
+        bb_mid = COALESCE(EXCLUDED.bb_mid, market.indicators_wide.bb_mid),
+        bb_lower = COALESCE(EXCLUDED.bb_lower, market.indicators_wide.bb_lower),
+        atr = COALESCE(EXCLUDED.atr, market.indicators_wide.atr),
+        obv = COALESCE(EXCLUDED.obv, market.indicators_wide.obv),
+        vwap = COALESCE(EXCLUDED.vwap, market.indicators_wide.vwap),
+        volume_spike = COALESCE(EXCLUDED.volume_spike, market.indicators_wide.volume_spike),
+        alligator_jaw = COALESCE(EXCLUDED.alligator_jaw, market.indicators_wide.alligator_jaw),
+        alligator_teeth = COALESCE(EXCLUDED.alligator_teeth, market.indicators_wide.alligator_teeth),
+        alligator_lips = COALESCE(EXCLUDED.alligator_lips, market.indicators_wide.alligator_lips),
+        trend = COALESCE(EXCLUDED.trend, market.indicators_wide.trend),
+        trend_short = COALESCE(EXCLUDED.trend_short, market.indicators_wide.trend_short),
+        poc = COALESCE(EXCLUDED.poc, market.indicators_wide.poc),
+        sr_levels = COALESCE(EXCLUDED.sr_levels, market.indicators_wide.sr_levels),
+        candle_is_final = EXCLUDED.candle_is_final,
+        calc_source = EXCLUDED.calc_source,
+        event_time_ms = EXCLUDED.event_time_ms,
+        updated_at = now()
+    "#
+}
+
+fn wide_sql_history_append() -> &'static str {
+    // быстрый режим: вставить один раз и не трогать
+    r#"
+    INSERT INTO market.indicators_wide
+    (time, time_ms, symbol_id, symbol, tf_minutes,
+     rsi, cci, stoch_k, stoch_d, williams,
+     macd, macd_signal, macd_hist, adx, sma, ema_20, ema_50, ema_200,
+     bb_upper, bb_mid, bb_lower, atr,
+     obv, vwap, volume_spike,
+     alligator_jaw, alligator_teeth, alligator_lips,
+     trend, trend_short, poc,
+     sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
+    SELECT * FROM UNNEST(
+        $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
+        $6::real[], $7::real[], $8::real[], $9::real[], $10::real[],
+        $11::real[], $12::real[], $13::real[], $14::real[], $15::real[], $16::real[], $17::real[], $18::real[],
+        $19::real[], $20::real[], $21::real[], $22::real[],
+        $23::double precision[], $24::double precision[], $25::real[],
+        $26::real[], $27::real[], $28::real[],
+        $29::smallint[], $30::smallint[], $31::real[],
+        $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO NOTHING
+    "#
+}
+
+fn wide_sql_history_upsert() -> &'static str {
+    // если надо повторно прогонять историю и “дозаписывать”
+    wide_sql_realtime()
 }

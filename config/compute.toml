@@ -48,5 +48,5 @@ prefer_ml = true
 max_levels_per_side = 2
 use_cuda = true
 # Пути к моделям
-model_path_price = "models/price_v1.onnx"
-model_path_levels = "models/levels_v1.onnx"
+model_path_price  = "models/price_v1_tf{tf}.ubj"
+model_path_levels = "models/levels_v1_tf{tf}.ubj"

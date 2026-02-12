@@ -1,115 +1,123 @@
-use super::onnx_runtime::OnnxRunner;
-use super::model_pool::ModelPool;
-use crate::feature_schema::FeatureSchema;
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::{info, warn};
 
+use crate::feature_schema::FeatureSchema;
+
+use super::xgb_runtime::{Booster, Device, ModelKind};
+
 pub struct ModelManager {
-    models: HashMap<String, OnnxRunner>,
-    schemas: HashMap<String, FeatureSchema>,
-    use_cuda: bool,
-    pool: Arc<ModelPool>,
+    // ключ: price_tf5 / level_tf1440 и т.д.
+    models_cpu: HashMap<String, (Booster, ModelKind)>,
+    models_gpu: HashMap<String, (Booster, ModelKind)>,
+    pub schemas: HashMap<String, FeatureSchema>,
 }
 
 impl ModelManager {
-    pub fn new(use_cuda: bool, pool: Arc<ModelPool>) -> Self {
-        Self {
-            models: HashMap::new(),
+    pub fn new(use_cuda: bool) -> Self {
+        let mut manager = Self {
+            models_cpu: HashMap::new(),
+            models_gpu: HashMap::new(),
             schemas: HashMap::new(),
-            use_cuda,
-            pool,
-        }
-    }
-
-    /// Загружает модель по указанному пути и присваивает ей имя (ключ)
-    pub fn load_model(&mut self, key: &str, path: &str) -> Result<()> {
-        if std::path::Path::new(path).exists() {
-            info!("Loading model '{}' from {}", key, path);
-            let runner = OnnxRunner::new(path, self.use_cuda, self.pool.clone())?;
-            self.models.insert(key.to_string(), runner);
-
-            // Load schema
-            let schema_path = path.replace(".onnx", ".json");
-            if std::path::Path::new(&schema_path).exists() {
-                let schema = FeatureSchema::from_json_file(&schema_path)?;
-                self.schemas.insert(key.to_string(), schema);
-            } else {
-                warn!("Schema file not found at {}", schema_path);
-            }
-
-        } else {
-            warn!("Model file not found at {}. ML prediction for '{}' will be disabled.", path, key);
-        }
-        Ok(())
-    }
-
-    pub fn get_schema(&self, key: &str) -> Option<&FeatureSchema> {
-        self.schemas.get(key)
-    }
-
-    /// Проверяет, загружена ли модель
-    pub fn has_model(&self, key: &str) -> bool {
-        self.models.contains_key(key)
-    }
-
-    /// Запускает инференс для конкретной модели
-    pub fn predict(&self, key: &str, features: &[f32]) -> Result<Option<Vec<f32>>> {
-        if let Some(runner) = self.models.get(key) {
-            let result = runner.run(features)?;
-            Ok(Some(result))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Загружает модели для всех таймфреймов по заданному шаблону
-    pub fn load_models_for_timeframes(&mut self, model_type: &str, base_path: &str, timeframes: &[i32]) -> Result<()> {
-        info!("Starting to load {} models for timeframes: {:?}", model_type, timeframes);
+        };
         
+        // Load models based on CUDA availability
+        if use_cuda {
+            info!("CUDA is enabled, will attempt to load GPU models");
+        } else {
+            info!("CUDA is disabled, will only load CPU models");
+        }
+        
+        manager
+    }
+
+    pub fn load_models_for_timeframes(
+        &mut self,
+        model_type: &str,                // "price" | "levels"
+        model_template: &str,            // "models/price_v1_tf{tf}.ubj"
+        timeframes: &[i32],
+        enable_gpu: bool,
+    ) -> Result<()> {
+        info!("Loading {} models for {:?}...", model_type, timeframes);
+
+        let kind = match model_type {
+            "price" => ModelKind::Regressor1,
+            "levels" => ModelKind::BinaryProb2,
+            other => {
+                warn!("Unknown model_type '{}', defaulting to Regressor1", other);
+                ModelKind::Regressor1
+            }
+        };
+
         for &tf in timeframes {
             let key = format!("{}_tf{}", model_type, tf);
-            let path = base_path.replace(".onnx", &format!("_tf{}.onnx", tf));
-            
-            info!("Attempting to load {} model: {} from path: {}", model_type, key, path);
-            
-            if std::path::Path::new(&path).exists() {
-                info!("Loading {} model for timeframe {}m: {} from {}", model_type, tf, key, path);
-                let runner = OnnxRunner::new(&path, self.use_cuda, self.pool.clone())?;
-                self.models.insert(key.clone(), runner);
+            let path = model_template.replace("{tf}", &tf.to_string());
+            let schema_path = path.replace(".ubj", ".json"); // schema рядом
 
-                // Load schema
-                let schema_path = path.replace(".onnx", ".json");
-                info!("Attempting to load schema for {} model from: {}", model_type, schema_path);
-                
-                if std::path::Path::new(&schema_path).exists() {
-                    let schema = FeatureSchema::from_json_file(&schema_path)?;
-                    self.schemas.insert(key.clone(), schema);
-                    info!("Successfully loaded schema for {} model: {}", model_type, key);
-                } else {
-                    warn!("Schema file not found at {} for {} model", schema_path, key);
-                }
-                
-                info!("Successfully loaded {} model: {} with schema present: {}", model_type, key, self.schemas.contains_key(&key));
+            if std::path::Path::new(&schema_path).exists() {
+                let schema = FeatureSchema::from_json_file(&schema_path)?;
+                self.schemas.insert(key.clone(), schema);
             } else {
-                warn!("Model file not found at {} for timeframe {}m. ML prediction for '{}' will be disabled.", path, tf, key);
+                warn!("Schema not found: {}", schema_path);
+            }
+
+            if std::path::Path::new(&path).exists() {
+                info!("Loading model: {} -> {}", key, path);
+
+                let cpu = Booster::load(&path, Device::Cpu)?;
+                self.models_cpu.insert(key.clone(), (cpu, kind));
+
+                if enable_gpu {
+                    match Booster::load(&path, Device::Cuda) {
+                        Ok(gpu) => {
+                            self.models_gpu.insert(key.clone(), (gpu, kind));
+                            info!("Successfully loaded GPU model: {}", key);
+                        }
+                        Err(e) => {
+                            warn!("Failed to load GPU model for {}: {}, falling back to CPU", key, e);
+                        }
+                    }
+                }
+            } else {
+                warn!("Model file not found: {}", path);
             }
         }
-        
-        info!("Completed loading {} models. Total {} models loaded.", model_type, self.models.len());
+
         Ok(())
     }
 
-    /// Получает модель по типу и таймфрейму
-    pub fn get_model_for_timeframe(&self, model_type: &str, timeframe_minutes: i32) -> Option<&OnnxRunner> {
-        let key = format!("{}_tf{}", model_type, timeframe_minutes);
-        self.models.get(&key)
+    /// Batch predict: inputs = row-major [nrow * ncol]
+    pub fn predict_batch(&self, key: &str, inputs: &[f32], nrow: usize, ncol: usize, use_gpu: bool) -> Result<Option<Vec<f32>>> {
+        let map = if use_gpu { &self.models_gpu } else { &self.models_cpu };
+
+        if let Some((booster, kind)) = map.get(key) {
+            // When booster is loaded with device="cuda", XGBoost will use GPU internally
+            // even when data comes from CPU memory
+            let out = booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
+            Ok(Some(out))
+        } else {
+            // Fallback to CPU if GPU model not available
+            if let Some((cpu_booster, kind)) = self.models_cpu.get(key) {
+                let out = cpu_booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
+                Ok(Some(out))
+            } else {
+                Ok(None)
+            }
+        }
     }
 
-    /// Получает схему по типу и таймфрейму
-    pub fn get_schema_for_timeframe(&self, model_type: &str, timeframe_minutes: i32) -> Option<&FeatureSchema> {
-        let key = format!("{}_tf{}", model_type, timeframe_minutes);
-        self.schemas.get(&key)
+    /// Single-row helper (realtime)
+    pub fn predict_one(&self, key: &str, features: &[f32], use_gpu: bool) -> Result<Option<Vec<f32>>> {
+        self.predict_batch(key, features, 1, features.len(), use_gpu)
+    }
+    
+    /// Check if a model exists for a given key
+    pub fn has_model(&self, key: &str) -> bool {
+        self.models_cpu.contains_key(key) || self.models_gpu.contains_key(key)
+    }
+    
+    /// Get schema for a given key
+    pub fn get_schema(&self, key: &str) -> Option<&FeatureSchema> {
+        self.schemas.get(key)
     }
 }
