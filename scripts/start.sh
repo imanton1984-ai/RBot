@@ -14,28 +14,27 @@ die() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} ${C_RED}ERROR:${C_RESET} $*"; 
 section() { echo -e "\n${C_BOLD}=== $* ===${C_RESET}"; }
 
 # --- 2. НАСТРОЙКА CUDA 13.1 ---
-# Проверяем разные варианты путей
-POSSIBLE_CUDA_PATHS=("/usr/local/cuda-13.1" "/usr/local/cuda-13.0" "/usr/local/cuda-13")
-SELECTED_CUDA=""
+# Мы используем универсальный путь /usr/local/cuda, который ссылается на 13.1
+SELECTED_CUDA="/usr/local/cuda"
 
-for path in "${POSSIBLE_CUDA_PATHS[@]}"; do
-    if [ -f "$path/bin/nvcc" ]; then
-        SELECTED_CUDA="$path"
-        break
+if [ ! -x "$SELECTED_CUDA/bin/nvcc" ]; then
+    # Резервный поиск, если симлинк не настроен
+    if [ -x "/usr/local/cuda-13.1/bin/nvcc" ]; then
+        SELECTED_CUDA="/usr/local/cuda-13.1"
+    else
+        die "CUDA 13.1 binaries not found. Please run: sudo ln -s /usr/local/cuda-13.1 /usr/local/cuda"
     fi
-done
-
-if [ -z "$SELECTED_CUDA" ]; then
-    die "CUDA 13 binaries not found in /usr/local/. Please check installation."
 fi
 
 export CUDA_HOME="$SELECTED_CUDA"
 export PATH="$CUDA_HOME/bin:$PATH"
-export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
+# Добавляем стандартные пути библиотек и пути для CUPTI (нужно для профилирования)
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64:${LD_LIBRARY_PATH:-}"
 export CUDA_ROOT="$CUDA_HOME"
 
 section "CUDA ENVIRONMENT"
 ok "Using CUDA from: $CUDA_HOME"
+log "NVCC Path: $(which nvcc)"
 log "NVCC Version: $(nvcc --version | grep release)"
 
 # --- 3. НАСТРОЙКА XGBOOST PATHS ---

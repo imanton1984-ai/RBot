@@ -5432,6 +5432,52 @@ exit $START_RESULT
 
 #!/usr/bin/env bash
 
+# --- 1. ОПРЕДЕЛЕНИЕ ФУНКЦИЙ (Сначала это!) ---
+C_RESET='\033[0m'
+C_BOLD='\033[1m'
+C_RED='\033[31m'
+C_GREEN='\033[32m'
+C_YELLOW='\033[33m'
+
+log() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} $*"; }
+ok() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} ${C_GREEN}OK:${C_RESET} $*"; }
+warn() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} ${C_YELLOW}WARN:${C_RESET} $*"; }
+die() { echo -e "${C_BOLD}[$(date +%T)]${C_RESET} ${C_RED}ERROR:${C_RESET} $*"; exit 1; }
+section() { echo -e "\n${C_BOLD}=== $* ===${C_RESET}"; }
+
+# --- 2. НАСТРОЙКА CUDA 13.1 ---
+# Мы используем универсальный путь /usr/local/cuda, который ссылается на 13.1
+SELECTED_CUDA="/usr/local/cuda"
+
+if [ ! -x "$SELECTED_CUDA/bin/nvcc" ]; then
+    # Резервный поиск, если симлинк не настроен
+    if [ -x "/usr/local/cuda-13.1/bin/nvcc" ]; then
+        SELECTED_CUDA="/usr/local/cuda-13.1"
+    else
+        die "CUDA 13.1 binaries not found. Please run: sudo ln -s /usr/local/cuda-13.1 /usr/local/cuda"
+    fi
+fi
+
+export CUDA_HOME="$SELECTED_CUDA"
+export PATH="$CUDA_HOME/bin:$PATH"
+# Добавляем стандартные пути библиотек и пути для CUPTI (нужно для профилирования)
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64:${LD_LIBRARY_PATH:-}"
+export CUDA_ROOT="$CUDA_HOME"
+
+section "CUDA ENVIRONMENT"
+ok "Using CUDA from: $CUDA_HOME"
+log "NVCC Path: $(which nvcc)"
+log "NVCC Version: $(nvcc --version | grep release)"
+
+# --- 3. НАСТРОЙКА XGBOOST PATHS ---
+XGB_LIB_PATH="/home/anton/Desktop/Rust_trader/third_party/xgboost/install/lib"
+export LIBRARY_PATH="${LIBRARY_PATH:-}:$XGB_LIB_PATH"
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$XGB_LIB_PATH"
+
+# Проверка для логов
+log "Building with CUDA from: $(which nvcc)"
+log "CUDA Version: $(nvcc --version | grep release)"
+
 # ==============================================================================
 # Automatic cuDNN Installation for GPU Acceleration
 # ==============================================================================
