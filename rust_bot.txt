@@ -23896,8 +23896,8 @@ impl CudaBackend {
         )?;
 
         // Download Raw Signals (Very small transfer compared to full indicators)
-        let raw_scores_host = device.dtoh_sync_copy(&raw_scores_dev)?;
-        let raw_sides_host = device.dtoh_sync_copy(&raw_sides_dev)?;
+        let _raw_scores_host = device.dtoh_sync_copy(&raw_scores_dev)?;
+        let _raw_sides_host = device.dtoh_sync_copy(&raw_sides_dev)?;
 
         // 3. Run ML models via XGBoost Booster with GPU acceleration
         let mut ml_results = Vec::new();
@@ -24654,9 +24654,11 @@ pub use raw_signal_persistor::*;
 pub use raw_signal_processor::*;
 pub use raw_signal_types::*;
 
+pub mod result_processor;
 // Import the compute indicators and predictors from the separate crates
 pub use compute_indicators;
 pub use predictors;
+pub use result_processor::*;
 
 
 # compute/src/main.rs
@@ -25909,6 +25911,193 @@ pub struct RawSignal {
 }
 
 
+# compute/src/result_processor.rs
+
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use crate::{
+    FeatureWindow, FeatureColumn, IndicatorRecord, IndicatorPersistor,
+    RawSignalPersistor, RawSignalProcessor, 
+};
+use crate::predictors::pipeline::FeatureSnapshot;
+use crate::predictors::feature_view::IndicatorsWideRow;
+
+pub struct ResultProcessor {
+    indicator_persistor: Arc<IndicatorPersistor>,
+    raw_signal_persistor: Arc<RawSignalPersistor>,
+    raw_signal_processor: Arc<RawSignalProcessor>,
+    feature_tx: mpsc::UnboundedSender<FeatureSnapshot>,
+}
+
+impl ResultProcessor {
+    pub fn new(
+        indicator_persistor: Arc<IndicatorPersistor>,
+        raw_signal_persistor: Arc<RawSignalPersistor>,
+        raw_signal_processor: Arc<RawSignalProcessor>,
+        feature_tx: mpsc::UnboundedSender<FeatureSnapshot>,
+    ) -> Self {
+        Self {
+            indicator_persistor,
+            raw_signal_persistor,
+            raw_signal_processor,
+            feature_tx,
+        }
+    }
+
+    pub async fn run(self, mut rx: mpsc::UnboundedReceiver<Arc<FeatureWindow>>) {
+        tracing::info!("Result processor started");
+        
+        while let Some(feature_window) = rx.recv().await {
+            let n = feature_window.batch.timestamps.len();
+            if n == 0 { continue; }
+
+            // 1. Determine start index (skip warmup for history)
+            let start_idx = if feature_window.is_realtime && n > 2 {
+                n - 2
+            } else {
+                // For history: find first bar with enough valid data
+                let mut effective_start = 0;
+                // Simplified check: skip first few bars if they are obviously warmup
+                // In production, checking for valid indicator values (non-NaN) is better
+                if n > 50 { effective_start = 50; } 
+                effective_start
+            };
+
+            if start_idx >= n { continue; }
+
+            // 2. Persist Indicators
+            let mut records = Vec::new();
+            let ignored_names = ["open", "high", "low", "close", "volume", "time_ms"];
+            
+            for (i, &timestamp) in feature_window.batch.timestamps.iter().enumerate().skip(start_idx) {
+                for column in &feature_window.batch.columns {
+                    match column {
+                        FeatureColumn::F64 { name, values } => {
+                            if ignored_names.contains(&name.as_str()) { continue; }
+                            if let Some(value) = values.get(i) {
+                                if value.is_finite() {
+                                    records.push(IndicatorRecord {
+                                        symbol: feature_window.symbol.clone(),
+                                        timeframe: feature_window.timeframe,
+                                        timestamp,
+                                        indicator_name: name.clone(),
+                                        value: crate::FeatureValue::Float(*value),
+                                    });
+                                }
+                            }
+                        }
+                        FeatureColumn::Json { name, values } => {
+                            if let Some(value) = values.get(i) {
+                                if !value.is_null() {
+                                    records.push(IndicatorRecord {
+                                        symbol: feature_window.symbol.clone(),
+                                        timeframe: feature_window.timeframe,
+                                        timestamp,
+                                        indicator_name: name.clone(),
+                                        value: crate::FeatureValue::Json(value.clone()),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !records.is_empty() {
+                self.indicator_persistor.queue_records(records).await;
+            }
+
+            // 3. Process & Persist Raw Signals
+            let all_raw_signals = self.raw_signal_processor.process_feature_window(&feature_window);
+            
+            let min_valid_timestamp = feature_window.batch.timestamps[start_idx];
+            let signals_to_persist: Vec<_> = all_raw_signals.into_iter()
+                .filter(|s| s.timestamp >= min_valid_timestamp)
+                .collect();
+
+            if !signals_to_persist.is_empty() {
+                self.raw_signal_persistor.queue_records(signals_to_persist).await;
+            }
+
+            // 4. Send Snapshot to Predictors Pipeline
+            // For history: send ALL valid candles. For realtime: only last.
+            let snapshot_range = if feature_window.is_realtime {
+                (n - 1)..n
+            } else {
+                start_idx..n
+            };
+
+            let cw = feature_window.candle_window.as_ref().expect("Candle window missing");
+
+            for idx in snapshot_range {
+                // Helper to extract f32
+                let get_f32 = |name: &str, default: f32| -> f32 {
+                    feature_window.batch.get_f64(name)
+                        .and_then(|v| v.get(idx))
+                        .map(|&v| v as f32)
+                        .unwrap_or(default)
+                };
+
+                let indicators = IndicatorsWideRow {
+                    close: cw.close.get(idx).copied().unwrap_or(0.0) as f32,
+                    high: cw.high.get(idx).copied().unwrap_or(0.0) as f32,
+                    low: cw.low.get(idx).copied().unwrap_or(0.0) as f32,
+                    open: cw.open.get(idx).copied().unwrap_or(0.0) as f32,
+                    volume: cw.volume.get(idx).copied().unwrap_or(0.0) as f32,
+                    
+                    rsi: get_f32("rsi", 50.0),
+                    macd_line: get_f32("macd", 0.0),
+                    macd_signal: get_f32("macd_signal", 0.0),
+                    macd_histogram: get_f32("macd_hist", 0.0),
+                    ema_20: get_f32("ema_20", 0.0),
+                    ema_50: get_f32("ema_50", 0.0),
+                    ema_200: get_f32("ema_200", 0.0),
+                    sma: get_f32("sma", 0.0),
+                    bb_upper: get_f32("bb_upper", 0.0),
+                    bb_lower: get_f32("bb_lower", 0.0),
+                    bb_middle: get_f32("bb_mid", 0.0),
+                    atr: get_f32("atr", 0.0),
+                    adx: get_f32("adx", 0.0),
+                    vwap: get_f32("vwap", 0.0),
+                    obv: get_f32("obv", 0.0),
+                    cci: get_f32("cci", 0.0),
+                    stoch_k: get_f32("stoch_k", 50.0),
+                    stoch_d: get_f32("stoch_d", 50.0),
+                    williams_r: get_f32("williams", -50.0),
+                    trend_short: get_f32("trend_short", 0.0),
+                    trend_medium: get_f32("trend", 0.0),
+                    trend_long: get_f32("trend_long", 0.0),
+                    volume_sma: get_f32("volume_sma", 0.0),
+                    volume_spike: get_f32("volume_spike", 0.0),
+                };
+
+                let sr_levels = feature_window.batch.get_json("sr_levels")
+                    .and_then(|v| v.get(idx))
+                    .cloned();
+
+                let ts_ms = feature_window.batch.timestamps[idx];
+                let timestamp = chrono::DateTime::from_timestamp(ts_ms / 1000, ((ts_ms % 1000) * 1_000_000) as u32)
+                    .unwrap_or(chrono::Utc::now());
+
+                let snapshot = FeatureSnapshot {
+                    timestamp,
+                    symbol: feature_window.symbol.to_string(),
+                    timeframe: feature_window.timeframe.as_str().to_string(),
+                    indicators,
+                    raw_signals_data: None, // Can be populated if needed
+                    sr_levels,
+                    is_realtime: feature_window.is_realtime,
+                };
+
+                if let Err(_) = self.feature_tx.send(snapshot) {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
 # compute/src/types.rs
 
 use serde::{Deserialize, Serialize};
@@ -26028,12 +26217,15 @@ impl FeatureBatch {
 
 use std::sync::Arc;
 use anyhow::{Context, Result};
-use common::{Symbol, Timeframe};
-use compute_lib::*;
+use common::{Symbol, Timeframe, MessageBus};
+use compute_lib::{*, IndicatorPersistor, RawSignalPersistor, RawSignalProcessor, ResultProcessor};
 use database_lib;
 use dotenvy::dotenv;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
+use raw_signals::thresholds::SignalConfig;
+use compute_lib::predictors::config::PredictorsConfig;
+use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26069,19 +26261,85 @@ async fn main() -> Result<()> {
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
 
-    let (job_scheduler, _result_receiver) = JobScheduler::new(
-        compute_backend,
-        config.clone(),
-        candle_fetcher.clone(),
-    );
-    let job_scheduler = Arc::new(job_scheduler);
-
     // Set environment for history mode
     std::env::set_var("DB_PERSIST_MODE", "history");
     std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); // Large chunks for history
     std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); // Slower flushing for history
     std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); // Skip heavy JSON for history
     std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); // Append mode for history
+
+    // Initialize DB Persistor (HISTORY Mode)
+    let bulk_persistor = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(
+        database_lib::bulk_persistor::PersistMode::History
+    ).await?;
+    let bulk_sender = bulk_persistor.sender();
+
+    // Initialize Indicator & RawSignal Persistors
+    let (indicator_persistor, _ind_tx) = IndicatorPersistor::new(bulk_sender.clone());
+    let raw_signal_persistor = RawSignalPersistor::new(bulk_sender.clone());
+    
+    // Raw Signal Processor
+    let raw_cfg = SignalConfig {
+        enable_filtering: true,
+        min_interesting_score: 0.60, // Can be configured via env
+        ..Default::default()
+    };
+    let raw_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
+
+    let (job_scheduler, result_receiver) = JobScheduler::new(
+        compute_backend,
+        config.clone(),
+        candle_fetcher.clone(),
+    );
+    let job_scheduler = Arc::new(job_scheduler);
+
+    // Predictors Pipeline (XGBoost)
+    let message_bus = MessageBus::new_from_env()?;
+    let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
+    
+    let pred_config = PredictorsConfig {
+        enabled: true,
+        horizon_bars: 10,
+        min_store_score: 0.60,
+        min_final_score: 0.70,
+        prefer_ml: true,
+        max_levels_per_side: 2,
+        use_cuda: config.use_cuda,
+        use_gpu_history: config.use_cuda, // Important for batch processing
+        use_gpu_realtime: false,
+        model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
+        model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
+        ml_batch_size: 4096,
+    };
+
+    let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
+    
+    let mut predictors_pipeline = PredictorsPipeline::new(
+        pred_config,
+        db_pool.clone(),
+        message_bus,
+        shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
+    );
+    predictors_pipeline.set_input_receiver(feature_rx);
+
+    // Spawn Predictors Pipeline
+    tokio::spawn(async move {
+        if let Err(e) = predictors_pipeline.run().await {
+            tracing::error!(target: "compute_predictors", "Predictors pipeline error: {}", e);
+        }
+    });
+
+    // Spawn Result Processor (The missing link!)
+    let result_processor = ResultProcessor::new(
+        Arc::new(indicator_persistor),
+        Arc::new(raw_signal_persistor),
+        raw_processor,
+        feature_tx,
+    );
+    
+    tokio::spawn(async move {
+        result_processor.run(result_receiver).await;
+    });
 
     // 1) получаем список активных пар из БД (market.pairs)
     let symbols = fetch_active_symbols_from_db(&db_pool).await?;
@@ -26097,56 +26355,114 @@ async fn main() -> Result<()> {
     ];
 
     for timeframe in &timeframes {
-        println!("Processing historical data for timeframe: {:?}", timeframe);
+        tracing::info!("Processing historical data for timeframe: {:?}", timeframe);
+
+        // Check if candles exist for this timeframe
+        let table_name = format!("market.candles_{}", timeframe.as_str());
+        let count_query = format!("SELECT COUNT(*) as count FROM {} LIMIT 1", table_name);
+        
+        match sqlx::query(&count_query).fetch_one(&db_pool).await {
+            Ok(row) => {
+                let count: i64 = row.get("count");
+                tracing::info!("Found {} records in {} table", count, table_name);
+                
+                if count == 0 {
+                    tracing::warn!("No candles found in {} table, skipping this timeframe", table_name);
+                    continue;
+                }
+            }
+            Err(e) => {
+                tracing::error!("Error querying {} table: {}", table_name, e);
+                continue;
+            }
+        }
 
         for symbol in &symbols {
-            // Determine the historical range to process
-            let table_name = format!("market.candles_{}", timeframe.as_str());
-            let query = format!(
-                "SELECT MIN(time) as first_time, MAX(time) as last_time
-                 FROM {} c
-                 JOIN market.pairs p ON c.symbol_id = p.symbol_id
-                 WHERE p.symbol = ",
+            tracing::info!("Processing symbol {} for timeframe {}", symbol.as_str(), timeframe.as_str());
+            
+            // Check if candles exist for this specific symbol and timeframe
+            let symbol_query = format!(
+                "SELECT MIN(time) as first_time, MAX(time) as last_time, COUNT(*) as total_count
+                 FROM {} 
+                 WHERE symbol = $1",
                 table_name
             );
 
-            let row = sqlx::query(&query)
+            match sqlx::query(&symbol_query)
                 .bind(symbol.as_str())
                 .fetch_optional(&db_pool)
-                .await?;
+                .await {
+                
+                Ok(Some(row)) => {
+                    let first_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
+                    let last_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
+                    let total_count: i64 = row.get("total_count");
 
-            if let Some(row) = row {
-                let first_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
-                let last_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
+                    tracing::info!("Symbol {} has {} candles in {} timeframe from {:?} to {:?}", 
+                        symbol.as_str(), total_count, timeframe.as_str(), first_time_opt, last_time_opt);
 
-                if let (Some(start_time), Some(end_time)) = (first_time_opt, last_time_opt) {
-                    println!("Processing {} for {} from {} to {}", symbol.as_str(), timeframe.as_str(), start_time, end_time);
+                    if let (Some(start_time), Some(end_time)) = (first_time_opt, last_time_opt) {
+                        tracing::info!("Processing {} for {} from {} to {}", 
+                            symbol.as_str(), timeframe.as_str(), start_time, end_time);
 
-                    let duration_in_minutes = (end_time - start_time).num_minutes();
-                    let timeframe_in_minutes = timeframe.to_minutes() as i64;
-                    let length = if timeframe_in_minutes > 0 {
-                        (duration_in_minutes / timeframe_in_minutes) as usize
+                        let duration_in_minutes = (end_time - start_time).num_minutes();
+                        let timeframe_in_minutes = timeframe.to_minutes() as i64;
+                        let length = if timeframe_in_minutes > 0 {
+                            (duration_in_minutes / timeframe_in_minutes) as usize
+                        } else {
+                            0
+                        };
+
+                        tracing::info!("Calculated window length: {}, timeframe_minutes: {}", length, timeframe_in_minutes);
+
+                        // Ensure we have enough data to process
+                        if length == 0 || total_count == 0 {
+                            tracing::warn!("Insufficient data for {} {}: length={}, total_count={}", 
+                                symbol.as_str(), timeframe.as_str(), length, total_count);
+                            continue;
+                        }
+
+                        let window_spec = WindowSpec {
+                            length: std::cmp::min(length, 5000), // Limit to prevent huge batches
+                            warmup: 100, // Add warmup period
+                        };
+
+                        tracing::info!("Submitting batch job for {} {} with window spec: length={}, warmup={}", 
+                            symbol.as_str(), timeframe.as_str(), window_spec.length, window_spec.warmup);
+
+                        match job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
+                            Ok(_) => {
+                                tracing::info!("Successfully submitted batch job for {} {}", 
+                                    symbol.as_str(), timeframe.as_str());
+                            }
+                            Err(e) => {
+                                tracing::error!("Error submitting batch job for {} {}: {}", 
+                                    symbol.as_str(), timeframe.as_str(), e);
+                            }
+                        }
                     } else {
-                        0
-                    };
-
-                    let window_spec = WindowSpec {
-                        length,
-                        warmup: 0,
-                    };
-
-                    if let Err(e) = job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
-                        eprintln!("Error submitting batch job for {} {}: {}", symbol.as_str(), timeframe.as_str(), e);
-                    } else {
-                        println!("Submitted batch job for {} {}", symbol.as_str(), timeframe.as_str());
+                        tracing::warn!("No valid time range found for {} in {}", symbol.as_str(), timeframe.as_str());
                     }
+                }
+                Ok(None) => {
+                    tracing::warn!("No data found for symbol {} in timeframe {}", symbol.as_str(), timeframe.as_str());
+                }
+                Err(e) => {
+                    tracing::error!("Database error when querying {} for symbol {}: {}", 
+                        table_name, symbol.as_str(), e);
                 }
             }
         }
     }
 
-    // Wait a bit to allow jobs to complete
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    // Wait longer to allow jobs to complete and monitor progress
+    tracing::info!("Waiting for historical computation to complete...");
+    for i in 0..60 {  // Wait up to 5 minutes (60 iterations * 5 seconds)
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        tracing::info!("Historical computation progress check: {} out of 300 seconds elapsed", (i+1)*5);
+    }
+    
+    tracing::info!("Historical computation completed or timed out.");
 
     Ok(())
 }
@@ -26192,9 +26508,12 @@ async fn fetch_active_symbols_from_db(
 use std::sync::Arc;
 use dotenvy::dotenv;
 use database_lib;
-use common::{Symbol, Timeframe};
+use common::{Symbol, Timeframe, MessageBus};
 use sqlx::PgPool;
-use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBackendType, CandleWindowFetcher, ComputeConfig};
+use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBackendType, CandleWindowFetcher, ComputeConfig, IndicatorPersistor, RawSignalPersistor, RawSignalProcessor, ResultProcessor};
+use raw_signals::thresholds::SignalConfig;
+use compute_lib::predictors::config::PredictorsConfig;
+use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26220,17 +26539,82 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
 
-    let (job_scheduler, _result_receiver) = JobScheduler::new(
+    // Initialize DB Persistor (REALTIME Mode)
+    std::env::set_var("DB_PERSIST_MODE", "realtime");
+    std::env::set_var("DB_PERSIST_CHUNK_SIZE_REALTIME", "2000"); // Small chunks for realtime
+    std::env::set_var("DB_PERSIST_FLUSH_MS", "50"); // Faster flushing for realtime
+
+    let bulk_persistor = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(
+        database_lib::bulk_persistor::PersistMode::Realtime
+    ).await?;
+    let bulk_sender = bulk_persistor.sender();
+
+    // Initialize Indicator & RawSignal Persistors
+    let (indicator_persistor, _ind_tx) = IndicatorPersistor::new(bulk_sender.clone());
+    let raw_signal_persistor = RawSignalPersistor::new(bulk_sender.clone());
+    
+    // Raw Signal Processor
+    let raw_cfg = SignalConfig {
+        enable_filtering: true,
+        min_interesting_score: 0.60, // Can be configured via env
+        ..Default::default()
+    };
+    let raw_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
+
+    let (job_scheduler, result_receiver) = JobScheduler::new(
         compute_backend,
         config.clone(),
         candle_fetcher.clone(),
     );
     let job_scheduler = Arc::new(job_scheduler);
 
-    // Set environment for realtime mode
-    std::env::set_var("DB_PERSIST_MODE", "realtime");
-    std::env::set_var("DB_PERSIST_CHUNK_SIZE_REALTIME", "2000"); // Small chunks for realtime
-    std::env::set_var("DB_PERSIST_FLUSH_MS", "50"); // Faster flushing for realtime
+    // Predictors Pipeline
+    let message_bus = MessageBus::new_from_env()?;
+    let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
+    
+    let pred_config = PredictorsConfig {
+        enabled: true,
+        horizon_bars: 10,
+        min_store_score: 0.60,
+        min_final_score: 0.70,
+        prefer_ml: true,
+        max_levels_per_side: 2,
+        use_cuda: cfg!(feature = "cuda"), // Can use GPU for inference even in RT
+        use_gpu_history: false,
+        use_gpu_realtime: false, // Usually CPU is faster for single inferences
+        model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
+        model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
+        ml_batch_size: 64,
+    };
+
+    let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
+    
+    let mut predictors_pipeline = PredictorsPipeline::new(
+        pred_config,
+        db_pool.clone(),
+        message_bus,
+        shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
+    );
+    predictors_pipeline.set_input_receiver(feature_rx);
+
+    // Spawn Predictors Pipeline
+    tokio::spawn(async move {
+        if let Err(e) = predictors_pipeline.run().await {
+            tracing::error!(target: "compute_predictors", "Predictors pipeline error: {}", e);
+        }
+    });
+
+    // Spawn Result Processor (Connecting the dots!)
+    let result_processor = ResultProcessor::new(
+        Arc::new(indicator_persistor),
+        Arc::new(raw_signal_persistor),
+        raw_processor,
+        feature_tx,
+    );
+    
+    tokio::spawn(async move {
+        result_processor.run(result_receiver).await;
+    });
 
     // realtime consumer loop (copy from your main.rs)
     run_realtime_consumer(job_scheduler, db_pool).await?;

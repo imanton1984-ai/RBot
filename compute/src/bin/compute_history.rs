@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use common::{Symbol, Timeframe, MessageBus};
 use compute_lib::{*, IndicatorPersistor, RawSignalPersistor, RawSignalProcessor, ResultProcessor};
 use database_lib;
@@ -22,18 +22,18 @@ async fn main() -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("Database init failed: {}", e))?;
 
-    // фиксируем CUDA backend (если бинарь собран с --features cuda)
+    // Backend (CUDA preferred for history)
     let backend_type = if cfg!(feature = "cuda") {
         ComputeBackendType::Cuda
     } else {
-        eprintln!("CUDA feature not enabled, falling back to CPU for history");
+        tracing::warn!("CUDA feature not enabled, falling back to CPU for history");
         ComputeBackendType::Cpu
     };
     
     let compute_backend_manager = ComputeBackendManager::new(backend_type);
     let compute_backend = compute_backend_manager.get_backend();
 
-    // load config
+    // Config
     let config = ComputeConfig {
         batch_size: 100,
         max_concurrent_jobs: 4,
@@ -44,31 +44,34 @@ async fn main() -> Result<()> {
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
 
-    // Set environment for history mode
-    std::env::set_var("DB_PERSIST_MODE", "history");
-    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); // Large chunks for history
-    std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); // Slower flushing for history
-    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); // Skip heavy JSON for history
-    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); // Append mode for history
+    // --- PIPELINE SETUP START ---
 
-    // Initialize DB Persistor (HISTORY Mode)
+    // 1. Initialize DB Persistor (HISTORY Mode)
+    std::env::set_var("DB_PERSIST_MODE", "history");
+    // Optimization for bulk loading
+    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); 
+    std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); 
+    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); 
+    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); 
+
     let bulk_persistor = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(
         database_lib::bulk_persistor::PersistMode::History
     ).await?;
     let bulk_sender = bulk_persistor.sender();
 
-    // Initialize Indicator & RawSignal Persistors
+    // 2. Initialize Indicator & RawSignal Persistors
     let (indicator_persistor, _ind_tx) = IndicatorPersistor::new(bulk_sender.clone());
     let raw_signal_persistor = RawSignalPersistor::new(bulk_sender.clone());
     
-    // Raw Signal Processor
+    // 3. Raw Signal Processor
     let raw_cfg = SignalConfig {
         enable_filtering: true,
-        min_interesting_score: 0.60, // Can be configured via env
+        min_interesting_score: 0.60,
         ..Default::default()
     };
     let raw_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
+    // Scheduler
     let (job_scheduler, result_receiver) = JobScheduler::new(
         compute_backend,
         config.clone(),
@@ -76,7 +79,7 @@ async fn main() -> Result<()> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
-    // Predictors Pipeline (XGBoost)
+    // 4. Predictors Pipeline (XGBoost)
     let message_bus = MessageBus::new_from_env()?;
     let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
     
@@ -88,7 +91,7 @@ async fn main() -> Result<()> {
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: config.use_cuda,
-        use_gpu_history: config.use_cuda, // Important for batch processing
+        use_gpu_history: config.use_cuda,
         use_gpu_realtime: false,
         model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
         model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
@@ -101,7 +104,7 @@ async fn main() -> Result<()> {
         pred_config,
         db_pool.clone(),
         message_bus,
-        shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
+        shutdown_rx.resubscribe(),
     );
     predictors_pipeline.set_input_receiver(feature_rx);
 
@@ -112,7 +115,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Spawn Result Processor (The missing link!)
+    // 5. Spawn Result Processor
     let result_processor = ResultProcessor::new(
         Arc::new(indicator_persistor),
         Arc::new(raw_signal_persistor),
@@ -124,10 +127,12 @@ async fn main() -> Result<()> {
         result_processor.run(result_receiver).await;
     });
 
-    // 1) получаем список активных пар из БД (market.pairs)
-    let symbols = fetch_active_symbols_from_db(&db_pool).await?;
+    // --- PIPELINE SETUP END ---
 
-    // 2) для каждого TF запускаем submit_batch(…, window_spec)
+    // 1) Ждем и получаем список активных пар
+    let symbols = wait_for_active_symbols(&db_pool).await?;
+
+    // 2) Обрабатываем таймфреймы
     let timeframes = [
         Timeframe::M1,
         Timeframe::M5,
@@ -138,91 +143,121 @@ async fn main() -> Result<()> {
     ];
 
     for timeframe in &timeframes {
+        let table_name = format!("market.candles_{}", timeframe.as_str());
+
+        // ВАЖНО: Ждем данные вместо пропуска
+        if !wait_for_table_data(&db_pool, &table_name).await {
+            eprintln!("Timeout waiting for data in {}, skipping TF", table_name);
+            continue;
+        }
+
         println!("Processing historical data for timeframe: {:?}", timeframe);
 
         for symbol in &symbols {
-            // Determine the historical range to process
-            let table_name = format!("market.candles_{}", timeframe.as_str());
-            let query = format!(
-                "SELECT MIN(time) as first_time, MAX(time) as last_time
-                 FROM {} c
-                 JOIN market.pairs p ON c.symbol_id = p.symbol_id
-                 WHERE p.symbol = ",
+            // Check if candles exist for this specific symbol
+            let symbol_query = format!(
+                "SELECT MIN(time) as first_time, MAX(time) as last_time, COUNT(*) as total_count
+                 FROM {} WHERE symbol = $1",
                 table_name
             );
 
-            let row = sqlx::query(&query)
+            match sqlx::query(&symbol_query)
                 .bind(symbol.as_str())
                 .fetch_optional(&db_pool)
-                .await?;
+                .await {
 
-            if let Some(row) = row {
-                let first_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
-                let last_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
+                Ok(Some(row)) => {
+                    let total_count: i64 = row.get("total_count");
+                    if total_count == 0 {
+                        continue;
+                    }
 
-                if let (Some(start_time), Some(end_time)) = (first_time_opt, last_time_opt) {
-                    println!("Processing {} for {} from {} to {}", symbol.as_str(), timeframe.as_str(), start_time, end_time);
+                    let first_time: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
+                    let last_time: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
 
-                    let duration_in_minutes = (end_time - start_time).num_minutes();
-                    let timeframe_in_minutes = timeframe.to_minutes() as i64;
-                    let length = if timeframe_in_minutes > 0 {
-                        (duration_in_minutes / timeframe_in_minutes) as usize
-                    } else {
-                        0
-                    };
+                    if let (Some(start), Some(end)) = (first_time, last_time) {
+                        let duration_min = (end - start).num_minutes();
+                        let tf_min = timeframe.to_minutes() as i64;
+                        let length = if tf_min > 0 { (duration_min / tf_min) as usize } else { 0 };
 
-                    let window_spec = WindowSpec {
-                        length,
-                        warmup: 0,
-                    };
+                        if length > 0 {
+                            let window_spec = WindowSpec {
+                                length: std::cmp::min(length + 100, 10_000), // +buffer
+                                warmup: 100,
+                            };
 
-                    if let Err(e) = job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
-                        eprintln!("Error submitting batch job for {} {}: {}", symbol.as_str(), timeframe.as_str(), e);
-                    } else {
-                        println!("Submitted batch job for {} {}", symbol.as_str(), timeframe.as_str());
+                            println!("Submitting batch: {} {}, len={}", symbol.as_str(), timeframe.as_str(), window_spec.length);
+
+                            if let Err(e) = job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
+                                eprintln!("Submit batch failed: {}", e);
+                            }
+                        }
                     }
                 }
+                Err(e) => eprintln!("DB Error: {}", e),
+                _ => {}
             }
         }
     }
 
-    // Wait a bit to allow jobs to complete
-    tokio::time::sleep(Duration::from_secs(10)).await;
-
+    println!("Jobs submitted. Waiting for processing...");
+    // Даем время на обработку задач (можно улучшить через счетчик задач)
+    tokio::time::sleep(Duration::from_secs(300)).await;
+    
     Ok(())
 }
 
-// Function to fetch active symbols from the database
-async fn fetch_active_symbols_from_db(
-    db_pool: &PgPool,
-) -> Result<Vec<Symbol>> {
-    // First check if the table exists
-    let table_exists: bool = sqlx::query_scalar(
-        r#"SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = 'market' AND table_name = 'pairs'
-        )"#,
-    )
-    .fetch_one(db_pool)
-    .await
-    .context("Failed to check for 'market.pairs' table existence")?;
+/// Helper: Ждет появления активных пар в БД
+async fn wait_for_active_symbols(pool: &PgPool) -> Result<Vec<Symbol>> {
+    let start = std::time::Instant::now();
+    loop {
+        let symbols = fetch_active_symbols_from_db(pool).await?;
+        if !symbols.is_empty() {
+            return Ok(symbols);
+        }
 
-    if !table_exists {
-        return Ok(Vec::new()); // Return empty vector if table doesn't exist
+        if start.elapsed() > Duration::from_secs(300) {
+            anyhow::bail!("Timeout waiting for market.pairs");
+        }
+
+        eprintln!("Waiting for active symbols in market.pairs...");
+        tokio::time::sleep(Duration::from_secs(5)).await;
     }
+}
 
-    // If table exists, try to fetch symbols
+/// Helper: Ждет появления данных в таблице свечей
+async fn wait_for_table_data(pool: &PgPool, table_name: &str) -> bool {
+    let start = std::time::Instant::now();
+    loop {
+        // Проверяем наличие хотя бы одной записи
+        let query = format!("SELECT 1 FROM {} LIMIT 1", table_name);
+        match sqlx::query(&query).fetch_optional(pool).await {
+            Ok(Some(_)) => return true,
+            Ok(None) => {
+                if start.elapsed() > Duration::from_secs(300) {
+                    return false;
+                }
+                eprintln!("Waiting for data in {} (elapsed: {:.0}s)...", table_name, start.elapsed().as_secs_f64());
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+            Err(e) => {
+                // Если таблицы еще нет (например, миграция не прошла), тоже ждем
+                eprintln!("Error checking {}: {}. Retrying...", table_name, e);
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+    }
+}
+
+async fn fetch_active_symbols_from_db(pool: &PgPool) -> Result<Vec<Symbol>> {
+    let table_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema='market' AND table_name='pairs')"
+    ).fetch_one(pool).await.unwrap_or(false);
+
+    if !table_exists { return Ok(vec![]); }
+
     let rows = sqlx::query("SELECT symbol FROM market.pairs WHERE is_active = true")
-        .fetch_all(db_pool)
-        .await
-        .context("Failed to fetch active symbols from 'market.pairs'")?;
+        .fetch_all(pool).await?;
 
-    let symbols: Vec<Symbol> = rows
-        .into_iter()
-        .map(|row| {
-            let symbol: String = row.get("symbol");
-            Symbol::from(symbol)
-        })
-        .collect();
-    Ok(symbols)
+    Ok(rows.into_iter().map(|r| Symbol::from(r.get::<String, _>("symbol"))).collect())
 }
