@@ -8,28 +8,35 @@ pub fn calculate_atr(high: &[f64], low: &[f64], close: &[f64], period: usize) ->
     let n = high.len();
     let mut result = vec![f64::NAN; n];
 
-    if n < period {
+    // Need at least period + 1 elements to calculate ATR (since we need previous values)
+    if n <= period {
         return result;
     }
 
     // Calculate True Range for each period
     let mut tr = vec![0.0; n];
-    
+
     for i in 1..n {
         let hl = high[i] - low[i];
         let h_prev_close = (high[i] - close[i - 1]).abs();
         let l_prev_close = (low[i] - close[i - 1]).abs();
-        
+
         tr[i] = hl.max(h_prev_close).max(l_prev_close);
     }
 
     // Calculate ATR using SMA for the first value, then EMA-style smoothing
     let mut sum = 0.0;
     for i in 1..=period {
-        sum += tr[i];
+        // Make sure we don't go out of bounds
+        if i < n {
+            sum += tr[i];
+        }
     }
-    
-    result[period] = sum / period as f64;
+
+    // Only assign if we have enough data points
+    if period < n {
+        result[period] = sum / period as f64;
+    }
 
     // Continue with smoothing (like Wilder's RMA - Relative Momentum Average)
     for i in (period + 1)..n {

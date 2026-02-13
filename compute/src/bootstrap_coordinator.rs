@@ -9,6 +9,7 @@ use tokio::sync::RwLock;
 use common::{Symbol, Timeframe};
 use crate::{JobScheduler, WindowSpec};
 use compute_indicators::FeatureStore;
+use tracing;
 
 #[derive(Debug, Clone)]
 pub struct HistoryStatus {
@@ -120,6 +121,20 @@ impl BootstrapCoordinator {
             // если внезапно слишком мало баров — не сабмитим мусор
             if window_spec.length <= window_spec.warmup {
                 continue;
+            }
+
+            // Minimum required length for ATR and other indicators to work properly
+            // ATR typically needs at least period (14) + 1 data points
+            let min_required_length = 15; // 14 + 1 for ATR calculation
+            if window_spec.length < min_required_length {
+                tracing::warn!(
+                    "Skipping symbol {} on timeframe {} due to insufficient data: {} < {}", 
+                    symbol.as_str(), 
+                    timeframe.as_str(), 
+                    window_spec.length, 
+                    min_required_length
+                );
+                continue; // Skip this symbol-timeframe combination
             }
 
             self.job_scheduler

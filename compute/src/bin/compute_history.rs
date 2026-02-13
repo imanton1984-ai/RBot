@@ -181,6 +181,21 @@ async fn main() -> Result<()> {
                         let length = if tf_min > 0 { (duration_min / tf_min) as usize } else { 0 };
 
                         if length > 0 {
+                            // Minimum required length for ATR and other indicators to work properly
+                            // ATR typically needs at least period (14) + 1 data points
+                            let min_required_length = 15; // 14 + 1 for ATR calculation
+                            
+                            if length < min_required_length {
+                                tracing::warn!(
+                                    "Skipping symbol {} on timeframe {} due to insufficient data: {} < {}", 
+                                    symbol.as_str(), 
+                                    timeframe.as_str(), 
+                                    length, 
+                                    min_required_length
+                                );
+                                continue; // Skip this symbol-timeframe combination
+                            }
+
                             let window_spec = WindowSpec {
                                 length: std::cmp::min(length + 100, 10_000), // +buffer
                                 warmup: 100,

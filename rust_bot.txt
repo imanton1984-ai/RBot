@@ -114,6 +114,117 @@ echo "Table dropped. Restart your Rust bot to recreate it with the correct schem
 echo "Run: ./scripts/restart.sh"
 
 
+# startCPU.sh
+
+#!/usr/bin/env bash
+
+# --- Color definitions ---
+C_RESET='\033[0m'
+C_BOLD='\033[1m'
+C_GREEN='\033[32m'
+C_CYAN='\033[36m'
+
+# --- Logging functions ---
+ts() { date +"%H:%M:%S"; }
+hr() { echo -e "${C_BOLD}===========================================${C_RESET}"; }
+section() { hr; echo -e "${C_BOLD}${C_CYAN}${1}${C_RESET}"; hr; }
+log()  { echo -e "${C_BOLD}[$(ts)]${C_RESET} $*"; }
+ok()   { echo -e "${C_BOLD}[$(ts)]${C_RESET} ${C_GREEN}✅${C_RESET} $*"; }
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
+
+# Create timestamped log file like in original start.sh
+TS="$(date +%Y%m%d_%H%M%S)"
+LOG_DIR="$ROOT_DIR/logs"
+START_LOG="$LOG_DIR/start_${TS}.log"
+mkdir -p "$LOG_DIR"
+
+# Log to both file and console like original
+exec > >(tee -a "$START_LOG") 2>&1
+
+section "START (CPU MODE)"
+
+log "ROOT: ${C_BOLD}$ROOT_DIR${C_RESET}"
+log "LOG : ${C_BOLD}$START_LOG${C_RESET}"
+
+# 1. System Check
+./scripts/sys_check_cpu.sh
+
+# 2. Install Deps (if needed)
+./scripts/install_cpu.sh
+
+# 3. Start Infra
+./scripts/infra_start.sh
+
+# 4. Init DB
+./scripts/init_db.sh
+
+# 5. Build Rust (CPU)
+# Using release, change to debug inside scripts/build_cpu.sh if compilation is too slow
+./scripts/build_cpu.sh 
+
+# 6. Run Services
+./scripts/run.sh "release" "cpu"
+
+echo -e "\n\033[1;32mCPU BOT STARTED SUCCESSFULLY\033[0m"
+
+
+# startGPU.sh
+
+#!/usr/bin/env bash
+
+# --- Color definitions ---
+C_RESET='\033[0m'
+C_BOLD='\033[1m'
+C_GREEN='\033[32m'
+C_CYAN='\033[36m'
+
+# --- Logging functions ---
+ts() { date +"%H:%M:%S"; }
+hr() { echo -e "${C_BOLD}===========================================${C_RESET}"; }
+section() { hr; echo -e "${C_BOLD}${C_CYAN}${1}${C_RESET}"; hr; }
+log()  { echo -e "${C_BOLD}[$(ts)]${C_RESET} $*"; }
+ok()   { echo -e "${C_BOLD}[$(ts)]${C_RESET} ${C_GREEN}✅${C_RESET} $*"; }
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
+
+# Create timestamped log file like in original start.sh
+TS="$(date +%Y%m%d_%H%M%S)"
+LOG_DIR="$ROOT_DIR/logs"
+START_LOG="$LOG_DIR/start_${TS}.log"
+mkdir -p "$LOG_DIR"
+
+# Log to both file and console like original
+exec > >(tee -a "$START_LOG") 2>&1
+
+section "START (GPU MODE)"
+
+log "ROOT: ${C_BOLD}$ROOT_DIR${C_RESET}"
+log "LOG : ${C_BOLD}$START_LOG${C_RESET}"
+
+# 1. System Check
+./scripts/sys_check_gpu.sh
+
+# 2. Install Deps (if needed)
+./scripts/install_gpu.sh
+
+# 3. Start Infra
+./scripts/infra_start.sh
+
+# 4. Init DB
+./scripts/init_db.sh
+
+# 5. Build Rust (GPU)
+./scripts/build_gpu.sh
+
+# 6. Run Services
+./scripts/run.sh "release" "gpu"
+
+echo -e "\n\033[1;32mGPU BOT STARTED SUCCESSFULLY\033[0m"
+
+
 # connections/Cargo.toml
 
 [package]
@@ -2262,7 +2373,7 @@ TIMEFRAMES = [1, 5, 15, 60, 240, 1440]  # minutes
 HORIZON = int(os.getenv("HORIZON_BARS", "10"))
 
 FEATURES = [
-    "rsi","cci","stoch_k","stoch_d","williams_r",
+    "rsi","cci","stoch_k","stoch_d", "williams",
     "macd","macd_signal","macd_hist","adx","sma","ema_20","ema_50","ema_200",
     "bb_upper","bb_mid","bb_lower","atr",
     "obv","vwap","volume_spike",
@@ -2273,41 +2384,41 @@ FEATURES = [
 def ensure_dirs():
     os.makedirs(MODELS_DIR, exist_ok=True)
 
-def load_data(timeframe_min: int) -> pd.DataFrame:
+def load_data(tf_minutes: int) -> pd.DataFrame:
     engine = create_engine(DATABASE_URL)
-    # Берём wide индикаторы + close из свечей (подстрой под свою схему если надо)
-    # ВАЖНО: здесь пример. Если у тебя другой join — агент поправит.
-    # Determine the appropriate candle table based on timeframe
-    candle_table = f"market.candles_{timeframe_min}m"
     
+    # Сопоставляем минуты с именами таблиц в БД
+    if tf_minutes < 60:
+        table_name = f"candles_{tf_minutes}m"
+    elif tf_minutes == 60:
+        table_name = "candles_1h"
+    elif tf_minutes == 240:
+        table_name = "candles_4h"
+    elif tf_minutes == 1440:
+        table_name = "candles_1d"
+    else:
+        table_name = f"candles_{tf_minutes}m" # на всякий случай
+
     q = f"""
     SELECT
       i.time,
       i.tf_minutes,
       i.symbol,
       c.close,
-      i.rsi, i.cci, i.stoch_k, i.stoch_d, i.williams_r,
+      i.rsi, i.cci, i.stoch_k, i.stoch_d, i.williams,
       i.macd, i.macd_signal, i.macd_hist, i.adx, i.sma, i.ema_20, i.ema_50, i.ema_200,
       i.bb_upper, i.bb_mid, i.bb_lower, i.atr,
       i.obv, i.vwap, i.volume_spike,
       i.alligator_jaw, i.alligator_teeth, i.alligator_lips,
       i.trend, i.trend_short, i.poc
     FROM market.indicators_wide i
-    JOIN {candle_table} c
-      ON c.symbol_id = i.symbol_id AND c.tf_minutes = i.tf_minutes AND c.time = i.time
-    WHERE i.tf_minutes = {timeframe_min}
+    JOIN market.{table_name} c 
+      ON c.symbol_id = i.symbol_id AND c.time = i.time
+    WHERE i.tf_minutes = {tf_minutes}
     ORDER BY i.time ASC
     """
+    
     df = pd.read_sql(q, engine)
-    if df is None or len(df) == 0:
-        return None
-
-    # cleanup
-    df = df.sort_values("time").reset_index(drop=True)
-    for col in FEATURES + ["close"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    df = df.dropna(subset=["close"])
     return df
 
 def export_xgb(model, model_name: str, schema: dict):
@@ -2343,15 +2454,26 @@ def train_price_model(df: pd.DataFrame):
         print(f"  Not enough rows: {len(X)}")
         return None
 
+    # Check if CUDA is available for XGBoost
+    try:
+        # Test if GPU is available for XGBoost
+        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, 
+                  xgb.DMatrix(np.random.random((10, 10)), label=np.random.random(10)), 
+                  num_boost_round=1)
+        tree_method = "hist"
+        device = "cuda"
+    except:
+        tree_method = "hist"  # hist is generally the best method for CPU as well
+        device = "cpu"
+
     model = xgb.XGBRegressor(
         n_estimators=200,
         max_depth=6,
         learning_rate=0.05,
         objective="reg:squarederror",
         n_jobs=-1,
-        # Enable GPU training if available
-        tree_method="gpu_hist",
-        predictor="gpu_predictor"
+        tree_method=tree_method,
+        device=device  # New parameter instead of predictor
     )
 
     # CV (optional)
@@ -2387,15 +2509,26 @@ def train_level_model(df: pd.DataFrame):
         print(f"  Not enough rows: {len(X)}")
         return None
 
+    # Check if CUDA is available for XGBoost
+    try:
+        # Test if GPU is available for XGBoost
+        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, 
+                  xgb.DMatrix(np.random.random((10, 10)), label=np.random.random(10)), 
+                  num_boost_round=1)
+        tree_method = "hist"
+        device = "cuda"
+    except:
+        tree_method = "hist"  # hist is generally the best method for CPU as well
+        device = "cpu"
+
     model = xgb.XGBClassifier(
         n_estimators=300,
         max_depth=6,
         learning_rate=0.05,
         n_jobs=-1,
         eval_metric="logloss",
-        # Enable GPU training if available
-        tree_method="gpu_hist",
-        predictor="gpu_predictor"
+        tree_method=tree_method,
+        device=device  # New parameter instead of predictor
     )
     model.fit(X, y)
     print(f"  train acc: {model.score(X, y):.4f}")
@@ -4929,6 +5062,104 @@ impl<T> Drop for DevicePtr<T> {
 # palceholder for predictors
 
 
+# scripts/build_cpu.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+section "BUILD (CPU MODE)"
+
+# Ensure XGBoost CPU libs are available
+export XGBOOST_LIB_DIR="$ROOT_DIR/third_party/xgboost/install_cpu/lib"
+export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:${LD_LIBRARY_PATH:-}"
+export LIBRARY_PATH="$XGBOOST_LIB_DIR:${LIBRARY_PATH:-}"
+
+TARGET_DIR="$ROOT_DIR/target/release"
+
+# Check if binaries already exist and are up-to-date
+BINARIES=("compute_history" "compute_realtime" "connections" "ingestor")
+
+all_built=true
+for bin in "${BINARIES[@]}"; do
+    if [[ ! -x "$TARGET_DIR/$bin" ]]; then
+        all_built=false
+        break
+    fi
+done
+
+if [[ "$all_built" == true ]]; then
+    ok "All binaries already built. Skipping build."
+else
+    log "Building without CUDA features"
+    export CARGO_TERM_COLOR="always"
+
+    # Build everything with default features (no cuda)
+    # Using release for performance, change to debug if laptop is too slow to compile release
+    PROFILE="release" # Change to debug if laptop is too slow to compile release
+
+    run_with_pty "cargo build --$PROFILE -p compute --bin compute_history"
+    run_with_pty "cargo build --$PROFILE -p compute --bin compute_realtime"
+    run_with_pty "cargo build --$PROFILE -p connections"
+    run_with_pty "cargo build --$PROFILE -p ingestor"
+
+    ok "CPU Build finished."
+fi
+
+
+# scripts/build_gpu.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+section "BUILD (GPU MODE)"
+
+# Ensure XGBoost libs are available
+export XGBOOST_LIB_DIR="$ROOT_DIR/third_party/xgboost/install/lib"
+export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:${LD_LIBRARY_PATH:-}"
+export LIBRARY_PATH="$XGBOOST_LIB_DIR:${LIBRARY_PATH:-}"
+
+TARGET_DIR="$ROOT_DIR/target/release"
+
+# Check if binaries already exist and are up-to-date
+BINARIES=("compute_history" "compute_realtime" "connections" "ingestor")
+
+all_built=true
+for bin in "${BINARIES[@]}"; do
+    if [[ ! -x "$TARGET_DIR/$bin" ]]; then
+        all_built=false
+        break
+    fi
+done
+
+if [[ "$all_built" == true ]]; then
+    ok "All binaries already built. Skipping build."
+else
+    log "Building with features: cuda"
+    # Progress bar settings
+    export CARGO_TERM_COLOR="always"
+
+    # Build history (GPU enabled)
+    run_with_pty "cargo build --release -p compute --bin compute_history --features cuda"
+
+    # Build realtime (GPU enabled - optional, usually CPU, but if requested)
+    run_with_pty "cargo build --release -p compute --bin compute_realtime --features cuda"
+
+    # Build others
+    run_with_pty "cargo build --release -p connections"
+    run_with_pty "cargo build --release -p ingestor"
+
+    ok "GPU Build finished."
+fi
+
+
 # scripts/build_xgboost_cuda.sh
 
 #!/usr/bin/env bash
@@ -4940,11 +5171,6 @@ TP_DIR="${ROOT_DIR}/third_party/xgboost"
 SRC_DIR="${TP_DIR}/src"
 BUILD_DIR="${TP_DIR}/build"
 INSTALL_DIR="${TP_DIR}/install"
-
-echo "[xgb] root=${ROOT_DIR}"
-echo "[xgb] installing deps (ubuntu/debian expected)..."
-sudo apt-get update
-sudo apt-get install -y git cmake ninja-build build-essential libomp-dev
 
 mkdir -p "${TP_DIR}"
 if [ ! -d "${SRC_DIR}" ]; then
@@ -4960,27 +5186,16 @@ rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
-# IMPORTANT:
-# - USE_CUDA=ON включает GPU predictor/inference
-# - BUILD_SHARED_LIBS=ON чтобы получить libxgboost.so для Rust
-# - CMAKE_CUDA_ARCHITECTURES можно поставить "native" или явно (например 75)
-cmake -G Ninja \
+cmake -G "Ninja" \
   -DCMAKE_BUILD_TYPE=Release \
   -DUSE_CUDA=ON \
   -DUSE_OPENMP=ON \
   -DBUILD_SHARED_LIBS=ON \
   -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
-  -DCMAKE_CUDA_ARCHITECTURES=native \
-  ..
+  "${SRC_DIR}"
 
 ninja
 ninja install
-
-echo
-echo "[xgb] installed to: ${INSTALL_DIR}"
-echo "[xgb] export for current shell:"
-echo "  export XGBOOST_LIB_DIR=${INSTALL_DIR}/lib"
-echo "  export LD_LIBRARY_PATH=${INSTALL_DIR}/lib:\$LD_LIBRARY_PATH"
 
 
 # scripts/build_xgboost_cuda_compat.sh
@@ -5382,6 +5597,196 @@ echo "==========================================="
 
 
 
+# scripts/infra_start.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+# Load Env
+if [[ -f "$ROOT_DIR/.env" ]]; then load_env_file "$ROOT_DIR/.env"; fi
+
+section "INFRASTRUCTURE"
+
+COMPOSE_FILE="infra/docker-compose.yaml"
+# Check if compose file needs rebuild/up
+log "Starting Docker Compose..."
+if command -v docker >/dev/null 2>&1; then
+    docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+else
+    die "Docker not found"
+fi
+
+DB_HOST="${DB_TCP_HOST:-127.0.0.1}"
+DB_PORT="${DB_TCP_PORT:-5433}"
+KAFKA_HOST="${KAFKA_TCP_HOST:-127.0.0.1}"
+KAFKA_PORT="${KAFKA_TCP_PORT:-19092}"
+
+wait_for_tcp "$DB_HOST" "$DB_PORT" 45
+wait_for_tcp "$KAFKA_HOST" "$KAFKA_PORT" 45
+
+section "KAFKA TOPICS"
+# Create topics (idempotent usually)
+TOPICS=(
+    "candles.close" "candles.update" "indicators.close" "ws_feed"
+    "signals.raw" "signals.final" "features.snapshot"
+    "orders.cmd" "orders.events" "positions.events"
+)
+
+for t in "${TOPICS[@]}"; do
+    docker exec redpanda rpk topic create "$t" --brokers=redpanda:29092 --partitions=3 --replicas=1 2>/dev/null || true
+done
+ok "Kafka topics ready."
+
+
+# scripts/init_db.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+section "DATABASE INITIALIZATION"
+
+# Check if DB needs init
+check_db_initialized() {
+  PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'market' AND table_name = 'pairs');" 2>/dev/null | grep -q 't'
+}
+
+if check_db_initialized; then
+  ok "Database already initialized."
+else
+  warn "Database schema missing. Running initialization..."
+  # Build tool if needed (using release profile for speed usually)
+  cargo build -p database --bin svc_db_init
+  
+  # Run it
+  "$ROOT_DIR/target/debug/svc_db_init" 2>&1 | tee -a "logs/db_init.out"
+  
+  if check_db_initialized; then
+      ok "Database initialized successfully."
+  else
+      die "Database initialization failed."
+  fi
+fi
+
+
+# scripts/install_cpu.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+section "INSTALL CPU DEPS (XGBoost)"
+
+XGBOOST_LIB_DIR="$ROOT_DIR/third_party/xgboost/install_cpu/lib"
+XGBOOST_BIN="$ROOT_DIR/third_party/xgboost/install_cpu/lib/libxgboost.so"
+
+# Check if XGBoost is already built
+if [ -f "$XGBOOST_BIN" ]; then
+    ok "XGBoost already built. Skipping build."
+else
+    # Create a CPU build script on the fly if it doesn't exist
+    # based on the CUDA one but with USE_CUDA=OFF
+    CPU_BUILD_SCRIPT="$ROOT_DIR/scripts/build_xgboost_cpu.sh"
+
+    if [ ! -f "$CPU_BUILD_SCRIPT" ]; then
+        log "Creating $CPU_BUILD_SCRIPT from template..."
+        cat > "$CPU_BUILD_SCRIPT" << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+XGB_VER="v3.2.0"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TP_DIR="${ROOT_DIR}/third_party/xgboost"
+SRC_DIR="${TP_DIR}/src"
+BUILD_DIR="${TP_DIR}/build_cpu"
+INSTALL_DIR="${TP_DIR}/install_cpu"
+
+mkdir -p "${TP_DIR}"
+if [ ! -d "${SRC_DIR}" ]; then
+  git clone --recursive https://github.com/dmlc/xgboost.git "${SRC_DIR}"
+fi
+
+cd "${SRC_DIR}"
+git fetch --tags
+git checkout "${XGB_VER}"
+git submodule update --init --recursive
+
+rm -rf "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}"
+cd "${BUILD_DIR}"
+
+cmake -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DUSE_CUDA=OFF \
+  -DUSE_OPENMP=ON \
+  -DBUILD_SHARED_LIBS=ON \
+  -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+  ..
+
+ninja
+ninja install
+EOF
+        chmod +x "$CPU_BUILD_SCRIPT"
+    fi
+
+    log "Building XGBoost (CPU ONLY)..."
+    "$CPU_BUILD_SCRIPT"
+fi
+
+export XGBOOST_LIB_DIR="$XGBOOST_LIB_DIR"
+export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:${LD_LIBRARY_PATH:-}"
+export LIBRARY_PATH="$XGBOOST_LIB_DIR:${LIBRARY_PATH:-}"
+
+ok "XGBoost CPU lib path set: $XGBOOST_LIB_DIR"
+
+
+# scripts/install_gpu.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+section "INSTALL GPU DEPS (XGBoost)"
+
+XGBOOST_LIB_DIR="$ROOT_DIR/third_party/xgboost/install/lib"
+XGBOOST_BIN="$ROOT_DIR/third_party/xgboost/install/lib/libxgboost.so"
+
+# Check if XGBoost is already built
+if [ -f "$XGBOOST_BIN" ]; then
+    ok "XGBoost already built. Skipping build."
+else
+    log "XGBoost not found. Building with CUDA support..."
+    
+    # Logic to pick the right script based on CUDA version check (simplified)
+    # Assuming newer CUDA for simplicity, otherwise fallback logic from original script can be added here
+    XGBOOST_SCRIPT="$ROOT_DIR/scripts/build_xgboost_cuda.sh"
+
+    if [ -f "$XGBOOST_SCRIPT" ]; then
+        chmod +x "$XGBOOST_SCRIPT"
+        "$XGBOOST_SCRIPT"
+        
+        ok "XGBoost GPU build completed."
+    else
+        die "XGBoost build script not found: $XGBOOST_SCRIPT"
+    fi
+fi
+
+export XGBOOST_LIB_DIR="$XGBOOST_LIB_DIR"
+export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:${LD_LIBRARY_PATH:-}"
+export LIBRARY_PATH="$XGBOOST_LIB_DIR:${LIBRARY_PATH:-}"
+
+ok "XGBoost GPU lib path set: $XGBOOST_LIB_DIR"
+
+
 # scripts/restart.sh
 
 #!/bin/bash
@@ -5426,6 +5831,119 @@ echo "==========================================="
 
 echo "Restart process completed. Check logs in $LOG_DIR for details."
 exit $START_RESULT
+
+
+# scripts/run.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+# Args
+BUILD_PROFILE="${1:-release}"
+MODE="${2:-cpu}" # cpu or gpu used for lib path setting
+
+LOG_DIR="$ROOT_DIR/logs"
+PID_DIR="$ROOT_DIR/run"
+mkdir -p "$LOG_DIR" "$PID_DIR"
+
+# Create timestamped log file like in original start.sh
+TS="$(date +%Y%m%d_%H%M%S)"
+START_LOG="$LOG_DIR/start_${TS}.log"
+
+# Log to both file and console like original
+exec > >(tee -a "$START_LOG") 2>&1
+
+section "STARTING SERVICES"
+
+# Set Library Paths based on mode
+if [[ "$MODE" == "gpu" ]]; then
+    export XGBOOST_LIB_DIR="$ROOT_DIR/third_party/xgboost/install/lib"
+    # Also standard CUDA paths
+    export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$XGBOOST_LIB_DIR:${LD_LIBRARY_PATH:-}"
+else
+    export XGBOOST_LIB_DIR="$ROOT_DIR/third_party/xgboost/install_cpu/lib"
+    export LD_LIBRARY_PATH="$XGBOOST_LIB_DIR:${LD_LIBRARY_PATH:-}"
+fi
+
+TARGET_DIR="$ROOT_DIR/target/$BUILD_PROFILE"
+
+# Env vars for services
+export MIN_PAIRS="${MIN_PAIRS:-300}"
+export RUST_LOG="${RUST_LOG:-info,ingestor=info,connections=info}"
+
+# Start Helper
+start_svc() {
+    local name="$1"
+    local bin_name="$2"
+    local pidfile="$PID_DIR/$name.pid"
+    local outfile="$LOG_DIR/${name}.out"
+    
+    if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+        ok "$name already running."
+        return
+    fi
+    
+    local bin="$TARGET_DIR/$bin_name"
+    if [[ ! -x "$bin" ]]; then 
+        err "Binary not found: $bin"
+        return
+    fi
+    
+    log "Starting $name..."
+    log "  bin: $bin"
+    log "  log: $outfile"
+    
+    nohup "$bin" >>"$outfile" 2>&1 &
+    local pid=$!
+    echo "$pid" > "$pidfile"
+    ok "Started $name (pid $pid)"
+}
+
+# 1. Connections
+start_svc "connections" "connections"
+
+# 2. Ingestor
+start_svc "ingestor" "ingestor"
+
+# 3. Compute History
+# Set ENV for history
+export DB_PERSIST_MODE=history
+export DB_PERSIST_CHUNK_SIZE_HISTORY=50000
+export DB_PERSIST_MAX_BATCH=200000
+export DB_PERSIST_FLUSH_MS=150
+export DB_PERSIST_HISTORY_SKIP_JSON=1   # huge saving if jsonb is heavy
+export DB_PERSIST_HISTORY_UPSERT=0      # append
+
+log "Starting compute_history service..."
+start_svc "compute_history" "compute_history"
+
+# 4. Compute Realtime (Reset ENV first)
+export DB_PERSIST_MODE=realtime
+export DB_PERSIST_CHUNK_SIZE_REALTIME=2000
+export DB_PERSIST_MAX_BATCH_REALTIME=20000
+export DB_PERSIST_FLUSH_MS_REALTIME=50
+
+log "Starting compute_realtime service..."
+start_svc "compute_realtime" "compute_realtime"
+
+# 5. Grafana (Optional)
+if [ -d "$ROOT_DIR/healthcheck/grafana" ]; then
+    section "START GRAFANA HEALTHCHECK"
+    log "Starting Grafana for healthcheck monitoring..."
+    cd "$ROOT_DIR/healthcheck/grafana"
+    docker compose up -d >/dev/null 2>&1 || true
+    ok "Grafana started. Access at http://localhost:3001 (admin/admin)"
+fi
+
+section "ALL SERVICES STARTED"
+ok "START DONE @ $(date)"
+log "Services started successfully"
+log "PIDs in : $PID_DIR"
+log "Logs in : $LOG_DIR"
 
 
 # scripts/start.sh
@@ -6533,6 +7051,140 @@ echo "Logs in : $LOG_DIR"
 echo "==========================================="
 
 
+# scripts/sys_check_cpu.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+section "CPU SYSTEM CHECK"
+
+log "Running in CPU-only mode. GPU checks skipped."
+
+if ! command -v rustc >/dev/null 2>&1; then
+    die "rustc not found. Install Rust via rustup: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+fi
+
+if ! command -v cargo >/dev/null 2>&1; then
+    die "cargo not found. Install Rust via rustup: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+fi
+
+ok "Rust toolchain found: $(rustc -V)"
+
+# Check for required build tools
+if ! command -v cmake &> /dev/null; then
+    warn "cmake not found. This may be needed for XGBoost build."
+fi
+
+if ! command -v ninja &> /dev/null; then
+    warn "ninja not found. This may be needed for XGBoost build."
+fi
+
+if ! command -v gcc &> /dev/null; then
+    die "gcc not found. Please install build-essential: sudo apt-get install build-essential"
+fi
+
+if ! command -v g++ &> /dev/null; then
+    die "g++ not found. Please install build-essential: sudo apt-get install build-essential"
+fi
+
+ok "CPU system check completed successfully."
+
+
+# scripts/sys_check_gpu.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/utils.sh"
+
+section "GPU SYSTEM CHECK"
+
+# 1. Check NVCC
+SELECTED_CUDA="/usr/local/cuda"
+if [ ! -x "$SELECTED_CUDA/bin/nvcc" ]; then
+    if [ -x "/usr/local/cuda-13.1/bin/nvcc" ]; then
+        SELECTED_CUDA="/usr/local/cuda-13.1"
+    elif [ -x "/usr/local/cuda-12.9/bin/nvcc" ]; then
+        SELECTED_CUDA="/usr/local/cuda-12.9"
+    else
+        # Look for any CUDA installation
+        for cuda_dir in /usr/local/cuda-*; do
+            if [ -d "$cuda_dir" ] && [ -x "$cuda_dir/bin/nvcc" ]; then
+                SELECTED_CUDA="$cuda_dir"
+                break
+            fi
+        done
+        
+        if [ ! -x "$SELECTED_CUDA/bin/nvcc" ]; then
+            die "CUDA binaries not found. Please check /usr/local/cuda symlink or install CUDA."
+        fi
+    fi
+fi
+
+# Export for current session (callers should create wrappers or source this)
+export CUDA_HOME="$SELECTED_CUDA"
+export PATH="$CUDA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64:${LD_LIBRARY_PATH:-}"
+export CUDA_ROOT="$CUDA_HOME"
+
+ok "Using CUDA from: $CUDA_HOME"
+log "NVCC Version: $(nvcc --version | grep release)"
+
+# 2. Check nvidia-smi to verify driver is working
+if ! command -v nvidia-smi &> /dev/null; then
+    warn "nvidia-smi not found. GPU may not be accessible."
+else
+    log "nvidia-smi available: $(nvidia-smi --query-gpu=name --format=csv,noheader,nounits | head -1)"
+fi
+
+# 3. Check cuDNN (auto-install logic from original script)
+if command -v apt-get &> /dev/null; then
+    if ! ldconfig -p | grep -q libcudnn.so.9; then
+        warn "libcudnn.so.9 not found. Attempting to install NVIDIA cuDNN 9..."
+        if [ "$EUID" -ne 0 ]; then
+            echo "Please enter your password for sudo to continue installation."
+        fi
+        
+        # Simple installation attempt
+        if ! command -v wget &> /dev/null; then
+             sudo apt-get update && sudo apt-get install -y wget
+        fi
+        
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb -O /tmp/cuda-keyring.deb
+        sudo dpkg -i /tmp/cuda-keyring.deb
+        sudo apt-get update
+        sudo apt-get install -y libcudnn9-cuda-12
+        rm /tmp/cuda-keyring.deb
+        ok "cuDNN 9 installation complete."
+    else
+        ok "Found libcudnn.so.9"
+    fi
+else
+    warn "apt-get not found, skipping auto cuDNN check."
+fi
+
+# 4. Version Check for XGBoost compatibility
+CUDA_VERSION=$(nvcc --version | grep "V[0-9]" | cut -d' ' -f6 | sed 's/V//')
+REQUIRED_CUDA_VERSION="12.9"
+log "Detected CUDA: $CUDA_VERSION (Req: >= $REQUIRED_CUDA_VERSION for latest XGBoost)"
+
+# Simple version compare logic
+if [ "$(printf '%s\n%s' "$REQUIRED_CUDA_VERSION" "$CUDA_VERSION" | sort -V | head -n1)" != "$REQUIRED_CUDA_VERSION" ]; then
+    warn "CUDA version $CUDA_VERSION is old. You might need to use compatibility build script."
+fi
+
+# 5. Check for required build tools
+if ! command -v cmake &> /dev/null; then
+    die "cmake not found. Please install cmake."
+fi
+
+if ! command -v ninja &> /dev/null; then
+    die "ninja not found. Please install ninja-build."
+fi
+
+ok "GPU system check completed successfully."
+
+
 # scripts/teacher.sh
 
 #!/usr/bin/env bash
@@ -6651,6 +7303,93 @@ echo "Connection test completed. Log saved to: $TEST_LOG"
 echo "==========================================="
 
 exit $TEST_RESULT
+
+
+# scripts/utils.sh
+
+#!/usr/bin/env bash
+
+# --- Colors & Logging ---
+NO_COLOR="${NO_COLOR:-0}"
+if [[ "$NO_COLOR" == "1" ]]; then
+  C_RESET=""; C_DIM=""; C_BOLD=""; C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_CYAN=""
+else
+  C_RESET='\033[0m'
+  C_DIM='\033[2m'
+  C_BOLD='\033[1m'
+  C_RED='\033[31m'
+  C_GREEN='\033[32m'
+  C_YELLOW='\033[33m'
+  C_BLUE='\033[34m'
+  C_CYAN='\033[36m'
+fi
+
+ts() { date +"%H:%M:%S"; }
+hr() { echo -e "${C_DIM}===========================================${C_RESET}"; }
+section() { hr; echo -e "${C_BOLD}${C_CYAN}${1}${C_RESET}"; hr; }
+log()  { echo -e "${C_DIM}[$(ts)]${C_RESET} $*"; }
+ok()   { echo -e "${C_DIM}[$(ts)]${C_RESET} ${C_GREEN}✅${C_RESET} $*"; }
+warn() { echo -e "${C_DIM}[$(ts)]${C_RESET} ${C_YELLOW}⚠️${C_RESET} $*"; }
+err()  { echo -e "${C_DIM}[$(ts)]${C_RESET} ${C_RED}❌${C_RESET} $*"; }
+die()  { err "$*"; exit 1; }
+
+# --- Helper Functions ---
+
+load_env_file() {
+  local f="$1"
+  if [[ -f "$f" ]]; then
+    log "Loading env: ${C_BOLD}$f${C_RESET}"
+    set -a
+    source "$f"
+    set +a
+  fi
+}
+
+find_bin_path() {
+  local name="$1"
+  local target_dir="$2"
+  local root_dir="$3"
+  
+  local p="$target_dir/$name"
+  [[ -x "$p" ]] && { echo "$p"; return 0; }
+  local p2="$root_dir/target/release/$name"
+  [[ -x "$p2" ]] && { echo "$p2"; return 0; }
+  return 1
+}
+
+wait_for_tcp() {
+  local host="$1"
+  local port="$2"
+  local timeout="$3"
+  log "Waiting for TCP ${C_BOLD}${host}:${port}${C_RESET} (timeout ${timeout}s)..."
+  local start now
+  start="$(date +%s)"
+  while true; do
+    if (echo >/dev/tcp/"$host"/"$port") >/dev/null 2>&1; then
+      ok "TCP ready: ${host}:${port}"
+      return 0
+    fi
+    now="$(date +%s)"
+    if (( now - start >= timeout )); then
+      die "Timeout waiting for ${host}:${port}"
+    fi
+    sleep 1
+  done
+}
+
+run_with_pty() {
+  local cmd="$1"
+  if command -v script >/dev/null 2>&1; then
+    if script -q -e -c "true" /dev/null >/dev/null 2>&1; then
+      script -q -e -c "$cmd" /dev/null
+    else
+      script -q -c "$cmd" /dev/null
+    fi
+  else
+    warn "utility 'script' not found -> cargo progress bar may be disabled"
+    bash -lc "$cmd"
+  fi
+}
 
 
 # database/Cargo.toml
@@ -11953,6 +12692,462 @@ impl PairHealthChecker {
 
 
 
+# models/levels_v1_tf1.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf1",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "levels_binary_direction",
+  "horizon_bars": 10,
+  "tf_minutes": 1
+}
+
+
+# models/levels_v1_tf1440.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf1440",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "levels_binary_direction",
+  "horizon_bars": 10,
+  "tf_minutes": 1440
+}
+
+
+# models/levels_v1_tf15.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf15",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "levels_binary_direction",
+  "horizon_bars": 10,
+  "tf_minutes": 15
+}
+
+
+# models/levels_v1_tf240.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf240",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "levels_binary_direction",
+  "horizon_bars": 10,
+  "tf_minutes": 240
+}
+
+
+# models/levels_v1_tf5.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf5",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "levels_binary_direction",
+  "horizon_bars": 10,
+  "tf_minutes": 5
+}
+
+
+# models/levels_v1_tf60.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf60",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "levels_binary_direction",
+  "horizon_bars": 10,
+  "tf_minutes": 60
+}
+
+
+# models/price_v1_tf1.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf1",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "price_regression_return",
+  "horizon_bars": 10,
+  "tf_minutes": 1
+}
+
+
+# models/price_v1_tf1440.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf1440",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "price_regression_return",
+  "horizon_bars": 10,
+  "tf_minutes": 1440
+}
+
+
+# models/price_v1_tf15.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf15",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "price_regression_return",
+  "horizon_bars": 10,
+  "tf_minutes": 15
+}
+
+
+# models/price_v1_tf240.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf240",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "price_regression_return",
+  "horizon_bars": 10,
+  "tf_minutes": 240
+}
+
+
+# models/price_v1_tf5.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf5",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "price_regression_return",
+  "horizon_bars": 10,
+  "tf_minutes": 5
+}
+
+
+# models/price_v1_tf60.json
+
+{
+  "schema_id": "de05ac5dfc92e98f99a3dbdb48ec99fa5ce259cfdf6c7ddfe7fa3e1e404210e9_tf60",
+  "features": [
+    "rsi",
+    "cci",
+    "stoch_k",
+    "stoch_d",
+    "williams",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "adx",
+    "sma",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "bb_upper",
+    "bb_mid",
+    "bb_lower",
+    "atr",
+    "obv",
+    "vwap",
+    "volume_spike",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "trend",
+    "trend_short",
+    "poc"
+  ],
+  "task": "price_regression_return",
+  "horizon_bars": 10,
+  "tf_minutes": 60
+}
+
+
 # compute/Cargo.toml
 
 [package]
@@ -16834,28 +18029,35 @@ pub fn calculate_atr(high: &[f64], low: &[f64], close: &[f64], period: usize) ->
     let n = high.len();
     let mut result = vec![f64::NAN; n];
 
-    if n < period {
+    // Need at least period + 1 elements to calculate ATR (since we need previous values)
+    if n <= period {
         return result;
     }
 
     // Calculate True Range for each period
     let mut tr = vec![0.0; n];
-    
+
     for i in 1..n {
         let hl = high[i] - low[i];
         let h_prev_close = (high[i] - close[i - 1]).abs();
         let l_prev_close = (low[i] - close[i - 1]).abs();
-        
+
         tr[i] = hl.max(h_prev_close).max(l_prev_close);
     }
 
     // Calculate ATR using SMA for the first value, then EMA-style smoothing
     let mut sum = 0.0;
     for i in 1..=period {
-        sum += tr[i];
+        // Make sure we don't go out of bounds
+        if i < n {
+            sum += tr[i];
+        }
     }
-    
-    result[period] = sum / period as f64;
+
+    // Only assign if we have enough data points
+    if period < n {
+        result[period] = sum / period as f64;
+    }
 
     // Continue with smoothing (like Wilder's RMA - Relative Momentum Average)
     for i in (period + 1)..n {
@@ -23012,6 +24214,7 @@ use tokio::sync::RwLock;
 use common::{Symbol, Timeframe};
 use crate::{JobScheduler, WindowSpec};
 use compute_indicators::FeatureStore;
+use tracing;
 
 #[derive(Debug, Clone)]
 pub struct HistoryStatus {
@@ -23123,6 +24326,20 @@ impl BootstrapCoordinator {
             // если внезапно слишком мало баров — не сабмитим мусор
             if window_spec.length <= window_spec.warmup {
                 continue;
+            }
+
+            // Minimum required length for ATR and other indicators to work properly
+            // ATR typically needs at least period (14) + 1 data points
+            let min_required_length = 15; // 14 + 1 for ATR calculation
+            if window_spec.length < min_required_length {
+                tracing::warn!(
+                    "Skipping symbol {} on timeframe {} due to insufficient data: {} < {}", 
+                    symbol.as_str(), 
+                    timeframe.as_str(), 
+                    window_spec.length, 
+                    min_required_length
+                );
+                continue; // Skip this symbol-timeframe combination
             }
 
             self.job_scheduler
@@ -26216,7 +27433,7 @@ impl FeatureBatch {
 # compute/src/bin/compute_history.rs
 
 use std::sync::Arc;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use common::{Symbol, Timeframe, MessageBus};
 use compute_lib::{*, IndicatorPersistor, RawSignalPersistor, RawSignalProcessor, ResultProcessor};
 use database_lib;
@@ -26239,18 +27456,18 @@ async fn main() -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("Database init failed: {}", e))?;
 
-    // фиксируем CUDA backend (если бинарь собран с --features cuda)
+    // Backend (CUDA preferred for history)
     let backend_type = if cfg!(feature = "cuda") {
         ComputeBackendType::Cuda
     } else {
-        eprintln!("CUDA feature not enabled, falling back to CPU for history");
+        tracing::warn!("CUDA feature not enabled, falling back to CPU for history");
         ComputeBackendType::Cpu
     };
     
     let compute_backend_manager = ComputeBackendManager::new(backend_type);
     let compute_backend = compute_backend_manager.get_backend();
 
-    // load config
+    // Config
     let config = ComputeConfig {
         batch_size: 100,
         max_concurrent_jobs: 4,
@@ -26261,31 +27478,34 @@ async fn main() -> Result<()> {
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
 
-    // Set environment for history mode
-    std::env::set_var("DB_PERSIST_MODE", "history");
-    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); // Large chunks for history
-    std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); // Slower flushing for history
-    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); // Skip heavy JSON for history
-    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); // Append mode for history
+    // --- PIPELINE SETUP START ---
 
-    // Initialize DB Persistor (HISTORY Mode)
+    // 1. Initialize DB Persistor (HISTORY Mode)
+    std::env::set_var("DB_PERSIST_MODE", "history");
+    // Optimization for bulk loading
+    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); 
+    std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); 
+    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); 
+    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); 
+
     let bulk_persistor = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(
         database_lib::bulk_persistor::PersistMode::History
     ).await?;
     let bulk_sender = bulk_persistor.sender();
 
-    // Initialize Indicator & RawSignal Persistors
+    // 2. Initialize Indicator & RawSignal Persistors
     let (indicator_persistor, _ind_tx) = IndicatorPersistor::new(bulk_sender.clone());
     let raw_signal_persistor = RawSignalPersistor::new(bulk_sender.clone());
     
-    // Raw Signal Processor
+    // 3. Raw Signal Processor
     let raw_cfg = SignalConfig {
         enable_filtering: true,
-        min_interesting_score: 0.60, // Can be configured via env
+        min_interesting_score: 0.60,
         ..Default::default()
     };
     let raw_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
 
+    // Scheduler
     let (job_scheduler, result_receiver) = JobScheduler::new(
         compute_backend,
         config.clone(),
@@ -26293,7 +27513,7 @@ async fn main() -> Result<()> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
-    // Predictors Pipeline (XGBoost)
+    // 4. Predictors Pipeline (XGBoost)
     let message_bus = MessageBus::new_from_env()?;
     let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
     
@@ -26305,7 +27525,7 @@ async fn main() -> Result<()> {
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: config.use_cuda,
-        use_gpu_history: config.use_cuda, // Important for batch processing
+        use_gpu_history: config.use_cuda,
         use_gpu_realtime: false,
         model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
         model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
@@ -26318,7 +27538,7 @@ async fn main() -> Result<()> {
         pred_config,
         db_pool.clone(),
         message_bus,
-        shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
+        shutdown_rx.resubscribe(),
     );
     predictors_pipeline.set_input_receiver(feature_rx);
 
@@ -26329,7 +27549,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Spawn Result Processor (The missing link!)
+    // 5. Spawn Result Processor
     let result_processor = ResultProcessor::new(
         Arc::new(indicator_persistor),
         Arc::new(raw_signal_persistor),
@@ -26341,10 +27561,12 @@ async fn main() -> Result<()> {
         result_processor.run(result_receiver).await;
     });
 
-    // 1) получаем список активных пар из БД (market.pairs)
-    let symbols = fetch_active_symbols_from_db(&db_pool).await?;
+    // --- PIPELINE SETUP END ---
 
-    // 2) для каждого TF запускаем submit_batch(…, window_spec)
+    // 1) Ждем и получаем список активных пар
+    let symbols = wait_for_active_symbols(&db_pool).await?;
+
+    // 2) Обрабатываем таймфреймы
     let timeframes = [
         Timeframe::M1,
         Timeframe::M5,
@@ -26355,36 +27577,21 @@ async fn main() -> Result<()> {
     ];
 
     for timeframe in &timeframes {
-        tracing::info!("Processing historical data for timeframe: {:?}", timeframe);
-
-        // Check if candles exist for this timeframe
         let table_name = format!("market.candles_{}", timeframe.as_str());
-        let count_query = format!("SELECT COUNT(*) as count FROM {} LIMIT 1", table_name);
-        
-        match sqlx::query(&count_query).fetch_one(&db_pool).await {
-            Ok(row) => {
-                let count: i64 = row.get("count");
-                tracing::info!("Found {} records in {} table", count, table_name);
-                
-                if count == 0 {
-                    tracing::warn!("No candles found in {} table, skipping this timeframe", table_name);
-                    continue;
-                }
-            }
-            Err(e) => {
-                tracing::error!("Error querying {} table: {}", table_name, e);
-                continue;
-            }
+
+        // ВАЖНО: Ждем данные вместо пропуска
+        if !wait_for_table_data(&db_pool, &table_name).await {
+            eprintln!("Timeout waiting for data in {}, skipping TF", table_name);
+            continue;
         }
 
+        println!("Processing historical data for timeframe: {:?}", timeframe);
+
         for symbol in &symbols {
-            tracing::info!("Processing symbol {} for timeframe {}", symbol.as_str(), timeframe.as_str());
-            
-            // Check if candles exist for this specific symbol and timeframe
+            // Check if candles exist for this specific symbol
             let symbol_query = format!(
                 "SELECT MIN(time) as first_time, MAX(time) as last_time, COUNT(*) as total_count
-                 FROM {} 
-                 WHERE symbol = $1",
+                 FROM {} WHERE symbol = $1",
                 table_name
             );
 
@@ -26392,114 +27599,116 @@ async fn main() -> Result<()> {
                 .bind(symbol.as_str())
                 .fetch_optional(&db_pool)
                 .await {
-                
+
                 Ok(Some(row)) => {
-                    let first_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
-                    let last_time_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
                     let total_count: i64 = row.get("total_count");
+                    if total_count == 0 {
+                        continue;
+                    }
 
-                    tracing::info!("Symbol {} has {} candles in {} timeframe from {:?} to {:?}", 
-                        symbol.as_str(), total_count, timeframe.as_str(), first_time_opt, last_time_opt);
+                    let first_time: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
+                    let last_time: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
 
-                    if let (Some(start_time), Some(end_time)) = (first_time_opt, last_time_opt) {
-                        tracing::info!("Processing {} for {} from {} to {}", 
-                            symbol.as_str(), timeframe.as_str(), start_time, end_time);
+                    if let (Some(start), Some(end)) = (first_time, last_time) {
+                        let duration_min = (end - start).num_minutes();
+                        let tf_min = timeframe.to_minutes() as i64;
+                        let length = if tf_min > 0 { (duration_min / tf_min) as usize } else { 0 };
 
-                        let duration_in_minutes = (end_time - start_time).num_minutes();
-                        let timeframe_in_minutes = timeframe.to_minutes() as i64;
-                        let length = if timeframe_in_minutes > 0 {
-                            (duration_in_minutes / timeframe_in_minutes) as usize
-                        } else {
-                            0
-                        };
-
-                        tracing::info!("Calculated window length: {}, timeframe_minutes: {}", length, timeframe_in_minutes);
-
-                        // Ensure we have enough data to process
-                        if length == 0 || total_count == 0 {
-                            tracing::warn!("Insufficient data for {} {}: length={}, total_count={}", 
-                                symbol.as_str(), timeframe.as_str(), length, total_count);
-                            continue;
-                        }
-
-                        let window_spec = WindowSpec {
-                            length: std::cmp::min(length, 5000), // Limit to prevent huge batches
-                            warmup: 100, // Add warmup period
-                        };
-
-                        tracing::info!("Submitting batch job for {} {} with window spec: length={}, warmup={}", 
-                            symbol.as_str(), timeframe.as_str(), window_spec.length, window_spec.warmup);
-
-                        match job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
-                            Ok(_) => {
-                                tracing::info!("Successfully submitted batch job for {} {}", 
-                                    symbol.as_str(), timeframe.as_str());
+                        if length > 0 {
+                            // Minimum required length for ATR and other indicators to work properly
+                            // ATR typically needs at least period (14) + 1 data points
+                            let min_required_length = 15; // 14 + 1 for ATR calculation
+                            
+                            if length < min_required_length {
+                                tracing::warn!(
+                                    "Skipping symbol {} on timeframe {} due to insufficient data: {} < {}", 
+                                    symbol.as_str(), 
+                                    timeframe.as_str(), 
+                                    length, 
+                                    min_required_length
+                                );
+                                continue; // Skip this symbol-timeframe combination
                             }
-                            Err(e) => {
-                                tracing::error!("Error submitting batch job for {} {}: {}", 
-                                    symbol.as_str(), timeframe.as_str(), e);
+
+                            let window_spec = WindowSpec {
+                                length: std::cmp::min(length + 100, 10_000), // +buffer
+                                warmup: 100,
+                            };
+
+                            println!("Submitting batch: {} {}, len={}", symbol.as_str(), timeframe.as_str(), window_spec.length);
+
+                            if let Err(e) = job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
+                                eprintln!("Submit batch failed: {}", e);
                             }
                         }
-                    } else {
-                        tracing::warn!("No valid time range found for {} in {}", symbol.as_str(), timeframe.as_str());
                     }
                 }
-                Ok(None) => {
-                    tracing::warn!("No data found for symbol {} in timeframe {}", symbol.as_str(), timeframe.as_str());
-                }
-                Err(e) => {
-                    tracing::error!("Database error when querying {} for symbol {}: {}", 
-                        table_name, symbol.as_str(), e);
-                }
+                Err(e) => eprintln!("DB Error: {}", e),
+                _ => {}
             }
         }
     }
 
-    // Wait longer to allow jobs to complete and monitor progress
-    tracing::info!("Waiting for historical computation to complete...");
-    for i in 0..60 {  // Wait up to 5 minutes (60 iterations * 5 seconds)
-        tokio::time::sleep(Duration::from_secs(5)).await;
-        tracing::info!("Historical computation progress check: {} out of 300 seconds elapsed", (i+1)*5);
-    }
+    println!("Jobs submitted. Waiting for processing...");
+    // Даем время на обработку задач (можно улучшить через счетчик задач)
+    tokio::time::sleep(Duration::from_secs(300)).await;
     
-    tracing::info!("Historical computation completed or timed out.");
-
     Ok(())
 }
 
-// Function to fetch active symbols from the database
-async fn fetch_active_symbols_from_db(
-    db_pool: &PgPool,
-) -> Result<Vec<Symbol>> {
-    // First check if the table exists
-    let table_exists: bool = sqlx::query_scalar(
-        r#"SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = 'market' AND table_name = 'pairs'
-        )"#,
-    )
-    .fetch_one(db_pool)
-    .await
-    .context("Failed to check for 'market.pairs' table existence")?;
+/// Helper: Ждет появления активных пар в БД
+async fn wait_for_active_symbols(pool: &PgPool) -> Result<Vec<Symbol>> {
+    let start = std::time::Instant::now();
+    loop {
+        let symbols = fetch_active_symbols_from_db(pool).await?;
+        if !symbols.is_empty() {
+            return Ok(symbols);
+        }
 
-    if !table_exists {
-        return Ok(Vec::new()); // Return empty vector if table doesn't exist
+        if start.elapsed() > Duration::from_secs(300) {
+            anyhow::bail!("Timeout waiting for market.pairs");
+        }
+
+        eprintln!("Waiting for active symbols in market.pairs...");
+        tokio::time::sleep(Duration::from_secs(5)).await;
     }
+}
 
-    // If table exists, try to fetch symbols
+/// Helper: Ждет появления данных в таблице свечей
+async fn wait_for_table_data(pool: &PgPool, table_name: &str) -> bool {
+    let start = std::time::Instant::now();
+    loop {
+        // Проверяем наличие хотя бы одной записи
+        let query = format!("SELECT 1 FROM {} LIMIT 1", table_name);
+        match sqlx::query(&query).fetch_optional(pool).await {
+            Ok(Some(_)) => return true,
+            Ok(None) => {
+                if start.elapsed() > Duration::from_secs(300) {
+                    return false;
+                }
+                eprintln!("Waiting for data in {} (elapsed: {:.0}s)...", table_name, start.elapsed().as_secs_f64());
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+            Err(e) => {
+                // Если таблицы еще нет (например, миграция не прошла), тоже ждем
+                eprintln!("Error checking {}: {}. Retrying...", table_name, e);
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+    }
+}
+
+async fn fetch_active_symbols_from_db(pool: &PgPool) -> Result<Vec<Symbol>> {
+    let table_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema='market' AND table_name='pairs')"
+    ).fetch_one(pool).await.unwrap_or(false);
+
+    if !table_exists { return Ok(vec![]); }
+
     let rows = sqlx::query("SELECT symbol FROM market.pairs WHERE is_active = true")
-        .fetch_all(db_pool)
-        .await
-        .context("Failed to fetch active symbols from 'market.pairs'")?;
+        .fetch_all(pool).await?;
 
-    let symbols: Vec<Symbol> = rows
-        .into_iter()
-        .map(|row| {
-            let symbol: String = row.get("symbol");
-            Symbol::from(symbol)
-        })
-        .collect();
-    Ok(symbols)
+    Ok(rows.into_iter().map(|r| Symbol::from(r.get::<String, _>("symbol"))).collect())
 }
 
 
