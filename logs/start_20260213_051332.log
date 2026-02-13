@@ -1,0 +1,194 @@
+[2m===========================================[0m
+[1m[36mSTART[0m
+[2m===========================================[0m
+[2m[05:13:32][0m ROOT: [1m/home/anton/Desktop/Rust_trader[0m
+[2m[05:13:32][0m LOG : [1m/home/anton/Desktop/Rust_trader/logs/start_20260213_051332.log[0m
+[2m[05:13:32][0m [32m✅[0m sccache server is already running.
+[2m[05:13:32][0m Loading env: [1m/home/anton/Desktop/Rust_trader/.env[0m
+[2m===========================================[0m
+[1m[36mTOOLCHAIN[0m
+[2m===========================================[0m
+[2m[05:13:32][0m rustc: rustc 1.92.0 (ded5c06cf 2025-12-08)
+[2m[05:13:32][0m cargo: cargo 1.92.0 (344c4567c 2025-10-21)
+[2m===========================================[0m
+[1m[36mINFRA[0m
+[2m===========================================[0m
+[2m[05:13:32][0m Compose file: [1minfra/docker-compose.yaml[0m
+[2m[05:13:32][0m docker compose up -d --remove-orphans
+ Container redpanda Running 
+ Container timescaledb Running 
+ Container redpanda_console Running 
+ Container redpanda Waiting 
+ Container redpanda Healthy 
+[2m[05:13:32][0m Waiting for TCP [1m127.0.0.1:5433[0m (timeout 45s)...
+[2m[05:13:32][0m [32m✅[0m TCP ready: 127.0.0.1:5433
+[2m[05:13:32][0m Waiting for TCP [1m127.0.0.1:19092[0m (timeout 45s)...
+[2m[05:13:32][0m [32m✅[0m TCP ready: 127.0.0.1:19092
+[2m===========================================[0m
+[1m[36mDATABASE INITIALIZATION CHECK[0m
+[2m===========================================[0m
+[2m[05:13:32][0m [33m⚠️[0m Database not initialized. Starting initialization...
+[2m[05:13:32][0m Database not initialized. Initializing database schema...
+[2m[05:13:32][0m Running database initialization...
+[2m2026-02-13T02:13:32.775268Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Starting database initialization process...
+[2m2026-02-13T02:13:32.780314Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Database connection test successful
+[2m2026-02-13T02:13:32.780320Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Initializing database schema...
+[2m2026-02-13T02:13:32.780322Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #0...
+[2m2026-02-13T02:13:32.785119Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "integration_test_data" already exists, skipping
+[2m2026-02-13T02:13:32.785366Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "cross_system_test" already exists, skipping
+[2m2026-02-13T02:13:32.787278Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_integration_test_timestamp" already exists, skipping
+[2m2026-02-13T02:13:32.787484Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_cross_system_test_timestamp" already exists, skipping
+[2m2026-02-13T02:13:32.788017Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_integration_symbol" already exists, skipping
+[2m2026-02-13T02:13:32.788124Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_cross_system_symbol" already exists, skipping
+[2m2026-02-13T02:13:32.788138Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #0
+[2m2026-02-13T02:13:32.788142Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #1...
+[2m2026-02-13T02:13:32.788513Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "timescaledb" already exists, skipping
+[2m2026-02-13T02:13:32.788581Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "pgcrypto" already exists, skipping
+[2m2026-02-13T02:13:32.788618Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T02:13:32.788728Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "trade" already exists, skipping
+[2m2026-02-13T02:13:32.788736Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "core" already exists, skipping
+[2m2026-02-13T02:13:32.788763Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #1
+[2m2026-02-13T02:13:32.788765Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #2...
+[2m2026-02-13T02:13:32.810186Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "collected_candles" already exists, skipping
+[2m2026-02-13T02:13:32.810275Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #2
+[2m2026-02-13T02:13:32.810279Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #3...
+[2m2026-02-13T02:13:32.904197Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #3
+[2m2026-02-13T02:13:32.904206Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #4...
+[2m2026-02-13T02:13:32.904610Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T02:13:32.919298Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #4
+[2m2026-02-13T02:13:32.919304Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #5...
+[2m2026-02-13T02:13:32.919672Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_staging" already exists, skipping
+[2m2026-02-13T02:13:32.919745Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "indicators_staging" already exists, skipping
+[2m2026-02-13T02:13:32.919924Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_staging_symbol_time" already exists, skipping
+[2m2026-02-13T02:13:32.920135Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_ind_staging_symbol_time" already exists, skipping
+[2m2026-02-13T02:13:32.920145Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #5
+[2m2026-02-13T02:13:32.920148Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #6...
+[2m2026-02-13T02:13:32.920471Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T02:13:32.920554Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "timescaledb" already exists, skipping
+[2m2026-02-13T02:13:32.920691Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "indicators_wide" does not exist, skipping
+[2m2026-02-13T02:13:32.946782Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #6
+[2m2026-02-13T02:13:32.946790Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #7...
+[2m2026-02-13T02:13:32.947110Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T02:13:32.947173Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "timescaledb" already exists, skipping
+[2m2026-02-13T02:13:32.947296Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "raw_signals" does not exist, skipping
+[2m2026-02-13T02:13:32.970158Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #7
+[2m2026-02-13T02:13:32.970165Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #8...
+[2m2026-02-13T02:13:32.970814Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_1m" already exists, skipping
+[2m2026-02-13T02:13:32.971073Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_5m" already exists, skipping
+[2m2026-02-13T02:13:32.971300Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_15m" already exists, skipping
+[2m2026-02-13T02:13:32.971528Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_1h" already exists, skipping
+[2m2026-02-13T02:13:32.971745Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_4h" already exists, skipping
+[2m2026-02-13T02:13:32.971980Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_1d" already exists, skipping
+[2m2026-02-13T02:13:32.972135Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_live" already exists, skipping
+[2m2026-02-13T02:13:32.972369Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "indicators_wide" already exists, skipping
+[2m2026-02-13T02:13:32.972723Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "raw_signals" already exists, skipping
+[2m2026-02-13T02:13:33.007086Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_raw_signals_symbol" already exists, skipping
+[2m2026-02-13T02:13:33.007138Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #8
+[2m2026-02-13T02:13:33.007143Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #9...
+[2m2026-02-13T02:13:33.085640Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #9
+[2m2026-02-13T02:13:33.085661Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #10...
+[2m2026-02-13T02:13:33.089423Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #10
+[2m2026-02-13T02:13:33.089428Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #11...
+[2m2026-02-13T02:13:33.103291Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #11
+[2m2026-02-13T02:13:33.103299Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #12...
+[2m2026-02-13T02:13:33.112260Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m default order by for hypertable "candles_1m" is set to ""time" DESC, symbol"
+[2m2026-02-13T02:13:33.114786Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m default order by for hypertable "candles_5m" is set to ""time" DESC, symbol"
+[2m2026-02-13T02:13:33.117249Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m default order by for hypertable "candles_15m" is set to ""time" DESC, symbol"
+[2m2026-02-13T02:13:33.119575Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m default order by for hypertable "candles_1h" is set to ""time" DESC, symbol"
+[2m2026-02-13T02:13:33.122038Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m default order by for hypertable "candles_4h" is set to ""time" DESC, symbol"
+[2m2026-02-13T02:13:33.125376Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m default order by for hypertable "candles_1d" is set to ""time" DESC, symbol"
+[2m2026-02-13T02:13:33.126958Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "indicators_wide"
+[2m2026-02-13T02:13:33.126970Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #12
+[2m2026-02-13T02:13:33.126973Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #13...
+[2m2026-02-13T02:13:33.130429Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #13
+[2m2026-02-13T02:13:33.130434Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #14...
+[2m2026-02-13T02:13:33.141712Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #14
+[2m2026-02-13T02:13:33.141719Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #15...
+[2m2026-02-13T02:13:33.186369Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #15
+[2m2026-02-13T02:13:33.186379Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Database schema initialization completed.
+[2m2026-02-13T02:13:33.188934Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Verified that integration_test_data table exists
+[2m2026-02-13T02:13:33.188940Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Inserting test data for integration verification...
+[2m2026-02-13T02:13:33.190121Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Test data insertion completed successfully
+[2m2026-02-13T02:13:33.190125Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Database initialization process completed successfully
+[2m[05:13:33][0m [32m✅[0m Database initialization completed successfully.
+[2m===========================================[0m
+[1m[36mBUILD[0m
+[2m===========================================[0m
+[2m[05:13:33][0m [32m✅[0m Skipping build (auto-mode: binaries are up-to-date).
+[2m===========================================[0m
+[1m[36mKAFKA TOPICS SETUP[0m
+[2m===========================================[0m
+[2m[05:13:33][0m Creating necessary Kafka topics...
+TOPIC          STATUS
+candles.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic candles.close already exists or error occurred
+TOPIC           STATUS
+candles.update  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic candles.update already exists or error occurred
+TOPIC             STATUS
+indicators.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic indicators.close already exists or error occurred
+TOPIC    STATUS
+ws_feed  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic ws_feed already exists or error occurred
+TOPIC        STATUS
+signals.raw  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic signals.raw already exists or error occurred
+TOPIC          STATUS
+signals.final  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic signals.final already exists or error occurred
+TOPIC              STATUS
+features.snapshot  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic features.snapshot already exists or error occurred
+TOPIC       STATUS
+orders.cmd  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic orders.cmd already exists or error occurred
+TOPIC          STATUS
+orders.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic orders.events already exists or error occurred
+TOPIC             STATUS
+positions.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+  Topic positions.events already exists or error occurred
+[2m[05:13:33][0m [32m✅[0m Kafka topics setup completed.
+[2m===========================================[0m
+[1m[36mONESHOT: load_candles[0m
+[2m===========================================[0m
+[2m[05:13:33][0m Loading historical candles and starting real-time ingestion...
+[2m[05:13:33][0m This may take a few minutes depending on the number of pairs...
+[2m[05:13:33][0m [33m⚠️[0m Skipping oneshot binaries (ingestor_pairs/load_candles) - not used in current architecture.
+[2m===========================================[0m
+[1m[36mSTART SERVICES[0m
+[2m===========================================[0m
+[2m[05:13:33][0m Starting: [1mconnections[0m
+[2m[05:13:33][0m   bin: /home/anton/Desktop/Rust_trader/target/release/connections
+[2m[05:13:33][0m   log: /home/anton/Desktop/Rust_trader/logs/connections.out
+[2m[05:13:33][0m [32m✅[0m Started: [1mconnections[0m pid=544041
+[2m[05:13:33][0m Starting: [1mingestor[0m
+[2m[05:13:33][0m   bin: /home/anton/Desktop/Rust_trader/target/release/ingestor
+[2m[05:13:33][0m   log: /home/anton/Desktop/Rust_trader/logs/ingestor.out
+[2m[05:13:33][0m [32m✅[0m Started: [1mingestor[0m pid=544068
+[2m===========================================[0m
+[1m[36mSTART COMPUTE SERVICES[0m
+[2m===========================================[0m
+[2m[05:13:33][0m Starting: [1mcompute_history[0m
+[2m[05:13:33][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_history
+[2m[05:13:33][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_history.out
+[2m[05:13:33][0m [32m✅[0m Started: [1mcompute_history[0m pid=544099
+[2m[05:13:33][0m Starting: [1mcompute_realtime[0m
+[2m[05:13:33][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_realtime
+[2m[05:13:33][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_realtime.out
+[2m[05:13:33][0m [32m✅[0m Started: [1mcompute_realtime[0m pid=544135
+[2m===========================================[0m
+[1m[36mDONE[0m
+[2m===========================================[0m
+[2m[05:13:34][0m [32m✅[0m START DONE @ Fri 13 Feb 2026 05:13:33 AM MSK
+[2m[05:13:34][0m Services: connections ingestor
+[2m[05:13:34][0m PIDs in : /home/anton/Desktop/Rust_trader/run
+[2m[05:13:34][0m Logs in : /home/anton/Desktop/Rust_trader/logs
+[2m===========================================[0m
+[1m[36mSTART GRAFANA HEALTHCHECK[0m
+[2m===========================================[0m
+[2m[05:13:34][0m Starting Grafana for healthcheck monitoring...
+healthcheck_prometheus is up-to-date
+healthcheck_grafana is up-to-date
+[2m[05:13:34][0m [32m✅[0m Grafana started. Access at http://localhost:3001 (admin/admin)

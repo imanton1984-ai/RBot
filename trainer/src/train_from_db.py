@@ -16,7 +16,7 @@ TIMEFRAMES = [1, 5, 15, 60, 240, 1440]  # minutes
 HORIZON = int(os.getenv("HORIZON_BARS", "10"))
 
 FEATURES = [
-    "rsi","cci","stoch_k","stoch_d","williams_r",
+    "rsi","cci","stoch_k","stoch_d", "williams",
     "macd","macd_signal","macd_hist","adx","sma","ema_20","ema_50","ema_200",
     "bb_upper","bb_mid","bb_lower","atr",
     "obv","vwap","volume_spike",
@@ -27,41 +27,41 @@ FEATURES = [
 def ensure_dirs():
     os.makedirs(MODELS_DIR, exist_ok=True)
 
-def load_data(timeframe_min: int) -> pd.DataFrame:
+def load_data(tf_minutes: int) -> pd.DataFrame:
     engine = create_engine(DATABASE_URL)
-    # Берём wide индикаторы + close из свечей (подстрой под свою схему если надо)
-    # ВАЖНО: здесь пример. Если у тебя другой join — агент поправит.
-    # Determine the appropriate candle table based on timeframe
-    candle_table = f"market.candles_{timeframe_min}m"
     
+    # Сопоставляем минуты с именами таблиц в БД
+    if tf_minutes < 60:
+        table_name = f"candles_{tf_minutes}m"
+    elif tf_minutes == 60:
+        table_name = "candles_1h"
+    elif tf_minutes == 240:
+        table_name = "candles_4h"
+    elif tf_minutes == 1440:
+        table_name = "candles_1d"
+    else:
+        table_name = f"candles_{tf_minutes}m" # на всякий случай
+
     q = f"""
     SELECT
       i.time,
       i.tf_minutes,
       i.symbol,
       c.close,
-      i.rsi, i.cci, i.stoch_k, i.stoch_d, i.williams_r,
+      i.rsi, i.cci, i.stoch_k, i.stoch_d, i.williams,
       i.macd, i.macd_signal, i.macd_hist, i.adx, i.sma, i.ema_20, i.ema_50, i.ema_200,
       i.bb_upper, i.bb_mid, i.bb_lower, i.atr,
       i.obv, i.vwap, i.volume_spike,
       i.alligator_jaw, i.alligator_teeth, i.alligator_lips,
       i.trend, i.trend_short, i.poc
     FROM market.indicators_wide i
-    JOIN {candle_table} c
-      ON c.symbol_id = i.symbol_id AND c.tf_minutes = i.tf_minutes AND c.time = i.time
-    WHERE i.tf_minutes = {timeframe_min}
+    JOIN market.{table_name} c 
+      ON c.symbol_id = i.symbol_id AND c.time = i.time
+    WHERE i.tf_minutes = {tf_minutes}
     ORDER BY i.time ASC
     """
+    
     df = pd.read_sql(q, engine)
-    if df is None or len(df) == 0:
-        return None
-
-    # cleanup
-    df = df.sort_values("time").reset_index(drop=True)
-    for col in FEATURES + ["close"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    df = df.dropna(subset=["close"])
     return df
 
 def export_xgb(model, model_name: str, schema: dict):
@@ -97,15 +97,26 @@ def train_price_model(df: pd.DataFrame):
         print(f"  Not enough rows: {len(X)}")
         return None
 
+    # Check if CUDA is available for XGBoost
+    try:
+        # Test if GPU is available for XGBoost
+        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, 
+                  xgb.DMatrix(np.random.random((10, 10)), label=np.random.random(10)), 
+                  num_boost_round=1)
+        tree_method = "hist"
+        device = "cuda"
+    except:
+        tree_method = "hist"  # hist is generally the best method for CPU as well
+        device = "cpu"
+
     model = xgb.XGBRegressor(
         n_estimators=200,
         max_depth=6,
         learning_rate=0.05,
         objective="reg:squarederror",
         n_jobs=-1,
-        # Enable GPU training if available
-        tree_method="gpu_hist",
-        predictor="gpu_predictor"
+        tree_method=tree_method,
+        device=device  # New parameter instead of predictor
     )
 
     # CV (optional)
@@ -141,15 +152,26 @@ def train_level_model(df: pd.DataFrame):
         print(f"  Not enough rows: {len(X)}")
         return None
 
+    # Check if CUDA is available for XGBoost
+    try:
+        # Test if GPU is available for XGBoost
+        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, 
+                  xgb.DMatrix(np.random.random((10, 10)), label=np.random.random(10)), 
+                  num_boost_round=1)
+        tree_method = "hist"
+        device = "cuda"
+    except:
+        tree_method = "hist"  # hist is generally the best method for CPU as well
+        device = "cpu"
+
     model = xgb.XGBClassifier(
         n_estimators=300,
         max_depth=6,
         learning_rate=0.05,
         n_jobs=-1,
         eval_metric="logloss",
-        # Enable GPU training if available
-        tree_method="gpu_hist",
-        predictor="gpu_predictor"
+        tree_method=tree_method,
+        device=device  # New parameter instead of predictor
     )
     model.fit(X, y)
     print(f"  train acc: {model.score(X, y):.4f}")
