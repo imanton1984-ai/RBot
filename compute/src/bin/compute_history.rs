@@ -107,6 +107,7 @@ async fn main() -> Result<()> {
         shutdown_rx.resubscribe(),
     );
     predictors_pipeline.set_input_receiver(feature_rx);
+    predictors_pipeline.set_bulk_sender(bulk_sender.clone());
 
     // Spawn Predictors Pipeline
     tokio::spawn(async move {

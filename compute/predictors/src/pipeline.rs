@@ -12,6 +12,7 @@ use common::MessageBus;
 use crate::consensus::ConsensusEngine;
 
 use crate::ml::model_manager::ModelManager;
+use database_lib;
 
 pub struct PredictorsPipeline {
     config: PredictorsConfig,
@@ -19,6 +20,7 @@ pub struct PredictorsPipeline {
     shutdown_rx: tokio::sync::broadcast::Receiver<bool>,
     feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
     ml_manager: ModelManager,
+    bulk_sender: Option<tokio::sync::mpsc::Sender<database_lib::PersistRecord>>,
 }
 
 impl PredictorsPipeline {
@@ -46,6 +48,7 @@ impl PredictorsPipeline {
             shutdown_rx,
             feature_rx: None,
             ml_manager,
+            bulk_sender: None,
         }
     }
     
@@ -78,6 +81,10 @@ impl PredictorsPipeline {
     
     pub fn set_input_receiver(&mut self, receiver: tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>) {
         self.feature_rx = Some(receiver);
+    }
+
+    pub fn set_bulk_sender(&mut self, tx: tokio::sync::mpsc::Sender<database_lib::PersistRecord>) {
+        self.bulk_sender = Some(tx);
     }
 
     async fn is_shutdown(&mut self) -> bool {
@@ -174,18 +181,58 @@ impl PredictorsPipeline {
         };
 
         if !final_preds.is_empty() {
-            match persistence::upsert_predictors(&self.db_pool, final_preds.clone()).await {
-                Ok(_) => {
-                    tracing::debug!(target: "compute_predictors",
-                        "Successfully saved {} predictions to DB for {}:{}, Time: {:?}",
-                        final_preds.len(), snapshot.symbol, snapshot.timeframe, start.elapsed()
-                    );
-                },
-                Err(e) => {
-                    tracing::error!(target: "compute_predictors",
-                        "Failed to save predictions to DB: {} for {}:{}, Time: {:?}",
-                        e, snapshot.symbol, snapshot.timeframe, start.elapsed()
-                    );
+            if let Some(tx) = &self.bulk_sender {
+                // Send to bulk sender
+                for pred in final_preds.iter() {
+                    let rec = database_lib::PersistRecord::Predictor {
+                        symbol: common::Symbol::from(pred.symbol.clone()),
+                        timeframe: pred.tf_minutes as i16,
+                        time_ms: pred.time_ms,
+
+                        horizon_bars: pred.horizon_bars,
+                        aspect: pred.aspect.as_int(),
+                        calc_source: pred.calc_source.as_int(),
+                        predictor_id: pred.predictor_id,
+
+                        score_norm: pred.score_norm,
+                        value: pred.value,
+                        value_low: pred.value_low,
+                        value_high: pred.value_high,
+                        side: pred.side,
+
+                        level_hash: pred.level_hash.clone(),
+                        level_kind: pred.level_kind,
+                        level_price: pred.level_price,
+                        level_strength: pred.level_strength,
+                        level_distance_atr: pred.level_distance_atr,
+
+                        candle_is_final: pred.candle_is_final,
+                        event_time_ms: pred.event_time_ms,
+                        details_json: pred.details_json.clone(),
+
+                        prediction_key: pred.prediction_key.clone(),
+                    };
+
+                    if let Err(e) = tx.send(rec).await {
+                        tracing::error!(target: "compute_predictors", "Failed to send predictor to bulk persistor: {}", e);
+                    }
+                }
+            } else {
+                // fallback: старое поведение
+                let final_preds_len = final_preds.len();
+                match persistence::upsert_predictors(&self.db_pool, final_preds).await {
+                    Ok(_) => {
+                        tracing::debug!(target: "compute_predictors",
+                            "Successfully saved {} predictions to DB for {}:{}, Time: {:?}",
+                            final_preds_len, snapshot.symbol, snapshot.timeframe, start.elapsed()
+                        );
+                    },
+                    Err(e) => {
+                        tracing::error!(target: "compute_predictors",
+                            "Failed to save predictions to DB: {} for {}:{}, Time: {:?}",
+                            e, snapshot.symbol, snapshot.timeframe, start.elapsed()
+                        );
+                    }
                 }
             }
         } else {

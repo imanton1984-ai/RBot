@@ -173,6 +173,35 @@ pub enum PersistRecord {
         calc_source: i16,
         event_time_ms: Option<i64>,
     },
+
+    Predictor {
+        symbol: common::Symbol,
+        timeframe: i16,
+        time_ms: i64,
+
+        horizon_bars: i32,
+        aspect: i16,
+        calc_source: i16,
+        predictor_id: i64,
+
+        score_norm: f32,
+        value: f64,
+        value_low: Option<f64>,
+        value_high: Option<f64>,
+        side: Option<i16>,
+
+        level_hash: Option<String>,
+        level_kind: Option<i16>,
+        level_price: Option<f64>,
+        level_strength: Option<f32>,
+        level_distance_atr: Option<f32>,
+
+        candle_is_final: bool,
+        event_time_ms: Option<i64>,
+        details_json: Option<Value>,
+
+        prediction_key: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -304,21 +333,18 @@ async fn flush_all(
 ) -> Result<()> {
     let mut signals: Vec<PersistRecord> = Vec::new();
     let mut wide_indicators: Vec<PersistRecord> = Vec::new();
+    let mut predictors: Vec<PersistRecord> = Vec::new();
 
     for r in batch.drain(..) {
         match r {
             PersistRecord::RawSignal { .. } => signals.push(r),
             PersistRecord::IndicatorsWide { .. } => wide_indicators.push(r),
-            PersistRecord::Indicator { .. } => {
-                // старый формат — игнорируем (или можно добавить отдельный writer)
-            }
-            PersistRecord::AggregatedSignal { .. } => {
-                // сейчас не используем
-            }
+            PersistRecord::Predictor { .. } => predictors.push(r),
+            PersistRecord::Indicator { .. } => { /* ignore */ }
+            PersistRecord::AggregatedSignal { .. } => { /* ignore */ }
         }
     }
 
-    // Важно: flush параллельно
     let s1 = async {
         if !signals.is_empty() {
             flush_raw_signals(pool, cache, cfg, &signals).await?;
@@ -333,9 +359,172 @@ async fn flush_all(
         Ok::<(), anyhow::Error>(())
     };
 
-    let (r1, r2) = tokio::join!(s1, s2);
-    r1?;
-    r2?;
+    let s3 = async {
+        if !predictors.is_empty() {
+            flush_predictors(pool, cache, cfg, &predictors).await?;
+        }
+        Ok::<(), anyhow::Error>(())
+    };
+
+    let (r1, r2, r3) = tokio::join!(s1, s2, s3);
+    r1?; r2?; r3?;
+    Ok(())
+}
+
+async fn flush_predictors(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    items: &[PersistRecord],
+) -> Result<()> {
+    // dedup внутри батча: (symbol_id, tf, time_ms, prediction_key, predictor_id)
+    let mut dedup: HashMap<(i64, i16, i64, String, i64), (PersistRecord, i64)> = HashMap::new();
+
+    for it in items {
+        if let PersistRecord::Predictor { symbol, timeframe, time_ms, prediction_key, predictor_id, .. } = it {
+            let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
+            let k = (sym_id, *timeframe, *time_ms, prediction_key.clone(), *predictor_id);
+            dedup.insert(k, (it.clone(), sym_id));
+        }
+    }
+
+    let mut vec: Vec<(PersistRecord, i64)> = dedup.into_values().collect();
+
+    while !vec.is_empty() {
+        let take = vec.len().min(cfg.chunk_size);
+        let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
+        flush_predictors_chunk(pool, cfg, chunk).await?;
+    }
+
+    Ok(())
+}
+
+async fn flush_predictors_chunk(
+    pool: &PgPool,
+    cfg: &BulkPersistorConfig,
+    chunk: Vec<(PersistRecord, i64)>,
+) -> Result<()> {
+    if chunk.is_empty() { return Ok(()); }
+
+    let now: DateTime<Utc> = Utc::now();
+    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
+
+    let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+
+    let mut horizon_bars: Vec<i32> = Vec::with_capacity(chunk.len());
+    let mut aspect: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut calc_source: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut predictor_id: Vec<i64> = Vec::with_capacity(chunk.len());
+
+    let mut score_norm: Vec<f32> = Vec::with_capacity(chunk.len());
+    let mut value: Vec<f64> = Vec::with_capacity(chunk.len());
+    let mut value_low: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut value_high: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut side: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
+
+    let mut level_hash: Vec<Option<String>> = Vec::with_capacity(chunk.len());
+    let mut level_kind: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
+    let mut level_price: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut level_strength: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut level_distance_atr: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+
+    let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
+    let mut event_time_ms: Vec<Option<i64>> = Vec::with_capacity(chunk.len());
+    let mut details_json: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut prediction_key: Vec<String> = Vec::with_capacity(chunk.len());
+
+    let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut updated_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    for (rec, sym_id) in chunk {
+        if let PersistRecord::Predictor {
+            symbol: sym, timeframe: tf, time_ms: tms,
+            horizon_bars: hb, aspect: asp, calc_source: cs, predictor_id: pid,
+            score_norm: sn, value: val, value_low: vl, value_high: vh, side: sd,
+            level_hash: lh, level_kind: lk, level_price: lp, level_strength: ls, level_distance_atr: lda,
+            candle_is_final: fin, event_time_ms: etm, details_json: dj, prediction_key: pk,
+        } = rec
+        {
+            time.push(ms_to_ts(tms));
+            time_ms.push(tms);
+            symbol_id.push(sym_id);
+            symbol.push(sym.0);
+            tf_minutes.push(tf);
+
+            horizon_bars.push(hb);
+            aspect.push(asp);
+            calc_source.push(cs);
+            predictor_id.push(pid);
+
+            score_norm.push(sn);
+            value.push(val);
+            value_low.push(vl);
+            value_high.push(vh);
+            side.push(sd);
+
+            level_hash.push(lh);
+            level_kind.push(lk);
+            level_price.push(lp);
+            level_strength.push(ls);
+            level_distance_atr.push(lda);
+
+            candle_is_final.push(fin);
+            event_time_ms.push(etm);
+
+            if skip_json {
+                details_json.push(None);
+            } else {
+                details_json.push(dj.map(Json));
+            }
+
+            prediction_key.push(pk);
+
+            created_at.push(now);
+            updated_at.push(now);
+        }
+    }
+
+    let sql = match cfg.mode {
+        PersistMode::Realtime => predictors_sql_realtime(),
+        PersistMode::History => {
+            if cfg.history_upsert { predictors_sql_history_upsert() }
+            else { predictors_sql_history_append() }
+        }
+    };
+
+    sqlx::query(sql)
+        .bind(time)
+        .bind(time_ms)
+        .bind(symbol_id)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .bind(horizon_bars)
+        .bind(aspect)
+        .bind(calc_source)
+        .bind(predictor_id)
+        .bind(score_norm)
+        .bind(value)
+        .bind(value_low)
+        .bind(value_high)
+        .bind(side)
+        .bind(level_hash)
+        .bind(level_kind)
+        .bind(level_price)
+        .bind(level_strength)
+        .bind(level_distance_atr)
+        .bind(candle_is_final)
+        .bind(event_time_ms)
+        .bind(details_json)
+        .bind(prediction_key)
+        .bind(created_at)
+        .bind(updated_at)
+        .execute(pool)
+        .await?;
+
     Ok(())
 }
 
@@ -930,6 +1119,115 @@ fn wide_sql_history_append() -> &'static str {
 }
 
 fn wide_sql_history_upsert() -> &'static str {
-    // если надо повторно прогонять историю и “дозаписывать”
+    // если надо повторно прогонять историю и "дозаписывать"
     wide_sql_realtime()
+}
+
+/* --- SQL builders for predictors --- */
+
+fn predictors_sql_history_append() -> &'static str {
+    r#"
+    INSERT INTO trade.predictors (
+        time, time_ms, symbol_id, symbol, tf_minutes,
+        horizon_bars, aspect, calc_source, predictor_id,
+        score_norm, value, value_low, value_high, side,
+        level_hash, level_kind, level_price, level_strength, level_distance_atr,
+        candle_is_final, event_time_ms, details_json, prediction_key,
+        created_at, updated_at
+    )
+    SELECT * FROM UNNEST(
+        $1::timestamptz[],
+        $2::bigint[],
+        $3::bigint[],
+        $4::text[],
+        $5::int[],
+        $6::int[],
+        $7::smallint[],
+        $8::smallint[],
+        $9::bigint[],
+        $10::real[],
+        $11::double precision[],
+        $12::double precision[],
+        $13::double precision[],
+        $14::smallint[],
+        $15::text[],
+        $16::smallint[],
+        $17::double precision[],
+        $18::real[],
+        $19::real[],
+        $20::boolean[],
+        $21::bigint[],
+        $22::jsonb[],
+        $23::text[],
+        $24::timestamptz[],
+        $25::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time, prediction_key, predictor_id) DO NOTHING
+    "#
+}
+
+fn predictors_sql_history_upsert() -> &'static str {
+    r#"
+    INSERT INTO trade.predictors (
+        time, time_ms, symbol_id, symbol, tf_minutes,
+        horizon_bars, aspect, calc_source, predictor_id,
+        score_norm, value, value_low, value_high, side,
+        level_hash, level_kind, level_price, level_strength, level_distance_atr,
+        candle_is_final, event_time_ms, details_json, prediction_key,
+        created_at, updated_at
+    )
+    SELECT * FROM UNNEST(
+        $1::timestamptz[],
+        $2::bigint[],
+        $3::bigint[],
+        $4::text[],
+        $5::int[],
+        $6::int[],
+        $7::smallint[],
+        $8::smallint[],
+        $9::bigint[],
+        $10::real[],
+        $11::double precision[],
+        $12::double precision[],
+        $13::double precision[],
+        $14::smallint[],
+        $15::text[],
+        $16::smallint[],
+        $17::double precision[],
+        $18::real[],
+        $19::real[],
+        $20::boolean[],
+        $21::bigint[],
+        $22::jsonb[],
+        $23::text[],
+        $24::timestamptz[],
+        $25::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time, prediction_key, predictor_id)
+    DO UPDATE SET
+        time_ms = EXCLUDED.time_ms,
+        symbol = EXCLUDED.symbol,
+        horizon_bars = EXCLUDED.horizon_bars,
+        aspect = EXCLUDED.aspect,
+        calc_source = EXCLUDED.calc_source,
+        score_norm = EXCLUDED.score_norm,
+        value = EXCLUDED.value,
+        value_low = EXCLUDED.value_low,
+        value_high = EXCLUDED.value_high,
+        side = EXCLUDED.side,
+        level_hash = EXCLUDED.level_hash,
+        level_kind = EXCLUDED.level_kind,
+        level_price = EXCLUDED.level_price,
+        level_strength = EXCLUDED.level_strength,
+        level_distance_atr = EXCLUDED.level_distance_atr,
+        candle_is_final = EXCLUDED.candle_is_final,
+        event_time_ms = EXCLUDED.event_time_ms,
+        details_json = EXCLUDED.details_json,
+        updated_at = EXCLUDED.updated_at
+    "#
+}
+
+fn predictors_sql_realtime() -> &'static str {
+    // в realtime обычно нужен UPSERT (свеча может обновляться)
+    predictors_sql_history_upsert()
 }

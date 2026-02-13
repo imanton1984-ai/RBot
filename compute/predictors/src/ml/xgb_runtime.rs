@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::ffi::{CStr, CString};
 use std::ptr;
+use tracing::info; // <= add
 
 use super::xgb_sys::*;
 
@@ -63,24 +64,31 @@ impl Booster {
             let path = CString::new(model_path)?;
             check(XGBoosterLoadModel(h, path.as_ptr()))?;
 
-            // Современный способ: device = "cuda"/"cpu" (см c-api-demo)
-            // :contentReference[oaicite:4]{index=4} — этот параметр реально применяется.
             let (k, v) = match device {
                 Device::Cpu => ("device", "cpu"),
                 Device::Cuda => ("device", "cuda"),
             };
-            let k = CString::new(k)?;
-            let v = CString::new(v)?;
-            check(XGBoosterSetParam(h, k.as_ptr(), v.as_ptr()))?;
-
-            // Устанавливаем predictor для лучшей GPU оптимизации
             let (k2, v2) = match device {
                 Device::Cpu => ("predictor", "cpu_predictor"),
                 Device::Cuda => ("predictor", "gpu_predictor"),
             };
-            let k2 = CString::new(k2)?;
-            let v2 = CString::new(v2)?;
-            check(XGBoosterSetParam(h, k2.as_ptr(), v2.as_ptr()))?;
+
+            info!(
+                target: "compute_predictors",
+                "XGB Booster loaded: path={}, {}={}, {}={}",
+                model_path, k, v, k2, v2
+            );
+
+            // Современный способ: device = "cuda"/"cpu" (см c-api-demo)
+            // :contentReference[oaicite:4]{index=4} — этот параметр реально применяется.
+            let k_param = CString::new(k)?;
+            let v_param = CString::new(v)?;
+            check(XGBoosterSetParam(h, k_param.as_ptr(), v_param.as_ptr()))?;
+
+            // Устанавливаем predictor для лучшей GPU оптимизации
+            let k2_param = CString::new(k2)?;
+            let v2_param = CString::new(v2)?;
+            check(XGBoosterSetParam(h, k2_param.as_ptr(), v2_param.as_ptr()))?;
 
             // Разумно также задать nthread для CPU, но оставим внешней настройкой позже.
             Ok(Self { h })

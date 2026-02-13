@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use std::time::Instant;
+use tracing::{info, warn, debug}; // <= добавь debug
 
 use crate::feature_schema::FeatureSchema;
 
@@ -83,27 +84,70 @@ impl ModelManager {
             }
         }
 
+        info!(
+            target: "compute_predictors",
+            "ModelManager loaded models: cpu={}, gpu={} (enable_gpu={})",
+            self.models_cpu.len(),
+            self.models_gpu.len(),
+            enable_gpu
+        );
+
         Ok(())
     }
 
     /// Batch predict: inputs = row-major [nrow * ncol]
-    pub fn predict_batch(&self, key: &str, inputs: &[f32], nrow: usize, ncol: usize, use_gpu: bool) -> Result<Option<Vec<f32>>> {
-        let map = if use_gpu { &self.models_gpu } else { &self.models_cpu };
+    pub fn predict_batch(
+        &self,
+        key: &str,
+        inputs: &[f32],
+        nrow: usize,
+        ncol: usize,
+        use_gpu: bool
+    ) -> Result<Option<Vec<f32>>> {
+        let requested_gpu = use_gpu;
 
-        if let Some((booster, kind)) = map.get(key) {
-            // When booster is loaded with device="cuda", XGBoost will use GPU internally
-            // even when data comes from CPU memory
-            let out = booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
-            Ok(Some(out))
-        } else {
-            // Fallback to CPU if GPU model not available
-            if let Some((cpu_booster, kind)) = self.models_cpu.get(key) {
-                let out = cpu_booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
-                Ok(Some(out))
+        // decide actual model source
+        let (booster, kind, source) = if requested_gpu {
+            if let Some((b, k)) = self.models_gpu.get(key) {
+                (b, k, "gpu")
+            } else if let Some((b, k)) = self.models_cpu.get(key) {
+                // IMPORTANT: this is the silent fallback today
+                (b, k, "cpu_fallback")
             } else {
-                Ok(None)
+                return Ok(None);
             }
+        } else {
+            if let Some((b, k)) = self.models_cpu.get(key) {
+                (b, k, "cpu")
+            } else if let Some((b, k)) = self.models_gpu.get(key) {
+                // странно, но на всякий: если CPU модели нет, но GPU есть
+                (b, k, "gpu_only")
+            } else {
+                return Ok(None);
+            }
+        };
+
+        // timing
+        let t0 = Instant::now();
+        let out = booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
+        let ms = t0.elapsed().as_millis();
+
+        // log only if slow or debug enabled
+        if ms >= 30 {
+            warn!(
+                target: "compute_predictors",
+                "XGB predict slow: key={}, source={}, requested_gpu={}, nrow={}, ncol={}, ms={}",
+                key, source, requested_gpu, nrow, ncol, ms
+            );
+        } else {
+            debug!(
+                target: "compute_predictors",
+                "XGB predict: key={}, source={}, requested_gpu={}, nrow={}, ncol={}, ms={}",
+                key, source, requested_gpu, nrow, ncol, ms
+            );
         }
+
+        Ok(Some(out))
     }
 
     /// Single-row helper (realtime)

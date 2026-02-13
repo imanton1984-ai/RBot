@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS trade.predictors (
   candle_is_final   boolean     NOT NULL DEFAULT true,
   event_time_ms     bigint      NULL,
   created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
 
   -- for extensions (raw signals, features, explanations)
   details_json      jsonb       NULL,
