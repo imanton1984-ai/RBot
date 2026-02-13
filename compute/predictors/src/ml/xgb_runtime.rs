@@ -43,6 +43,11 @@ impl Drop for DMatrix {
 pub struct Booster {
     h: BoosterHandle,
 }
+
+// SAFETY: XGBoost handles are thread-safe and can be sent between threads
+unsafe impl Send for Booster {}
+unsafe impl Sync for Booster {}
+
 impl Drop for Booster {
     fn drop(&mut self) {
         unsafe { let _ = XGBoosterFree(self.h); }

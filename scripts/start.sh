@@ -550,19 +550,20 @@ if [[ "$need_build" -eq 1 ]]; then
     cargo build --release -p compute --bin compute_history --features cuda
     # Build realtime compute without CUDA features (for laptop fallback)
     cargo build --release -p compute --bin compute_realtime
+    # Build other required services
+    cargo build --release -p connections
+    cargo build --release -p ingestor
   else
     # Build history compute with CUDA features
     cargo build -p compute --bin compute_history --features cuda
     # Build realtime compute without CUDA features (for laptop fallback)
     cargo build -p compute --bin compute_realtime
+    # Build other required services
+    cargo build -p connections
+    cargo build -p ingestor
   fi
 
 
-  # Если хочешь ограничить сборку только нужными бинари (сильно ускоряет),
-  # можно выставить: CARGO_BUILD_CMD="cargo build --release --bin svc_a --bin svc_b"
-  log "+ ${C_BOLD}$CARGO_BUILD_CMD${C_RESET}"
-
-  run_with_pty "$CARGO_BUILD_CMD"
 
   rustc -V 2>/dev/null > "$TARGET_DIR/.rustc_version" || true
   ok "Build finished."

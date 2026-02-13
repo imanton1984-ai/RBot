@@ -1,0 +1,141 @@
+[2m2026-02-13T01:19:34.384331Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Starting database initialization process...
+[2m2026-02-13T01:19:34.390255Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Database connection test successful
+[2m2026-02-13T01:19:34.390274Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Initializing database schema...
+[2m2026-02-13T01:19:34.390281Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #0...
+[2m2026-02-13T01:19:34.395454Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "integration_test_data" already exists, skipping
+[2m2026-02-13T01:19:34.395756Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "cross_system_test" already exists, skipping
+[2m2026-02-13T01:19:34.397967Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_integration_test_timestamp" already exists, skipping
+[2m2026-02-13T01:19:34.398198Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_cross_system_test_timestamp" already exists, skipping
+[2m2026-02-13T01:19:34.398765Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_integration_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.398877Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_cross_system_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.398895Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #0
+[2m2026-02-13T01:19:34.398899Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #1...
+[2m2026-02-13T01:19:34.399165Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "timescaledb" already exists, skipping
+[2m2026-02-13T01:19:34.399227Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "pgcrypto" already exists, skipping
+[2m2026-02-13T01:19:34.399242Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T01:19:34.399306Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "trade" already exists, skipping
+[2m2026-02-13T01:19:34.399321Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "core" already exists, skipping
+[2m2026-02-13T01:19:34.399352Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #1
+[2m2026-02-13T01:19:34.399359Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #2...
+[2m2026-02-13T01:19:34.399670Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "pairs" already exists, skipping
+[2m2026-02-13T01:19:34.399997Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_pairs_active" already exists, skipping
+[2m2026-02-13T01:19:34.400246Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_pairs_volume" already exists, skipping
+[2m2026-02-13T01:19:34.400322Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "collected_candles" already exists, skipping
+[2m2026-02-13T01:19:34.400340Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #2
+[2m2026-02-13T01:19:34.400344Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #3...
+[2m2026-02-13T01:19:34.401011Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_1m" already exists, skipping
+[2m2026-02-13T01:19:34.401023Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_5m" already exists, skipping
+[2m2026-02-13T01:19:34.401027Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_15m" already exists, skipping
+[2m2026-02-13T01:19:34.401033Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_1h" already exists, skipping
+[2m2026-02-13T01:19:34.401080Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_4h" already exists, skipping
+[2m2026-02-13T01:19:34.401123Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_1d" already exists, skipping
+[2m2026-02-13T01:19:34.404349Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "candles_1m" is already a hypertable, skipping
+[2m2026-02-13T01:19:34.404364Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "candles_5m" is already a hypertable, skipping
+[2m2026-02-13T01:19:34.404370Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "candles_15m" is already a hypertable, skipping
+[2m2026-02-13T01:19:34.404376Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "candles_1h" is already a hypertable, skipping
+[2m2026-02-13T01:19:34.404383Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "candles_4h" is already a hypertable, skipping
+[2m2026-02-13T01:19:34.404389Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "candles_1d" is already a hypertable, skipping
+[2m2026-02-13T01:19:34.405276Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_1m_symbol_time_desc" already exists, skipping
+[2m2026-02-13T01:19:34.405471Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_5m_symbol_time_desc" already exists, skipping
+[2m2026-02-13T01:19:34.405667Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_15m_symbol_time_desc" already exists, skipping
+[2m2026-02-13T01:19:34.405865Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_1h_symbol_time_desc" already exists, skipping
+[2m2026-02-13T01:19:34.406034Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_4h_symbol_time_desc" already exists, skipping
+[2m2026-02-13T01:19:34.406235Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_1d_symbol_time_desc" already exists, skipping
+[2m2026-02-13T01:19:34.406269Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #3
+[2m2026-02-13T01:19:34.406279Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #4...
+[2m2026-02-13T01:19:34.406518Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T01:19:34.406595Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_live" already exists, skipping
+[2m2026-02-13T01:19:34.407144Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_live_tf_time_idx" already exists, skipping
+[2m2026-02-13T01:19:34.407271Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_live_symbol_tf_time_idx" already exists, skipping
+[2m2026-02-13T01:19:34.407314Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #4
+[2m2026-02-13T01:19:34.407321Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #5...
+[2m2026-02-13T01:19:34.407564Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "candles_staging" already exists, skipping
+[2m2026-02-13T01:19:34.407635Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "indicators_staging" already exists, skipping
+[2m2026-02-13T01:19:34.408011Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_staging_symbol_time" already exists, skipping
+[2m2026-02-13T01:19:34.408286Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_ind_staging_symbol_time" already exists, skipping
+[2m2026-02-13T01:19:34.408300Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #5
+[2m2026-02-13T01:19:34.408304Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #6...
+[2m2026-02-13T01:19:34.408590Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T01:19:34.408710Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "timescaledb" already exists, skipping
+[2m2026-02-13T01:19:34.414277Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m drop cascades to view market.indicators
+[2m2026-02-13T01:19:34.453806Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #6
+[2m2026-02-13T01:19:34.453835Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #7...
+[2m2026-02-13T01:19:34.454170Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m schema "market" already exists, skipping
+[2m2026-02-13T01:19:34.454238Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "timescaledb" already exists, skipping
+[2m2026-02-13T01:19:34.518057Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #7
+[2m2026-02-13T01:19:34.518078Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #8...
+[2m2026-02-13T01:19:34.527901Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_1m" already exists, skipping
+[2m2026-02-13T01:19:34.528275Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_5m" already exists, skipping
+[2m2026-02-13T01:19:34.528559Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_15m" already exists, skipping
+[2m2026-02-13T01:19:34.528852Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_1h" already exists, skipping
+[2m2026-02-13T01:19:34.529110Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_4h" already exists, skipping
+[2m2026-02-13T01:19:34.529376Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_1d" already exists, skipping
+[2m2026-02-13T01:19:34.529486Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "candles_live" already exists, skipping
+[2m2026-02-13T01:19:34.529807Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "indicators_wide" already exists, skipping
+[2m2026-02-13T01:19:34.530956Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "symbol" of relation "raw_signals" already exists, skipping
+[2m2026-02-13T01:19:34.540492Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_1m_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.540578Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_5m_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.540715Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_15m_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.540821Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_1h_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.540945Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_4h_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.541044Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_1d_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.541169Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_candles_live_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.541282Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_indicators_wide_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.541404Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_raw_signals_symbol" already exists, skipping
+[2m2026-02-13T01:19:34.541466Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #8
+[2m2026-02-13T01:19:34.541473Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #9...
+[2m2026-02-13T01:19:34.542487Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "final_signals" already exists, skipping
+[2m2026-02-13T01:19:34.542563Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "orders" already exists, skipping
+[2m2026-02-13T01:19:34.542611Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "positions" already exists, skipping
+[2m2026-02-13T01:19:34.542684Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "position_events" already exists, skipping
+[2m2026-02-13T01:19:34.542736Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ml_train_examples" already exists, skipping
+[2m2026-02-13T01:19:34.543045Z[0m [31mERROR[0m [2mdatabase_lib::init_db[0m[2m:[0m Error executing DDL file #9: error returned from database: trigger "trg_sync_final_signals" for relation "final_signals" already exists
+[2m2026-02-13T01:19:34.543056Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #10...
+[2m2026-02-13T01:19:34.551404Z[0m [31mERROR[0m [2mdatabase_lib::init_db[0m[2m:[0m Error executing DDL file #10: error returned from database: constraint "chk_final_tf" for relation "final_signals" already exists
+[2m2026-02-13T01:19:34.551417Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #11...
+[2m2026-02-13T01:19:34.556546Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_raw_signals_time_ms" already exists, skipping
+[2m2026-02-13T01:19:34.559399Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #11
+[2m2026-02-13T01:19:34.559416Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #12...
+[2m2026-02-13T01:19:34.559906Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "candles_1m", skipping
+[2m2026-02-13T01:19:34.560055Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "candles_5m", skipping
+[2m2026-02-13T01:19:34.560172Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "candles_15m", skipping
+[2m2026-02-13T01:19:34.560325Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "candles_1h", skipping
+[2m2026-02-13T01:19:34.560447Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "candles_4h", skipping
+[2m2026-02-13T01:19:34.560594Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "candles_1d", skipping
+[2m2026-02-13T01:19:34.560728Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "indicators_wide", skipping
+[2m2026-02-13T01:19:34.560927Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "raw_signals", skipping
+[2m2026-02-13T01:19:34.561041Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "final_signals", skipping
+[2m2026-02-13T01:19:34.561246Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m retention policy already exists for hypertable "ml_train_examples", skipping
+[2m2026-02-13T01:19:34.562562Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "candles_1m", skipping
+[2m2026-02-13T01:19:34.562660Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "candles_5m", skipping
+[2m2026-02-13T01:19:34.562815Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "candles_15m", skipping
+[2m2026-02-13T01:19:34.562953Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "candles_1h", skipping
+[2m2026-02-13T01:19:34.563022Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "candles_4h", skipping
+[2m2026-02-13T01:19:34.563119Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "candles_1d", skipping
+[2m2026-02-13T01:19:34.563413Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "indicators_wide"
+[2m2026-02-13T01:19:34.563466Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #12
+[2m2026-02-13T01:19:34.563474Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #13...
+[2m2026-02-13T01:19:34.566907Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #13
+[2m2026-02-13T01:19:34.566919Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #14...
+[2m2026-02-13T01:19:34.580675Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #14
+[2m2026-02-13T01:19:34.580690Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Executing DDL file #15...
+[2m2026-02-13T01:19:34.581104Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "predictor_registry" already exists, skipping
+[2m2026-02-13T01:19:34.581525Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_predictor_registry_active" already exists, skipping
+[2m2026-02-13T01:19:34.581575Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "predictors" already exists, skipping
+[2m2026-02-13T01:19:34.581886Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m table "predictors" is already a hypertable, skipping
+[2m2026-02-13T01:19:34.582304Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_predictors_symbol_tf_time" already exists, skipping
+[2m2026-02-13T01:19:34.583494Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_predictors_aspect_score_hi" already exists, skipping
+[2m2026-02-13T01:19:34.583639Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_predictors_level_hash" already exists, skipping
+[2m2026-02-13T01:19:34.583806Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_predictors_predictor_time" already exists, skipping
+[2m2026-02-13T01:19:34.583819Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Successfully executed DDL file #15
+[2m2026-02-13T01:19:34.583824Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Database schema initialization completed.
+[2m2026-02-13T01:19:34.586183Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Verified that integration_test_data table exists
+[2m2026-02-13T01:19:34.586194Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Inserting test data for integration verification...
+[2m2026-02-13T01:19:34.587780Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Test data insertion completed successfully
+[2m2026-02-13T01:19:34.587793Z[0m [32m INFO[0m [2mdatabase_lib::init_db[0m[2m:[0m Database initialization process completed successfully
+Processing historical data for timeframe: M1
+Processing historical data for timeframe: M5
+Processing historical data for timeframe: M15
+Processing historical data for timeframe: H1
+Processing historical data for timeframe: H4
+Processing historical data for timeframe: D1

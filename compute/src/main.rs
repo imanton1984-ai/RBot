@@ -334,7 +334,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !signals_to_persist.is_empty() {
                 println!(
                     "  Persisting {} raw signals for {} on {} (filtered from {} total)",
-                    signals_to_persistor.len(),
+                    signals_to_persist.len(),
                     feature_window.symbol,
                     feature_window.timeframe,
                     all_raw_signals_count

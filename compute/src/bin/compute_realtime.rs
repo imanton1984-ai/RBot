@@ -1,12 +1,9 @@
 use std::sync::Arc;
 use dotenvy::dotenv;
-use compute_lib::*;
 use database_lib;
 use common::{Symbol, Timeframe};
-use tokio::sync::broadcast;
-use rdkafka::{config::ClientConfig, consumer::{CommitMode, Consumer, StreamConsumer, DefaultConsumerContext}, message::Message, types::RDKafkaErrorCode, error::KafkaError};
 use sqlx::PgPool;
-use crate::compute_lib::{ComputeJob, FeatureWindow};
+use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBackendType, CandleWindowFetcher, ComputeConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -52,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run_realtime_consumer(
     job_scheduler: Arc<JobScheduler>,
-    db_pool: PgPool,
+    _db_pool: PgPool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use rdkafka::{
         config::ClientConfig,

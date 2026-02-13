@@ -5982,19 +5982,20 @@ if [[ "$need_build" -eq 1 ]]; then
     cargo build --release -p compute --bin compute_history --features cuda
     # Build realtime compute without CUDA features (for laptop fallback)
     cargo build --release -p compute --bin compute_realtime
+    # Build other required services
+    cargo build --release -p connections
+    cargo build --release -p ingestor
   else
     # Build history compute with CUDA features
     cargo build -p compute --bin compute_history --features cuda
     # Build realtime compute without CUDA features (for laptop fallback)
     cargo build -p compute --bin compute_realtime
+    # Build other required services
+    cargo build -p connections
+    cargo build -p ingestor
   fi
 
 
-  # Если хочешь ограничить сборку только нужными бинари (сильно ускоряет),
-  # можно выставить: CARGO_BUILD_CMD="cargo build --release --bin svc_a --bin svc_b"
-  log "+ ${C_BOLD}$CARGO_BUILD_CMD${C_RESET}"
-
-  run_with_pty "$CARGO_BUILD_CMD"
 
   rustc -V 2>/dev/null > "$TARGET_DIR/.rustc_version" || true
   ok "Build finished."
@@ -22756,6 +22757,11 @@ impl Drop for DMatrix {
 pub struct Booster {
     h: BoosterHandle,
 }
+
+// SAFETY: XGBoost handles are thread-safe and can be sent between threads
+unsafe impl Send for Booster {}
+unsafe impl Sync for Booster {}
+
 impl Drop for Booster {
     fn drop(&mut self) {
         unsafe { let _ = XGBoosterFree(self.h); }
@@ -24991,7 +24997,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !signals_to_persist.is_empty() {
                 println!(
                     "  Persisting {} raw signals for {} on {} (filtered from {} total)",
-                    signals_to_persistor.len(),
+                    signals_to_persist.len(),
                     feature_window.symbol,
                     feature_window.timeframe,
                     all_raw_signals_count
@@ -26185,13 +26191,10 @@ async fn fetch_active_symbols_from_db(
 
 use std::sync::Arc;
 use dotenvy::dotenv;
-use compute_lib::*;
 use database_lib;
 use common::{Symbol, Timeframe};
-use tokio::sync::broadcast;
-use rdkafka::{config::ClientConfig, consumer::{CommitMode, Consumer, StreamConsumer, DefaultConsumerContext}, message::Message, types::RDKafkaErrorCode, error::KafkaError};
 use sqlx::PgPool;
-use crate::compute_lib::{ComputeJob, FeatureWindow};
+use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBackendType, CandleWindowFetcher, ComputeConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26237,7 +26240,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run_realtime_consumer(
     job_scheduler: Arc<JobScheduler>,
-    db_pool: PgPool,
+    _db_pool: PgPool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use rdkafka::{
         config::ClientConfig,
