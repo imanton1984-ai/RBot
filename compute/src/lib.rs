@@ -22,6 +22,8 @@ pub use raw_signal_persistor::*;
 pub use raw_signal_processor::*;
 pub use raw_signal_types::*;
 
+pub mod result_processor;
 // Import the compute indicators and predictors from the separate crates
 pub use compute_indicators;
 pub use predictors;
+pub use result_processor::*;

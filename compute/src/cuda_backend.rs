@@ -73,8 +73,8 @@ impl CudaBackend {
         )?;
 
         // Download Raw Signals (Very small transfer compared to full indicators)
-        let raw_scores_host = device.dtoh_sync_copy(&raw_scores_dev)?;
-        let raw_sides_host = device.dtoh_sync_copy(&raw_sides_dev)?;
+        let _raw_scores_host = device.dtoh_sync_copy(&raw_scores_dev)?;
+        let _raw_sides_host = device.dtoh_sync_copy(&raw_sides_dev)?;
 
         // 3. Run ML models via XGBoost Booster with GPU acceleration
         let mut ml_results = Vec::new();

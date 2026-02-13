@@ -1,11 +1,14 @@
 use std::sync::Arc;
 use anyhow::{Context, Result};
-use common::{Symbol, Timeframe};
-use compute_lib::*;
+use common::{Symbol, Timeframe, MessageBus};
+use compute_lib::{*, IndicatorPersistor, RawSignalPersistor, RawSignalProcessor, ResultProcessor};
 use database_lib;
 use dotenvy::dotenv;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
+use raw_signals::thresholds::SignalConfig;
+use compute_lib::predictors::config::PredictorsConfig;
+use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -41,19 +44,85 @@ async fn main() -> Result<()> {
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
 
-    let (job_scheduler, _result_receiver) = JobScheduler::new(
-        compute_backend,
-        config.clone(),
-        candle_fetcher.clone(),
-    );
-    let job_scheduler = Arc::new(job_scheduler);
-
     // Set environment for history mode
     std::env::set_var("DB_PERSIST_MODE", "history");
     std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); // Large chunks for history
     std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); // Slower flushing for history
     std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); // Skip heavy JSON for history
     std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); // Append mode for history
+
+    // Initialize DB Persistor (HISTORY Mode)
+    let bulk_persistor = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(
+        database_lib::bulk_persistor::PersistMode::History
+    ).await?;
+    let bulk_sender = bulk_persistor.sender();
+
+    // Initialize Indicator & RawSignal Persistors
+    let (indicator_persistor, _ind_tx) = IndicatorPersistor::new(bulk_sender.clone());
+    let raw_signal_persistor = RawSignalPersistor::new(bulk_sender.clone());
+    
+    // Raw Signal Processor
+    let raw_cfg = SignalConfig {
+        enable_filtering: true,
+        min_interesting_score: 0.60, // Can be configured via env
+        ..Default::default()
+    };
+    let raw_processor = Arc::new(RawSignalProcessor::new(raw_cfg));
+
+    let (job_scheduler, result_receiver) = JobScheduler::new(
+        compute_backend,
+        config.clone(),
+        candle_fetcher.clone(),
+    );
+    let job_scheduler = Arc::new(job_scheduler);
+
+    // Predictors Pipeline (XGBoost)
+    let message_bus = MessageBus::new_from_env()?;
+    let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
+    
+    let pred_config = PredictorsConfig {
+        enabled: true,
+        horizon_bars: 10,
+        min_store_score: 0.60,
+        min_final_score: 0.70,
+        prefer_ml: true,
+        max_levels_per_side: 2,
+        use_cuda: config.use_cuda,
+        use_gpu_history: config.use_cuda, // Important for batch processing
+        use_gpu_realtime: false,
+        model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
+        model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
+        ml_batch_size: 4096,
+    };
+
+    let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
+    
+    let mut predictors_pipeline = PredictorsPipeline::new(
+        pred_config,
+        db_pool.clone(),
+        message_bus,
+        shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
+    );
+    predictors_pipeline.set_input_receiver(feature_rx);
+
+    // Spawn Predictors Pipeline
+    tokio::spawn(async move {
+        if let Err(e) = predictors_pipeline.run().await {
+            tracing::error!(target: "compute_predictors", "Predictors pipeline error: {}", e);
+        }
+    });
+
+    // Spawn Result Processor (The missing link!)
+    let result_processor = ResultProcessor::new(
+        Arc::new(indicator_persistor),
+        Arc::new(raw_signal_persistor),
+        raw_processor,
+        feature_tx,
+    );
+    
+    tokio::spawn(async move {
+        result_processor.run(result_receiver).await;
+    });
 
     // 1) получаем список активных пар из БД (market.pairs)
     let symbols = fetch_active_symbols_from_db(&db_pool).await?;
