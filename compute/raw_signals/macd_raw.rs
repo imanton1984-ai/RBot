@@ -1,11 +1,16 @@
 use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
-use crate::scoring::{normalize_indicator_to_score, sigmoid_normalize};
+use crate::scoring::{normalize_indicator_to_score_with_price, sigmoid_normalize};
 use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
-/// Calculate MACD raw signals based on MACD line values
+/// Calculate MACD raw signals based on MACD line values.
+///
+/// `close_prices` is used to normalize MACD as a permille (‰) of the current price,
+/// making scores comparable across assets with vastly different price scales
+/// (e.g. BTC MACD ≈ 500 vs DOGE MACD ≈ 0.0001).
 pub fn calculate_macd_raw_signals(
     macd_line: &[f64],
+    close_prices: &[f64],
     timestamps: &[i64],
     symbols: &[Symbol],
     timeframes: &[Timeframe],
@@ -14,7 +19,7 @@ pub fn calculate_macd_raw_signals(
     let mut signals = Vec::new();
     
     for i in 0..macd_line.len() {
-        if i >= timestamps.len() || i >= symbols.len() || i >= timeframes.len() {
+        if i >= timestamps.len() || i >= symbols.len() || i >= timeframes.len() || i >= close_prices.len() {
             break;
         }
         
@@ -24,8 +29,8 @@ pub fn calculate_macd_raw_signals(
             continue;
         }
         
-        // Normalize MACD value to score [0, 1]
-        let score = normalize_indicator_to_score(raw_value, "macd");
+        // Normalize MACD relative to close price for cross-asset comparability
+        let score = normalize_indicator_to_score_with_price(raw_value, "macd", close_prices[i]);
         let side = if raw_value > 0.0 { 1 } else { -1 };
         
         // Create raw signal
@@ -110,9 +115,12 @@ pub fn calculate_macd_crossover_signals(
     signals
 }
 
-/// Calculate MACD histogram-based signals
+/// Calculate MACD histogram-based signals.
+///
+/// `close_prices` is used for price-relative normalization of histogram values.
 pub fn calculate_macd_histogram_signals(
     histogram: &[f64],
+    close_prices: &[f64],
     timestamps: &[i64],
     symbols: &[Symbol],
     timeframes: &[Timeframe],
@@ -121,7 +129,7 @@ pub fn calculate_macd_histogram_signals(
     let mut signals = Vec::new();
     
     for i in 0..histogram.len() {
-        if i >= timestamps.len() || i >= symbols.len() || i >= timeframes.len() {
+        if i >= timestamps.len() || i >= symbols.len() || i >= timeframes.len() || i >= close_prices.len() {
             break;
         }
         
@@ -131,9 +139,8 @@ pub fn calculate_macd_histogram_signals(
             continue;
         }
         
-        // Use absolute value of histogram for signal strength
-        let abs_histogram = raw_value.abs();
-        let score = normalize_histogram_score(abs_histogram);
+        // Normalize histogram relative to close price (same logic as MACD line)
+        let score = normalize_indicator_to_score_with_price(raw_value, "macd", close_prices[i]);
         let side = if raw_value > 0.0 { 1 } else { -1 };
 
         // Create raw signal for histogram
@@ -229,15 +236,6 @@ fn normalize_crossover_score(cross_strength: f64) -> f64 {
     let normalized = (cross_strength / 2.0).min(1.0);
     
     // Apply sigmoid to emphasize strong crossovers
-    sigmoid_normalize(normalized, 0.2, 5.0)
-}
-
-/// Helper function to normalize histogram score
-fn normalize_histogram_score(histogram_value: f64) -> f64 {
-    // Normalize assuming max meaningful histogram value is 2 units
-    let normalized = (histogram_value / 2.0).min(1.0);
-    
-    // Apply sigmoid to emphasize strong histogram values
     sigmoid_normalize(normalized, 0.2, 5.0)
 }
 

@@ -114,17 +114,20 @@ impl ConsensusEngine {
         &self,
         hard_pred: &PredictionRow,
         ml_pred: &PredictionRow,
-        _feature_view: &FeatureView,
+        feature_view: &FeatureView,
     ) -> Result<Option<PredictionRow>> {
         
         let hc_pred_score = hard_pred.score_norm as f64;
         let ml_pred_score = ml_pred.score_norm as f64;
 
-        // TODO: ml_trust should come from calibration_json (metrics from the DB)
-        let ml_trust = 0.5; // Placeholder
+        // Dynamic weights based on market conditions (replaces hardcoded ml_trust = 0.5)
+        let mut w_hc = self.calculate_hardcode_weight(feature_view, hard_pred);
+        let mut w_ml = self.calculate_ml_weight(feature_view, ml_pred);
 
-        let w_ml = ml_trust as f64;
-        let w_hc = 1.0 - w_ml;
+        // Normalize so weights sum to 1.0
+        let total = w_hc + w_ml;
+        w_hc /= total;
+        w_ml /= total;
         
         // Smooth gate: if the hardcore predictor is confident, it "opens the way" for ML
         let gate = 1.0 / (1.0 + f64::exp(-10.0 * (hc_pred_score.abs() - 0.5)));
@@ -140,6 +143,8 @@ impl ConsensusEngine {
             if let serde_json::Value::Object(ref mut obj) = details {
                 obj.insert("consensus_applied".to_string(), serde_json::Value::Bool(true));
                 obj.insert("gate_value".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(gate).unwrap()));
+                obj.insert("w_hc".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(w_hc).unwrap()));
+                obj.insert("w_ml".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(w_ml).unwrap()));
                 obj.insert("original_ml_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(ml_pred_score).unwrap()));
                 obj.insert("original_hard_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(hc_pred_score).unwrap()));
                 obj.insert("fused_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(fused_score).unwrap()));
@@ -148,6 +153,8 @@ impl ConsensusEngine {
             fused_pred.details_json = Some(serde_json::json!({
                 "consensus_applied": true,
                 "gate_value": gate,
+                "w_hc": w_hc,
+                "w_ml": w_ml,
                 "original_ml_score": ml_pred_score,
                 "original_hard_score": hc_pred_score,
                 "fused_score": fused_score,
@@ -158,7 +165,6 @@ impl ConsensusEngine {
     }
 
     /// Calculates weight for hardcode prediction based on market conditions
-    #[allow(dead_code)]
     fn calculate_hardcode_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
         // Calculate weight based on how well the market conditions align with hardcode assumptions
         let mut weight: f64 = 1.0;
@@ -192,7 +198,6 @@ impl ConsensusEngine {
     }
 
     /// Calculates weight for ML prediction based on market conditions
-    #[allow(dead_code)]
     fn calculate_ml_weight(&self, feature_view: &FeatureView, _pred: &PredictionRow) -> f64 {
         // Calculate weight based on how well the market conditions align with ML training data
         let mut weight: f64 = 1.0;
@@ -218,7 +223,6 @@ impl ConsensusEngine {
     }
 
     /// Calculates how aligned oscillators are with each other
-    #[allow(dead_code)]
     fn calculate_oscillator_alignment(&self, feature_view: &FeatureView) -> f64 {
         let mut alignment_score = 0.0;
         let mut count = 0;
@@ -256,7 +260,6 @@ impl ConsensusEngine {
     }
 
     /// Calculates market regime stability
-    #[allow(dead_code)]
     fn calculate_regime_stability(&self, feature_view: &FeatureView) -> f64 {
         let mut stability_score = 0.0;
         let mut count = 0;

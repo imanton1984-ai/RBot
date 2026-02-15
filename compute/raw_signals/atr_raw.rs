@@ -1,11 +1,16 @@
 use crate::thresholds::{RawSignal, RawSignalType, SignalConfig, SignalKind};
-use crate::scoring::{normalize_indicator_to_score, sigmoid_normalize};
+use crate::scoring::{normalize_indicator_to_score_with_price, sigmoid_normalize};
 use common::{Symbol, Timeframe};
 use std::vec::Vec;
 
-/// Calculate ATR-based raw signals
+/// Calculate ATR-based raw signals.
+///
+/// `close_prices` is used to normalize ATR as a percentage of the current price,
+/// making scores comparable across assets with vastly different price scales
+/// (e.g. BTC ≈ 60 000 USD vs DOGE ≈ 0.10 USD).
 pub fn calculate_atr_raw_signals(
     atr_values: &[f64],
+    close_prices: &[f64],
     timestamps: &[i64],
     symbols: &[Symbol],
     timeframes: &[Timeframe],
@@ -14,7 +19,7 @@ pub fn calculate_atr_raw_signals(
     let mut signals = Vec::new();
     
     for i in 0..atr_values.len() {
-        if i >= timestamps.len() || i >= symbols.len() || i >= timeframes.len() {
+        if i >= timestamps.len() || i >= symbols.len() || i >= timeframes.len() || i >= close_prices.len() {
             break;
         }
         
@@ -24,8 +29,8 @@ pub fn calculate_atr_raw_signals(
             continue;
         }
         
-        // Normalize ATR value to score [0, 1]
-        let score = normalize_indicator_to_score(raw_value, "atr");
+        // Normalize ATR relative to close price for cross-asset comparability
+        let score = normalize_indicator_to_score_with_price(raw_value, "atr", close_prices[i]);
         
         // Create raw signal
         let signal = RawSignal::new(

@@ -141,6 +141,119 @@ impl TradeSignalCalculator {
         Self { min_final_score, ..Default::default() }
     }
 
+    /// Level-aware TP/SL calculation.
+    ///
+    /// For **LONG** (`side = +1`):
+    /// - SL  = nearest support below entry − 0.3 × ATR
+    /// - TP1 = nearest resistance above entry
+    /// - TP2 = next resistance above TP1
+    /// - TP3 = max(ATR-based, next resistance above TP2)
+    ///
+    /// For **SHORT** (`side = -1`):
+    /// - SL  = nearest resistance above entry + 0.3 × ATR
+    /// - TP1 = nearest support below entry
+    /// - TP2 = next support below TP1
+    /// - TP3 = min(ATR-based, next support below TP2)
+    ///
+    /// Falls back to fully ATR-based targets when insufficient levels exist.
+    /// Minimum distances from `tf_targets` are always enforced.
+    #[allow(clippy::too_many_arguments)]
+    fn level_aware_targets(
+        &self,
+        entry_price: f64,
+        side: i8,       // +1 long, -1 short
+        atr: f64,
+        support_levels: &[f64],    // sorted ascending
+        resistance_levels: &[f64], // sorted ascending
+        tf_targets: &TfTargets,
+    ) -> (f64, f64, f64, f64) {
+        let side_f = side as f64;
+
+        // ATR-based fallbacks
+        let fb_sl  = entry_price - side_f * self.sl_atr_mult  * atr;
+        let fb_tp1 = entry_price + side_f * self.tp1_atr_mult * atr;
+        let fb_tp2 = entry_price + side_f * self.tp2_atr_mult * atr;
+        let fb_tp3 = entry_price + side_f * self.tp3_atr_mult * atr;
+
+        let (stop_loss, tp1, tp2, tp3) = if side > 0 {
+            // ── LONG ───────────────────────────────────────────────────
+            // SL: nearest support *below* entry − 0.3 ATR
+            let sl = support_levels
+                .iter()
+                .rev() // descending
+                .find(|&&p| p < entry_price)
+                .map(|&p| p - 0.3 * atr)
+                .unwrap_or(fb_sl);
+
+            // TP1: nearest resistance *above* entry
+            let mut res_iter = resistance_levels.iter().filter(|&&p| p > entry_price);
+            let t1 = res_iter.next().copied().unwrap_or(fb_tp1);
+            let t2 = res_iter.next().copied().unwrap_or(fb_tp2);
+            let t3_level = res_iter.next().copied();
+            let t3 = match t3_level {
+                Some(lv) => lv.max(fb_tp3),
+                None => fb_tp3,
+            };
+
+            (sl, t1, t2, t3)
+        } else {
+            // ── SHORT ──────────────────────────────────────────────────
+            // SL: nearest resistance *above* entry + 0.3 ATR
+            let sl = resistance_levels
+                .iter()
+                .find(|&&p| p > entry_price)
+                .map(|&p| p + 0.3 * atr)
+                .unwrap_or(fb_sl);
+
+            // TP1: nearest support *below* entry (descending order)
+            let mut sup_iter = support_levels.iter().rev().filter(|&&p| p < entry_price);
+            let t1 = sup_iter.next().copied().unwrap_or(fb_tp1);
+            let t2 = sup_iter.next().copied().unwrap_or(fb_tp2);
+            let t3_level = sup_iter.next().copied();
+            let t3 = match t3_level {
+                Some(lv) => lv.min(fb_tp3),
+                None => fb_tp3,
+            };
+
+            (sl, t1, t2, t3)
+        };
+
+        // ── Enforce minimum distances from TfTargets ───────────────────
+        let d_sl_min  = entry_price * tf_targets.min_sl_pct;
+        let d_tp1_min = entry_price * tf_targets.min_tp1_pct;
+        let d_tp2_min = entry_price * tf_targets.min_tp2_pct;
+        let d_tp3_min = entry_price * tf_targets.min_tp3_pct;
+
+        let enforce_min = |raw: f64, min_delta: f64, is_tp: bool| -> f64 {
+            let actual_delta = (raw - entry_price).abs();
+            if actual_delta >= min_delta {
+                raw
+            } else if is_tp {
+                entry_price + side_f * min_delta
+            } else {
+                // SL is on the opposite side
+                entry_price - side_f * min_delta
+            }
+        };
+
+        let stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        let mut tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+        let mut tp2 = enforce_min(tp2, d_tp2_min, true).max(0.0);
+        let mut tp3 = enforce_min(tp3, d_tp3_min, true).max(0.0);
+
+        // Enforce strict monotonic ordering for TPs
+        let gap = entry_price * self.min_tp_gap_pct;
+        if side > 0 {
+            if tp2 <= tp1 { tp2 = tp1 + gap; }
+            if tp3 <= tp2 { tp3 = tp2 + gap; }
+        } else {
+            if tp2 >= tp1 { tp2 = tp1 - gap; }
+            if tp3 >= tp2 { tp3 = tp2 - gap; }
+        }
+
+        (stop_loss, tp1, tp2, tp3)
+    }
+
     pub async fn build_trade_signal(
         &self,
         pool: &PgPool,
@@ -206,40 +319,72 @@ impl TradeSignalCalculator {
 
         let side_f = side as f64;
 
-        // 1) ATR-based deltas
-        let d_sl_atr  = self.sl_atr_mult  * atr;
-        let d_tp1_atr = self.tp1_atr_mult * atr;
-        let mut d_tp2_atr = self.tp2_atr_mult * atr;
-        let mut d_tp3_atr = self.tp3_atr_mult * atr;
+        // ── Try level-aware TP/SL first ────────────────────────────────
+        let (mut support_prices, mut resistance_prices) =
+            extract_sr_levels_from_summary(raw_signals_summary);
 
-        // 2) TF minimum deltas from percent
-        let d_sl_min  = entry_price * targets.min_sl_pct;
-        let d_tp1_min = entry_price * targets.min_tp1_pct;
-        let d_tp2_min = entry_price * targets.min_tp2_pct;
-        let d_tp3_min = entry_price * targets.min_tp3_pct;
+        // Also extract level prices from predictors (LevelBounce / LevelBreakout rows)
+        for p in predictors {
+            if let Some(lp) = p.level_price {
+                if lp <= 0.0 { continue; }
+                match p.level_kind {
+                    Some(1) => support_prices.push(lp),     // Support
+                    Some(2) => resistance_prices.push(lp),   // Resistance
+                    _ => {}
+                }
+            }
+        }
 
-        // 3) Different boosts for each TP
-        let s = breakdown.final_score.clamp(0.0, 1.0);
-        let boost_tp1 = (0.98 + 0.10 * s).clamp(0.98, 1.08);
-        let boost_tp2 = (0.98 + 0.22 * s).clamp(1.00, 1.20);
-        let boost_tp3 = (0.98 + 0.38 * s).clamp(1.05, 1.35);
+        support_prices.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        support_prices.dedup();
+        resistance_prices.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        resistance_prices.dedup();
 
-        // 4) Final deltas: max(ATR, min_pct) + boost
-        let d_sl  = d_sl_atr.max(d_sl_min);
-        let mut d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
-        let mut d_tp2 = (d_tp2_atr.max(d_tp2_min)) * boost_tp2;
-        let mut d_tp3 = (d_tp3_atr.max(d_tp3_min)) * boost_tp3;
+        let has_levels = !support_prices.is_empty() || !resistance_prices.is_empty();
 
-        // 5) Enforce spacing
-        let gap = entry_price * self.min_tp_gap_pct;
-        d_tp2 = d_tp2.max(d_tp1 * self.tp2_ratio_min).max(d_tp1 + gap);
-        d_tp3 = d_tp3.max(d_tp2 * self.tp3_ratio_min).max(d_tp2 + gap);
+        let (stop_loss, tp1, tp2, tp3) = if has_levels {
+            // ── Level-aware path ───────────────────────────────────────
+            self.level_aware_targets(
+                entry_price,
+                side,
+                atr,
+                &support_prices,
+                &resistance_prices,
+                &targets,
+            )
+        } else {
+            // ── Original ATR-only path ─────────────────────────────────
+            let d_sl_atr  = self.sl_atr_mult  * atr;
+            let d_tp1_atr = self.tp1_atr_mult * atr;
+            let d_tp2_atr = self.tp2_atr_mult * atr;
+            let d_tp3_atr = self.tp3_atr_mult * atr;
 
-        // 6) Build prices
-        let stop_loss = (entry_price - side_f * d_sl).max(0.0);
-        let tp1 = (entry_price + side_f * d_tp1).max(0.0);
-        let tp2 = (entry_price + side_f * d_tp2).max(0.0);
-        let tp3 = (entry_price + side_f * d_tp3).max(0.0);
+            let d_sl_min  = entry_price * targets.min_sl_pct;
+            let d_tp1_min = entry_price * targets.min_tp1_pct;
+            let d_tp2_min = entry_price * targets.min_tp2_pct;
+            let d_tp3_min = entry_price * targets.min_tp3_pct;
+
+            let s = breakdown.final_score.clamp(0.0, 1.0);
+            let boost_tp1 = (0.98 + 0.10 * s).clamp(0.98, 1.08);
+            let boost_tp2 = (0.98 + 0.22 * s).clamp(1.00, 1.20);
+            let boost_tp3 = (0.98 + 0.38 * s).clamp(1.05, 1.35);
+
+            let d_sl  = d_sl_atr.max(d_sl_min);
+            let mut d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
+            let mut d_tp2 = (d_tp2_atr.max(d_tp2_min)) * boost_tp2;
+            let mut d_tp3 = (d_tp3_atr.max(d_tp3_min)) * boost_tp3;
+
+            let gap = entry_price * self.min_tp_gap_pct;
+            d_tp2 = d_tp2.max(d_tp1 * self.tp2_ratio_min).max(d_tp1 + gap);
+            d_tp3 = d_tp3.max(d_tp2 * self.tp3_ratio_min).max(d_tp2 + gap);
+
+            let stop_loss = (entry_price - side_f * d_sl).max(0.0);
+            let tp1 = (entry_price + side_f * d_tp1).max(0.0);
+            let tp2 = (entry_price + side_f * d_tp2).max(0.0);
+            let tp3 = (entry_price + side_f * d_tp3).max(0.0);
+
+            (stop_loss, tp1, tp2, tp3)
+        };
 
         // Leverage = base * market_factor * score_factor
         let market_factor = market_params
@@ -264,6 +409,9 @@ impl TradeSignalCalculator {
             "market_factor": market_factor,
             "score_factor": score_factor,
             "atr": atr,
+            "level_aware": has_levels,
+            "support_levels_used": support_prices,
+            "resistance_levels_used": resistance_prices,
             "market_params": market_params.map(|m| m.details_json.clone()),
             "debug": breakdown.debug,
         });
@@ -342,4 +490,38 @@ async fn fetch_last_atr(pool: &PgPool, symbol_id: i64, tf_minutes: i16) -> Resul
     .with_context(|| format!("fetch_last_atr sym_id={} tf={}", symbol_id, tf_minutes))?;
 
     Ok(row.and_then(|r| r.try_get::<Option<f64>, _>("atr").ok()).flatten())
+}
+
+/// Extracts support and resistance level prices from `raw_signals_summary` JSON.
+///
+/// Looks for the SRLLevels-style keys (`strong_support`, `mid_support`, …)
+/// and returns two sorted-ascending vectors: (supports, resistances).
+fn extract_sr_levels_from_summary(raw_signals_summary: &Value) -> (Vec<f64>, Vec<f64>) {
+    let mut supports = Vec::new();
+    let mut resistances = Vec::new();
+
+    // Try nested "sr_levels" object first
+    let sr = raw_signals_summary
+        .get("sr_levels")
+        .unwrap_or(raw_signals_summary);
+
+    for key in ["strong_support", "mid_support", "light_support"] {
+        if let Some(p) = sr.get(key).and_then(|v| v.as_f64()) {
+            if p.is_finite() && p > 0.0 {
+                supports.push(p);
+            }
+        }
+    }
+    for key in ["strong_resistance", "mid_resistance", "light_resistance"] {
+        if let Some(p) = sr.get(key).and_then(|v| v.as_f64()) {
+            if p.is_finite() && p > 0.0 {
+                resistances.push(p);
+            }
+        }
+    }
+
+    supports.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    resistances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    (supports, resistances)
 }

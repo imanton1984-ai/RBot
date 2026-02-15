@@ -623,7 +623,7 @@ impl PredictorsPipeline {
                         if !sr_levels.is_empty() {
                             // Extract level info (hash, kind, price, strength, distance_atr)
                             // to avoid lifetime issues with LevelView
-                            let level_info_from_view: Option<(String, i16, f64, f32, f32)> = match LevelView::new(sr_levels.clone(), view_close, atr, view.timestamp, view.symbol.clone(), view.timeframe.clone(), 2) {
+                            let level_info_from_view: Option<(String, i16, f64, f32, f32)> = match LevelView::new(sr_levels.clone(), view_close, atr, view.timestamp, view.symbol.clone(), view.timeframe.clone(), 2, None) {
                                 Ok(level_view) => {
                                     level_view.get_near_levels().first().map(|level| {
                                         (level.level_hash.clone(), level.level_kind.as_i16(), level.level_price, level.level_strength, level.distance_atr)

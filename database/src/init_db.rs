@@ -47,13 +47,28 @@ impl DatabaseInitializer {
         for (index, ddl_content) in ddl_files.iter().enumerate() {
             info!("Executing DDL file #{}...", index);
             if !ddl_content.trim().is_empty() {
-                match sqlx::raw_sql(ddl_content).execute(&self.pool).await {
+                // Execute each DDL file in its own transaction to prevent
+                // "current transaction is aborted" cascading failures.
+                // If one DDL fails (e.g., hypertable already exists), the next
+                // DDL file starts fresh on a clean connection.
+                let mut tx = self.pool.begin().await.map_err(|e| {
+                    error!("Failed to begin transaction for DDL #{}: {}", index, e);
+                    e
+                })?;
+                
+                match sqlx::raw_sql(ddl_content).execute(&mut *tx).await {
                     Ok(_) => {
-                        info!("Successfully executed DDL file #{}", index);
+                        if let Err(e) = tx.commit().await {
+                            error!("Failed to commit DDL file #{}: {}", index, e);
+                        } else {
+                            info!("Successfully executed DDL file #{}", index);
+                        }
                     },
                     Err(e) => {
-                        error!("Error executing DDL file #{}: {}", index, e);
-                        // Continue with other files instead of failing completely
+                        warn!("DDL file #{} error (may be safe to ignore if objects already exist): {}", index, e);
+                        // Rollback the failed transaction to reset the connection state
+                        let _ = tx.rollback().await;
+                        // Continue with other files
                         continue;
                     }
                 }

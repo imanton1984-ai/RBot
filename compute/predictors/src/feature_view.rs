@@ -3,6 +3,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::level_view::LevelView;
 
 /// Represents a normalized feature vector for both hardcode and ML predictors
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,7 +149,99 @@ impl FeatureView {
             self.custom_features.insert("volume_ratio".to_string(), volume_ratio);
         }
     }
-    
+
+    /// Computes level-related features from the SR levels embedded in this view.
+    ///
+    /// Returns a map with keys such as:
+    /// - `distance_to_nearest_support_in_atr`
+    /// - `distance_to_nearest_resistance_in_atr`
+    /// - `ema_stack_direction` (1.0 bullish / -1.0 bearish / 0.0 mixed)
+    /// - `nearest_level_touch_count`
+    /// - `nearest_level_strength`
+    pub fn compute_level_features(&self) -> HashMap<String, f64> {
+        let mut out = HashMap::new();
+
+        let close = self.indicators.close as f64;
+        let atr = self.indicators.atr as f64;
+
+        // ── EMA stack direction ────────────────────────────────────────
+        let ema20 = self.indicators.ema_20 as f64;
+        let ema50 = self.indicators.ema_50 as f64;
+        let ema200 = self.indicators.ema_200 as f64;
+
+        let ema_stack = if ema20 > ema50 && ema50 > ema200 {
+            1.0
+        } else if ema20 < ema50 && ema50 < ema200 {
+            -1.0
+        } else {
+            0.0
+        };
+        out.insert("ema_stack_direction".to_string(), ema_stack);
+
+        // ── Level features ─────────────────────────────────────────────
+        let sr_levels = match self.get_sr_levels() {
+            Ok(l) => l,
+            Err(_) => return out,
+        };
+        if sr_levels.is_empty() || atr <= 0.0 {
+            return out;
+        }
+
+        let level_view = match LevelView::new(
+            sr_levels,
+            close,
+            atr,
+            self.timestamp,
+            self.symbol.clone(),
+            self.timeframe.clone(),
+            5, // generous limit
+            None,
+        ) {
+            Ok(lv) => lv,
+            Err(_) => return out,
+        };
+
+        // Nearest support (below current price)
+        if let Some(sup) = level_view
+            .get_levels_by_kind(SrLevelKind::Support)
+            .into_iter()
+            .filter(|l| l.level_price <= close)
+            .min_by(|a, b| a.distance_atr.partial_cmp(&b.distance_atr).unwrap())
+        {
+            out.insert(
+                "distance_to_nearest_support_in_atr".to_string(),
+                sup.distance_atr as f64,
+            );
+        }
+
+        // Nearest resistance (above current price)
+        if let Some(res) = level_view
+            .get_levels_by_kind(SrLevelKind::Resistance)
+            .into_iter()
+            .filter(|l| l.level_price >= close)
+            .min_by(|a, b| a.distance_atr.partial_cmp(&b.distance_atr).unwrap())
+        {
+            out.insert(
+                "distance_to_nearest_resistance_in_atr".to_string(),
+                res.distance_atr as f64,
+            );
+        }
+
+        // Overall nearest level (any kind) for touch_count & strength
+        if let Some(nearest) = level_view.levels.first() {
+            out.insert(
+                "nearest_level_touch_count".to_string(),
+                nearest.touch_count as f64,
+            );
+            out.insert(
+                "nearest_level_strength".to_string(),
+                nearest.level_strength as f64,
+            );
+        }
+
+        out
+    }
+
     /// Converts the feature view to a normalized feature vector suitable for ML models
     pub fn to_feature_vector(&self) -> FeatureVector {
         let mut features = Vec::new();

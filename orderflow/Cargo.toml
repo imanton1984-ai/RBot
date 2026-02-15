@@ -1,0 +1,19 @@
+[package]
+name = "orderflow"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "orderflow_lib"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tokio-postgres = { workspace = true }
+futures = { workspace = true }

@@ -66,7 +66,7 @@ impl RawSignalProcessor {
         );
 
         raw_signals.extend(
-            raw_signals::atr_raw::calculate_atr_raw_signals(atr, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::atr_raw::calculate_atr_raw_signals(atr, &cw.close, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );
@@ -109,7 +109,7 @@ impl RawSignalProcessor {
         );
 
         raw_signals.extend(
-            raw_signals::macd_raw::calculate_macd_raw_signals(macd_hist, timestamps, &symbols, &timeframes, &self.config)
+            raw_signals::macd_raw::calculate_macd_raw_signals(macd_hist, &cw.close, timestamps, &symbols, &timeframes, &self.config)
                 .into_iter()
                 .map(|s| self.convert_raw_signal(s)),
         );

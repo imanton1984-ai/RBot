@@ -8,7 +8,7 @@ members = [
   "compute",          # <-- модуль вычислений индикаторов
   "cuda",             # <-- модуль CUDA вычислений
   "compute/predictors", # <-- модуль предсказаний
-
+  "orderflow",        # <-- модуль order flow метрик
 ]
 resolver = "2"
 

@@ -31,6 +31,7 @@ impl LevelPredictorHeuristic {
             symbol.to_string(),
             timeframe.to_string(),
             2,
+            None, // No candle context available at this level
         )?;
 
         // ⬇️ ВАЖНО: если near нет — берём ближайший уровень
