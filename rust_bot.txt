@@ -8714,6 +8714,28 @@ pub enum PersistRecord {
 
         prediction_key: String,
     },
+
+    TradeSignal {
+        symbol: common::Symbol,
+        timeframe: i16,
+        time_ms: i64,
+        side: i16,
+        final_score: f32,
+        ml_score: Option<f32>,
+        heur_score: Option<f32>,
+        entry_price: Option<f32>,
+        sl_price: Option<f32>,
+        tp1_price: Option<f32>,
+        tp2_price: Option<f32>,
+        tp3_price: Option<f32>,
+        reason: Option<Value>,
+        price10_target: Option<f64>,
+        price10_score: Option<f32>,
+        bounce_prob: Option<f32>,
+        bounce_score: Option<f32>,
+        breakout_prob: Option<f32>,
+        breakout_score: Option<f32>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -8846,12 +8868,14 @@ async fn flush_all(
     let mut signals: Vec<PersistRecord> = Vec::new();
     let mut wide_indicators: Vec<PersistRecord> = Vec::new();
     let mut predictors: Vec<PersistRecord> = Vec::new();
+    let mut trade_signals: Vec<PersistRecord> = Vec::new();
 
     for r in batch.drain(..) {
         match r {
             PersistRecord::RawSignal { .. } => signals.push(r),
             PersistRecord::IndicatorsWide { .. } => wide_indicators.push(r),
             PersistRecord::Predictor { .. } => predictors.push(r),
+            PersistRecord::TradeSignal { .. } => trade_signals.push(r),
             PersistRecord::Indicator { .. } => { /* ignore */ }
             PersistRecord::AggregatedSignal { .. } => { /* ignore */ }
         }
@@ -8878,8 +8902,15 @@ async fn flush_all(
         Ok::<(), anyhow::Error>(())
     };
 
-    let (r1, r2, r3) = tokio::join!(s1, s2, s3);
-    r1?; r2?; r3?;
+    let s4 = async {
+        if !trade_signals.is_empty() {
+            flush_trade_signals(pool, cache, cfg, &trade_signals).await?;
+        }
+        Ok::<(), anyhow::Error>(())
+    };
+
+    let (r1, r2, r3, r4) = tokio::join!(s1, s2, s3, s4);
+    r1?; r2?; r3?; r4?;
     Ok(())
 }
 
@@ -9748,6 +9779,244 @@ fn predictors_sql_history_upsert() -> &'static str {
 fn predictors_sql_realtime() -> &'static str {
     // в realtime обычно нужен UPSERT (свеча может обновляться)
     predictors_sql_history_upsert()
+}
+
+/* --- Trade signals flush --- */
+
+async fn flush_trade_signals(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    items: &[PersistRecord],
+) -> Result<()> {
+    let mut vec: Vec<(PersistRecord, i64)> = Vec::with_capacity(items.len());
+
+    for it in items {
+        if let PersistRecord::TradeSignal { symbol, .. } = it {
+            let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
+            vec.push((it.clone(), sym_id));
+        }
+    }
+
+    let total = vec.len();
+    let mut written = 0;
+    while !vec.is_empty() {
+        let take = vec.len().min(cfg.chunk_size);
+        let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
+        let chunk_len = chunk.len();
+        flush_trade_signals_chunk(pool, cfg, chunk).await?;
+        written += chunk_len;
+    }
+
+    if total > 0 {
+        tracing::debug!(
+            "flush_trade_signals: wrote {} rows (mode={:?})", written, cfg.mode
+        );
+    }
+
+    Ok(())
+}
+
+async fn flush_trade_signals_chunk(
+    pool: &PgPool,
+    cfg: &BulkPersistorConfig,
+    chunk: Vec<(PersistRecord, i64)>,
+) -> Result<()> {
+    if chunk.is_empty() { return Ok(()); }
+
+    let now: DateTime<Utc> = Utc::now();
+    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
+
+    let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut side: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut final_score: Vec<f32> = Vec::with_capacity(chunk.len());
+    let mut ml_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut heur_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut entry_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut sl_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut tp1_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut tp2_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut tp3_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut reason: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut price10_target: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut price10_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut bounce_prob: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut bounce_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut breakout_prob: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut breakout_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    for (rec, sym_id) in chunk {
+        if let PersistRecord::TradeSignal {
+            symbol: _sym, timeframe: tf, time_ms: tms,
+            side: sd, final_score: fs, ml_score: mls, heur_score: hs,
+            entry_price: ep, sl_price: slp,
+            tp1_price: t1, tp2_price: t2, tp3_price: t3,
+            reason: rsn,
+            price10_target: p10t, price10_score: p10s,
+            bounce_prob: bp, bounce_score: bs,
+            breakout_prob: brp, breakout_score: brs,
+        } = rec
+        {
+            time.push(ms_to_ts(tms));
+            time_ms.push(tms);
+            symbol_id.push(sym_id);
+            tf_minutes.push(tf);
+            side.push(sd);
+            final_score.push(fs);
+            ml_score.push(mls);
+            heur_score.push(hs);
+            entry_price.push(ep);
+            sl_price.push(slp);
+            tp1_price.push(t1);
+            tp2_price.push(t2);
+            tp3_price.push(t3);
+            if skip_json {
+                reason.push(None);
+            } else {
+                reason.push(rsn.map(Json));
+            }
+            price10_target.push(p10t);
+            price10_score.push(p10s);
+            bounce_prob.push(bp);
+            bounce_score.push(bs);
+            breakout_prob.push(brp);
+            breakout_score.push(brs);
+            created_at.push(now);
+        }
+    }
+
+    let sql = match cfg.mode {
+        PersistMode::Realtime => trade_signals_sql_realtime(),
+        PersistMode::History => {
+            if cfg.history_upsert { trade_signals_sql_realtime() }
+            else { trade_signals_sql_history_append() }
+        }
+    };
+
+    sqlx::query(sql)
+        .bind(time_ms)
+        .bind(time)
+        .bind(symbol_id)
+        .bind(tf_minutes)
+        .bind(side)
+        .bind(final_score)
+        .bind(ml_score)
+        .bind(heur_score)
+        .bind(entry_price)
+        .bind(sl_price)
+        .bind(tp1_price)
+        .bind(tp2_price)
+        .bind(tp3_price)
+        .bind(reason)
+        .bind(price10_target)
+        .bind(price10_score)
+        .bind(bounce_prob)
+        .bind(bounce_score)
+        .bind(breakout_prob)
+        .bind(breakout_score)
+        .bind(created_at)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+/* --- SQL builders for trade_signals --- */
+
+fn trade_signals_sql_realtime() -> &'static str {
+    r#"
+    INSERT INTO trade.final_signals
+    (time_ms, time, symbol_id, tf_minutes,
+     side, final_score, ml_score, heur_score,
+     entry_price, sl_price, tp1_price, tp2_price, tp3_price,
+     reason,
+     price10_target, price10_score,
+     bounce_prob, bounce_score,
+     breakout_prob, breakout_score,
+     created_at)
+    SELECT * FROM UNNEST(
+        $1::bigint[],
+        $2::timestamptz[],
+        $3::bigint[],
+        $4::smallint[],
+        $5::smallint[],
+        $6::real[],
+        $7::real[],
+        $8::real[],
+        $9::real[],
+        $10::real[],
+        $11::real[],
+        $12::real[],
+        $13::real[],
+        $14::jsonb[],
+        $15::double precision[],
+        $16::real[],
+        $17::real[],
+        $18::real[],
+        $19::real[],
+        $20::real[],
+        $21::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+        side = EXCLUDED.side,
+        final_score = EXCLUDED.final_score,
+        ml_score = EXCLUDED.ml_score,
+        heur_score = EXCLUDED.heur_score,
+        entry_price = EXCLUDED.entry_price,
+        sl_price = EXCLUDED.sl_price,
+        tp1_price = EXCLUDED.tp1_price,
+        tp2_price = EXCLUDED.tp2_price,
+        tp3_price = EXCLUDED.tp3_price,
+        reason = EXCLUDED.reason,
+        price10_target = EXCLUDED.price10_target,
+        price10_score = EXCLUDED.price10_score,
+        bounce_prob = EXCLUDED.bounce_prob,
+        bounce_score = EXCLUDED.bounce_score,
+        breakout_prob = EXCLUDED.breakout_prob,
+        breakout_score = EXCLUDED.breakout_score
+    "#
+}
+
+fn trade_signals_sql_history_append() -> &'static str {
+    r#"
+    INSERT INTO trade.final_signals
+    (time_ms, time, symbol_id, tf_minutes,
+     side, final_score, ml_score, heur_score,
+     entry_price, sl_price, tp1_price, tp2_price, tp3_price,
+     reason,
+     price10_target, price10_score,
+     bounce_prob, bounce_score,
+     breakout_prob, breakout_score,
+     created_at)
+    SELECT * FROM UNNEST(
+        $1::bigint[],
+        $2::timestamptz[],
+        $3::bigint[],
+        $4::smallint[],
+        $5::smallint[],
+        $6::real[],
+        $7::real[],
+        $8::real[],
+        $9::real[],
+        $10::real[],
+        $11::real[],
+        $12::real[],
+        $13::real[],
+        $14::jsonb[],
+        $15::double precision[],
+        $16::real[],
+        $17::real[],
+        $18::real[],
+        $19::real[],
+        $20::real[],
+        $21::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO NOTHING
+    "#
 }
 
 
@@ -15582,7 +15851,7 @@ use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
 use common::Symbol;
-use crate::predictors::types::PredictionRow;
+use crate::predictors::types::{PredictionRow, PredictionAspect};
 
 use super::final_score::{FinalScorer, FinalScoreBreakdown};
 use super::market_params_calculator::MarketParams;
@@ -15694,7 +15963,7 @@ pub struct TradeSignalCalculator {
 impl Default for TradeSignalCalculator {
     fn default() -> Self {
         Self {
-            min_final_score: 0.95,
+            min_final_score: 0.96,
             base_leverage: 5,
             sl_atr_mult: 1.6,
             tp1_atr_mult: 1.2,
@@ -15809,7 +16078,7 @@ impl TradeSignalCalculator {
         };
 
         let stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
-        let mut tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+        let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
         let mut tp2 = enforce_min(tp2, d_tp2_min, true).max(0.0);
         let mut tp3 = enforce_min(tp3, d_tp3_min, true).max(0.0);
 
@@ -15876,7 +16145,7 @@ impl TradeSignalCalculator {
         let targets = tf_targets(tf_minutes);
 
         // Entry filter based on price prediction
-        let price_target_pred = predictors.iter().find(|p| p.aspect == crate::predictors::types::PredictionAspect::PriceTarget);
+        let price_target_pred = predictors.iter().find(|p| p.aspect == PredictionAspect::PriceTarget);
         if let Some(pred) = price_target_pred {
             let predicted_move_pct = (pred.value - entry_price) / entry_price * side as f64;
             if predicted_move_pct < targets.min_tp1_pct {
@@ -15885,9 +16154,13 @@ impl TradeSignalCalculator {
         }
 
         // ATR
-        let atr = extract_atr_from_summary(raw_signals_summary)
-            .or_else(|| futures::executor::block_on(fetch_last_atr(pool, symbol_id, tf_minutes)).ok().flatten())
-            .unwrap_or(entry_price * self.fallback_atr_pct);
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
 
         let side_f = side as f64;
 
@@ -15942,7 +16215,7 @@ impl TradeSignalCalculator {
             let boost_tp3 = (0.98 + 0.38 * s).clamp(1.05, 1.35);
 
             let d_sl  = d_sl_atr.max(d_sl_min);
-            let mut d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
+            let d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
             let mut d_tp2 = (d_tp2_atr.max(d_tp2_min)) * boost_tp2;
             let mut d_tp3 = (d_tp3_atr.max(d_tp3_min)) * boost_tp3;
 
@@ -16018,7 +16291,7 @@ fn infer_side(raw_signals_summary: &Value, predictors: &[PredictionRow]) -> Opti
     let mut best: Option<(f32, i16)> = None;
     for p in predictors {
         let sc = p.score_norm;
-        let sd = p.side;
+        let sd = p.side.unwrap_or(0);
         if sd == 0 { continue; }
         match best {
             None => best = Some((sc, sd)),
@@ -16027,7 +16300,7 @@ fn infer_side(raw_signals_summary: &Value, predictors: &[PredictionRow]) -> Opti
         }
     }
 
-    best.map(|(_, sd)| (sd.signum() as i8))
+    best.map(|(_, sd)| sd.signum() as i8)
 }
 
 fn infer_side_from_summary_fields(raw_signals_summary: &Value) -> Option<i8> {
@@ -16102,7 +16375,276 @@ fn extract_sr_levels_from_summary(raw_signals_summary: &Value) -> (Vec<f64>, Vec
 
 # compute/trade_signals/trade_signal_processor.rs
 
-//processor for trade_signal which is responsible for processing data
+// compute/trade_signals/trade_signal_processor.rs
+//
+// TradeSignalStage — final pipeline stage that converts predictions into trade signals.
+//
+// Pipeline flow:
+//   FeatureSnapshot → PredictorsPipeline → predictions → TradeSignalStage → trade.final_signals
+//
+// This stage:
+// 1. Receives completed prediction batches from PredictorsPipeline
+// 2. Computes BTC MarketParams (with caching via MarketParamsCalculator)
+// 3. Runs TradeSignalCalculator (which internally uses FinalScorer)
+// 4. If score >= 0.96 and signal produced → sends PersistRecord::TradeSignal to BulkPersistor
+
+use anyhow::Result;
+use serde_json::{json, Value};
+use sqlx::PgPool;
+use tokio::sync::mpsc;
+use common::Symbol;
+
+use crate::predictors::types::{PredictionAspect, CalcSource};
+pub use crate::predictors::pipeline::TradeSignalInput;
+
+use super::final_score::FinalScorer;
+use super::market_params_calculator::MarketParamsCalculator;
+use super::trade_signal_calculator::{TradeSignalCalculator, TradeSignal};
+
+/// Final pipeline stage that produces trade signals from prediction data.
+pub struct TradeSignalStage {
+    db_pool: PgPool,
+    market_params_calc: MarketParamsCalculator,
+    final_scorer: FinalScorer,
+    trade_calc: TradeSignalCalculator,
+    bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
+    prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
+}
+
+impl TradeSignalStage {
+    pub fn new(
+        db_pool: PgPool,
+        market_params_calc: MarketParamsCalculator,
+        bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
+        prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
+    ) -> Self {
+        let min_score = 0.96;
+        Self {
+            db_pool,
+            market_params_calc,
+            final_scorer: FinalScorer::new(min_score),
+            trade_calc: TradeSignalCalculator::new(min_score),
+            bulk_sender,
+            prediction_rx,
+        }
+    }
+
+    /// Main loop: receive prediction inputs, score, and produce trade signals.
+    pub async fn run(mut self) -> Result<()> {
+        tracing::info!(target: "trade_signal_stage", "TradeSignalStage started");
+        let mut signals_produced: u64 = 0;
+        let mut inputs_processed: u64 = 0;
+
+        while let Some(input) = self.prediction_rx.recv().await {
+            inputs_processed += 1;
+
+            if let Err(e) = self.process_input(input, &mut signals_produced).await {
+                tracing::error!(
+                    target: "trade_signal_stage",
+                    "Error processing trade signal input: {}", e
+                );
+            }
+
+            if inputs_processed % 1000 == 0 {
+                tracing::info!(
+                    target: "trade_signal_stage",
+                    "TradeSignalStage: processed {} inputs, produced {} signals",
+                    inputs_processed, signals_produced
+                );
+            }
+        }
+
+        tracing::info!(
+            target: "trade_signal_stage",
+            "TradeSignalStage shutting down: processed {} inputs, produced {} signals",
+            inputs_processed, signals_produced
+        );
+
+        Ok(())
+    }
+
+    async fn process_input(
+        &self,
+        input: TradeSignalInput,
+        signals_produced: &mut u64,
+    ) -> Result<()> {
+        if input.predictions.is_empty() {
+            return Ok(());
+        }
+
+        // 1. Compute BTC market params (cached, graceful fallback)
+        let market_params = self
+            .market_params_calc
+            .get_or_compute(&self.db_pool, input.timestamp)
+            .await?;
+
+        // 2. Run TradeSignalCalculator (which internally uses FinalScorer)
+        let symbol = Symbol::from(input.symbol.clone());
+        let signal_opt = self
+            .trade_calc
+            .build_trade_signal(
+                &self.db_pool,
+                &self.final_scorer,
+                Some(&market_params),
+                input.timestamp,
+                input.time_ms,
+                input.symbol_id,
+                &symbol,
+                input.tf_minutes,
+                input.close_price,
+                &input.raw_signals_summary,
+                &input.predictions,
+            )
+            .await?;
+
+        // 3. If signal was produced, persist it
+        if let Some(signal) = signal_opt {
+            let record = trade_signal_to_persist_record(&signal, &input);
+
+            if let Err(e) = self.bulk_sender.send(record).await {
+                tracing::error!(
+                    target: "trade_signal_stage",
+                    "Failed to send TradeSignal to BulkPersistor: {}", e
+                );
+                return Ok(());
+            }
+
+            *signals_produced += 1;
+
+            tracing::info!(
+                target: "trade_signal_stage",
+                "Trade signal produced: {} {} tf={} side={} score={:.4} entry={:.6} sl={:.6} tp1={:.6}",
+                signal.symbol, signal.time, signal.tf_minutes,
+                signal.side, signal.final_score, signal.entry,
+                signal.stop_loss, signal.tp1
+            );
+        }
+
+        Ok(())
+    }
+}
+
+/// Build a minimal raw_signals_summary from FeatureView indicators.
+/// This is a stopgap until the raw signals pipeline provides a real summary.
+pub fn build_raw_signals_summary_from_indicators(
+    close: f32,
+    atr: f32,
+    rsi: f32,
+    macd_hist: f32,
+    trend_short: f32,
+    volume_spike: f32,
+    adx: f32,
+) -> Value {
+    let atr_pct = if close > 0.0 { (atr as f64) / (close as f64) } else { 0.0 };
+
+    // Normalize indicators to 0..1 scores
+    let trend_strength = ((adx as f64 - 15.0) / 25.0).clamp(0.0, 1.0);
+
+    let momentum_strength = {
+        let rsi_dev = ((rsi as f64) - 50.0).abs() / 50.0;
+        let macd_norm = (macd_hist as f64).abs().min(1.0);
+        (0.6 * rsi_dev + 0.4 * macd_norm).clamp(0.0, 1.0)
+    };
+
+    let volatility_regime = ((atr_pct - 0.006) / 0.034).clamp(0.0, 1.0);
+    let volume_spike_score = (volume_spike as f64).clamp(0.0, 1.0);
+
+    // Determine dominant side from momentum
+    let dominant_side: i64 = if rsi > 55.0 && macd_hist > 0.0 { 1 }
+        else if rsi < 45.0 && macd_hist < 0.0 { -1 }
+        else { 0 };
+
+    // "Best" scores for raw signal buckets (placeholder from indicators)
+    let best_momentum = momentum_strength;
+    let best_volume = volume_spike_score;
+    let best_levels = 0.5; // neutral placeholder
+    let best_raw = ((trend_strength + momentum_strength) / 2.0).clamp(0.0, 1.0);
+
+    json!({
+        "atr": atr,
+        "atr_pct": atr_pct,
+        "side": dominant_side,
+        "dominant_side": dominant_side,
+        "trend_strength": trend_strength,
+        "momentum_strength": momentum_strength,
+        "volatility_regime": volatility_regime,
+        "volume_spike_score": volume_spike_score,
+        "best_raw_signal_score": best_raw,
+        "best_levels_score": best_levels,
+        "best_momentum_score": best_momentum,
+        "best_volume_score": best_volume,
+        "feature_coverage": 0.7,
+        "trend_short": trend_short,
+    })
+}
+
+/// Convert a TradeSignal into a PersistRecord::TradeSignal for bulk persistence.
+fn trade_signal_to_persist_record(
+    signal: &TradeSignal,
+    input: &TradeSignalInput,
+) -> database_lib::PersistRecord {
+    // Extract prediction aspect scores for the DB columns
+    let mut price10_target: Option<f64> = None;
+    let mut price10_score: Option<f32> = None;
+    let mut bounce_prob: Option<f32> = None;
+    let mut bounce_score: Option<f32> = None;
+    let mut breakout_prob: Option<f32> = None;
+    let mut breakout_score: Option<f32> = None;
+    let mut ml_score: Option<f32> = None;
+    let mut heur_score: Option<f32> = None;
+
+    for p in &input.predictions {
+        match p.aspect {
+            PredictionAspect::PriceTarget => {
+                match p.calc_source {
+                    CalcSource::Ml => {
+                        price10_target = Some(p.value);
+                        price10_score = Some(p.score_norm);
+                        ml_score = Some(p.score_norm);
+                    }
+                    CalcSource::Hard => {
+                        if price10_target.is_none() {
+                            price10_target = Some(p.value);
+                            price10_score = Some(p.score_norm);
+                        }
+                        heur_score = Some(p.score_norm);
+                    }
+                }
+            }
+            PredictionAspect::LevelBounce => {
+                bounce_prob = Some(p.value as f32);
+                bounce_score = Some(p.score_norm);
+            }
+            PredictionAspect::LevelBreakout => {
+                breakout_prob = Some(p.value as f32);
+                breakout_score = Some(p.score_norm);
+            }
+        }
+    }
+
+    database_lib::PersistRecord::TradeSignal {
+        symbol: Symbol::from(signal.symbol.clone()),
+        timeframe: signal.tf_minutes,
+        time_ms: signal.time_ms,
+        side: signal.side as i16,
+        final_score: signal.final_score as f32,
+        ml_score,
+        heur_score,
+        entry_price: Some(signal.entry as f32),
+        sl_price: Some(signal.stop_loss as f32),
+        tp1_price: Some(signal.tp1 as f32),
+        tp2_price: Some(signal.tp2 as f32),
+        tp3_price: Some(signal.tp3 as f32),
+        reason: Some(signal.breakdown_json.clone()),
+        price10_target,
+        price10_score,
+        bounce_prob,
+        bounce_score,
+        breakout_prob,
+        breakout_score,
+    }
+}
+
 
 
 # compute/raw_signals/Cargo.toml
@@ -22596,7 +23138,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::predictors::types::{PredictionAspect, PredictionRow, PredictionCalcSource};
+use crate::predictors::types::{PredictionAspect, PredictionRow, CalcSource};
 
 use super::market_params_calculator::MarketParams;
 
@@ -22716,7 +23258,7 @@ impl FinalScorer {
         predictors: &[PredictionRow],
         market_params: Option<&MarketParams>,
     ) -> Result<Option<FinalScoreBreakdown>> {
-        let side_i8 = (side.signum() as i8);
+        let side_i8 = side.signum() as i8;
 
         // predictors score
         let pred_comp = self.calculate_predictors_component(predictors)?;
@@ -22798,10 +23340,10 @@ impl FinalScorer {
             let score = (p.score_norm as f64).clamp(0.0, 1.0);
 
             match p.calc_source {
-                PredictionCalcSource::Ml => {
+                CalcSource::Ml => {
                     best_ml.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
                 }
-                PredictionCalcSource::Hard => {
+                CalcSource::Hard => {
                     best_heur.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
                 }
             }
@@ -22812,7 +23354,7 @@ impl FinalScorer {
             match a {
                 x if x == PredictionAspect::PriceTarget.as_int() => 1.00,
                 x if x == PredictionAspect::LevelBounce.as_int() => 0.85,
-                x if x == PredictionAspect::LevelBreak.as_int() => 0.85,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.85,
                 _ => 0.60,
             }
         };
@@ -22909,8 +23451,7 @@ impl FinalScorer {
             match p.aspect {
                 PredictionAspect::PriceTarget => has_price_target = true,
                 PredictionAspect::LevelBounce => has_bounce = true,
-                PredictionAspect::LevelBreak => has_break = true,
-                _ => {}
+                PredictionAspect::LevelBreakout => has_break = true,
             }
         }
 
@@ -23029,6 +23570,29 @@ pub struct MarketParams {
 }
 
 impl MarketParams {
+    /// Neutral fallback when BTC data is not available yet.
+    /// Returns conservative parameters that don't bias any direction.
+    pub fn neutral(asof: DateTime<Utc>) -> Self {
+        Self {
+            asof,
+            btc_symbol: "BTCUSDT".to_string(),
+            btc_symbol_id: 0,
+            global_tf_minutes: 1440,
+            short_tf_minutes: 240,
+            global_dir: 0,
+            short_dir: 0,
+            situation: MarketSituation::Flat,
+            adx_global: None,
+            atr_global: None,
+            close_global: None,
+            atr_pct_global: None,
+            trend_strength_score: 0.0,
+            volatility_score: 0.0,
+            market_quality_score: 0.0,
+            details_json: json!({"status": "neutral_fallback", "reason": "BTC data not available"}),
+        }
+    }
+
     /// 0..1 : how much the requested side matches BTC market regime
     /// side: +1 long, -1 short
     pub fn alignment_score(&self, side: i8) -> f64 {
@@ -23041,7 +23605,7 @@ impl MarketParams {
         let s = self.short_dir.signum();
 
         // base alignment from both horizons
-        let mut score = 0.5;
+        let mut score: f64 = 0.5;
 
         if g == side {
             score += 0.35;
@@ -23137,7 +23701,16 @@ impl MarketParamsCalculator {
             }
         }
 
-        let params = self.compute(pool, asof).await?;
+        let params = match self.compute(pool, asof).await {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!(
+                    "MarketParamsCalculator: failed to compute BTC regime ({}), using neutral fallback",
+                    e
+                );
+                MarketParams::neutral(asof)
+            }
+        };
 
         {
             let mut guard = self.cache.write().await;
@@ -23197,7 +23770,7 @@ impl MarketParamsCalculator {
             situation,
             adx_global,
             atr_global,
-            close_global,
+            close_global: global_close,
             atr_pct_global,
             trend_strength_score,
             volatility_score,
@@ -23429,7 +24002,6 @@ cudarc = { version = "0.11.2", optional = true, features = ["driver"] }
 
 # Remove ort dependency as we're using XGBoost directly
 # ort = { version = "2.0.0-rc.11", features = ["cuda"] }
-tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
 
 
 # compute/predictors/build.rs
@@ -24984,12 +25556,9 @@ pub mod consensus;
 // compute/predictors/persistence.rs
 
 use anyhow::Result;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use crate::types::{PredictionRow, PredictorMeta, PredictorId};
 use sqlx::types::Json;
-use tokio_postgres::binary_copy::BinaryCopyInWriter;
-use tokio_postgres::types::Type;
-use chrono::Utc;
 
 pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) -> Result<()> {
     if predictors.is_empty() {
@@ -25143,83 +25712,37 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
     Ok(())
 }
 
-/// Optimized function to copy predictors using binary copy for historical data
-pub async fn copy_predictors_binary(
-    client: &tokio_postgres::Client, // Use client from pool.acquire().await
-    predictors: Vec<PredictionRow>
-) -> Result<u64> {
-    if predictors.is_empty() { return Ok(0); }
-
-    let sink = client.copy_in(
-        "COPY trade.predictors (
-            time, time_ms, symbol_id, symbol, tf_minutes,
-            horizon_bars, aspect, calc_source, predictor_id,
-            score_norm, value, value_low, value_high, side,
-            level_hash, level_kind, level_price, level_strength, level_distance_atr,
-            candle_is_final, event_time_ms, details_json, prediction_key, created_at, updated_at
-        ) FROM STDIN BINARY"
-    ).await?;
-
-    let writer = BinaryCopyInWriter::new(sink, &[
-        Type::TIMESTAMPTZ, Type::INT8, Type::INT8, Type::TEXT, Type::INT4,
-        Type::INT4, Type::INT2, Type::INT2, Type::INT8,
-        Type::FLOAT4, Type::FLOAT8, Type::FLOAT8, Type::FLOAT8, Type::INT2,
-        Type::TEXT, Type::INT2, Type::FLOAT8, Type::FLOAT4, Type::FLOAT4,
-        Type::BOOL, Type::INT8, Type::JSONB, Type::TEXT, Type::TIMESTAMPTZ, Type::TIMESTAMPTZ
-    ]);
-    
-    let mut writer = std::pin::pin!(writer);
-    let now = Utc::now();
-
-    for p in predictors {
-        // Optimization: for history, skip details_json if it's not critical
-        let details = if std::env::var("DB_PERSIST_HISTORY_SKIP_JSON").unwrap_or_default() == "1" {
-            None::<String>
-        } else {
-            p.details_json.and_then(|v| serde_json::to_string(&v).ok())
-        };
-
-        writer.as_mut().write(&[
-            &p.time, &p.time_ms, &p.symbol_id, &p.symbol, &p.tf_minutes,
-            &p.horizon_bars, &(p.aspect.as_int() as i16), &(p.calc_source.as_int() as i16), &p.predictor_id,
-            &p.score_norm, &p.value, &p.value_low, &p.value_high, &p.side,
-            &p.level_hash, &p.level_kind, &p.level_price, &p.level_strength, &p.level_distance_atr,
-            &p.candle_is_final, &p.event_time_ms, &details, &p.prediction_key, &now, &now
-        ]).await?;
-    }
-
-    let rows = writer.as_mut().finish().await?;
-    Ok(rows)
-}
+// NOTE: copy_predictors_binary removed — use BulkPersistor for high-performance writes
 
 pub async fn resolve_symbol_id(pool: &PgPool, symbol: &str) -> Result<i64> {
-    let row = sqlx::query!("SELECT symbol_id FROM market.pairs WHERE symbol = $1", symbol)
+    let row = sqlx::query("SELECT symbol_id FROM market.pairs WHERE symbol = $1")
+        .bind(symbol)
         .fetch_one(pool)
         .await?;
-    Ok(row.symbol_id)
+    Ok(row.try_get::<i64, _>("symbol_id")?)
 }
 
 pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &PredictorMeta) -> Result<PredictorId> {
     // Check if predictor already exists
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         SELECT predictor_id
         FROM trade.predictor_registry
         WHERE calc_source = $1 AND name = $2 AND version = $3
         "#,
-        predictor_meta.calc_source.as_int() as i16,
-        predictor_meta.name,
-        predictor_meta.version
     )
+    .bind(predictor_meta.calc_source.as_int() as i16)
+    .bind(&predictor_meta.name)
+    .bind(&predictor_meta.version)
     .fetch_optional(pool)
     .await?;
 
     if let Some(row) = row {
-        return Ok(PredictorId(row.predictor_id));
+        return Ok(PredictorId(row.try_get::<i64, _>("predictor_id")?));
     }
 
     // Insert new predictor
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         INSERT INTO trade.predictor_registry (
             aspect, horizon_bars, calc_source, framework,
@@ -25230,52 +25753,54 @@ pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &Predi
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING predictor_id
         "#,
-        predictor_meta.aspect.as_int() as i16,
-        10i32, // Default horizon
-        predictor_meta.calc_source.as_int() as i16,
-        predictor_meta.framework,
-        predictor_meta.name,
-        predictor_meta.version,
-        None::<String>, // code_hash
-        predictor_meta.artifact_path,
-        None::<String>, // artifact_sha256
-        predictor_meta.feature_schema_id,
-        None::<serde_json::Value>, // calibration_json
-        None::<serde_json::Value>, // metrics_json
-        None::<chrono::DateTime<chrono::Utc>>, // trained_from
-        None::<chrono::DateTime<chrono::Utc>>, // trained_to
-        true // is_active
     )
+    .bind(predictor_meta.aspect.as_int() as i16)
+    .bind(10i32) // Default horizon
+    .bind(predictor_meta.calc_source.as_int() as i16)
+    .bind(&predictor_meta.framework)
+    .bind(&predictor_meta.name)
+    .bind(&predictor_meta.version)
+    .bind(None::<String>) // code_hash
+    .bind(&predictor_meta.artifact_path)
+    .bind(None::<String>) // artifact_sha256
+    .bind(&predictor_meta.feature_schema_id)
+    .bind(None::<serde_json::Value>) // calibration_json
+    .bind(None::<serde_json::Value>) // metrics_json
+    .bind(None::<chrono::DateTime<chrono::Utc>>) // trained_from
+    .bind(None::<chrono::DateTime<chrono::Utc>>) // trained_to
+    .bind(true) // is_active
     .fetch_one(pool)
     .await?;
 
-    Ok(PredictorId(row.predictor_id))
+    Ok(PredictorId(row.try_get::<i64, _>("predictor_id")?))
 }
 
 pub async fn get_predictor_meta(pool: &PgPool, predictor_id: i64) -> Result<Option<PredictorMeta>> {
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         SELECT aspect, calc_source, name, version, framework, artifact_path, feature_schema_id
         FROM trade.predictor_registry
         WHERE predictor_id = $1 AND is_active = true
         "#,
-        predictor_id
     )
+    .bind(predictor_id)
     .fetch_optional(pool)
     .await?;
 
     if let Some(row) = row {
+        let aspect_i16: i16 = row.try_get("aspect")?;
+        let calc_source_i16: i16 = row.try_get("calc_source")?;
         Ok(Some(PredictorMeta {
             predictor_id,
-            name: row.name,
-            version: row.version,
-            aspect: crate::types::PredictionAspect::from_int(row.aspect)
-                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", row.aspect))?,
-            calc_source: crate::types::CalcSource::from_int(row.calc_source)
-                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", row.calc_source))?,
-            framework: row.framework,
-            artifact_path: row.artifact_path,
-            feature_schema_id: row.feature_schema_id,
+            name: row.try_get("name")?,
+            version: row.try_get("version")?,
+            aspect: crate::types::PredictionAspect::from_int(aspect_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", aspect_i16))?,
+            calc_source: crate::types::CalcSource::from_int(calc_source_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", calc_source_i16))?,
+            framework: row.try_get("framework")?,
+            artifact_path: row.try_get("artifact_path")?,
+            feature_schema_id: row.try_get("feature_schema_id")?,
         }))
     } else {
         Ok(None)
@@ -25290,57 +25815,60 @@ pub async fn get_recent_predictors(
     min_score: f32,
     limit: i64,
 ) -> Result<Vec<PredictionRow>> {
-    let rows = sqlx::query!(
+    let rows = sqlx::query(
         r#"
         SELECT
-            prediction_id, time, time_ms, symbol_id, symbol, tf_minutes,
-            horizon_bars, aspect as "aspect: i16", calc_source as "calc_source: i16",
+            time, time_ms, symbol_id, symbol, tf_minutes,
+            horizon_bars, aspect, calc_source,
             predictor_id, score_norm, value, value_low, value_high, side,
             level_hash, level_kind, level_price, level_strength, level_distance_atr,
-            candle_is_final, event_time_ms, details_json::jsonb as "details_json: Json<serde_json::Value>", prediction_key
+            candle_is_final, event_time_ms, details_json, prediction_key
         FROM trade.predictors
         WHERE symbol_id = $1 AND tf_minutes = $2 AND aspect = $3
           AND score_norm >= $4
         ORDER BY time DESC
         LIMIT $5
         "#,
-        symbol_id,
-        tf_minutes,
-        aspect.as_int() as i16,
-        min_score,
-        limit
     )
+    .bind(symbol_id)
+    .bind(tf_minutes)
+    .bind(aspect.as_int() as i16)
+    .bind(min_score)
+    .bind(limit)
     .fetch_all(pool)
     .await?;
 
     let mut predictors = Vec::new();
-    for row in rows {
+    for row in &rows {
+        let aspect_i16: i16 = row.try_get("aspect")?;
+        let calc_source_i16: i16 = row.try_get("calc_source")?;
+        let details: Option<serde_json::Value> = row.try_get("details_json")?;
         predictors.push(PredictionRow {
-            time: row.time,
-            time_ms: row.time_ms,
-            symbol_id: row.symbol_id,
-            symbol: row.symbol,
-            tf_minutes: row.tf_minutes,
-            horizon_bars: row.horizon_bars,
-            aspect: crate::types::PredictionAspect::from_int(row.aspect)
-                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", row.aspect))?,
-            calc_source: crate::types::CalcSource::from_int(row.calc_source)
-                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", row.calc_source))?,
-            predictor_id: row.predictor_id,
-            score_norm: row.score_norm,
-            value: row.value,
-            value_low: row.value_low,
-            value_high: row.value_high,
-            side: row.side,
-            level_hash: row.level_hash,
-            level_kind: row.level_kind,
-            level_price: row.level_price,
-            level_strength: row.level_strength,
-            level_distance_atr: row.level_distance_atr,
-            candle_is_final: row.candle_is_final,
-            event_time_ms: row.event_time_ms,
-            details_json: row.details_json.map(|json_val| json_val.0), // Unwrap Json wrapper
-            prediction_key: row.prediction_key,
+            time: row.try_get("time")?,
+            time_ms: row.try_get("time_ms")?,
+            symbol_id: row.try_get("symbol_id")?,
+            symbol: row.try_get("symbol")?,
+            tf_minutes: row.try_get("tf_minutes")?,
+            horizon_bars: row.try_get("horizon_bars")?,
+            aspect: crate::types::PredictionAspect::from_int(aspect_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", aspect_i16))?,
+            calc_source: crate::types::CalcSource::from_int(calc_source_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", calc_source_i16))?,
+            predictor_id: row.try_get("predictor_id")?,
+            score_norm: row.try_get("score_norm")?,
+            value: row.try_get("value")?,
+            value_low: row.try_get("value_low")?,
+            value_high: row.try_get("value_high")?,
+            side: row.try_get("side")?,
+            level_hash: row.try_get("level_hash")?,
+            level_kind: row.try_get("level_kind")?,
+            level_price: row.try_get("level_price")?,
+            level_strength: row.try_get("level_strength")?,
+            level_distance_atr: row.try_get("level_distance_atr")?,
+            candle_is_final: row.try_get("candle_is_final")?,
+            event_time_ms: row.try_get("event_time_ms")?,
+            details_json: details,
+            prediction_key: row.try_get("prediction_key")?,
         });
     }
 
@@ -25417,6 +25945,21 @@ impl PredictorCache {
     }
 }
 
+/// Lightweight input for the trade signal stage.
+/// Sent from PredictorsPipeline after producing predictions.
+#[derive(Debug, Clone)]
+pub struct TradeSignalInput {
+    pub symbol: String,
+    pub symbol_id: i64,
+    pub tf_minutes: i16,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub time_ms: i64,
+    pub close_price: f64,
+    pub predictions: Vec<PredictionRow>,
+    pub raw_signals_summary: serde_json::Value,
+    pub is_realtime: bool,
+}
+
 pub struct PredictorsPipeline {
     config: PredictorsConfig,
     db_pool: PgPool,
@@ -25424,6 +25967,7 @@ pub struct PredictorsPipeline {
     feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
     ml_manager: ModelManager,
     bulk_sender: Option<tokio::sync::mpsc::Sender<database_lib::PersistRecord>>,
+    trade_signal_tx: Option<tokio::sync::mpsc::UnboundedSender<TradeSignalInput>>,
     symbol_cache: SymbolCache,
     predictor_cache: PredictorCache,
 }
@@ -25454,6 +25998,7 @@ impl PredictorsPipeline {
             feature_rx: None,
             ml_manager,
             bulk_sender: None,
+            trade_signal_tx: None,
             symbol_cache: SymbolCache::new(),
             predictor_cache: PredictorCache::new(),
         }
@@ -25537,6 +26082,10 @@ impl PredictorsPipeline {
         self.bulk_sender = Some(tx);
     }
 
+    pub fn set_trade_signal_sender(&mut self, tx: tokio::sync::mpsc::UnboundedSender<TradeSignalInput>) {
+        self.trade_signal_tx = Some(tx);
+    }
+
     async fn is_shutdown(&mut self) -> bool {
         match self.shutdown_rx.try_recv() {
             Ok(_) | Err(tokio::sync::broadcast::error::TryRecvError::Closed) => true,
@@ -25600,6 +26149,32 @@ impl PredictorsPipeline {
 
         if final_preds.is_empty() {
             return Ok(());
+        }
+
+        // Send predictions to TradeSignalStage (if connected)
+        if let Some(ref trade_tx) = self.trade_signal_tx {
+            let sid = self.symbol_cache.get_or_resolve(&self.db_pool, &snapshot.symbol).await?;
+            let tf_min = self.parse_timeframe_minutes(&snapshot.timeframe)? as i16;
+            let close_price = view.indicators.close as f64;
+            let ts_input = TradeSignalInput {
+                symbol: snapshot.symbol.clone(),
+                symbol_id: sid,
+                tf_minutes: tf_min,
+                timestamp: snapshot.timestamp,
+                time_ms: snapshot.timestamp.timestamp_millis(),
+                close_price,
+                predictions: final_preds.clone(),
+                raw_signals_summary: build_raw_signals_summary(
+                    &view.indicators,
+                ),
+                is_realtime: is_realtime,
+            };
+            if let Err(e) = trade_tx.send(ts_input) {
+                tracing::warn!(
+                    target: "compute_predictors",
+                    "Failed to send to TradeSignalStage: {} (channel closed?)", e
+                );
+            }
         }
 
         // Convert predictions to PersistRecord
@@ -26213,6 +26788,51 @@ impl FeatureSnapshot {
     pub fn is_realtime(&self) -> bool {
         self.is_realtime
     }
+}
+
+/// Build a minimal raw_signals_summary from indicators for use by FinalScorer.
+/// This is a stopgap until the raw signals pipeline provides a full summary.
+fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Value {
+    let close = indicators.close as f64;
+    let atr = indicators.atr as f64;
+    let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
+
+    let trend_strength = ((indicators.adx as f64 - 15.0) / 25.0).clamp(0.0, 1.0);
+
+    let rsi = indicators.rsi as f64;
+    let macd_hist = indicators.macd_histogram as f64;
+    let rsi_dev = (rsi - 50.0).abs() / 50.0;
+    let macd_norm = macd_hist.abs().min(1.0);
+    let momentum_strength = (0.6 * rsi_dev + 0.4 * macd_norm).clamp(0.0, 1.0);
+
+    let volatility_regime = ((atr_pct - 0.006) / 0.034).clamp(0.0, 1.0);
+    let volume_spike_score = (indicators.volume_spike as f64).clamp(0.0, 1.0);
+
+    let dominant_side: i64 = if rsi > 55.0 && macd_hist > 0.0 { 1 }
+        else if rsi < 45.0 && macd_hist < 0.0 { -1 }
+        else { 0 };
+
+    let best_momentum = momentum_strength;
+    let best_volume = volume_spike_score;
+    let best_levels = 0.5;
+    let best_raw = ((trend_strength + momentum_strength) / 2.0).clamp(0.0, 1.0);
+
+    serde_json::json!({
+        "atr": indicators.atr,
+        "atr_pct": atr_pct,
+        "side": dominant_side,
+        "dominant_side": dominant_side,
+        "trend_strength": trend_strength,
+        "momentum_strength": momentum_strength,
+        "volatility_regime": volatility_regime,
+        "volume_spike_score": volume_spike_score,
+        "best_raw_signal_score": best_raw,
+        "best_levels_score": best_levels,
+        "best_momentum_score": best_momentum,
+        "best_volume_score": best_volume,
+        "feature_coverage": 0.7,
+        "trend_short": indicators.trend_short,
+    })
 }
 
 
@@ -28970,6 +29590,10 @@ pub use raw_signal_processor::*;
 pub use raw_signal_types::*;
 
 pub mod result_processor;
+
+// Scoring / trade signal modules
+pub mod scoring;
+
 // Import the compute indicators and predictors from the separate crates
 pub use compute_indicators;
 pub use predictors;
@@ -28987,6 +29611,8 @@ use raw_signals::thresholds::SignalConfig;
 use tracing_appender::rolling;
 use crate::predictors::pipeline::FeatureSnapshot;
 use crate::predictors::config::PredictorsConfig;
+use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
 use database_lib;
 
 fn env_usize(key: &str, default: usize) -> usize {
@@ -29227,6 +29853,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Without this, the pipeline falls back to individual upsert_predictors() calls
     // which is 10-50x slower than batched writes via BulkPersistor
     predictors_pipeline.set_bulk_sender(bulk_history_sender.clone());
+
+    // --- TradeSignalStage setup ---
+    let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
+    predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
+
+    let market_params_calc = MarketParamsCalculator::new(Symbol::from("BTCUSDT"));
+    let trade_signal_stage = TradeSignalStage::new(
+        db_pool.clone(),
+        market_params_calc,
+        bulk_history_sender.clone(),
+        trade_signal_rx,
+    );
+
+    tokio::spawn(async move {
+        if let Err(e) = trade_signal_stage.run().await {
+            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+        }
+    });
 
     tokio::spawn(async move {
         if let Err(e) = predictors_pipeline.run().await {
@@ -30388,6 +31032,24 @@ impl FeatureBatch {
 }
 
 
+# compute/src/scoring/mod.rs
+
+// Scoring / trade signal modules (files live outside src/ — use #[path])
+
+#[path = "../../scorer/final_score.rs"]
+pub mod final_score;
+
+#[path = "../../market_parameters/market_params_calculator.rs"]
+pub mod market_params_calculator;
+
+#[path = "../../trade_signals/trade_signal_calculator.rs"]
+pub mod trade_signal_calculator;
+
+#[path = "../../trade_signals/trade_signal_processor.rs"]
+pub mod trade_signal_processor;
+
+
+
 # compute/src/bin/compute_history.rs
 
 use std::sync::Arc;
@@ -30401,6 +31063,8 @@ use std::time::Duration;
 use raw_signals::thresholds::SignalConfig;
 use compute_lib::predictors::config::PredictorsConfig;
 use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
+use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -30500,6 +31164,24 @@ async fn main() -> Result<()> {
     );
     predictors_pipeline.set_input_receiver(feature_rx);
     predictors_pipeline.set_bulk_sender(bulk_sender.clone());
+
+    // --- TradeSignalStage setup ---
+    let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
+    predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
+
+    let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
+    let trade_signal_stage = TradeSignalStage::new(
+        db_pool.clone(),
+        market_params_calc,
+        bulk_sender.clone(),
+        trade_signal_rx,
+    );
+
+    tokio::spawn(async move {
+        if let Err(e) = trade_signal_stage.run().await {
+            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+        }
+    });
 
     // Spawn Predictors Pipeline
     tokio::spawn(async move {
@@ -30682,6 +31364,8 @@ use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBacken
 use raw_signals::thresholds::SignalConfig;
 use compute_lib::predictors::config::PredictorsConfig;
 use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
+use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -30767,6 +31451,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect bulk_sender to predictors pipeline for batched DB writes
     // Without this, the pipeline falls back to individual upsert_predictors() calls
     predictors_pipeline.set_bulk_sender(bulk_sender.clone());
+
+    // --- TradeSignalStage setup ---
+    let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
+    predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
+
+    let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
+    let trade_signal_stage = TradeSignalStage::new(
+        db_pool.clone(),
+        market_params_calc,
+        bulk_sender.clone(),
+        trade_signal_rx,
+    );
+
+    tokio::spawn(async move {
+        if let Err(e) = trade_signal_stage.run().await {
+            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+        }
+    });
 
     // Spawn Predictors Pipeline
     tokio::spawn(async move {
