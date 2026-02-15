@@ -203,6 +203,28 @@ pub enum PersistRecord {
 
         prediction_key: String,
     },
+
+    TradeSignal {
+        symbol: common::Symbol,
+        timeframe: i16,
+        time_ms: i64,
+        side: i16,
+        final_score: f32,
+        ml_score: Option<f32>,
+        heur_score: Option<f32>,
+        entry_price: Option<f32>,
+        sl_price: Option<f32>,
+        tp1_price: Option<f32>,
+        tp2_price: Option<f32>,
+        tp3_price: Option<f32>,
+        reason: Option<Value>,
+        price10_target: Option<f64>,
+        price10_score: Option<f32>,
+        bounce_prob: Option<f32>,
+        bounce_score: Option<f32>,
+        breakout_prob: Option<f32>,
+        breakout_score: Option<f32>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -335,12 +357,14 @@ async fn flush_all(
     let mut signals: Vec<PersistRecord> = Vec::new();
     let mut wide_indicators: Vec<PersistRecord> = Vec::new();
     let mut predictors: Vec<PersistRecord> = Vec::new();
+    let mut trade_signals: Vec<PersistRecord> = Vec::new();
 
     for r in batch.drain(..) {
         match r {
             PersistRecord::RawSignal { .. } => signals.push(r),
             PersistRecord::IndicatorsWide { .. } => wide_indicators.push(r),
             PersistRecord::Predictor { .. } => predictors.push(r),
+            PersistRecord::TradeSignal { .. } => trade_signals.push(r),
             PersistRecord::Indicator { .. } => { /* ignore */ }
             PersistRecord::AggregatedSignal { .. } => { /* ignore */ }
         }
@@ -367,8 +391,15 @@ async fn flush_all(
         Ok::<(), anyhow::Error>(())
     };
 
-    let (r1, r2, r3) = tokio::join!(s1, s2, s3);
-    r1?; r2?; r3?;
+    let s4 = async {
+        if !trade_signals.is_empty() {
+            flush_trade_signals(pool, cache, cfg, &trade_signals).await?;
+        }
+        Ok::<(), anyhow::Error>(())
+    };
+
+    let (r1, r2, r3, r4) = tokio::join!(s1, s2, s3, s4);
+    r1?; r2?; r3?; r4?;
     Ok(())
 }
 
@@ -1237,4 +1268,242 @@ fn predictors_sql_history_upsert() -> &'static str {
 fn predictors_sql_realtime() -> &'static str {
     // в realtime обычно нужен UPSERT (свеча может обновляться)
     predictors_sql_history_upsert()
+}
+
+/* --- Trade signals flush --- */
+
+async fn flush_trade_signals(
+    pool: &PgPool,
+    cache: &tokio::sync::RwLock<HashMap<String, i64>>,
+    cfg: &BulkPersistorConfig,
+    items: &[PersistRecord],
+) -> Result<()> {
+    let mut vec: Vec<(PersistRecord, i64)> = Vec::with_capacity(items.len());
+
+    for it in items {
+        if let PersistRecord::TradeSignal { symbol, .. } = it {
+            let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
+            vec.push((it.clone(), sym_id));
+        }
+    }
+
+    let total = vec.len();
+    let mut written = 0;
+    while !vec.is_empty() {
+        let take = vec.len().min(cfg.chunk_size);
+        let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
+        let chunk_len = chunk.len();
+        flush_trade_signals_chunk(pool, cfg, chunk).await?;
+        written += chunk_len;
+    }
+
+    if total > 0 {
+        tracing::debug!(
+            "flush_trade_signals: wrote {} rows (mode={:?})", written, cfg.mode
+        );
+    }
+
+    Ok(())
+}
+
+async fn flush_trade_signals_chunk(
+    pool: &PgPool,
+    cfg: &BulkPersistorConfig,
+    chunk: Vec<(PersistRecord, i64)>,
+) -> Result<()> {
+    if chunk.is_empty() { return Ok(()); }
+
+    let now: DateTime<Utc> = Utc::now();
+    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
+
+    let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+    let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut side: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut final_score: Vec<f32> = Vec::with_capacity(chunk.len());
+    let mut ml_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut heur_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut entry_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut sl_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut tp1_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut tp2_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut tp3_price: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut reason: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
+    let mut price10_target: Vec<Option<f64>> = Vec::with_capacity(chunk.len());
+    let mut price10_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut bounce_prob: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut bounce_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut breakout_prob: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut breakout_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+
+    for (rec, sym_id) in chunk {
+        if let PersistRecord::TradeSignal {
+            symbol: _sym, timeframe: tf, time_ms: tms,
+            side: sd, final_score: fs, ml_score: mls, heur_score: hs,
+            entry_price: ep, sl_price: slp,
+            tp1_price: t1, tp2_price: t2, tp3_price: t3,
+            reason: rsn,
+            price10_target: p10t, price10_score: p10s,
+            bounce_prob: bp, bounce_score: bs,
+            breakout_prob: brp, breakout_score: brs,
+        } = rec
+        {
+            time.push(ms_to_ts(tms));
+            time_ms.push(tms);
+            symbol_id.push(sym_id);
+            tf_minutes.push(tf);
+            side.push(sd);
+            final_score.push(fs);
+            ml_score.push(mls);
+            heur_score.push(hs);
+            entry_price.push(ep);
+            sl_price.push(slp);
+            tp1_price.push(t1);
+            tp2_price.push(t2);
+            tp3_price.push(t3);
+            if skip_json {
+                reason.push(None);
+            } else {
+                reason.push(rsn.map(Json));
+            }
+            price10_target.push(p10t);
+            price10_score.push(p10s);
+            bounce_prob.push(bp);
+            bounce_score.push(bs);
+            breakout_prob.push(brp);
+            breakout_score.push(brs);
+            created_at.push(now);
+        }
+    }
+
+    let sql = match cfg.mode {
+        PersistMode::Realtime => trade_signals_sql_realtime(),
+        PersistMode::History => {
+            if cfg.history_upsert { trade_signals_sql_realtime() }
+            else { trade_signals_sql_history_append() }
+        }
+    };
+
+    sqlx::query(sql)
+        .bind(time_ms)
+        .bind(time)
+        .bind(symbol_id)
+        .bind(tf_minutes)
+        .bind(side)
+        .bind(final_score)
+        .bind(ml_score)
+        .bind(heur_score)
+        .bind(entry_price)
+        .bind(sl_price)
+        .bind(tp1_price)
+        .bind(tp2_price)
+        .bind(tp3_price)
+        .bind(reason)
+        .bind(price10_target)
+        .bind(price10_score)
+        .bind(bounce_prob)
+        .bind(bounce_score)
+        .bind(breakout_prob)
+        .bind(breakout_score)
+        .bind(created_at)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+/* --- SQL builders for trade_signals --- */
+
+fn trade_signals_sql_realtime() -> &'static str {
+    r#"
+    INSERT INTO trade.final_signals
+    (time_ms, time, symbol_id, tf_minutes,
+     side, final_score, ml_score, heur_score,
+     entry_price, sl_price, tp1_price, tp2_price, tp3_price,
+     reason,
+     price10_target, price10_score,
+     bounce_prob, bounce_score,
+     breakout_prob, breakout_score,
+     created_at)
+    SELECT * FROM UNNEST(
+        $1::bigint[],
+        $2::timestamptz[],
+        $3::bigint[],
+        $4::smallint[],
+        $5::smallint[],
+        $6::real[],
+        $7::real[],
+        $8::real[],
+        $9::real[],
+        $10::real[],
+        $11::real[],
+        $12::real[],
+        $13::real[],
+        $14::jsonb[],
+        $15::double precision[],
+        $16::real[],
+        $17::real[],
+        $18::real[],
+        $19::real[],
+        $20::real[],
+        $21::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+        side = EXCLUDED.side,
+        final_score = EXCLUDED.final_score,
+        ml_score = EXCLUDED.ml_score,
+        heur_score = EXCLUDED.heur_score,
+        entry_price = EXCLUDED.entry_price,
+        sl_price = EXCLUDED.sl_price,
+        tp1_price = EXCLUDED.tp1_price,
+        tp2_price = EXCLUDED.tp2_price,
+        tp3_price = EXCLUDED.tp3_price,
+        reason = EXCLUDED.reason,
+        price10_target = EXCLUDED.price10_target,
+        price10_score = EXCLUDED.price10_score,
+        bounce_prob = EXCLUDED.bounce_prob,
+        bounce_score = EXCLUDED.bounce_score,
+        breakout_prob = EXCLUDED.breakout_prob,
+        breakout_score = EXCLUDED.breakout_score
+    "#
+}
+
+fn trade_signals_sql_history_append() -> &'static str {
+    r#"
+    INSERT INTO trade.final_signals
+    (time_ms, time, symbol_id, tf_minutes,
+     side, final_score, ml_score, heur_score,
+     entry_price, sl_price, tp1_price, tp2_price, tp3_price,
+     reason,
+     price10_target, price10_score,
+     bounce_prob, bounce_score,
+     breakout_prob, breakout_score,
+     created_at)
+    SELECT * FROM UNNEST(
+        $1::bigint[],
+        $2::timestamptz[],
+        $3::bigint[],
+        $4::smallint[],
+        $5::smallint[],
+        $6::real[],
+        $7::real[],
+        $8::real[],
+        $9::real[],
+        $10::real[],
+        $11::real[],
+        $12::real[],
+        $13::real[],
+        $14::jsonb[],
+        $15::double precision[],
+        $16::real[],
+        $17::real[],
+        $18::real[],
+        $19::real[],
+        $20::real[],
+        $21::timestamptz[]
+    )
+    ON CONFLICT (symbol_id, tf_minutes, time) DO NOTHING
+    "#
 }

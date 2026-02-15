@@ -63,6 +63,21 @@ impl PredictorCache {
     }
 }
 
+/// Lightweight input for the trade signal stage.
+/// Sent from PredictorsPipeline after producing predictions.
+#[derive(Debug, Clone)]
+pub struct TradeSignalInput {
+    pub symbol: String,
+    pub symbol_id: i64,
+    pub tf_minutes: i16,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub time_ms: i64,
+    pub close_price: f64,
+    pub predictions: Vec<PredictionRow>,
+    pub raw_signals_summary: serde_json::Value,
+    pub is_realtime: bool,
+}
+
 pub struct PredictorsPipeline {
     config: PredictorsConfig,
     db_pool: PgPool,
@@ -70,6 +85,7 @@ pub struct PredictorsPipeline {
     feature_rx: Option<tokio::sync::mpsc::UnboundedReceiver<FeatureSnapshot>>,
     ml_manager: ModelManager,
     bulk_sender: Option<tokio::sync::mpsc::Sender<database_lib::PersistRecord>>,
+    trade_signal_tx: Option<tokio::sync::mpsc::UnboundedSender<TradeSignalInput>>,
     symbol_cache: SymbolCache,
     predictor_cache: PredictorCache,
 }
@@ -100,6 +116,7 @@ impl PredictorsPipeline {
             feature_rx: None,
             ml_manager,
             bulk_sender: None,
+            trade_signal_tx: None,
             symbol_cache: SymbolCache::new(),
             predictor_cache: PredictorCache::new(),
         }
@@ -183,6 +200,10 @@ impl PredictorsPipeline {
         self.bulk_sender = Some(tx);
     }
 
+    pub fn set_trade_signal_sender(&mut self, tx: tokio::sync::mpsc::UnboundedSender<TradeSignalInput>) {
+        self.trade_signal_tx = Some(tx);
+    }
+
     async fn is_shutdown(&mut self) -> bool {
         match self.shutdown_rx.try_recv() {
             Ok(_) | Err(tokio::sync::broadcast::error::TryRecvError::Closed) => true,
@@ -246,6 +267,32 @@ impl PredictorsPipeline {
 
         if final_preds.is_empty() {
             return Ok(());
+        }
+
+        // Send predictions to TradeSignalStage (if connected)
+        if let Some(ref trade_tx) = self.trade_signal_tx {
+            let sid = self.symbol_cache.get_or_resolve(&self.db_pool, &snapshot.symbol).await?;
+            let tf_min = self.parse_timeframe_minutes(&snapshot.timeframe)? as i16;
+            let close_price = view.indicators.close as f64;
+            let ts_input = TradeSignalInput {
+                symbol: snapshot.symbol.clone(),
+                symbol_id: sid,
+                tf_minutes: tf_min,
+                timestamp: snapshot.timestamp,
+                time_ms: snapshot.timestamp.timestamp_millis(),
+                close_price,
+                predictions: final_preds.clone(),
+                raw_signals_summary: build_raw_signals_summary(
+                    &view.indicators,
+                ),
+                is_realtime: is_realtime,
+            };
+            if let Err(e) = trade_tx.send(ts_input) {
+                tracing::warn!(
+                    target: "compute_predictors",
+                    "Failed to send to TradeSignalStage: {} (channel closed?)", e
+                );
+            }
         }
 
         // Convert predictions to PersistRecord
@@ -859,4 +906,49 @@ impl FeatureSnapshot {
     pub fn is_realtime(&self) -> bool {
         self.is_realtime
     }
+}
+
+/// Build a minimal raw_signals_summary from indicators for use by FinalScorer.
+/// This is a stopgap until the raw signals pipeline provides a full summary.
+fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Value {
+    let close = indicators.close as f64;
+    let atr = indicators.atr as f64;
+    let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
+
+    let trend_strength = ((indicators.adx as f64 - 15.0) / 25.0).clamp(0.0, 1.0);
+
+    let rsi = indicators.rsi as f64;
+    let macd_hist = indicators.macd_histogram as f64;
+    let rsi_dev = (rsi - 50.0).abs() / 50.0;
+    let macd_norm = macd_hist.abs().min(1.0);
+    let momentum_strength = (0.6 * rsi_dev + 0.4 * macd_norm).clamp(0.0, 1.0);
+
+    let volatility_regime = ((atr_pct - 0.006) / 0.034).clamp(0.0, 1.0);
+    let volume_spike_score = (indicators.volume_spike as f64).clamp(0.0, 1.0);
+
+    let dominant_side: i64 = if rsi > 55.0 && macd_hist > 0.0 { 1 }
+        else if rsi < 45.0 && macd_hist < 0.0 { -1 }
+        else { 0 };
+
+    let best_momentum = momentum_strength;
+    let best_volume = volume_spike_score;
+    let best_levels = 0.5;
+    let best_raw = ((trend_strength + momentum_strength) / 2.0).clamp(0.0, 1.0);
+
+    serde_json::json!({
+        "atr": indicators.atr,
+        "atr_pct": atr_pct,
+        "side": dominant_side,
+        "dominant_side": dominant_side,
+        "trend_strength": trend_strength,
+        "momentum_strength": momentum_strength,
+        "volatility_regime": volatility_regime,
+        "volume_spike_score": volume_spike_score,
+        "best_raw_signal_score": best_raw,
+        "best_levels_score": best_levels,
+        "best_momentum_score": best_momentum,
+        "best_volume_score": best_volume,
+        "feature_coverage": 0.7,
+        "trend_short": indicators.trend_short,
+    })
 }

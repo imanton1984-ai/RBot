@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
 use common::Symbol;
-use crate::predictors::types::PredictionRow;
+use crate::predictors::types::{PredictionRow, PredictionAspect};
 
 use super::final_score::{FinalScorer, FinalScoreBreakdown};
 use super::market_params_calculator::MarketParams;
@@ -122,7 +122,7 @@ pub struct TradeSignalCalculator {
 impl Default for TradeSignalCalculator {
     fn default() -> Self {
         Self {
-            min_final_score: 0.95,
+            min_final_score: 0.96,
             base_leverage: 5,
             sl_atr_mult: 1.6,
             tp1_atr_mult: 1.2,
@@ -237,7 +237,7 @@ impl TradeSignalCalculator {
         };
 
         let stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
-        let mut tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+        let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
         let mut tp2 = enforce_min(tp2, d_tp2_min, true).max(0.0);
         let mut tp3 = enforce_min(tp3, d_tp3_min, true).max(0.0);
 
@@ -304,7 +304,7 @@ impl TradeSignalCalculator {
         let targets = tf_targets(tf_minutes);
 
         // Entry filter based on price prediction
-        let price_target_pred = predictors.iter().find(|p| p.aspect == crate::predictors::types::PredictionAspect::PriceTarget);
+        let price_target_pred = predictors.iter().find(|p| p.aspect == PredictionAspect::PriceTarget);
         if let Some(pred) = price_target_pred {
             let predicted_move_pct = (pred.value - entry_price) / entry_price * side as f64;
             if predicted_move_pct < targets.min_tp1_pct {
@@ -313,9 +313,13 @@ impl TradeSignalCalculator {
         }
 
         // ATR
-        let atr = extract_atr_from_summary(raw_signals_summary)
-            .or_else(|| futures::executor::block_on(fetch_last_atr(pool, symbol_id, tf_minutes)).ok().flatten())
-            .unwrap_or(entry_price * self.fallback_atr_pct);
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
 
         let side_f = side as f64;
 
@@ -370,7 +374,7 @@ impl TradeSignalCalculator {
             let boost_tp3 = (0.98 + 0.38 * s).clamp(1.05, 1.35);
 
             let d_sl  = d_sl_atr.max(d_sl_min);
-            let mut d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
+            let d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
             let mut d_tp2 = (d_tp2_atr.max(d_tp2_min)) * boost_tp2;
             let mut d_tp3 = (d_tp3_atr.max(d_tp3_min)) * boost_tp3;
 
@@ -446,7 +450,7 @@ fn infer_side(raw_signals_summary: &Value, predictors: &[PredictionRow]) -> Opti
     let mut best: Option<(f32, i16)> = None;
     for p in predictors {
         let sc = p.score_norm;
-        let sd = p.side;
+        let sd = p.side.unwrap_or(0);
         if sd == 0 { continue; }
         match best {
             None => best = Some((sc, sd)),
@@ -455,7 +459,7 @@ fn infer_side(raw_signals_summary: &Value, predictors: &[PredictionRow]) -> Opti
         }
     }
 
-    best.map(|(_, sd)| (sd.signum() as i8))
+    best.map(|(_, sd)| sd.signum() as i8)
 }
 
 fn infer_side_from_summary_fields(raw_signals_summary: &Value) -> Option<i8> {

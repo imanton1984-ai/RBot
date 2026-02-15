@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::predictors::types::{PredictionAspect, PredictionRow, PredictionCalcSource};
+use crate::predictors::types::{PredictionAspect, PredictionRow, CalcSource};
 
 use super::market_params_calculator::MarketParams;
 
@@ -127,7 +127,7 @@ impl FinalScorer {
         predictors: &[PredictionRow],
         market_params: Option<&MarketParams>,
     ) -> Result<Option<FinalScoreBreakdown>> {
-        let side_i8 = (side.signum() as i8);
+        let side_i8 = side.signum() as i8;
 
         // predictors score
         let pred_comp = self.calculate_predictors_component(predictors)?;
@@ -209,10 +209,10 @@ impl FinalScorer {
             let score = (p.score_norm as f64).clamp(0.0, 1.0);
 
             match p.calc_source {
-                PredictionCalcSource::Ml => {
+                CalcSource::Ml => {
                     best_ml.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
                 }
-                PredictionCalcSource::Hard => {
+                CalcSource::Hard => {
                     best_heur.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
                 }
             }
@@ -223,7 +223,7 @@ impl FinalScorer {
             match a {
                 x if x == PredictionAspect::PriceTarget.as_int() => 1.00,
                 x if x == PredictionAspect::LevelBounce.as_int() => 0.85,
-                x if x == PredictionAspect::LevelBreak.as_int() => 0.85,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.85,
                 _ => 0.60,
             }
         };
@@ -320,8 +320,7 @@ impl FinalScorer {
             match p.aspect {
                 PredictionAspect::PriceTarget => has_price_target = true,
                 PredictionAspect::LevelBounce => has_bounce = true,
-                PredictionAspect::LevelBreak => has_break = true,
-                _ => {}
+                PredictionAspect::LevelBreakout => has_break = true,
             }
         }
 

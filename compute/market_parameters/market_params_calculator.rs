@@ -71,6 +71,29 @@ pub struct MarketParams {
 }
 
 impl MarketParams {
+    /// Neutral fallback when BTC data is not available yet.
+    /// Returns conservative parameters that don't bias any direction.
+    pub fn neutral(asof: DateTime<Utc>) -> Self {
+        Self {
+            asof,
+            btc_symbol: "BTCUSDT".to_string(),
+            btc_symbol_id: 0,
+            global_tf_minutes: 1440,
+            short_tf_minutes: 240,
+            global_dir: 0,
+            short_dir: 0,
+            situation: MarketSituation::Flat,
+            adx_global: None,
+            atr_global: None,
+            close_global: None,
+            atr_pct_global: None,
+            trend_strength_score: 0.0,
+            volatility_score: 0.0,
+            market_quality_score: 0.0,
+            details_json: json!({"status": "neutral_fallback", "reason": "BTC data not available"}),
+        }
+    }
+
     /// 0..1 : how much the requested side matches BTC market regime
     /// side: +1 long, -1 short
     pub fn alignment_score(&self, side: i8) -> f64 {
@@ -83,7 +106,7 @@ impl MarketParams {
         let s = self.short_dir.signum();
 
         // base alignment from both horizons
-        let mut score = 0.5;
+        let mut score: f64 = 0.5;
 
         if g == side {
             score += 0.35;
@@ -179,7 +202,16 @@ impl MarketParamsCalculator {
             }
         }
 
-        let params = self.compute(pool, asof).await?;
+        let params = match self.compute(pool, asof).await {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!(
+                    "MarketParamsCalculator: failed to compute BTC regime ({}), using neutral fallback",
+                    e
+                );
+                MarketParams::neutral(asof)
+            }
+        };
 
         {
             let mut guard = self.cache.write().await;
@@ -239,7 +271,7 @@ impl MarketParamsCalculator {
             situation,
             adx_global,
             atr_global,
-            close_global,
+            close_global: global_close,
             atr_pct_global,
             trend_strength_score,
             volatility_score,

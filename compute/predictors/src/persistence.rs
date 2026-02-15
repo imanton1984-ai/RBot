@@ -1,12 +1,9 @@
 // compute/predictors/persistence.rs
 
 use anyhow::Result;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use crate::types::{PredictionRow, PredictorMeta, PredictorId};
 use sqlx::types::Json;
-use tokio_postgres::binary_copy::BinaryCopyInWriter;
-use tokio_postgres::types::Type;
-use chrono::Utc;
 
 pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) -> Result<()> {
     if predictors.is_empty() {
@@ -160,83 +157,37 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
     Ok(())
 }
 
-/// Optimized function to copy predictors using binary copy for historical data
-pub async fn copy_predictors_binary(
-    client: &tokio_postgres::Client, // Use client from pool.acquire().await
-    predictors: Vec<PredictionRow>
-) -> Result<u64> {
-    if predictors.is_empty() { return Ok(0); }
-
-    let sink = client.copy_in(
-        "COPY trade.predictors (
-            time, time_ms, symbol_id, symbol, tf_minutes,
-            horizon_bars, aspect, calc_source, predictor_id,
-            score_norm, value, value_low, value_high, side,
-            level_hash, level_kind, level_price, level_strength, level_distance_atr,
-            candle_is_final, event_time_ms, details_json, prediction_key, created_at, updated_at
-        ) FROM STDIN BINARY"
-    ).await?;
-
-    let writer = BinaryCopyInWriter::new(sink, &[
-        Type::TIMESTAMPTZ, Type::INT8, Type::INT8, Type::TEXT, Type::INT4,
-        Type::INT4, Type::INT2, Type::INT2, Type::INT8,
-        Type::FLOAT4, Type::FLOAT8, Type::FLOAT8, Type::FLOAT8, Type::INT2,
-        Type::TEXT, Type::INT2, Type::FLOAT8, Type::FLOAT4, Type::FLOAT4,
-        Type::BOOL, Type::INT8, Type::JSONB, Type::TEXT, Type::TIMESTAMPTZ, Type::TIMESTAMPTZ
-    ]);
-    
-    let mut writer = std::pin::pin!(writer);
-    let now = Utc::now();
-
-    for p in predictors {
-        // Optimization: for history, skip details_json if it's not critical
-        let details = if std::env::var("DB_PERSIST_HISTORY_SKIP_JSON").unwrap_or_default() == "1" {
-            None::<String>
-        } else {
-            p.details_json.and_then(|v| serde_json::to_string(&v).ok())
-        };
-
-        writer.as_mut().write(&[
-            &p.time, &p.time_ms, &p.symbol_id, &p.symbol, &p.tf_minutes,
-            &p.horizon_bars, &(p.aspect.as_int() as i16), &(p.calc_source.as_int() as i16), &p.predictor_id,
-            &p.score_norm, &p.value, &p.value_low, &p.value_high, &p.side,
-            &p.level_hash, &p.level_kind, &p.level_price, &p.level_strength, &p.level_distance_atr,
-            &p.candle_is_final, &p.event_time_ms, &details, &p.prediction_key, &now, &now
-        ]).await?;
-    }
-
-    let rows = writer.as_mut().finish().await?;
-    Ok(rows)
-}
+// NOTE: copy_predictors_binary removed — use BulkPersistor for high-performance writes
 
 pub async fn resolve_symbol_id(pool: &PgPool, symbol: &str) -> Result<i64> {
-    let row = sqlx::query!("SELECT symbol_id FROM market.pairs WHERE symbol = $1", symbol)
+    let row = sqlx::query("SELECT symbol_id FROM market.pairs WHERE symbol = $1")
+        .bind(symbol)
         .fetch_one(pool)
         .await?;
-    Ok(row.symbol_id)
+    Ok(row.try_get::<i64, _>("symbol_id")?)
 }
 
 pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &PredictorMeta) -> Result<PredictorId> {
     // Check if predictor already exists
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         SELECT predictor_id
         FROM trade.predictor_registry
         WHERE calc_source = $1 AND name = $2 AND version = $3
         "#,
-        predictor_meta.calc_source.as_int() as i16,
-        predictor_meta.name,
-        predictor_meta.version
     )
+    .bind(predictor_meta.calc_source.as_int() as i16)
+    .bind(&predictor_meta.name)
+    .bind(&predictor_meta.version)
     .fetch_optional(pool)
     .await?;
 
     if let Some(row) = row {
-        return Ok(PredictorId(row.predictor_id));
+        return Ok(PredictorId(row.try_get::<i64, _>("predictor_id")?));
     }
 
     // Insert new predictor
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         INSERT INTO trade.predictor_registry (
             aspect, horizon_bars, calc_source, framework,
@@ -247,52 +198,54 @@ pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &Predi
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING predictor_id
         "#,
-        predictor_meta.aspect.as_int() as i16,
-        10i32, // Default horizon
-        predictor_meta.calc_source.as_int() as i16,
-        predictor_meta.framework,
-        predictor_meta.name,
-        predictor_meta.version,
-        None::<String>, // code_hash
-        predictor_meta.artifact_path,
-        None::<String>, // artifact_sha256
-        predictor_meta.feature_schema_id,
-        None::<serde_json::Value>, // calibration_json
-        None::<serde_json::Value>, // metrics_json
-        None::<chrono::DateTime<chrono::Utc>>, // trained_from
-        None::<chrono::DateTime<chrono::Utc>>, // trained_to
-        true // is_active
     )
+    .bind(predictor_meta.aspect.as_int() as i16)
+    .bind(10i32) // Default horizon
+    .bind(predictor_meta.calc_source.as_int() as i16)
+    .bind(&predictor_meta.framework)
+    .bind(&predictor_meta.name)
+    .bind(&predictor_meta.version)
+    .bind(None::<String>) // code_hash
+    .bind(&predictor_meta.artifact_path)
+    .bind(None::<String>) // artifact_sha256
+    .bind(&predictor_meta.feature_schema_id)
+    .bind(None::<serde_json::Value>) // calibration_json
+    .bind(None::<serde_json::Value>) // metrics_json
+    .bind(None::<chrono::DateTime<chrono::Utc>>) // trained_from
+    .bind(None::<chrono::DateTime<chrono::Utc>>) // trained_to
+    .bind(true) // is_active
     .fetch_one(pool)
     .await?;
 
-    Ok(PredictorId(row.predictor_id))
+    Ok(PredictorId(row.try_get::<i64, _>("predictor_id")?))
 }
 
 pub async fn get_predictor_meta(pool: &PgPool, predictor_id: i64) -> Result<Option<PredictorMeta>> {
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         SELECT aspect, calc_source, name, version, framework, artifact_path, feature_schema_id
         FROM trade.predictor_registry
         WHERE predictor_id = $1 AND is_active = true
         "#,
-        predictor_id
     )
+    .bind(predictor_id)
     .fetch_optional(pool)
     .await?;
 
     if let Some(row) = row {
+        let aspect_i16: i16 = row.try_get("aspect")?;
+        let calc_source_i16: i16 = row.try_get("calc_source")?;
         Ok(Some(PredictorMeta {
             predictor_id,
-            name: row.name,
-            version: row.version,
-            aspect: crate::types::PredictionAspect::from_int(row.aspect)
-                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", row.aspect))?,
-            calc_source: crate::types::CalcSource::from_int(row.calc_source)
-                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", row.calc_source))?,
-            framework: row.framework,
-            artifact_path: row.artifact_path,
-            feature_schema_id: row.feature_schema_id,
+            name: row.try_get("name")?,
+            version: row.try_get("version")?,
+            aspect: crate::types::PredictionAspect::from_int(aspect_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", aspect_i16))?,
+            calc_source: crate::types::CalcSource::from_int(calc_source_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", calc_source_i16))?,
+            framework: row.try_get("framework")?,
+            artifact_path: row.try_get("artifact_path")?,
+            feature_schema_id: row.try_get("feature_schema_id")?,
         }))
     } else {
         Ok(None)
@@ -307,57 +260,60 @@ pub async fn get_recent_predictors(
     min_score: f32,
     limit: i64,
 ) -> Result<Vec<PredictionRow>> {
-    let rows = sqlx::query!(
+    let rows = sqlx::query(
         r#"
         SELECT
-            prediction_id, time, time_ms, symbol_id, symbol, tf_minutes,
-            horizon_bars, aspect as "aspect: i16", calc_source as "calc_source: i16",
+            time, time_ms, symbol_id, symbol, tf_minutes,
+            horizon_bars, aspect, calc_source,
             predictor_id, score_norm, value, value_low, value_high, side,
             level_hash, level_kind, level_price, level_strength, level_distance_atr,
-            candle_is_final, event_time_ms, details_json::jsonb as "details_json: Json<serde_json::Value>", prediction_key
+            candle_is_final, event_time_ms, details_json, prediction_key
         FROM trade.predictors
         WHERE symbol_id = $1 AND tf_minutes = $2 AND aspect = $3
           AND score_norm >= $4
         ORDER BY time DESC
         LIMIT $5
         "#,
-        symbol_id,
-        tf_minutes,
-        aspect.as_int() as i16,
-        min_score,
-        limit
     )
+    .bind(symbol_id)
+    .bind(tf_minutes)
+    .bind(aspect.as_int() as i16)
+    .bind(min_score)
+    .bind(limit)
     .fetch_all(pool)
     .await?;
 
     let mut predictors = Vec::new();
-    for row in rows {
+    for row in &rows {
+        let aspect_i16: i16 = row.try_get("aspect")?;
+        let calc_source_i16: i16 = row.try_get("calc_source")?;
+        let details: Option<serde_json::Value> = row.try_get("details_json")?;
         predictors.push(PredictionRow {
-            time: row.time,
-            time_ms: row.time_ms,
-            symbol_id: row.symbol_id,
-            symbol: row.symbol,
-            tf_minutes: row.tf_minutes,
-            horizon_bars: row.horizon_bars,
-            aspect: crate::types::PredictionAspect::from_int(row.aspect)
-                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", row.aspect))?,
-            calc_source: crate::types::CalcSource::from_int(row.calc_source)
-                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", row.calc_source))?,
-            predictor_id: row.predictor_id,
-            score_norm: row.score_norm,
-            value: row.value,
-            value_low: row.value_low,
-            value_high: row.value_high,
-            side: row.side,
-            level_hash: row.level_hash,
-            level_kind: row.level_kind,
-            level_price: row.level_price,
-            level_strength: row.level_strength,
-            level_distance_atr: row.level_distance_atr,
-            candle_is_final: row.candle_is_final,
-            event_time_ms: row.event_time_ms,
-            details_json: row.details_json.map(|json_val| json_val.0), // Unwrap Json wrapper
-            prediction_key: row.prediction_key,
+            time: row.try_get("time")?,
+            time_ms: row.try_get("time_ms")?,
+            symbol_id: row.try_get("symbol_id")?,
+            symbol: row.try_get("symbol")?,
+            tf_minutes: row.try_get("tf_minutes")?,
+            horizon_bars: row.try_get("horizon_bars")?,
+            aspect: crate::types::PredictionAspect::from_int(aspect_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid aspect value: {}", aspect_i16))?,
+            calc_source: crate::types::CalcSource::from_int(calc_source_i16)
+                .ok_or_else(|| anyhow::anyhow!("Invalid calc_source value: {}", calc_source_i16))?,
+            predictor_id: row.try_get("predictor_id")?,
+            score_norm: row.try_get("score_norm")?,
+            value: row.try_get("value")?,
+            value_low: row.try_get("value_low")?,
+            value_high: row.try_get("value_high")?,
+            side: row.try_get("side")?,
+            level_hash: row.try_get("level_hash")?,
+            level_kind: row.try_get("level_kind")?,
+            level_price: row.try_get("level_price")?,
+            level_strength: row.try_get("level_strength")?,
+            level_distance_atr: row.try_get("level_distance_atr")?,
+            candle_is_final: row.try_get("candle_is_final")?,
+            event_time_ms: row.try_get("event_time_ms")?,
+            details_json: details,
+            prediction_key: row.try_get("prediction_key")?,
         });
     }
 
