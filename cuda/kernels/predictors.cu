@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 // Heuristic predictor kernel for RSI divergence detection
-__global__ void rsi_divergence_predictor_kernel(
+extern "C" __global__ void rsi_divergence_predictor_kernel(
     const double* prices,
     const double* rsi_values,
     double* output_predictions,
@@ -38,7 +38,7 @@ __global__ void rsi_divergence_predictor_kernel(
 }
 
 // Heuristic predictor kernel for support/resistance level detection
-__global__ void sr_level_predictor_kernel(
+extern "C" __global__ void sr_level_predictor_kernel(
     const double* high,
     const double* low,
     const double* close,
@@ -89,7 +89,7 @@ __global__ void sr_level_predictor_kernel(
 }
 
 // Heuristic predictor kernel for momentum reversal
-__global__ void momentum_reversal_predictor_kernel(
+extern "C" __global__ void momentum_reversal_predictor_kernel(
     const double* prices,
     const double* rsi_values,
     double* output_predictions,
@@ -120,7 +120,7 @@ __global__ void momentum_reversal_predictor_kernel(
 }
 
 // Batch predictor combiner - combines multiple heuristic predictions
-__global__ void heuristic_combiner_kernel(
+extern "C" __global__ void heuristic_combiner_kernel(
     const double* div_pred,
     const double* sr_pred,
     const double* mom_pred,
@@ -142,7 +142,7 @@ __global__ void heuristic_combiner_kernel(
 }
 
 // Kernel to convert heuristic predictions to signal format compatible with consensus kernel
-__global__ void heuristic_to_signal_kernel(
+extern "C" __global__ void heuristic_to_signal_kernel(
     const double* heuristic_values,
     float* signal_output,
     int n

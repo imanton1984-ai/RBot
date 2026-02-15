@@ -7,14 +7,21 @@ use crate::{
 use crate::predictors::pipeline::FeatureSnapshot;
 use crate::predictors::feature_view::IndicatorsWideRow;
 
+/// Unified result processor for both history and realtime pipelines.
+/// Accepts an optional second set of persistors for dual-mode operation (main.rs).
+/// When only one persistor set is provided, all data uses those persistors.
 pub struct ResultProcessor {
     indicator_persistor: Arc<IndicatorPersistor>,
     raw_signal_persistor: Arc<RawSignalPersistor>,
+    // Optional: separate persistors for realtime mode
+    indicator_persistor_rt: Option<Arc<IndicatorPersistor>>,
+    raw_signal_persistor_rt: Option<Arc<RawSignalPersistor>>,
     raw_signal_processor: Arc<RawSignalProcessor>,
     feature_tx: mpsc::UnboundedSender<FeatureSnapshot>,
 }
 
 impl ResultProcessor {
+    /// Create a single-mode ResultProcessor (used by compute_history.rs, compute_realtime.rs)
     pub fn new(
         indicator_persistor: Arc<IndicatorPersistor>,
         raw_signal_persistor: Arc<RawSignalPersistor>,
@@ -24,8 +31,47 @@ impl ResultProcessor {
         Self {
             indicator_persistor,
             raw_signal_persistor,
+            indicator_persistor_rt: None,
+            raw_signal_persistor_rt: None,
             raw_signal_processor,
             feature_tx,
+        }
+    }
+
+    /// Create a dual-mode ResultProcessor (used by main.rs that handles both history + realtime)
+    pub fn new_dual(
+        indicator_persistor_hist: Arc<IndicatorPersistor>,
+        raw_signal_persistor_hist: Arc<RawSignalPersistor>,
+        indicator_persistor_rt: Arc<IndicatorPersistor>,
+        raw_signal_persistor_rt: Arc<RawSignalPersistor>,
+        raw_signal_processor: Arc<RawSignalProcessor>,
+        feature_tx: mpsc::UnboundedSender<FeatureSnapshot>,
+    ) -> Self {
+        Self {
+            indicator_persistor: indicator_persistor_hist,
+            raw_signal_persistor: raw_signal_persistor_hist,
+            indicator_persistor_rt: Some(indicator_persistor_rt),
+            raw_signal_persistor_rt: Some(raw_signal_persistor_rt),
+            raw_signal_processor,
+            feature_tx,
+        }
+    }
+
+    /// Select the appropriate indicator persistor based on realtime flag
+    fn select_indicator_persistor(&self, is_realtime: bool) -> &Arc<IndicatorPersistor> {
+        if is_realtime {
+            self.indicator_persistor_rt.as_ref().unwrap_or(&self.indicator_persistor)
+        } else {
+            &self.indicator_persistor
+        }
+    }
+
+    /// Select the appropriate raw signal persistor based on realtime flag
+    fn select_raw_signal_persistor(&self, is_realtime: bool) -> &Arc<RawSignalPersistor> {
+        if is_realtime {
+            self.raw_signal_persistor_rt.as_ref().unwrap_or(&self.raw_signal_persistor)
+        } else {
+            &self.raw_signal_persistor
         }
     }
 
@@ -36,19 +82,59 @@ impl ResultProcessor {
             let n = feature_window.batch.timestamps.len();
             if n == 0 { continue; }
 
+            println!(
+                "Processing feature batch for {} on {}, bars={}, cols={}, realtime: {}",
+                feature_window.symbol,
+                feature_window.timeframe,
+                n,
+                feature_window.batch.columns.len(),
+                feature_window.is_realtime
+            );
+
             // 1. Determine start index (skip warmup for history)
             let start_idx = if feature_window.is_realtime && n > 2 {
                 n - 2
             } else {
-                // For history: find first bar with enough valid data
+                // For history: find first bar with enough valid data (>= 50% of indicators finite)
+                let f64_columns: Vec<&Vec<f64>> = feature_window.batch.columns.iter()
+                    .filter_map(|c| match c {
+                        FeatureColumn::F64 { name, values } => {
+                            let ignored: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
+                            if ignored.contains(&name.as_str()) { None } else { Some(values) }
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                let total_cols = f64_columns.len();
+                let threshold = (total_cols as f64 * 0.5).ceil() as usize;
+
                 let mut effective_start = 0;
-                // Simplified check: skip first few bars if they are obviously warmup
-                // In production, checking for valid indicator values (non-NaN) is better
-                if n > 50 { effective_start = 50; } 
+                for bar_idx in 0..n {
+                    let valid_count = f64_columns.iter()
+                        .filter(|col| col.get(bar_idx).map_or(false, |v| v.is_finite()))
+                        .count();
+                    if valid_count >= threshold {
+                        effective_start = bar_idx;
+                        break;
+                    }
+                    if bar_idx == n - 1 {
+                        effective_start = n; // Will skip all bars
+                    }
+                }
                 effective_start
             };
 
-            if start_idx >= n { continue; }
+            if start_idx >= n {
+                println!(
+                    "Skipping feature batch for {} on {} - no bars with enough valid indicators",
+                    feature_window.symbol, feature_window.timeframe
+                );
+                continue;
+            }
+
+            // Select the appropriate persistors based on is_realtime
+            let selected_indicator_persistor = self.select_indicator_persistor(feature_window.is_realtime);
+            let selected_raw_signal_persistor = self.select_raw_signal_persistor(feature_window.is_realtime);
 
             // 2. Persist Indicators
             let mut records = Vec::new();
@@ -72,6 +158,7 @@ impl ResultProcessor {
                             }
                         }
                         FeatureColumn::Json { name, values } => {
+                            if ignored_names.contains(&name.as_str()) { continue; }
                             if let Some(value) = values.get(i) {
                                 if !value.is_null() {
                                     records.push(IndicatorRecord {
@@ -89,25 +176,54 @@ impl ResultProcessor {
             }
 
             if !records.is_empty() {
-                self.indicator_persistor.queue_records(records).await;
+                println!(
+                    "  Persisting {} indicator records for {} on {} (bars {}..{}, skipped {} warmup bars)",
+                    records.len(),
+                    feature_window.symbol,
+                    feature_window.timeframe,
+                    start_idx,
+                    n - 1,
+                    start_idx
+                );
+                selected_indicator_persistor.queue_records(records).await;
             }
 
             // 3. Process & Persist Raw Signals
             let all_raw_signals = self.raw_signal_processor.process_feature_window(&feature_window);
+            let all_raw_signals_count = all_raw_signals.len();
             
-            let min_valid_timestamp = feature_window.batch.timestamps[start_idx];
-            let signals_to_persist: Vec<_> = all_raw_signals.into_iter()
-                .filter(|s| s.timestamp >= min_valid_timestamp)
-                .collect();
+            let min_valid_timestamp = if start_idx < n {
+                feature_window.batch.timestamps[start_idx]
+            } else {
+                i64::MAX
+            };
+
+            let signals_to_persist = if feature_window.is_realtime {
+                let last_timestamps: Vec<i64> = feature_window.batch.timestamps.iter().rev().take(2).cloned().collect();
+                all_raw_signals.into_iter()
+                    .filter(|s| last_timestamps.contains(&s.timestamp))
+                    .collect::<Vec<_>>()
+            } else {
+                all_raw_signals.into_iter()
+                    .filter(|s| s.timestamp >= min_valid_timestamp)
+                    .collect::<Vec<_>>()
+            };
 
             if !signals_to_persist.is_empty() {
-                self.raw_signal_persistor.queue_records(signals_to_persist).await;
+                println!(
+                    "  Persisting {} raw signals for {} on {} (filtered from {} total)",
+                    signals_to_persist.len(),
+                    feature_window.symbol,
+                    feature_window.timeframe,
+                    all_raw_signals_count
+                );
+                selected_raw_signal_persistor.queue_records(signals_to_persist).await;
             }
 
             // 4. Send Snapshot to Predictors Pipeline
             // For history: send ALL valid candles. For realtime: only last.
             let snapshot_range = if feature_window.is_realtime {
-                (n - 1)..n
+                if n > 0 { (n - 1)..n } else { 0..0 }
             } else {
                 start_idx..n
             };
@@ -169,12 +285,13 @@ impl ResultProcessor {
                     symbol: feature_window.symbol.to_string(),
                     timeframe: feature_window.timeframe.as_str().to_string(),
                     indicators,
-                    raw_signals_data: None, // Can be populated if needed
+                    raw_signals_data: None,
                     sr_levels,
                     is_realtime: feature_window.is_realtime,
                 };
 
-                if let Err(_) = self.feature_tx.send(snapshot) {
+                if let Err(e) = self.feature_tx.send(snapshot) {
+                    tracing::error!("Failed to send feature snapshot: {}", e);
                     break;
                 }
             }

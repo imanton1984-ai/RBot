@@ -4,7 +4,7 @@
 // Consensus kernel that combines signals from multiple sources (ML models and heuristic indicators)
 // Input: Multiple signal arrays from ML models and heuristic indicators
 // Output: Final trading signals (0=Hold, 1=Buy, 2=Sell)
-__global__ void final_consensus_kernel(
+extern "C" __global__ void final_consensus_kernel(
     const float* ml_1,           // ML model 1 predictions
     const float* ml_2,           // ML model 2 predictions  
     const float* heur_1,         // Heuristic indicator 1
@@ -59,7 +59,7 @@ __global__ void final_consensus_kernel(
 }
 
 // Kernel for heuristic signal generation based on RSI divergence
-__global__ void check_rsi_divergence_kernel(
+extern "C" __global__ void check_rsi_divergence_kernel(
     const double* prices,
     const double* rsi_values,
     double* output_signals,
@@ -95,7 +95,7 @@ __global__ void check_rsi_divergence_kernel(
 }
 
 // Enhanced RSI kernel for batch processing
-__global__ void rsi_batch_kernel(const double* input, double* output, int n, int period) {
+extern "C" __global__ void rsi_batch_kernel(const double* input, double* output, int n, int period) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < n) {
@@ -135,7 +135,7 @@ __global__ void rsi_batch_kernel(const double* input, double* output, int n, int
 }
 
 // Enhanced SMA kernel for batch processing
-__global__ void sma_batch_kernel(const double* input, double* output, int n, int period) {
+extern "C" __global__ void sma_batch_kernel(const double* input, double* output, int n, int period) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < n) {
@@ -152,7 +152,7 @@ __global__ void sma_batch_kernel(const double* input, double* output, int n, int
 }
 
 // Enhanced EMA kernel for batch processing
-__global__ void ema_batch_kernel(const double* input, double* output, int n, int period) {
+extern "C" __global__ void ema_batch_kernel(const double* input, double* output, int n, int period) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < n) {
@@ -183,7 +183,7 @@ __global__ void ema_batch_kernel(const double* input, double* output, int n, int
 }
 
 // Enhanced ATR kernel for batch processing
-__global__ void atr_batch_kernel(
+extern "C" __global__ void atr_batch_kernel(
     const double* high,
     const double* low,
     const double* close,
@@ -233,7 +233,7 @@ __global__ void atr_batch_kernel(
 }
 
 // Raw signal combination kernel - combines multiple indicator signals into feature set
-__global__ void raw_signals_combiner_kernel(
+extern "C" __global__ void raw_signals_combiner_kernel(
     const double* rsi_values,
     const double* sma_values,
     const double* ema_values,

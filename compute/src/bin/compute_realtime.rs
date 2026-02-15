@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use dotenvy::dotenv;
 use database_lib;
-use common::{Symbol, Timeframe, MessageBus};
+use common::{Symbol, Timeframe, MessageBus, CandleCloseEvent};
 use sqlx::PgPool;
 use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBackendType, CandleWindowFetcher, ComputeConfig, IndicatorPersistor, RawSignalPersistor, RawSignalProcessor, ResultProcessor};
 use raw_signals::thresholds::SignalConfig;
@@ -89,6 +89,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
     );
     predictors_pipeline.set_input_receiver(feature_rx);
+    // Connect bulk_sender to predictors pipeline for batched DB writes
+    // Without this, the pipeline falls back to individual upsert_predictors() calls
+    predictors_pipeline.set_bulk_sender(bulk_sender.clone());
 
     // Spawn Predictors Pipeline
     tokio::spawn(async move {
@@ -240,10 +243,4 @@ async fn run_realtime_consumer(
     }
 }
 
-// Define the structure for candle close events
-#[derive(serde::Deserialize, Debug)]
-struct CandleCloseEvent {
-    symbol: String,
-    timeframe: String,  // This will need to be parsed to Timeframe
-    close_time: i64,
-}
+// CandleCloseEvent is imported from common::CandleCloseEvent

@@ -1,11 +1,11 @@
 use std::sync::Arc;
-use common::{Symbol, Timeframe};
+use common::{Symbol, Timeframe, CandleCloseEvent};
 use compute_lib::*;
 use sqlx::Row;
 use dotenvy::dotenv;
 use raw_signals::thresholds::SignalConfig;
 use tracing_appender::rolling;
-use crate::predictors::{feature_view::IndicatorsWideRow, pipeline::FeatureSnapshot};
+use crate::predictors::pipeline::FeatureSnapshot;
 use crate::predictors::config::PredictorsConfig;
 use database_lib;
 
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let candle_fetcher = Arc::new(CandleWindowFetcher::new(db_pool.clone()));
 
     // Initialize job scheduler
-    let (job_scheduler, mut result_receiver) = JobScheduler::new(
+    let (job_scheduler, result_receiver) = JobScheduler::new(
         compute_backend,
         config.clone(),
         candle_fetcher.clone(),
@@ -148,11 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Initialize TWO RawSignal persistors
-    let raw_signal_persistor_hist = RawSignalPersistor::new(bulk_history_sender.clone());
-    let raw_signal_persistor_rt = RawSignalPersistor::new(bulk_realtime_sender.clone());
-
-    let raw_signal_persistor_hist = Arc::new(raw_signal_persistor_hist);
-    let raw_signal_persistor_rt = Arc::new(raw_signal_persistor_rt);
+    let raw_signal_persistor_hist = Arc::new(RawSignalPersistor::new(bulk_history_sender.clone()));
+    let raw_signal_persistor_rt = Arc::new(RawSignalPersistor::new(bulk_realtime_sender.clone()));
 
     // Initialize RawSignal processor
     let raw_cfg = SignalConfig {
@@ -165,268 +162,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create channel for feature snapshots to predictors pipeline
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
 
-    // Spawn result processor to handle computed indicators and raw signals
-    let indicator_persistor_hist_clone = indicator_persistor_hist.clone();
-    let indicator_persistor_rt_clone = indicator_persistor_rt.clone();
-    let raw_signal_processor_clone = raw_signal_processor.clone();
-    let raw_signal_persistor_hist_clone = Arc::clone(&raw_signal_persistor_hist);
-    let raw_signal_persistor_rt_clone = Arc::clone(&raw_signal_persistor_rt);
-    let feature_tx_clone = feature_tx.clone(); // Clone for sending feature snapshots
+    // Use ResultProcessor (dual-mode: history + realtime persistors)
+    // This replaces 250+ lines of inline duplicate code
+    let result_processor = ResultProcessor::new_dual(
+        indicator_persistor_hist,
+        raw_signal_persistor_hist,
+        indicator_persistor_rt,
+        raw_signal_persistor_rt,
+        raw_signal_processor,
+        feature_tx.clone(),
+    );
+
     tokio::spawn(async move {
-        while let Some(feature_window) = result_receiver.recv().await {
-            let n = feature_window.batch.timestamps.len();
-            println!(
-                "Processing feature batch for {} on {}, bars={}, cols={}, realtime: {}",
-                feature_window.symbol,
-                feature_window.timeframe,
-                n,
-                feature_window.batch.columns.len(),
-                feature_window.is_realtime
-            );
-
-            if n == 0 {
-                continue;
-            }
-
-            // Determine the effective start index for persistence:
-            // - Real-time: only the last 2 bars
-            // - Historical: skip warmup bars where most indicators are NaN.
-            //   We find the first bar where at least half of the f64 columns
-            //   have finite (non-NaN) values. This avoids persisting rows
-            //   that would be mostly NULL in the wide table.
-            let start_idx = if feature_window.is_realtime && n > 2 {
-                n - 2
-            } else {
-                // For historical: find the first bar where enough indicators are valid
-                let f64_columns: Vec<&Vec<f64>> = feature_window.batch.columns.iter()
-                    .filter_map(|c| match c {
-                        FeatureColumn::F64 { name, values } => {
-                            // Skip candle data columns
-                            let ignored: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
-                            if ignored.contains(&name.as_str()) { None } else { Some(values) }
-                        }
-                        _ => None,
-                    })
-                    .collect();
-                let total_cols = f64_columns.len();
-                let threshold = (total_cols as f64 * 0.5).ceil() as usize; // At least 50% of indicators must be valid
-
-                let mut effective_start = 0;
-                for bar_idx in 0..n {
-                    let valid_count = f64_columns.iter()
-                        .filter(|col| col.get(bar_idx).map_or(false, |v| v.is_finite()))
-                        .count();
-                    if valid_count >= threshold {
-                        effective_start = bar_idx;
-                        break;
-                    }
-                    // If we reach the end without finding a valid bar, start from 0
-                    if bar_idx == n - 1 {
-                        effective_start = n; // Will skip all bars
-                    }
-                }
-                effective_start
-            };
-
-            if start_idx >= n {
-                println!(
-                    "Skipping feature batch for {} on {} - no bars with enough valid indicators",
-                    feature_window.symbol, feature_window.timeframe
-                );
-                continue;
-            }
-
-            // Select the appropriate persistor based on whether this is real-time or historical
-            let selected_indicator_persistor = if feature_window.is_realtime {
-                &indicator_persistor_rt_clone
-            } else {
-                &indicator_persistor_hist_clone
-            };
-
-            // Handle indicators
-            let mut records = Vec::new();
-            let ignored_names: [&str; 6] = ["open", "high", "low", "close", "volume", "time_ms"];
-            for (i, &timestamp) in feature_window.batch.timestamps.iter().enumerate().skip(start_idx) {
-                for column in &feature_window.batch.columns {
-                    match column {
-                        FeatureColumn::F64 { name, values } => {
-                            if ignored_names.contains(&name.as_str()) {
-                                continue; // Skip basic candle data
-                            }
-                            if let Some(value) = values.get(i) {
-                                if value.is_finite() {
-                                    records.push(IndicatorRecord {
-                                        symbol: feature_window.symbol.clone(),
-                                        timeframe: feature_window.timeframe,
-                                        timestamp,
-                                        indicator_name: name.clone(),
-                                        value: FeatureValue::Float(*value),
-                                    });
-                                }
-                            }
-                        }
-                        FeatureColumn::Json { name, values } => {
-                            if ignored_names.contains(&name.as_str()) { // Should not happen for JSON, but for consistency
-                                continue;
-                            }
-                            if let Some(value) = values.get(i) {
-                                if !value.is_null() {
-                                    records.push(IndicatorRecord {
-                                        symbol: feature_window.symbol.clone(),
-                                        timeframe: feature_window.timeframe,
-                                        timestamp,
-                                        indicator_name: name.clone(),
-                                        value: FeatureValue::Json(value.clone()),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !records.is_empty() {
-                println!(
-                    "  Persisting {} indicator records for {} on {} (bars {}..{}, skipped {} warmup bars)",
-                    records.len(),
-                    feature_window.symbol,
-                    feature_window.timeframe,
-                    start_idx,
-                    n - 1,
-                    start_idx
-                );
-                selected_indicator_persistor.queue_records(records).await;
-            }
-
-            // Handle raw signals
-            let all_raw_signals = raw_signal_processor_clone.process_feature_window(&feature_window);
-            let all_raw_signals_count = all_raw_signals.len();
-
-            // Filter raw signals: skip warmup bars (same logic as indicators)
-            let min_valid_timestamp = if start_idx < n {
-                feature_window.batch.timestamps[start_idx]
-            } else {
-                i64::MAX // No valid bars → skip all signals
-            };
-
-            let signals_to_persist = if feature_window.is_realtime {
-                let last_timestamps: Vec<i64> = feature_window.batch.timestamps.iter().rev().take(2).cloned().collect();
-                all_raw_signals
-                    .into_iter()
-                    .filter(|s| last_timestamps.contains(&s.timestamp))
-                    .collect::<Vec<_>>()
-            } else {
-                // For historical: only persist signals for bars past the warmup period
-                all_raw_signals
-                    .into_iter()
-                    .filter(|s| s.timestamp >= min_valid_timestamp)
-                    .collect::<Vec<_>>()
-            };
-
-            // Select the appropriate raw signal persistor based on whether this is real-time or historical
-            let selected_raw_signal_persistor = if feature_window.is_realtime {
-                &raw_signal_persistor_rt_clone
-            } else {
-                &raw_signal_persistor_hist_clone
-            };
-
-            // Send signals directly to persistor (no aggregation needed)
-            if !signals_to_persist.is_empty() {
-                println!(
-                    "  Persisting {} raw signals for {} on {} (filtered from {} total)",
-                    signals_to_persist.len(),
-                    feature_window.symbol,
-                    feature_window.timeframe,
-                    all_raw_signals_count
-                );
-                selected_raw_signal_persistor.queue_records(signals_to_persist).await;
-            }
-
-            // FORM FEATURE SNAPSHOT FOR predictors PIPELINE
-            // CHANGED: Logic to handle both Realtime and Historical
-            // For real-time: send only the last candle (latest update)
-            // For backfill: send ALL valid candles in the batch
-            
-            let snapshot_range = if feature_window.is_realtime {
-                if n > 0 { (n - 1)..n } else { 0..0 }
-            } else {
-                // For history: use start_idx calculated earlier (which skips warmup/NaNs) up to n
-                start_idx..n
-            };
-
-            // Get access to candle data
-            let cw = feature_window.candle_window.as_ref().expect("Candle window missing in snapshot");
-
-            for idx in snapshot_range {
-                let get_f32 = |name: &str, default: f32| -> f32 {
-                    feature_window.batch.get_f64(name)
-                        .and_then(|v| v.get(idx)) // Use idx instead of last_idx
-                        .map(|&v| v as f32)
-                        .unwrap_or(default)
-                };
-
-                let indicators = IndicatorsWideRow {
-                    // --- CANDLE DATA (FIXED) ---
-                    close: cw.close.get(idx).copied().unwrap_or(0.0) as f32,
-                    high: cw.high.get(idx).copied().unwrap_or(0.0) as f32,
-                    low: cw.low.get(idx).copied().unwrap_or(0.0) as f32,
-                    open: cw.open.get(idx).copied().unwrap_or(0.0) as f32,
-                    volume: cw.volume.get(idx).copied().unwrap_or(0.0) as f32,
-                    
-                    // --- INDICATORS (Keep using helper) ---
-                    rsi: get_f32("rsi", 50.0),
-                    macd_line: get_f32("macd", 0.0), // Note: name in batch is "macd", field is "macd_line"
-                    macd_signal: get_f32("macd_signal", 0.0),
-                    macd_histogram: get_f32("macd_hist", 0.0), // Note: name in batch is "macd_hist", field is "macd_histogram"
-                    ema_20: get_f32("ema_20", 0.0),
-                    ema_50: get_f32("ema_50", 0.0),
-                    ema_200: get_f32("ema_200", 0.0),
-                    sma: get_f32("sma", 0.0),
-                    bb_upper: get_f32("bb_upper", 0.0),
-                    bb_lower: get_f32("bb_lower", 0.0),
-                    bb_middle: get_f32("bb_mid", 0.0), // Note: name in batch is "bb_mid", field is "bb_middle"
-                    atr: get_f32("atr", 0.0),
-                    adx: get_f32("adx", 0.0),
-                    vwap: get_f32("vwap", 0.0),
-                    obv: get_f32("obv", 0.0),
-                    cci: get_f32("cci", 0.0),
-                    stoch_k: get_f32("stoch_k", 50.0),
-                    stoch_d: get_f32("stoch_d", 50.0),
-                    williams_r: get_f32("williams", -50.0), // Note: name in batch is "williams", field is "williams_r"
-                    
-                    trend_short: get_f32("trend_short", 0.0),
-                    trend_medium: get_f32("trend", 0.0), // Mapped "trend" to "trend_medium"
-                    trend_long: get_f32("trend_long", 0.0),
-                    volume_sma: get_f32("volume_sma", 0.0),
-                    volume_spike: get_f32("volume_spike", 0.0),
-                };
-            
-                let sr_levels = feature_window.batch.get_json("sr_levels")
-                    .and_then(|v| v.get(idx)) // Use idx instead of last_idx
-                    .cloned();
-
-                // ВАЖНО: Для исторических данных timestamp берется из батча по индексу
-                let ts_ms = feature_window.batch.timestamps[idx];
-                let timestamp = chrono::DateTime::from_timestamp(ts_ms / 1000, ((ts_ms % 1000) * 1_000_000) as u32)
-                    .unwrap_or(chrono::Utc::now());
-
-                let snapshot = FeatureSnapshot {
-                    timestamp,
-                    symbol: feature_window.symbol.to_string(),
-                    timeframe: feature_window.timeframe.as_str().to_string(),
-                    indicators,
-                    raw_signals_data: None,
-                    sr_levels,
-                    is_realtime: feature_window.is_realtime,
-                };
-
-                // Отправляем снапшот. Используем try_send или send, но для истории лучше send, чтобы не дропать
-                if let Err(e) = feature_tx_clone.send(snapshot) {
-                    tracing::error!("Failed to send feature snapshot: {}", e);
-                    break; // Если канал закрыт, нет смысла продолжать цикл
-                }
-            }
-        }
+        result_processor.run(result_receiver).await;
     });
 
     // Start Kafka consumer to listen for candle close events
@@ -495,6 +243,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Pass the receiver to the pipeline
     predictors_pipeline.set_input_receiver(feature_rx);
 
+    // Connect bulk_sender to predictors pipeline for batched DB writes
+    // Without this, the pipeline falls back to individual upsert_predictors() calls
+    // which is 10-50x slower than batched writes via BulkPersistor
+    predictors_pipeline.set_bulk_sender(bulk_history_sender.clone());
+
     tokio::spawn(async move {
         if let Err(e) = predictors_pipeline.run().await {
             tracing::error!(target: "compute_predictors", "predictors pipeline error: {}", e);
@@ -517,13 +270,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// Define the structure for candle close events
-#[derive(serde::Deserialize, Debug)]
-struct CandleCloseEvent {
-    symbol: String,
-    timeframe: String,  // This will need to be parsed to Timeframe
-    close_time: i64,
-}
+// Use common::CandleCloseEvent instead of local duplicate
 
 // Function to fetch active symbols from the database
 async fn fetch_active_symbols_from_db(

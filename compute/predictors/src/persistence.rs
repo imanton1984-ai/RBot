@@ -3,7 +3,6 @@
 use anyhow::Result;
 use sqlx::PgPool;
 use crate::types::{PredictionRow, PredictorMeta, PredictorId};
-use serde_json::Value as JsonValue;
 use sqlx::types::Json;
 use tokio_postgres::binary_copy::BinaryCopyInWriter;
 use tokio_postgres::types::Type;
@@ -258,8 +257,8 @@ pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &Predi
         predictor_meta.artifact_path,
         None::<String>, // artifact_sha256
         predictor_meta.feature_schema_id,
-        None::<JsonValue>, // calibration_json
-        None::<JsonValue>, // metrics_json
+        None::<serde_json::Value>, // calibration_json
+        None::<serde_json::Value>, // metrics_json
         None::<chrono::DateTime<chrono::Utc>>, // trained_from
         None::<chrono::DateTime<chrono::Utc>>, // trained_to
         true // is_active
@@ -365,15 +364,3 @@ pub async fn get_recent_predictors(
     Ok(predictors)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sqlx::PgPool;
-
-    #[tokio::test]
-    #[ignore] // Requires database
-    async fn test_upsert_predictors() {
-        // This test would require a database connection
-        // For now, just verifying the function signature compiles
-    }
-}

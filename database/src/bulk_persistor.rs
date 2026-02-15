@@ -50,10 +50,11 @@ impl BulkPersistorConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or(50);
 
+        // Increased default from 20_000 to 50_000 to reduce flush frequency for history
         let max_batch = std::env::var("DB_PERSIST_MAX_BATCH")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(20_000);
+            .unwrap_or(50_000);
 
         let mode = PersistMode::from_env_var(std::env::var("DB_PERSIST_MODE").ok());
 
@@ -377,23 +378,29 @@ async fn flush_predictors(
     cfg: &BulkPersistorConfig,
     items: &[PersistRecord],
 ) -> Result<()> {
-    // dedup внутри батча: (symbol_id, tf, time_ms, prediction_key, predictor_id)
-    let mut dedup: HashMap<(i64, i16, i64, String, i64), (PersistRecord, i64)> = HashMap::new();
-
+    // For history mode: skip dedup (ON CONFLICT DO NOTHING handles it at DB level)
+    // This avoids expensive clone + HashMap operations on large batches
+    let mut vec: Vec<(PersistRecord, i64)> = Vec::with_capacity(items.len());
+    
     for it in items {
-        if let PersistRecord::Predictor { symbol, timeframe, time_ms, prediction_key, predictor_id, .. } = it {
+        if let PersistRecord::Predictor { symbol, .. } = it {
             let sym_id = get_symbol_id(pool, cache, symbol.as_str()).await?;
-            let k = (sym_id, *timeframe, *time_ms, prediction_key.clone(), *predictor_id);
-            dedup.insert(k, (it.clone(), sym_id));
+            vec.push((it.clone(), sym_id));
         }
     }
 
-    let mut vec: Vec<(PersistRecord, i64)> = dedup.into_values().collect();
-
+    let total = vec.len();
+    let mut written = 0;
     while !vec.is_empty() {
         let take = vec.len().min(cfg.chunk_size);
         let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
+        let chunk_len = chunk.len();
         flush_predictors_chunk(pool, cfg, chunk).await?;
+        written += chunk_len;
+    }
+    
+    if total > 0 {
+        tracing::debug!("flush_predictors: wrote {} predictor rows (mode={:?})", written, cfg.mode);
     }
 
     Ok(())
@@ -413,7 +420,7 @@ async fn flush_predictors_chunk(
     let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
     let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
     let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
-    let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut tf_minutes: Vec<i32> = Vec::with_capacity(chunk.len());
 
     let mut horizon_bars: Vec<i32> = Vec::with_capacity(chunk.len());
     let mut aspect: Vec<i16> = Vec::with_capacity(chunk.len());
@@ -453,7 +460,7 @@ async fn flush_predictors_chunk(
             time_ms.push(tms);
             symbol_id.push(sym_id);
             symbol.push(sym.0);
-            tf_minutes.push(tf);
+            tf_minutes.push(tf as i32);
 
             horizon_bars.push(hb);
             aspect.push(asp);

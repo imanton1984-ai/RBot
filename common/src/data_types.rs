@@ -72,3 +72,12 @@ impl Candle {
         }
     }
 }
+
+/// Kafka event: a candle has closed on a given timeframe
+/// Shared across all entry points (main.rs, compute_history, compute_realtime)
+#[derive(Debug, Clone, Deserialize)]
+pub struct CandleCloseEvent {
+    pub symbol: String,
+    pub timeframe: String,
+    pub close_time: i64,
+}
