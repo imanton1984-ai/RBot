@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/utils.sh"
+source "$(dirname "$0")/sys_check_gpu.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 section "INSTALL GPU DEPS (XGBoost)"

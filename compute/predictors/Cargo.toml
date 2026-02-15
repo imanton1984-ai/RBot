@@ -26,3 +26,4 @@ cudarc = { version = "0.11.2", optional = true, features = ["driver"] }
 
 # Remove ort dependency as we're using XGBoost directly
 # ort = { version = "2.0.0-rc.11", features = ["cuda"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }

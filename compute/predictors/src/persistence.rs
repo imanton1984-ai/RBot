@@ -3,9 +3,11 @@
 use anyhow::Result;
 use sqlx::PgPool;
 use crate::types::{PredictionRow, PredictorMeta, PredictorId};
-use serde_json::Value;
-
+use serde_json::Value as JsonValue;
 use sqlx::types::Json;
+use tokio_postgres::binary_copy::BinaryCopyInWriter;
+use tokio_postgres::types::Type;
+use chrono::Utc;
 
 pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) -> Result<()> {
     if predictors.is_empty() {
@@ -25,17 +27,17 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
     let mut predictor_ids = Vec::new();
     let mut score_norms = Vec::new();
     let mut values = Vec::new();
-    
+
     let mut value_lows: Vec<Option<f64>> = Vec::new();
     let mut value_highs: Vec<Option<f64>> = Vec::new();
     let mut sides: Vec<Option<i16>> = Vec::new();
-    
+
     let mut level_hashes: Vec<Option<String>> = Vec::new();
     let mut level_kinds: Vec<Option<i16>> = Vec::new();
     let mut level_prices: Vec<Option<f64>> = Vec::new();
     let mut level_strengths: Vec<Option<f32>> = Vec::new();
     let mut level_distances_atr: Vec<Option<f32>> = Vec::new();
-    
+
     let mut candle_is_finals = Vec::new();
     let mut event_time_mss: Vec<Option<i64>> = Vec::new();
     let mut details_jsons: Vec<Option<Json<serde_json::Value>>> = Vec::new();
@@ -54,18 +56,18 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
         predictor_ids.push(pred.predictor_id);
         score_norms.push(pred.score_norm);
         values.push(pred.value);
-        
+
         // Preserve Option values without unwrapping
         value_lows.push(pred.value_low);
         value_highs.push(pred.value_high);
         sides.push(pred.side);
-        
+
         level_hashes.push(pred.level_hash);
         level_kinds.push(pred.level_kind);
         level_prices.push(pred.level_price);
         level_strengths.push(pred.level_strength);
         level_distances_atr.push(pred.level_distance_atr);
-        
+
         candle_is_finals.push(pred.candle_is_final);
         event_time_mss.push(pred.event_time_ms);
         details_jsons.push(pred.details_json.map(Json));
@@ -159,6 +161,55 @@ pub async fn upsert_predictors(pool: &PgPool, predictors: Vec<PredictionRow>) ->
     Ok(())
 }
 
+/// Optimized function to copy predictors using binary copy for historical data
+pub async fn copy_predictors_binary(
+    client: &tokio_postgres::Client, // Use client from pool.acquire().await
+    predictors: Vec<PredictionRow>
+) -> Result<u64> {
+    if predictors.is_empty() { return Ok(0); }
+
+    let sink = client.copy_in(
+        "COPY trade.predictors (
+            time, time_ms, symbol_id, symbol, tf_minutes,
+            horizon_bars, aspect, calc_source, predictor_id,
+            score_norm, value, value_low, value_high, side,
+            level_hash, level_kind, level_price, level_strength, level_distance_atr,
+            candle_is_final, event_time_ms, details_json, prediction_key, created_at, updated_at
+        ) FROM STDIN BINARY"
+    ).await?;
+
+    let writer = BinaryCopyInWriter::new(sink, &[
+        Type::TIMESTAMPTZ, Type::INT8, Type::INT8, Type::TEXT, Type::INT4,
+        Type::INT4, Type::INT2, Type::INT2, Type::INT8,
+        Type::FLOAT4, Type::FLOAT8, Type::FLOAT8, Type::FLOAT8, Type::INT2,
+        Type::TEXT, Type::INT2, Type::FLOAT8, Type::FLOAT4, Type::FLOAT4,
+        Type::BOOL, Type::INT8, Type::JSONB, Type::TEXT, Type::TIMESTAMPTZ, Type::TIMESTAMPTZ
+    ]);
+    
+    let mut writer = std::pin::pin!(writer);
+    let now = Utc::now();
+
+    for p in predictors {
+        // Optimization: for history, skip details_json if it's not critical
+        let details = if std::env::var("DB_PERSIST_HISTORY_SKIP_JSON").unwrap_or_default() == "1" {
+            None::<String>
+        } else {
+            p.details_json.and_then(|v| serde_json::to_string(&v).ok())
+        };
+
+        writer.as_mut().write(&[
+            &p.time, &p.time_ms, &p.symbol_id, &p.symbol, &p.tf_minutes,
+            &p.horizon_bars, &(p.aspect.as_int() as i16), &(p.calc_source.as_int() as i16), &p.predictor_id,
+            &p.score_norm, &p.value, &p.value_low, &p.value_high, &p.side,
+            &p.level_hash, &p.level_kind, &p.level_price, &p.level_strength, &p.level_distance_atr,
+            &p.candle_is_final, &p.event_time_ms, &details, &p.prediction_key, &now, &now
+        ]).await?;
+    }
+
+    let rows = writer.as_mut().finish().await?;
+    Ok(rows)
+}
+
 pub async fn resolve_symbol_id(pool: &PgPool, symbol: &str) -> Result<i64> {
     let row = sqlx::query!("SELECT symbol_id FROM market.pairs WHERE symbol = $1", symbol)
         .fetch_one(pool)
@@ -207,8 +258,8 @@ pub async fn register_predictor_if_missing(pool: &PgPool, predictor_meta: &Predi
         predictor_meta.artifact_path,
         None::<String>, // artifact_sha256
         predictor_meta.feature_schema_id,
-        None::<Value>, // calibration_json
-        None::<Value>, // metrics_json
+        None::<JsonValue>, // calibration_json
+        None::<JsonValue>, // metrics_json
         None::<chrono::DateTime<chrono::Utc>>, // trained_from
         None::<chrono::DateTime<chrono::Utc>>, // trained_to
         true // is_active

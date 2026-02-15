@@ -30,14 +30,25 @@ cd "${BUILD_DIR}"
 # IMPORTANT:
 # - USE_CUDA=ON включает GPU predictor/inference
 # - BUILD_SHARED_LIBS=ON чтобы получить libxgboost.so для Rust
-# - CMAKE_CUDA_ARCHITECTURES можно поставить "native" или явно (например 75)
+# - CMAKE_CUDA_ARCHITECTURES определяем автоматически или через переменную
+ARCH="${XGB_CUDA_ARCH:-}"
+if [ -z "$ARCH" ]; then
+  # пробуем достать compute capability, например "8.6" -> "86"
+  CC="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -n1 | tr -d '.' | tr -d ' ')"
+  if [ -n "$CC" ]; then
+    ARCH="$CC"
+  else
+    ARCH="86"  # безопасный дефолт под Ampere; при желании меняешь на 75/89/90
+  fi
+fi
+
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DUSE_CUDA=ON \
   -DUSE_OPENMP=ON \
   -DBUILD_SHARED_LIBS=ON \
   -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
-  -DCMAKE_CUDA_ARCHITECTURES=native \
+  -DCMAKE_CUDA_ARCHITECTURES="${ARCH}" \
   ..
 
 ninja

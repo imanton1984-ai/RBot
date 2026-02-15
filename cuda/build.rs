@@ -5,6 +5,7 @@ fn main() {
     println!("cargo:rerun-if-changed=kernels/indicators.cu");
     println!("cargo:rerun-if-changed=kernels/predictors.cu");
     println!("cargo:rerun-if-changed=kernels/raw_signals.cu");
+    println!("cargo:rerun-if-changed=kernels/features.cu");  // Added new features file
 
     // Проверяем наличие nvcc
     if Command::new("nvcc").arg("--version").output().is_err() {
@@ -13,15 +14,15 @@ fn main() {
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();
-    
-    // Компилируем indicators.cu -> indicators.ptx
+
+    // Компилируем indicators.cu -> indicators.ptx (WITHOUT --use_fast_math for precision)
     let status_indicators = Command::new("nvcc")
         .args(&[
             "-ptx",
             "-o", &format!("{}/indicators.ptx", out_dir),
             "kernels/indicators.cu",
             "--gpu-architecture=compute_75", // Или compute_60+ для совместимости
-            "--use_fast_math"
+            // REMOVED --use_fast_math for indicators to improve precision
         ])
         .status()
         .expect("Failed to execute nvcc for indicators.cu");
@@ -60,5 +61,21 @@ fn main() {
 
     if !status_raw_signals.success() {
         panic!("NVCC compilation failed for raw_signals.cu");
+    }
+
+    // Компилируем features.cu -> features.ptx
+    let status_features = Command::new("nvcc")
+        .args(&[
+            "-ptx",
+            "-o", &format!("{}/features.ptx", out_dir),
+            "kernels/features.cu",
+            "--gpu-architecture=compute_75",
+            // REMOVED --use_fast_math for features to maintain precision in feature combination
+        ])
+        .status()
+        .expect("Failed to execute nvcc for features.cu");
+
+    if !status_features.success() {
+        panic!("NVCC compilation failed for features.cu");
     }
 }

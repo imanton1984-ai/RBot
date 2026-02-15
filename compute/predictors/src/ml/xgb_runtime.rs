@@ -120,8 +120,8 @@ impl Booster {
     ) -> Result<Vec<f32>> {
         use std::ffi::CString;
 
-        // __cuda_array_interface__ (пример формата есть в xgboost c-api docs)
-        // :contentReference[oaicite:5]{index=5}
+        // Create CUDA array interface JSON - proper format for XGBoost
+        // Format: {"data": [ptr, readonly], "shape": [...], "typestr": "...", "version": 3}
         let data_json = format!(
             r#"{{
               "data": [{}, true],
@@ -209,9 +209,10 @@ impl Booster {
         use std::ffi::CString;
 
         // Create CUDA array interface JSON - proper format for XGBoost
+        // Format: {"data": [ptr, readonly], "shape": [...], "typestr": "...", "version": 3}
         let data_json = format!(
             r#"{{
-              "data": [{}],
+              "data": [{}, true],
               "shape": [{}, {}],
               "typestr": "<f4",
               "version": 3
