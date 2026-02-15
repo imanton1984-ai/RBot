@@ -10016,6 +10016,7 @@ CREATE TABLE IF NOT EXISTS trade.predictors (
   candle_is_final   boolean     NOT NULL DEFAULT true,
   event_time_ms     bigint      NULL,
   created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
 
   -- for extensions (raw signals, features, explanations)
   details_json      jsonb       NULL,
@@ -23952,6 +23953,10 @@ use anyhow::Result;
 use crate::feature_view::FeatureVector;
 use crate::ml::model_manager::ModelManager;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
+
+static ML_PRED_SAMPLE: AtomicU64 = AtomicU64::new(0);
 
 pub struct LevelPredictorMl {
     mm: Arc<ModelManager>,
@@ -23964,8 +23969,22 @@ impl LevelPredictorMl {
         Ok(Self { mm, model_key: model_key.into(), use_gpu })
     }
 
-    pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector, _level_price: f64) -> Result<Option<(f64, f64, f64)>> {
-        let out = self.mm.predict_one(&self.model_key, &features.values, self.use_gpu)?;
+    pub async fn predict(&self, symbol: &str, timeframe: &str, features: &FeatureVector, _level_price: f64) -> Result<Option<(f64, f64, f64)>> {
+        let sample_n = ML_PRED_SAMPLE.fetch_add(1, Ordering::Relaxed);
+        let do_log = sample_n % 200 == 0; // каждые 200 вызовов
+
+        let t0 = Instant::now();
+        let res = self.mm.predict_one(&self.model_key, &features.values, self.use_gpu);
+        let ms = t0.elapsed().as_millis();
+
+        if do_log {
+            tracing::info!(target: "compute_predictors",
+                "ML predict sample: sym={} tf={} key={} use_gpu={} vec_len={} ms={}",
+                symbol, timeframe, self.model_key, self.use_gpu, features.values.len(), ms
+            );
+        }
+
+        let out = res?;
         let Some(outputs) = out else { return Ok(None); };
 
         if outputs.len() >= 2 {
@@ -23995,6 +24014,10 @@ use anyhow::Result;
 use crate::feature_view::FeatureVector;
 use crate::ml::model_manager::ModelManager;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
+
+static ML_PRED_SAMPLE: AtomicU64 = AtomicU64::new(0);
 
 pub struct FuturePriceMl {
     mm: Arc<ModelManager>,
@@ -24007,9 +24030,23 @@ impl FuturePriceMl {
         Ok(Self { mm, model_key: model_key.into(), use_gpu })
     }
 
-    pub async fn predict(&self, _symbol: &str, _timeframe: &str, features: &FeatureVector) -> Result<Option<(Vec<f64>, f64)>> {
+    pub async fn predict(&self, symbol: &str, timeframe: &str, features: &FeatureVector) -> Result<Option<(Vec<f64>, f64)>> {
         // XGBoost: 1-row prediction
-        let out = self.mm.predict_one(&self.model_key, &features.values, self.use_gpu)?;
+        let sample_n = ML_PRED_SAMPLE.fetch_add(1, Ordering::Relaxed);
+        let do_log = sample_n % 200 == 0; // каждые 200 вызовов
+
+        let t0 = Instant::now();
+        let res = self.mm.predict_one(&self.model_key, &features.values, self.use_gpu);
+        let ms = t0.elapsed().as_millis();
+
+        if do_log {
+            tracing::info!(target: "compute_predictors",
+                "ML predict sample: sym={} tf={} key={} use_gpu={} vec_len={} ms={}",
+                symbol, timeframe, self.model_key, self.use_gpu, features.values.len(), ms
+            );
+        }
+
+        let out = res?;
         let Some(prices) = out else { return Ok(None); };
 
         if !prices.is_empty() {
@@ -24101,7 +24138,8 @@ pub use model_pool::ModelPool;
 
 use anyhow::Result;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use std::time::Instant;
+use tracing::{info, warn, debug}; // <= добавь debug
 
 use crate::feature_schema::FeatureSchema;
 
@@ -24184,27 +24222,70 @@ impl ModelManager {
             }
         }
 
+        info!(
+            target: "compute_predictors",
+            "ModelManager loaded models: cpu={}, gpu={} (enable_gpu={})",
+            self.models_cpu.len(),
+            self.models_gpu.len(),
+            enable_gpu
+        );
+
         Ok(())
     }
 
     /// Batch predict: inputs = row-major [nrow * ncol]
-    pub fn predict_batch(&self, key: &str, inputs: &[f32], nrow: usize, ncol: usize, use_gpu: bool) -> Result<Option<Vec<f32>>> {
-        let map = if use_gpu { &self.models_gpu } else { &self.models_cpu };
+    pub fn predict_batch(
+        &self,
+        key: &str,
+        inputs: &[f32],
+        nrow: usize,
+        ncol: usize,
+        use_gpu: bool
+    ) -> Result<Option<Vec<f32>>> {
+        let requested_gpu = use_gpu;
 
-        if let Some((booster, kind)) = map.get(key) {
-            // When booster is loaded with device="cuda", XGBoost will use GPU internally
-            // even when data comes from CPU memory
-            let out = booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
-            Ok(Some(out))
-        } else {
-            // Fallback to CPU if GPU model not available
-            if let Some((cpu_booster, kind)) = self.models_cpu.get(key) {
-                let out = cpu_booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
-                Ok(Some(out))
+        // decide actual model source
+        let (booster, kind, source) = if requested_gpu {
+            if let Some((b, k)) = self.models_gpu.get(key) {
+                (b, k, "gpu")
+            } else if let Some((b, k)) = self.models_cpu.get(key) {
+                // IMPORTANT: this is the silent fallback today
+                (b, k, "cpu_fallback")
             } else {
-                Ok(None)
+                return Ok(None);
             }
+        } else {
+            if let Some((b, k)) = self.models_cpu.get(key) {
+                (b, k, "cpu")
+            } else if let Some((b, k)) = self.models_gpu.get(key) {
+                // странно, но на всякий: если CPU модели нет, но GPU есть
+                (b, k, "gpu_only")
+            } else {
+                return Ok(None);
+            }
+        };
+
+        // timing
+        let t0 = Instant::now();
+        let out = booster.predict_dense_cpu(inputs, nrow, ncol, *kind)?;
+        let ms = t0.elapsed().as_millis();
+
+        // log only if slow or debug enabled
+        if ms >= 30 {
+            warn!(
+                target: "compute_predictors",
+                "XGB predict slow: key={}, source={}, requested_gpu={}, nrow={}, ncol={}, ms={}",
+                key, source, requested_gpu, nrow, ncol, ms
+            );
+        } else {
+            debug!(
+                target: "compute_predictors",
+                "XGB predict: key={}, source={}, requested_gpu={}, nrow={}, ncol={}, ms={}",
+                key, source, requested_gpu, nrow, ncol, ms
+            );
         }
+
+        Ok(Some(out))
     }
 
     /// Single-row helper (realtime)
@@ -24262,6 +24343,7 @@ impl Default for ModelPool {
 use anyhow::{anyhow, Result};
 use std::ffi::{CStr, CString};
 use std::ptr;
+use tracing::info; // <= add
 
 use super::xgb_sys::*;
 
@@ -24324,24 +24406,31 @@ impl Booster {
             let path = CString::new(model_path)?;
             check(XGBoosterLoadModel(h, path.as_ptr()))?;
 
-            // Современный способ: device = "cuda"/"cpu" (см c-api-demo)
-            // :contentReference[oaicite:4]{index=4} — этот параметр реально применяется.
             let (k, v) = match device {
                 Device::Cpu => ("device", "cpu"),
                 Device::Cuda => ("device", "cuda"),
             };
-            let k = CString::new(k)?;
-            let v = CString::new(v)?;
-            check(XGBoosterSetParam(h, k.as_ptr(), v.as_ptr()))?;
-
-            // Устанавливаем predictor для лучшей GPU оптимизации
             let (k2, v2) = match device {
                 Device::Cpu => ("predictor", "cpu_predictor"),
                 Device::Cuda => ("predictor", "gpu_predictor"),
             };
-            let k2 = CString::new(k2)?;
-            let v2 = CString::new(v2)?;
-            check(XGBoosterSetParam(h, k2.as_ptr(), v2.as_ptr()))?;
+
+            info!(
+                target: "compute_predictors",
+                "XGB Booster loaded: path={}, {}={}, {}={}",
+                model_path, k, v, k2, v2
+            );
+
+            // Современный способ: device = "cuda"/"cpu" (см c-api-demo)
+            // :contentReference[oaicite:4]{index=4} — этот параметр реально применяется.
+            let k_param = CString::new(k)?;
+            let v_param = CString::new(v)?;
+            check(XGBoosterSetParam(h, k_param.as_ptr(), v_param.as_ptr()))?;
+
+            // Устанавливаем predictor для лучшей GPU оптимизации
+            let k2_param = CString::new(k2)?;
+            let v2_param = CString::new(v2)?;
+            check(XGBoosterSetParam(h, k2_param.as_ptr(), v2_param.as_ptr()))?;
 
             // Разумно также задать nthread для CPU, но оставим внешней настройкой позже.
             Ok(Self { h })

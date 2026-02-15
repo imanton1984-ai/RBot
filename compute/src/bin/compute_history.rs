@@ -35,8 +35,8 @@ async fn main() -> Result<()> {
 
     // Config
     let config = ComputeConfig {
-        batch_size: 100,
-        max_concurrent_jobs: 4,
+        batch_size: 5000,
+        max_concurrent_jobs: 2,
         use_cuda: cfg!(feature = "cuda"),
         cuda_device_id: Some(0),
     };
