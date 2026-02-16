@@ -347,7 +347,7 @@ impl FinalScorer {
         let ema_200 = raw.get("ema_200").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let close = raw.get("close").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let stoch_k = raw.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
-        let stoch_d = raw.get("stoch_d").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let _stoch_d = raw.get("stoch_d").and_then(|v| v.as_f64()).unwrap_or(50.0);
         let williams = raw.get("williams_r").and_then(|v| v.as_f64()).unwrap_or(-50.0);
         let cci = raw.get("cci").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let bb_upper = raw.get("bb_upper").and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -434,108 +434,143 @@ impl FinalScorer {
         let mut score = 0.40 * base_ind + 0.60 * direction_alignment;
 
         // ====================================================================
-        //  PART B: CONFLUENCE BONUSES (additive, push best signals higher)
-        //  Each bonus is small (+0.01 to +0.04). They accumulate for
-        //  well-confirmed signals. Neutral signal gets ~0 bonus total.
+        //  PART B: LEVEL-FIRST BONUSES
+        //  Biggest bonus = near favorable SR level with oscillators in recovery
+        //  zone. This identifies BEGINNING of moves, not peaks.
         // ====================================================================
         let mut bonus: f64 = 0.0;
 
-        // B1. Higher-TF trend confirmation via trend_long (+0.03)
+        // B1. SR LEVEL PROXIMITY — THE PRIMARY BONUS (up to +0.10)
+        // This is the CORE of the level strategy: enter near support (longs) or resistance (shorts)
+        if close > 0.0 && atr > 0.0 {
+            let sr = raw.get("sr_levels").unwrap_or(raw);
+            bonus += self.score_sr_level_bonus(sr, side, close, atr);
+        }
+
+        // B2. OSCILLATORS IN RECOVERY ZONE (not exhausted!) — up to +0.08
+        // For LONG: best when oscillators are leaving oversold / in early momentum zone
+        // For SHORT: best when oscillators are leaving overbought
+        {
+            // RSI recovery zone bonus
+            let rsi_recovery = if side > 0 {
+                rsi >= 30.0 && rsi <= 50.0  // Leaving oversold, early bullish
+            } else {
+                rsi >= 50.0 && rsi <= 70.0  // Leaving overbought, early bearish
+            };
+            if rsi_recovery { bonus += 0.03; }
+
+            // Stochastic recovery zone bonus
+            let stoch_recovery = if side > 0 {
+                stoch_k >= 15.0 && stoch_k <= 45.0  // Leaving oversold zone
+            } else {
+                stoch_k >= 55.0 && stoch_k <= 85.0  // Leaving overbought zone
+            };
+            if stoch_recovery { bonus += 0.03; }
+
+            // Williams recovery zone bonus
+            let will_recovery = if side > 0 {
+                williams <= -50.0 && williams >= -85.0  // Leaving oversold
+            } else {
+                williams >= -50.0 && williams <= -15.0  // Leaving overbought
+            };
+            if will_recovery { bonus += 0.02; }
+        }
+
+        // B3. Higher-TF trend confirmation via trend_long (+0.03)
         if trend_long != 0.0 {
             let aligned = (trend_long > 0.0 && side > 0) || (trend_long < 0.0 && side < 0);
             if aligned { bonus += 0.03; }
         }
 
-        // B2. All 3 trend timeframes agree with side (+0.04)
-        if trend_short != 0.0 && trend_medium != 0.0 && trend_long != 0.0 {
-            let all_agree = trend_short.signum() == trend_medium.signum()
-                && trend_medium.signum() == trend_long.signum()
-                && ((trend_short > 0.0 && side > 0) || (trend_short < 0.0 && side < 0));
-            if all_agree { bonus += 0.04; }
-        }
-
-        // B3. Stochastic direction confirmation (+0.02)
-        if stoch_k > 0.0 && stoch_k < 100.0 {
-            let stoch_ok = if side > 0 { stoch_k < 75.0 } else { stoch_k > 25.0 };
-            if stoch_ok { bonus += 0.02; }
-
-            // B3b. Stoch %K/%D crossover in right direction (+0.02)
-            if side > 0 && stoch_k > stoch_d { bonus += 0.02; }
-            if side < 0 && stoch_k < stoch_d { bonus += 0.02; }
-        }
-
-        // B4. Williams %R direction confirmation (+0.02)
-        {
-            let williams_ok = if side > 0 { williams < -20.0 } else { williams > -80.0 };
-            if williams_ok { bonus += 0.02; }
-        }
-
-        // B5. CCI direction confirmation (+0.02)
-        {
-            let cci_ok = if side > 0 { cci < 100.0 } else { cci > -100.0 };
-            if cci_ok { bonus += 0.02; }
-        }
-
-        // B6. Bollinger Band favorable position (+0.03)
-        if bb_upper > bb_lower && bb_lower > 0.0 {
-            let bb_pos = (close - bb_lower) / (bb_upper - bb_lower);
-            let bb_favorable = if side > 0 { bb_pos < 0.65 } else { bb_pos > 0.35 };
-            if bb_favorable { bonus += 0.03; }
-        }
-
-        // B7. VWAP support/resistance confirmation (+0.02)
-        if vwap > 0.0 && close > 0.0 {
-            let vwap_ok = if side > 0 { close >= vwap * 0.998 } else { close <= vwap * 1.002 };
-            if vwap_ok { bonus += 0.02; }
-        }
-
-        // B8. ADX shows trending market (+0.02 if >25)
+        // B4. ADX shows trending market (momentum exists to ride) (+0.02)
         if adx > 25.0 { bonus += 0.02; }
 
-        // B9. SR level proximity bonus (+0.04 if near favorable level)
-        if close > 0.0 && atr > 0.0 {
-            let sr = raw.get("sr_levels").unwrap_or(raw);
-            let got_favorable_level = self.check_sr_proximity_bonus(sr, side, close, atr);
-            if got_favorable_level { bonus += 0.04; }
+        // B5. Bollinger Band favorable zone (+0.02)
+        if bb_upper > bb_lower && bb_lower > 0.0 {
+            let bb_pos = (close - bb_lower) / (bb_upper - bb_lower);
+            // For LONG: best in lower half of bands; for SHORT: upper half
+            let bb_favorable = if side > 0 { bb_pos < 0.5 } else { bb_pos > 0.5 };
+            if bb_favorable { bonus += 0.02; }
         }
 
-        // B10. Oscillator multi-confluence (+0.03 if RSI+Stoch+Williams all agree)
-        {
-            let rsi_confirms = if side > 0 { rsi > 40.0 && rsi < 75.0 } else { rsi > 25.0 && rsi < 60.0 };
-            let stoch_confirms = if side > 0 { stoch_k < 75.0 } else { stoch_k > 25.0 };
-            let will_confirms = if side > 0 { williams < -25.0 } else { williams > -75.0 };
-            if rsi_confirms && stoch_confirms && will_confirms { bonus += 0.03; }
+        // B6. VWAP confirms direction (+0.02)
+        if vwap > 0.0 && close > 0.0 {
+            let vwap_ok = if side > 0 { close >= vwap * 0.997 } else { close <= vwap * 1.003 };
+            if vwap_ok { bonus += 0.02; }
         }
 
         score += bonus;
 
         // ====================================================================
-        //  PART C: EXTREME PENALTIES (rare, only at truly dangerous levels)
-        //  These fire only when indicators are at extremes that almost always
-        //  precede reversals.
+        //  PART C: EXHAUSTION PENALTIES — HEAVY on overheated indicators
+        //  This is the KEY fix: when ALL indicators are screaming one direction,
+        //  the signal score should DECREASE not increase. Graduated penalties.
         // ====================================================================
         let mut penalty: f64 = 0.0;
 
-        // C1. RSI extreme: >85 for longs or <15 for shorts → exhaustion
-        if side > 0 && rsi > 85.0 { penalty += 0.08; }
-        if side < 0 && rsi < 15.0 { penalty += 0.08; }
+        // C1. RSI EXHAUSTION — progressive penalty (the main trap indicator)
+        if side > 0 {
+            if rsi > 75.0 { penalty += 0.06; }      // Getting hot
+            if rsi > 80.0 { penalty += 0.06; }      // Overbought (cumulative: 0.12)
+            if rsi > 85.0 { penalty += 0.06; }      // Extreme (cumulative: 0.18)
+        } else {
+            if rsi < 25.0 { penalty += 0.06; }
+            if rsi < 20.0 { penalty += 0.06; }
+            if rsi < 15.0 { penalty += 0.06; }
+        }
 
-        // C2. Stochastic extreme: >90 for longs or <10 for shorts
-        if side > 0 && stoch_k > 90.0 { penalty += 0.06; }
-        if side < 0 && stoch_k < 10.0 { penalty += 0.06; }
+        // C2. STOCHASTIC EXHAUSTION — progressive
+        if side > 0 {
+            if stoch_k > 75.0 { penalty += 0.04; }
+            if stoch_k > 85.0 { penalty += 0.04; }  // Cumulative: 0.08
+            if stoch_k > 92.0 { penalty += 0.04; }  // Cumulative: 0.12
+        } else {
+            if stoch_k < 25.0 { penalty += 0.04; }
+            if stoch_k < 15.0 { penalty += 0.04; }
+            if stoch_k < 8.0 { penalty += 0.04; }
+        }
 
-        // C3. Williams extreme: >-5 for longs or <-95 for shorts
-        if side > 0 && williams > -5.0 { penalty += 0.04; }
-        if side < 0 && williams < -95.0 { penalty += 0.04; }
+        // C3. WILLIAMS EXHAUSTION — progressive
+        if side > 0 {
+            if williams > -20.0 { penalty += 0.03; }
+            if williams > -10.0 { penalty += 0.03; }  // Cumulative: 0.06
+        } else {
+            if williams < -80.0 { penalty += 0.03; }
+            if williams < -90.0 { penalty += 0.03; }
+        }
 
-        // C4. CCI extreme: >200 for longs or <-200 for shorts
-        if side > 0 && cci > 200.0 { penalty += 0.04; }
-        if side < 0 && cci < -200.0 { penalty += 0.04; }
+        // C4. CCI EXHAUSTION
+        if side > 0 && cci > 150.0 { penalty += 0.04; }
+        if side > 0 && cci > 250.0 { penalty += 0.04; }  // Cumulative: 0.08
+        if side < 0 && cci < -150.0 { penalty += 0.04; }
+        if side < 0 && cci < -250.0 { penalty += 0.04; }
 
-        // C5. Price way outside Bollinger Bands (>1.05 * upper for long)
+        // C5. PRICE OUTSIDE BOLLINGER BANDS
         if bb_upper > 0.0 && bb_lower > 0.0 {
-            if side > 0 && close > bb_upper * 1.02 { penalty += 0.04; }
-            if side < 0 && close < bb_lower * 0.98 { penalty += 0.04; }
+            if side > 0 && close > bb_upper { penalty += 0.05; }  // Above band = overbought
+            if side < 0 && close < bb_lower { penalty += 0.05; }  // Below band = oversold
+        }
+
+        // C6. OVEREXTENSION from EMA20 — price too far in trade direction
+        if close > 0.0 && ema_20 > 0.0 {
+            let ema_dist_pct = ((close - ema_20) / ema_20).abs();
+            if side > 0 && close > ema_20 && ema_dist_pct > 0.025 { penalty += 0.04; }
+            if side > 0 && close > ema_20 && ema_dist_pct > 0.04 { penalty += 0.04; }  // Cumulative: 0.08
+            if side < 0 && close < ema_20 && ema_dist_pct > 0.025 { penalty += 0.04; }
+            if side < 0 && close < ema_20 && ema_dist_pct > 0.04 { penalty += 0.04; }
+        }
+
+        // C7. MULTI-INDICATOR EXHAUSTION CONFLUENCE — the deadliest trap
+        // When RSI AND Stoch AND Williams are ALL exhausted → maximum penalty
+        {
+            let rsi_hot = if side > 0 { rsi > 70.0 } else { rsi < 30.0 };
+            let stoch_hot = if side > 0 { stoch_k > 70.0 } else { stoch_k < 30.0 };
+            let will_hot = if side > 0 { williams > -25.0 } else { williams < -75.0 };
+            let cci_hot = if side > 0 { cci > 100.0 } else { cci < -100.0 };
+
+            let hot_count = rsi_hot as u8 + stoch_hot as u8 + will_hot as u8 + cci_hot as u8;
+            if hot_count >= 3 { penalty += 0.08; }  // 3+ oscillators exhausted = massive penalty
+            if hot_count >= 4 { penalty += 0.06; }  // All 4 = cumulative 0.14 extra
         }
 
         score -= penalty;
@@ -543,26 +578,39 @@ impl FinalScorer {
         score.clamp(0.0, 1.0)
     }
 
-    /// Check if price is near a favorable SR level (bonus trigger)
-    fn check_sr_proximity_bonus(&self, sr: &Value, side: i8, close: f64, atr: f64) -> bool {
+    /// Score SR level proximity bonus (up to +0.10).
+    /// Biggest bonus when price is near a STRONG favorable level.
+    fn score_sr_level_bonus(&self, sr: &Value, side: i8, close: f64, atr: f64) -> f64 {
         // Favorable levels: support for longs, resistance for shorts
-        let fav_keys = if side > 0 {
-            ["strong_support", "mid_support", "light_support"]
+        let fav_keys_strengths: [(& str, f64); 3] = if side > 0 {
+            [("strong_support", 1.0), ("mid_support", 0.6), ("light_support", 0.3)]
         } else {
-            ["strong_resistance", "mid_resistance", "light_resistance"]
+            [("strong_resistance", 1.0), ("mid_resistance", 0.6), ("light_resistance", 0.3)]
         };
 
-        for key in fav_keys {
+        let mut best_bonus: f64 = 0.0;
+
+        for (key, strength) in fav_keys_strengths {
             if let Some(level_price) = sr.get(key).and_then(|v| v.as_f64()) {
                 if level_price > 0.0 {
                     let dist_atr = (close - level_price).abs() / atr;
-                    if dist_atr < 2.0 {
-                        return true; // Near a favorable level
-                    }
+                    // Graduated proximity bonus
+                    let proximity_bonus = if dist_atr < 0.5 {
+                        0.10 * strength  // Right at level
+                    } else if dist_atr < 1.0 {
+                        0.07 * strength  // Very close
+                    } else if dist_atr < 2.0 {
+                        0.04 * strength  // Within range
+                    } else if dist_atr < 3.0 {
+                        0.02 * strength  // Moderate distance
+                    } else {
+                        0.0
+                    };
+                    if proximity_bonus > best_bonus { best_bonus = proximity_bonus; }
                 }
             }
         }
-        false
+        best_bonus
     }
 
     fn calculate_feature_coverage_score(&self, predictors: &[PredictionRow], raw_signals_summary: &Value, has_market: bool) -> f64 {

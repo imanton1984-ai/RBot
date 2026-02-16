@@ -182,7 +182,7 @@ impl TradeSignalStage {
 
             *signals_produced += 1;
 
-            tracing::info!(
+            tracing::warn!(
                 target: "trade_signal_stage",
                 "Trade signal produced: {} {} tf={} side={} score={:.4} (was {:.4}, quality={:.2} grade={}) entry={:.6} sl={:.6} tp1={:.6}",
                 signal.symbol, signal.time, signal.tf_minutes,

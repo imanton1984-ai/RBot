@@ -36,7 +36,7 @@ TARGET_DIR="$ROOT_DIR/target/$BUILD_PROFILE"
 
 # Env vars for services
 export MIN_PAIRS="${MIN_PAIRS:-300}"
-export RUST_LOG="${RUST_LOG:-info,ingestor=info,connections=info}"
+export RUST_LOG="${RUST_LOG:-warn,compute_history=warn,trade_signal_stage=info,ingestor=info,connections=info}"
 
 # Start Helper
 start_svc() {
