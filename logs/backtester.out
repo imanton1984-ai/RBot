@@ -1,0 +1,47 @@
+[2m2026-02-16T14:59:39.376902Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m === Signal Quality Backtester ===
+[2m2026-02-16T14:59:39.376912Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m min_score=0.55, max_signals=500000, timeout_bars=100
+[2m2026-02-16T14:59:39.804799Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Loaded 12770 signals for backtesting
+[2m2026-02-16T14:59:40.190745Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 1000/12770 signals: 573 wins, 425 losses, 2 expired
+[2m2026-02-16T14:59:40.538138Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 2000/12770 signals: 1159 wins, 839 losses, 2 expired
+[2m2026-02-16T14:59:40.859898Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 3000/12770 signals: 1735 wins, 1263 losses, 2 expired
+[2m2026-02-16T14:59:41.162589Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 4000/12770 signals: 2523 wins, 1473 losses, 4 expired
+[2m2026-02-16T14:59:41.462431Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 5000/12770 signals: 3122 wins, 1857 losses, 21 expired
+[2m2026-02-16T14:59:41.751136Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 6000/12770 signals: 3634 wins, 2336 losses, 30 expired
+[2m2026-02-16T14:59:42.027755Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 7000/12770 signals: 4262 wins, 2697 losses, 41 expired
+[2m2026-02-16T14:59:42.313311Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 8000/12770 signals: 4984 wins, 2968 losses, 48 expired
+[2m2026-02-16T14:59:42.598811Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 9000/12770 signals: 5591 wins, 3357 losses, 52 expired
+[2m2026-02-16T14:59:42.902191Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 10000/12770 signals: 6137 wins, 3809 losses, 54 expired
+[2m2026-02-16T14:59:43.191509Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 11000/12770 signals: 6694 wins, 4243 losses, 63 expired
+[2m2026-02-16T14:59:43.463993Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 12000/12770 signals: 7170 wins, 4757 losses, 68 expired
+[2m2026-02-16T14:59:43.663402Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Evaluation complete: 12762 results from 12770 signals
+[2m2026-02-16T14:59:43.985932Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Saved 12762 backtest results to trade.backtest_results
+[2m2026-02-16T14:59:47.838768Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported training CSV to backtest_results.csv
+[2m2026-02-16T14:59:48.109619Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 964 1d results to backtest_results_1d.csv
+[2m2026-02-16T14:59:48.628030Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 1767 1m results to backtest_results_1m.csv
+[2m2026-02-16T14:59:49.437120Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2735 15m results to backtest_results_15m.csv
+[2m2026-02-16T14:59:50.051871Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2078 5m results to backtest_results_5m.csv
+[2m2026-02-16T14:59:50.742146Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2366 4h results to backtest_results_4h.csv
+[2m2026-02-16T14:59:51.572716Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2852 1h results to backtest_results_1h.csv
+
+======== BACKTEST SUMMARY ========
+TF      Total   Wins   Loss    Exprd  WinRate   AvgPnL     Sharpe
+1m       1767    958    805        4    54.2%  0.0663%      0.080
+5m       2078   1182    889        7    56.9%  0.1718%      0.095
+15m      2735   1641   1081       13    60.0%  0.3571%      0.116
+1h       2852   1841    990       21    64.6%  1.1479%      0.225
+4h       2366   1420    928       18    60.0%  1.2498%      0.151
+1d        964    544    398       22    56.4%  1.5982%      0.095
+-------------------------------
+TOTAL: 12762 signals, 7586 wins (59.4%), avg PnL: 0.7226%
+==================================
+
+======== WIN RATE BY SCORE BUCKET ========
+TF      0.55-0.60  0.60-0.65  0.65-0.70  0.70-0.75  0.75-0.80      0.80+
+1m     56% (1087)  53% (456)  46% (185)   49% (39)        -          -  
+5m     56% (1346)  59% (453)  59% (248)   48% (29)     0% (2)        -  
+15m    60% (1787)  59% (706)  60% (200)   61% (41)     0% (1)        -  
+1h     65% (1995)  65% (697)  54% (150)   60% (10)        -          -  
+4h     61% (1667)  58% (550)  64% (137)   50% (12)        -          -  
+1d      56% (679)  57% (228)   66% (53)    25% (4)        -          -  
+==========================================
+
