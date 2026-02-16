@@ -1,7 +1,7 @@
 // backtester/src/evaluator.rs
 //
 // Core evaluation logic: for each signal, walk forward through future candles
-// and determine if TP1/TP2/TP3 or SL was hit first.
+// and determine if TP1 or SL was hit first (whichever comes first).
 
 use anyhow::Result;
 use sqlx::PgPool;
@@ -21,12 +21,11 @@ impl SignalEvaluator {
 
     /// Evaluate a single signal against future candle data.
     /// Returns None if not enough future data exists.
+    /// Only checks TP1 vs SL - whichever is hit first.
     pub async fn evaluate(&self, signal: &SignalForBacktest) -> Result<Option<BacktestResult>> {
         let entry = signal.entry_price.unwrap_or(0.0) as f64;
         let sl = signal.sl_price.unwrap_or(0.0) as f64;
         let tp1 = signal.tp1_price.unwrap_or(0.0) as f64;
-        let tp2 = signal.tp2_price.map(|v| v as f64);
-        let tp3 = signal.tp3_price.map(|v| v as f64);
 
         if entry <= 0.0 || sl <= 0.0 || tp1 <= 0.0 {
             return Ok(None);
@@ -69,23 +68,23 @@ impl SignalEvaluator {
             if favorable > max_favorable { max_favorable = favorable; }
             if adverse > max_adverse { max_adverse = adverse; }
 
-            // Check SL hit first (within the same candle, SL takes priority if both hit)
+            // Check if SL was hit in this candle
             let sl_hit = if is_long {
                 candle.low <= sl
             } else {
                 candle.high >= sl
             };
 
-            // Check TP hits (highest TP first for best outcome tracking)
-            let tp3_hit = tp3.map(|t| if is_long { candle.high >= t } else { candle.low <= t }).unwrap_or(false);
-            let tp2_hit = tp2.map(|t| if is_long { candle.high >= t } else { candle.low <= t }).unwrap_or(false);
-            let tp1_hit = if is_long { candle.high >= tp1 } else { candle.low <= tp1 };
+            // Check if TP1 was hit in this candle
+            let tp1_hit = if is_long {
+                candle.high >= tp1
+            } else {
+                candle.low <= tp1
+            };
 
-            // Priority: If both SL and TP hit in same candle, check open direction
-            // Simplification: assume SL checked first if the candle opened adversely
-            if sl_hit && (tp1_hit || tp2_hit || tp3_hit) {
-                // Both hit in same candle - check which was more likely hit first
-                // If the candle opened on the adverse side, SL probably hit first
+            // If both hit in same candle, determine which was hit first
+            if sl_hit && tp1_hit {
+                // Both hit - check candle open to determine order
                 let opened_adverse = if is_long {
                     candle.open < entry
                 } else {
@@ -93,30 +92,22 @@ impl SignalEvaluator {
                 };
 
                 if opened_adverse {
+                    // Opened adverse, SL likely hit first
                     outcome = Some(Outcome::Loss { exit_price: sl });
-                } else if tp3_hit {
-                    outcome = Some(Outcome::Win { tp_level: 3, exit_price: tp3.unwrap() });
-                } else if tp2_hit {
-                    outcome = Some(Outcome::Win { tp_level: 2, exit_price: tp2.unwrap() });
                 } else {
+                    // Opened favorable, TP1 likely hit first
                     outcome = Some(Outcome::Win { tp_level: 1, exit_price: tp1 });
                 }
                 break;
             }
 
+            // Check SL hit first (priority - stop loss takes precedence)
             if sl_hit {
                 outcome = Some(Outcome::Loss { exit_price: sl });
                 break;
             }
 
-            if tp3_hit {
-                outcome = Some(Outcome::Win { tp_level: 3, exit_price: tp3.unwrap() });
-                break;
-            }
-            if tp2_hit {
-                outcome = Some(Outcome::Win { tp_level: 2, exit_price: tp2.unwrap() });
-                break;
-            }
+            // Check TP1 hit
             if tp1_hit {
                 outcome = Some(Outcome::Win { tp_level: 1, exit_price: tp1 });
                 break;

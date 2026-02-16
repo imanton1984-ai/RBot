@@ -124,14 +124,16 @@ impl Default for TradeSignalCalculator {
         Self {
             min_final_score: 0.96,
             base_leverage: 5,
-            sl_atr_mult: 1.6,
-            tp1_atr_mult: 1.2,
-            tp2_atr_mult: 2.2,
-            tp3_atr_mult: 3.4,
+            // Dynamic ATR-based SL/TP with minimum floors
+            // RULE: SL must be >= 1.5 ATR AND >= 0.5% (scalp) or 1.5% (swing)
+            sl_atr_mult: 1.5,      // 1.5 ATR minimum
+            tp1_atr_mult: 2.25,    // R:R 1.5 (1.5 * 1.5 = 2.25)
+            tp2_atr_mult: 3.5,
+            tp3_atr_mult: 5.0,
             tp2_ratio_min: 1.6,
             tp3_ratio_min: 1.45,
             min_tp_gap_pct: 0.002,
-            fallback_atr_pct: 0.008, // 0.8%
+            fallback_atr_pct: 0.01, // 1% fallback if ATR missing
         }
     }
 }
@@ -169,20 +171,29 @@ impl TradeSignalCalculator {
     ) -> (f64, f64, f64, f64) {
         let side_f = side as f64;
 
-        // ATR-based fallbacks
-        let fb_sl  = entry_price - side_f * self.sl_atr_mult  * atr;
-        let fb_tp1 = entry_price + side_f * self.tp1_atr_mult * atr;
-        let fb_tp2 = entry_price + side_f * self.tp2_atr_mult * atr;
-        let fb_tp3 = entry_price + side_f * self.tp3_atr_mult * atr;
+        // === DYNAMIC SL CALCULATION ===
+        // RULE: SL = max(1.5 * ATR, 0.5% for scalp, 1.5% for swing)
+        let atr_based_sl = self.sl_atr_mult * atr;
+        let tf_min_sl = entry_price * tf_targets.min_sl_pct;
+        let scalp_floor = entry_price * 0.005;  // 0.5% minimum for scalps
+        
+        // Use larger of: ATR-based, timeframe-based, or volatility-based minimum
+        let dynamic_sl_dist = atr_based_sl.max(tf_min_sl).max(scalp_floor);
+        
+        // ATR-based fallbacks with dynamic SL
+        let fb_sl = entry_price - side_f * dynamic_sl_dist;
+        let fb_tp1 = entry_price + side_f * (dynamic_sl_dist * 1.5); // R:R 1.5
+        let fb_tp2 = entry_price + side_f * (dynamic_sl_dist * 2.5);
+        let fb_tp3 = entry_price + side_f * (dynamic_sl_dist * 3.5);
 
         let (stop_loss, tp1, tp2, tp3) = if side > 0 {
             // ── LONG ───────────────────────────────────────────────────
-            // SL: nearest support *below* entry − 0.3 ATR
+            // SL: nearest support *below* entry − 1.0 ATR buffer
             let sl = support_levels
                 .iter()
                 .rev() // descending
                 .find(|&&p| p < entry_price)
-                .map(|&p| p - 0.3 * atr)
+                .map(|&p| p - 1.0 * atr)
                 .unwrap_or(fb_sl);
 
             // TP1: nearest resistance *above* entry
@@ -198,11 +209,11 @@ impl TradeSignalCalculator {
             (sl, t1, t2, t3)
         } else {
             // ── SHORT ──────────────────────────────────────────────────
-            // SL: nearest resistance *above* entry + 0.3 ATR
+            // SL: nearest resistance *above* entry + 1.0 ATR buffer
             let sl = resistance_levels
                 .iter()
                 .find(|&&p| p > entry_price)
-                .map(|&p| p + 0.3 * atr)
+                .map(|&p| p + 1.0 * atr)
                 .unwrap_or(fb_sl);
 
             // TP1: nearest support *below* entry (descending order)
@@ -409,6 +420,22 @@ impl TradeSignalCalculator {
             (stop_loss, tp1, tp2, tp3)
         };
 
+        // === RISK/REWARD CHECK ===
+        // ЖЕЛЕЗНОЕ ПРАВИЛО: Если потенциальная прибыль меньше риска (TP1 слишком близко или SL слишком далеко) -> SKIP
+        let risk = (entry_price - stop_loss).abs();
+        let reward = (tp1 - entry_price).abs();
+
+        if risk <= 0.0 {
+            tracing::debug!(target: "trade_signal_calculator", "Rejecting signal {} tf={}: Zero risk (SL={})", symbol.0, tf_minutes, stop_loss);
+            return Ok(None);
+        }
+
+        let rr = reward / risk;
+        if rr < 1.0 {
+            tracing::debug!(target: "trade_signal_calculator", "Rejecting signal {} tf={}: Poor R:R {:.2} (risk={:.4}, reward={:.4})", symbol.0, tf_minutes, rr, risk, reward);
+            return Ok(None);
+        }
+
         // Leverage = base * market_factor * score_factor
         let market_factor = market_params
             .map(|m| m.leverage_factor(side))
@@ -423,8 +450,6 @@ impl TradeSignalCalculator {
         let breakdown_json = json!({
             "final": breakdown.final_score,
             "base_score": breakdown.base_score,
-            "coverage": breakdown.coverage_score,
-            "consensus": breakdown.consensus_score,
             "predictors_score": breakdown.predictors_score,
             "raw_signals_score": breakdown.raw_signals_score,
             "indicators_score": breakdown.indicators_score,
@@ -437,6 +462,7 @@ impl TradeSignalCalculator {
             "resistance_levels_used": resistance_prices,
             "market_params": market_params.map(|m| m.details_json.clone()),
             "debug": breakdown.debug,
+            "risk_reward_ratio": rr,
         });
 
         Ok(Some(TradeSignal {

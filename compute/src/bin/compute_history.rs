@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
 
     // Config
     let config = ComputeConfig {
-        batch_size: 5000,
+        batch_size: 2000,
         max_concurrent_jobs: 2,
         use_cuda: cfg!(feature = "cuda"),
         cuda_device_id: Some(0),
@@ -50,11 +50,11 @@ async fn main() -> Result<()> {
 
     // 1. Initialize DB Persistor (HISTORY Mode)
     std::env::set_var("DB_PERSIST_MODE", "history");
-    // Optimization for bulk loading
-    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "50000"); 
-    std::env::set_var("DB_PERSIST_FLUSH_MS", "150"); 
-    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); 
-    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); 
+    // Optimization for bulk loading - reduced chunk size for faster commits
+    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "20000");
+    std::env::set_var("DB_PERSIST_FLUSH_MS", "500");
+    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1");
+    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0");
 
     let bulk_persistor = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(
         database_lib::bulk_persistor::PersistMode::History

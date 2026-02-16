@@ -21,7 +21,7 @@ impl DatabaseInitializer {
 
     pub async fn initialize_schema(&self) -> Result<(), sqlx::Error> {
         info!("Initializing database schema...");
-        
+
         // Execute the DDL files in order
         let ddl_files = [
             // Core market data tables
@@ -47,36 +47,63 @@ impl DatabaseInitializer {
         for (index, ddl_content) in ddl_files.iter().enumerate() {
             info!("Executing DDL file #{}...", index);
             if !ddl_content.trim().is_empty() {
-                // Execute each DDL file in its own transaction to prevent
-                // "current transaction is aborted" cascading failures.
-                // If one DDL fails (e.g., hypertable already exists), the next
-                // DDL file starts fresh on a clean connection.
-                let mut tx = self.pool.begin().await.map_err(|e| {
-                    error!("Failed to begin transaction for DDL #{}: {}", index, e);
-                    e
-                })?;
-                
-                match sqlx::raw_sql(ddl_content).execute(&mut *tx).await {
-                    Ok(_) => {
-                        if let Err(e) = tx.commit().await {
-                            error!("Failed to commit DDL file #{}: {}", index, e);
-                        } else {
-                            info!("Successfully executed DDL file #{}", index);
-                        }
-                    },
-                    Err(e) => {
-                        warn!("DDL file #{} error (may be safe to ignore if objects already exist): {}", index, e);
-                        // Rollback the failed transaction to reset the connection state
-                        let _ = tx.rollback().await;
-                        // Continue with other files
-                        continue;
-                    }
+                // Execute each DDL file in its own transaction with retry logic
+                // to handle PostgreSQL cache lookup failures during hypertable creation
+                if let Err(e) = self.execute_ddl_with_retry(index, ddl_content).await {
+                    warn!("DDL file #{} failed after retries: {}", index, e);
                 }
             }
         }
 
         info!("Database schema initialization completed.");
         Ok(())
+    }
+
+    async fn execute_ddl_with_retry(&self, index: usize, ddl_content: &str) -> Result<(), sqlx::Error> {
+        let mut attempts = 0;
+        let max_attempts = 3;
+
+        loop {
+            let mut tx = match self.pool.begin().await {
+                Ok(tx) => tx,
+                Err(e) => {
+                    error!("Failed to begin transaction for DDL #{}: {}", index, e);
+                    return Err(e);
+                }
+            };
+
+            match sqlx::raw_sql(ddl_content).execute(&mut *tx).await {
+                Ok(_) => {
+                    if let Err(e) = tx.commit().await {
+                        error!("Failed to commit DDL file #{}: {}", index, e);
+                        return Err(e);
+                    }
+                    info!("Successfully executed DDL file #{}", index);
+                    return Ok(());
+                }
+                Err(e) => {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("cache lookup failed") {
+                        attempts += 1;
+                        if attempts >= max_attempts {
+                            error!("DDL file #{} failed after {} attempts: {}", index, max_attempts, e);
+                            let _ = tx.rollback().await;
+                            return Err(e);
+                        }
+                        warn!("DDL file #{} cache lookup failed (attempt {}/{}), retrying...", 
+                              index, attempts, max_attempts);
+                        let _ = tx.rollback().await;
+                        // Exponential backoff: 100ms, 200ms, 400ms
+                        tokio::time::sleep(Duration::from_millis(100 * (1 << attempts))).await;
+                    } else {
+                        // Non-retryable error
+                        warn!("DDL file #{} error (may be safe to ignore if objects already exist): {}", index, e);
+                        let _ = tx.rollback().await;
+                        return Ok(()); // Continue with other files
+                    }
+                }
+            }
+        }
     }
 
     pub async fn test_connection(&self) -> Result<(), sqlx::Error> {

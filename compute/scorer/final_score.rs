@@ -32,12 +32,13 @@ pub struct StrategyWeights {
 
 impl Default for StrategyWeights {
     fn default() -> Self {
-        // Keep market meaningful; without it you will trade against BTC regime.
+        // NEW: Trust ONLY the smart consensus logic in predictors
+        // Indicators and raw signals add noise and cause reverse correlation
         Self {
-            predictors_weight: 0.35,
-            raw_signals_weight: 0.30,
-            indicators_weight: 0.20,
-            market_weight: 0.15,
+            predictors_weight: 0.90, // Main driver - consensus-based smart logic
+            market_weight: 0.10,     // BTC regime filter only
+            raw_signals_weight: 0.0, // Removed - adds noise
+            indicators_weight: 0.0,  // Removed - already embedded in predictors
         }
     }
 }
@@ -151,23 +152,18 @@ impl FinalScorer {
             .unwrap_or(0.5);
 
         // Base score (weights sum to 1)
+        // With new weights (predictors: 0.85, market: 0.15, raw: 0, ind: 0),
+        // base_score is now purely from smart predictors + BTC regime filter
         let base_score =
             predictors_score * self.weights.predictors_weight +
             raw_signals_score * self.weights.raw_signals_weight +
             indicators_score * self.weights.indicators_weight +
             market_score * self.weights.market_weight;
 
-        // Coverage & consensus
-        let has_market = market_params.is_some();
-        let coverage_score = self.calculate_feature_coverage_score(predictors, raw_signals_summary, has_market);
-        let consensus_score = self.calculate_ml_heuristic_consensus(predictors_ml_score, predictors_heur_score);
-
-        // Soft penalties: coverage and consensus reduce score, but not catastrophically.
-        // Previous formula (base * cov^1.8 * cons^1.5) made ≥0.50 impossible.
-        let final_score = (base_score
-            * coverage_score.powf(self.coverage_gamma)
-            * consensus_score.powf(self.consensus_gamma))
-            .clamp(0.0, 1.0);
+        // Simplified scoring: Remove coverage and consensus penalties
+        // These penalties were hurting good heuristic signals when ML models aren't available.
+        // The predictors now contain regime-aware logic, so we trust their output directly.
+        let final_score = base_score.clamp(0.0, 1.0);
 
         let debug = json!({
             "symbol": symbol,
@@ -175,16 +171,14 @@ impl FinalScorer {
             "timestamp": timestamp.to_rfc3339(),
             "side": side_i8,
             "weights": self.weights,
-            "coverage_gamma": self.coverage_gamma,
-            "consensus_gamma": self.consensus_gamma,
-            "has_market_params": has_market,
+            "has_market_params": market_params.is_some(),
             "base_score": base_score,
             "predictors_score": predictors_score,
+            "predictors_ml_score": predictors_ml_score,
+            "predictors_heur_score": predictors_heur_score,
             "raw_signals_score": raw_signals_score,
             "indicators_score": indicators_score,
             "market_score": market_score,
-            "coverage_score": coverage_score,
-            "consensus_score": consensus_score,
             "final_score": final_score,
             "market_params": market_params.map(|m| m.details_json.clone()),
         });
@@ -199,8 +193,8 @@ impl FinalScorer {
                 raw_signals_score,
                 indicators_score,
                 market_score,
-                coverage_score,
-                consensus_score,
+                coverage_score: 1.0, // No longer calculated
+                consensus_score: 1.0, // No longer calculated
                 debug,
             }))
         } else {
@@ -210,10 +204,10 @@ impl FinalScorer {
             if cnt % 5000 == 0 {
                 tracing::info!(
                     target: "final_scorer",
-                    "REJECTED signal #{} {} tf={} side={}: final={:.4} (base={:.4} cov={:.4} cons={:.4}) \
+                    "REJECTED signal #{} {} tf={} side={}: final={:.4} (base={:.4}) \
                      pred={:.3} raw={:.3} ind={:.3} mkt={:.3} | threshold={:.2}",
                     cnt, symbol, tf_minutes, side_i8,
-                    final_score, base_score, coverage_score, consensus_score,
+                    final_score, base_score,
                     predictors_score, raw_signals_score, indicators_score, market_score,
                     self.min_final_score
                 );
@@ -424,51 +418,16 @@ impl FinalScorer {
         (0.40 * base_ind + 0.60 * direction_alignment).clamp(0.0, 1.0)
     }
 
-    fn calculate_feature_coverage_score(&self, predictors: &[PredictionRow], raw_signals_summary: &Value, has_market: bool) -> f64 {
-        // Prediction coverage: do we have main aspects?
-        let mut has_price_target = false;
-        let mut has_bounce = false;
-        let mut has_break = false;
-
-        for p in predictors {
-            match p.aspect {
-                PredictionAspect::PriceTarget => has_price_target = true,
-                PredictionAspect::LevelBounce => has_bounce = true,
-                PredictionAspect::LevelBreakout => has_break = true,
-            }
-        }
-
-        let pred_cov = (has_price_target as i32 + has_bounce as i32 + has_break as i32) as f64 / 3.0;
-
-        // Raw signals coverage: how many expected buckets are present?
-        // You should store these counts in summary (your aggregator must do it).
-        let raw_cov = raw_signals_summary.get("feature_coverage")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.6); // fallback: assume partial
-
-        let market_cov = if has_market { 1.0 } else { 0.0 };
-
-        // Weighted coverage: predictors + raw + market
-        (0.45 * pred_cov + 0.45 * raw_cov + 0.10 * market_cov).clamp(0.0, 1.0)
+    #[allow(dead_code)]
+    fn calculate_feature_coverage_score(&self, _predictors: &[PredictionRow], _raw_signals_summary: &Value, _has_market: bool) -> f64 {
+        // No longer used - simplified scoring
+        1.0
     }
 
-    fn calculate_ml_heuristic_consensus(&self, ml_score: f64, heur_score: f64) -> f64 {
-        // Both sources present: evaluate agreement
-        if ml_score > 0.0 && heur_score > 0.0 {
-            let diff = (ml_score - heur_score).abs();
-            // 0 diff => 1.0, 0.4 diff => ~0.6
-            return (1.0 - (diff / 0.4)).clamp(0.0, 1.0) * 0.4 + 0.6;
-        }
-
-        // Single source present: acceptable, slight penalty
-        // Previous value 0.65 was too harsh — with consensus_gamma=1.5 it caused a 48% multiplicative penalty,
-        // making it impossible for signals to pass any reasonable threshold.
-        if ml_score > 0.0 || heur_score > 0.0 {
-            return 0.92;
-        }
-
-        // Neither source: big problem, penalize heavily
-        0.50
+    #[allow(dead_code)]
+    fn calculate_ml_heuristic_consensus(&self, _ml_score: f64, _heur_score: f64) -> f64 {
+        // No longer used - simplified scoring
+        1.0
     }
 }
 

@@ -55,11 +55,11 @@ pub struct MarketParams {
 
     pub situation: MarketSituation,
 
-    // “strength” and “risk”
-    pub adx_global: Option<f64>,
-    pub atr_global: Option<f64>,
+    // "strength" and "risk"
+    pub adx_global: Option<f32>,
+    pub atr_global: Option<f32>,
     pub close_global: Option<f64>,
-    pub atr_pct_global: Option<f64>, // (atr/close)*100
+    pub atr_pct_global: Option<f32>, // (atr/close)*100
 
     pub trend_strength_score: f64, // 0..1 (from ADX)
     pub volatility_score: f64,     // 0..1 (from ATR%)
@@ -339,7 +339,7 @@ async fn fetch_recent_indicators(
     symbol_id: i64,
     tf_minutes: i16,
     limit: i64,
-) -> Result<Vec<(DateTime<Utc>, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<i16>, Option<i16>)>> {
+) -> Result<Vec<(DateTime<Utc>, Option<f32>, Option<f32>, Option<f32>, Option<f32>, Option<i16>, Option<i16>)>> {
     // time, ema_50, ema_200, adx, atr, trend, trend_short
     let rows = sqlx::query(
         r#"
@@ -360,10 +360,10 @@ async fn fetch_recent_indicators(
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
         let time: DateTime<Utc> = r.try_get("time")?;
-        let ema_50: Option<f64> = r.try_get("ema_50")?;
-        let ema_200: Option<f64> = r.try_get("ema_200")?;
-        let adx: Option<f64> = r.try_get("adx")?;
-        let atr: Option<f64> = r.try_get("atr")?;
+        let ema_50: Option<f32> = r.try_get("ema_50")?;
+        let ema_200: Option<f32> = r.try_get("ema_200")?;
+        let adx: Option<f32> = r.try_get("adx")?;
+        let atr: Option<f32> = r.try_get("atr")?;
         let trend: Option<i16> = r.try_get("trend")?;
         let trend_short: Option<i16> = r.try_get("trend_short")?;
         out.push((time, ema_50, ema_200, adx, atr, trend, trend_short));
@@ -373,15 +373,15 @@ async fn fetch_recent_indicators(
 }
 
 fn derive_global_components(
-    global_ind: &[(DateTime<Utc>, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<i16>, Option<i16>)],
+    global_ind: &[(DateTime<Utc>, Option<f32>, Option<f32>, Option<f32>, Option<f32>, Option<i16>, Option<i16>)],
     global_close: Option<f64>,
-) -> (i8, Option<f64>, Option<f64>, Option<f64>, f64, f64) {
+) -> (i8, Option<f32>, Option<f32>, Option<f32>, f64, f64) {
     // take last values
-    let mut ema200_last: Option<f64> = None;
-    let mut ema200_prev: Option<f64> = None;
-    let mut ema50_last: Option<f64> = None;
-    let mut adx_last: Option<f64> = None;
-    let mut atr_last: Option<f64> = None;
+    let mut ema200_last: Option<f32> = None;
+    let mut ema200_prev: Option<f32> = None;
+    let mut ema50_last: Option<f32> = None;
+    let mut adx_last: Option<f32> = None;
+    let mut atr_last: Option<f32> = None;
 
     if let Some((_, ema50, ema200, adx, atr, _, _)) = global_ind.first() {
         ema50_last = *ema50;
@@ -404,8 +404,8 @@ fn derive_global_components(
     // trend dir logic
     let mut dir = 0i8;
     if let (Some(ema200), Some(ema50)) = (ema200_last, ema50_last) {
-        let above = close > ema200 && ema50 > ema200;
-        let below = close < ema200 && ema50 < ema200;
+        let above = close > ema200 as f64 && (ema50 as f64) > (ema200 as f64);
+        let below = close < ema200 as f64 && (ema50 as f64) < (ema200 as f64);
 
         if above && slope > 0.0 {
             dir = 1;
@@ -419,14 +419,14 @@ fn derive_global_components(
     // trend strength from ADX
     let trend_strength_score = if let Some(adx) = adx_last {
         // 15 => 0, 40 => 1
-        ((adx - 15.0) / 25.0).clamp(0.0, 1.0)
+        ((adx as f64 - 15.0) / 25.0).clamp(0.0, 1.0)
     } else {
         0.0
     };
 
     // ATR% -> volatility score
     let atr_pct = match (atr_last, global_close) {
-        (Some(atr), Some(c)) if c > 0.0 => Some((atr / c) * 100.0),
+        (Some(atr), Some(c)) if c > 0.0 => Some((atr as f64 / c) * 100.0),
         _ => None,
     };
 
@@ -437,11 +437,11 @@ fn derive_global_components(
         0.0
     };
 
-    (dir, adx_last, atr_last, atr_pct, trend_strength_score, volatility_score)
+    (dir, adx_last, atr_last, atr_pct.map(|x| x as f32), trend_strength_score, volatility_score)
 }
 
 fn derive_short_dir(
-    short_ind: &[(DateTime<Utc>, Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<i16>, Option<i16>)],
+    short_ind: &[(DateTime<Utc>, Option<f32>, Option<f32>, Option<f32>, Option<f32>, Option<i16>, Option<i16>)],
 ) -> i8 {
     // Prefer trend_short if present
     if let Some((_, _, _, _, _, _, trend_short)) = short_ind.first() {

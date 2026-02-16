@@ -72,7 +72,6 @@ async fn main() -> Result<()> {
     let mut win_count = 0u64;
     let mut loss_count = 0u64;
     let mut expired_count = 0u64;
-    let mut total_pnl = 0.0f64;
 
     for signal in &signals {
         match evaluator.evaluate(signal).await {
@@ -82,7 +81,6 @@ async fn main() -> Result<()> {
                     Outcome::Loss { .. } => loss_count += 1,
                     Outcome::Expired { .. } => expired_count += 1,
                 }
-                total_pnl += result.pnl_pct;
                 results.push(result);
             }
             Ok(None) => {

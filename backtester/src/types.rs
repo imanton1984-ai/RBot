@@ -20,6 +20,7 @@ pub struct SignalForBacktest {
     pub tp2_price: Option<f32>,
     pub tp3_price: Option<f32>,
     pub reason: Option<serde_json::Value>,
+    #[allow(dead_code)]
     pub price10_target: Option<f64>,
     pub price10_score: Option<f32>,
     pub bounce_prob: Option<f32>,
@@ -33,6 +34,7 @@ pub struct SignalForBacktest {
 /// Candle row fetched for outcome evaluation
 #[derive(Debug, Clone, FromRow)]
 pub struct CandleRow {
+    #[allow(dead_code)]
     pub time: DateTime<Utc>,
     pub open: f64,
     pub high: f64,
@@ -43,17 +45,16 @@ pub struct CandleRow {
 /// Trade outcome after evaluating a signal against future candles
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Outcome {
-    /// Price hit one of the take-profit levels
+    /// Price hit TP1 before stop-loss
     Win {
-        /// Which TP was hit first: 1, 2, or 3
-        tp_level: u8,
+        tp_level: u8,  // Always 1 - TP1 only
         exit_price: f64,
     },
-    /// Price hit stop-loss
+    /// Price hit stop-loss before TP1
     Loss {
         exit_price: f64,
     },
-    /// Neither TP nor SL hit within timeout
+    /// Neither TP1 nor SL hit within timeout
     Expired {
         last_price: f64,
     },
@@ -62,10 +63,7 @@ pub enum Outcome {
 impl Outcome {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Outcome::Win { tp_level: 1, .. } => "win_tp1",
-            Outcome::Win { tp_level: 2, .. } => "win_tp2",
-            Outcome::Win { tp_level: 3, .. } => "win_tp3",
-            Outcome::Win { .. } => "win",
+            Outcome::Win { .. } => "win_tp1",
             Outcome::Loss { .. } => "loss_sl",
             Outcome::Expired { .. } => "expired",
         }
