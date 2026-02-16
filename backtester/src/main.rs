@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
         by_tf.entry(r.tf_minutes).or_default().push(r);
     }
     for (tf, group) in &by_tf {
-        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"unknown" };
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", _=>"unknown" };
         let tf_csv = format!("backtest_results_{}.csv", tf_name);
         let owned: Vec<BacktestResult> = group.iter().map(|r| (*r).clone()).collect();
         export_training_csv(&owned, &tf_csv)?;
@@ -138,8 +138,8 @@ async fn main() -> Result<()> {
 async fn load_signals(pool: &PgPool, min_score: f64, max_rows: i64) -> Result<Vec<SignalForBacktest>> {
     let rows = sqlx::query_as::<_, SignalForBacktest>(
         r#"
-        SELECT 
-            s.symbol_id, COALESCE(s.symbol, p.symbol) as symbol, 
+        SELECT
+            s.symbol_id, COALESCE(s.symbol, p.symbol) as symbol,
             s.tf_minutes, s.side, s.final_score,
             s.ml_score, s.heur_score,
             s.entry_price, s.sl_price, s.tp1_price, s.tp2_price, s.tp3_price,
@@ -155,6 +155,7 @@ async fn load_signals(pool: &PgPool, min_score: f64, max_rows: i64) -> Result<Ve
           AND s.entry_price IS NOT NULL
           AND s.sl_price IS NOT NULL
           AND s.tp1_price IS NOT NULL
+          AND s.tf_minutes != 1440
         ORDER BY s.time ASC
         LIMIT $2
         "#,
@@ -432,7 +433,7 @@ fn print_summary(results: &[BacktestResult]) {
         let sharpe = if variance > 0.0 { mean / variance.sqrt() } else { 0.0 };
 
         let tf_name = match tf {
-            1 => "1m", 5 => "5m", 15 => "15m", 60 => "1h", 240 => "4h", 1440 => "1d",
+            1 => "1m", 5 => "5m", 15 => "15m", 60 => "1h", 240 => "4h",
             _ => "??",
         };
 
@@ -467,7 +468,7 @@ fn print_summary(results: &[BacktestResult]) {
     let mut tfs_sorted = tfs2; tfs_sorted.sort();
     for tf in &tfs_sorted {
         let group = &by_tf[tf];
-        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"??" };
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", _=>"??" };
 
         let mut cells: Vec<String> = Vec::new();
         for (lo, hi, _) in &buckets {

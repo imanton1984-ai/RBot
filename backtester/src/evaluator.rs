@@ -187,7 +187,6 @@ impl SignalEvaluator {
             15 => "market.candles_15m",
             60 => "market.candles_1h",
             240 => "market.candles_4h",
-            1440 => "market.candles_1d",
             _ => "market.candles_1h",
         };
 
