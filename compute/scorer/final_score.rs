@@ -141,8 +141,8 @@ impl FinalScorer {
         // Raw signals score (use BEST signals, but penalize missing coverage)
         let raw_signals_score = self.calculate_raw_signals_score(raw_signals_summary);
 
-        // Indicators score from summary fields (already normalized 0..1 expected)
-        let indicators_score = self.calculate_indicator_score(raw_signals_summary);
+        // Indicators score WITH direction alignment check
+        let indicators_score = self.calculate_indicator_score_directional(raw_signals_summary, side_i8);
 
         // Market score (BTC regime alignment)
         // If market params not available, use neutral 0.5 instead of 0.0
@@ -324,17 +324,104 @@ impl FinalScorer {
         (0.75 * m + 0.25 * avg).clamp(0.0, 1.0)
     }
 
-    fn calculate_indicator_score(&self, raw_signals_summary: &Value) -> f64 {
-        // Expected already normalized 0..1 in summary.
-        // If you don't have those fields yet, start writing them into raw_signals_summary in your aggregator.
-        let trend_strength = raw_signals_summary.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let momentum_strength = raw_signals_summary.get("momentum_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let volatility_regime = raw_signals_summary.get("volatility_regime").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let volume_spike = raw_signals_summary.get("volume_spike_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    /// Direction-aware indicator score.
+    /// Checks that indicators AGREE with the signal's side direction.
+    /// A strong BUY signal in a downtrend gets penalized.
+    fn calculate_indicator_score_directional(&self, raw: &Value, side: i8) -> f64 {
+        let trend_strength = raw.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let momentum_strength = raw.get("momentum_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let volatility_regime = raw.get("volatility_regime").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let volume_spike = raw.get("volume_spike_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
-        // You can tune weights; keep balanced.
-        (0.30 * trend_strength + 0.30 * momentum_strength + 0.20 * (1.0 - volatility_regime) + 0.20 * volume_spike)
-            .clamp(0.0, 1.0)
+        // === DIRECTION ALIGNMENT CHECK ===
+        // Extract directional indicators
+        let trend_short = raw.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let trend_medium = raw.get("trend_medium").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let rsi = raw.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let macd_hist = raw.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_20 = raw.get("ema_20").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_50 = raw.get("ema_50").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_200 = raw.get("ema_200").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let close = raw.get("close").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        let _side_f = side as f64;
+        let mut alignment_score: f64 = 0.0;
+        let mut alignment_count: f64 = 0.0;
+
+        // 1. Trend alignment (short-term trend must agree with side)
+        if trend_short != 0.0 {
+            let aligned = (trend_short > 0.0 && side > 0) || (trend_short < 0.0 && side < 0);
+            alignment_score += if aligned { 1.0 } else { 0.0 };
+            alignment_count += 1.0;
+        }
+
+        // 2. Medium trend alignment
+        if trend_medium != 0.0 {
+            let aligned = (trend_medium > 0.0 && side > 0) || (trend_medium < 0.0 && side < 0);
+            alignment_score += if aligned { 1.0 } else { 0.0 };
+            alignment_count += 1.0;
+        }
+
+        // 3. Trend conflict: short vs medium (conflicting trends = danger)
+        if trend_short != 0.0 && trend_medium != 0.0 {
+            let trending_same = trend_short.signum() == trend_medium.signum();
+            alignment_score += if trending_same { 0.5 } else { 0.0 };
+            alignment_count += 0.5;
+        }
+
+        // 4. MACD direction alignment
+        if macd_hist.abs() > 0.0001 {
+            let aligned = (macd_hist > 0.0 && side > 0) || (macd_hist < 0.0 && side < 0);
+            alignment_score += if aligned { 1.0 } else { 0.0 };
+            alignment_count += 1.0;
+        }
+
+        // 5. RSI: penalize buying overbought or selling oversold
+        if rsi > 0.0 {
+            let rsi_ok = if side > 0 {
+                rsi < 70.0 // Don't buy overbought
+            } else {
+                rsi > 30.0 // Don't sell oversold
+            };
+            alignment_score += if rsi_ok { 0.7 } else { 0.0 };
+            alignment_count += 0.7;
+        }
+
+        // 6. EMA position: close should be on the right side of EMAs
+        if close > 0.0 && ema_20 > 0.0 {
+            let above_ema20 = close > ema_20;
+            let aligned = (above_ema20 && side > 0) || (!above_ema20 && side < 0);
+            alignment_score += if aligned { 0.8 } else { 0.0 };
+            alignment_count += 0.8;
+        }
+        if close > 0.0 && ema_50 > 0.0 {
+            let above_ema50 = close > ema_50;
+            let aligned = (above_ema50 && side > 0) || (!above_ema50 && side < 0);
+            alignment_score += if aligned { 0.6 } else { 0.0 };
+            alignment_count += 0.6;
+        }
+        if close > 0.0 && ema_200 > 0.0 {
+            let above_ema200 = close > ema_200;
+            let aligned = (above_ema200 && side > 0) || (!above_ema200 && side < 0);
+            alignment_score += if aligned { 0.4 } else { 0.0 };
+            alignment_count += 0.4;
+        }
+
+        // Direction alignment: 0..1 (1 = all indicators agree with side)
+        let direction_alignment = if alignment_count > 0.0 {
+            (alignment_score / alignment_count).clamp(0.0, 1.0)
+        } else {
+            0.5 // neutral if no data
+        };
+
+        // Base indicator quality (original formula)
+        let base_ind = (0.30 * trend_strength + 0.30 * momentum_strength +
+                       0.20 * (1.0 - volatility_regime) + 0.20 * volume_spike)
+            .clamp(0.0, 1.0);
+
+        // Final: blend base quality with direction alignment
+        // 40% base quality + 60% direction alignment
+        (0.40 * base_ind + 0.60 * direction_alignment).clamp(0.0, 1.0)
     }
 
     fn calculate_feature_coverage_score(&self, predictors: &[PredictionRow], raw_signals_summary: &Value, has_market: bool) -> f64 {

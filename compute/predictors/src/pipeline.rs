@@ -300,6 +300,8 @@ impl PredictorsPipeline {
         let skip_details = !is_realtime;
         
         let records: Vec<database_lib::PersistRecord> = final_preds.iter().map(|pred| {
+            // NaN-safe: f32::NAN.clamp() returns NaN which violates DB CHECK constraint
+            let safe_score = if pred.score_norm.is_finite() { pred.score_norm.clamp(0.0, 1.0) } else { 0.0 };
             database_lib::PersistRecord::Predictor {
                 symbol: common::Symbol::from(pred.symbol.clone()),
                 timeframe: pred.tf_minutes as i16,
@@ -308,7 +310,7 @@ impl PredictorsPipeline {
                 aspect: pred.aspect.as_int(),
                 calc_source: pred.calc_source.as_int(),
                 predictor_id: pred.predictor_id,
-                score_norm: pred.score_norm,
+                score_norm: safe_score,
                 value: pred.value,
                 value_low: pred.value_low,
                 value_high: pred.value_high,
@@ -398,7 +400,7 @@ impl PredictorsPipeline {
                     aspect: PredictionAspect::PriceTarget,
                     calc_source: CalcSource::Hard,
                     predictor_id,
-                    score_norm: score.abs() as f32,
+                    score_norm: (score.abs() as f32).clamp(0.0, 1.0),
                     value: last_predicted_price,
                     value_low,
                     value_high,
@@ -475,7 +477,7 @@ impl PredictorsPipeline {
                     aspect: PredictionAspect::LevelBounce,
                     calc_source: CalcSource::Hard,
                     predictor_id: bounce_predictor_id,
-                    score_norm: prob_bounce as f32,
+                    score_norm: (prob_bounce as f32).clamp(0.0, 1.0),
                     value: prob_bounce,
                     value_low: Some((prob_bounce - 0.1).max(0.0)),
                     value_high: Some((prob_bounce + 0.1).min(1.0)),
@@ -530,7 +532,7 @@ impl PredictorsPipeline {
                     aspect: PredictionAspect::LevelBreakout,
                     calc_source: CalcSource::Hard,
                     predictor_id: break_predictor_id,
-                    score_norm: prob_break as f32,
+                    score_norm: (prob_break as f32).clamp(0.0, 1.0),
                     value: prob_break,
                     value_low: Some((prob_break - 0.1).max(0.0)),
                     value_high: Some((prob_break + 0.1).min(1.0)),
@@ -619,8 +621,8 @@ impl PredictorsPipeline {
                         aspect: PredictionAspect::PriceTarget,
                         calc_source: CalcSource::Ml,
                         predictor_id,
-                        score_norm: score as f32,
-                        value: safe_predicted_price,
+                    score_norm: (score as f32).clamp(0.0, 1.0),
+                    value: safe_predicted_price,
                         value_low,
                         value_high,
                         side: self.determine_side(view_close, safe_predicted_price),
@@ -730,7 +732,7 @@ impl PredictorsPipeline {
                                     aspect: PredictionAspect::LevelBounce,
                                     calc_source: CalcSource::Ml,
                                     predictor_id: bounce_pid,
-                                    score_norm: prob_bounce as f32,
+                                    score_norm: (prob_bounce as f32).clamp(0.0, 1.0),
                                     value: prob_bounce,
                                     value_low: Some((prob_bounce - 0.1).max(0.0)),
                                     value_high: Some((prob_bounce + 0.1).min(1.0)),
@@ -779,7 +781,7 @@ impl PredictorsPipeline {
                                     aspect: PredictionAspect::LevelBreakout,
                                     calc_source: CalcSource::Ml,
                                     predictor_id: break_pid,
-                                    score_norm: prob_break as f32,
+                                    score_norm: (prob_break as f32).clamp(0.0, 1.0),
                                     value: prob_break,
                                     value_low: Some((prob_break - 0.1).max(0.0)),
                                     value_high: Some((prob_break + 0.1).min(1.0)),
@@ -949,9 +951,15 @@ fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Valu
         "best_levels_score": best_levels,
         "best_momentum_score": best_momentum,
         "best_volume_score": best_volume,
-        // All indicators are computed by our pipeline; feature_coverage should be 1.0.
-        // Previous value 0.7 caused massive penalty in FinalScorer (coverage_score^gamma).
         "feature_coverage": 1.0,
+        // Directional indicators for FinalScorer direction alignment
         "trend_short": indicators.trend_short,
+        "trend_medium": indicators.trend_medium,
+        "rsi": indicators.rsi,
+        "macd_hist": indicators.macd_histogram,
+        "close": indicators.close,
+        "ema_20": indicators.ema_20,
+        "ema_50": indicators.ema_50,
+        "ema_200": indicators.ema_200,
     })
 }

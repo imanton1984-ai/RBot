@@ -9,16 +9,16 @@ use super::types::*;
 
 pub struct HeuristicQualityScorer {
     /// Minimum risk/reward ratio to consider a signal attractive
-    min_risk_reward: f64,
+    _min_risk_reward: f64,
     /// Strong trend threshold (trend_strength)
-    strong_trend_threshold: f64,
+    _strong_trend_threshold: f64,
 }
 
 impl Default for HeuristicQualityScorer {
     fn default() -> Self {
         Self {
-            min_risk_reward: 1.2,
-            strong_trend_threshold: 0.6,
+            _min_risk_reward: 1.2,
+            _strong_trend_threshold: 0.6,
         }
     }
 }

@@ -3,7 +3,7 @@
 timeframes = ["1m","5m","15m","1h","4h","1d"]
 
 # Сколько свечей на backfill для каждого TF
-backfill_candles = 1000
+backfill_candles = 700
 
 # Реалтайм стратегия:
 # Важно: WS лимит 1024 streams. 250 пар * 6 TF = 1500 стримов — не влезет.

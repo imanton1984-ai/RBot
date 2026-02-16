@@ -130,13 +130,26 @@ impl ConsensusEngine {
         w_ml /= total;
         
         // Smooth gate: if the hardcore predictor is confident, it "opens the way" for ML
-        let gate = 1.0 / (1.0 + f64::exp(-10.0 * (hc_pred_score.abs() - 0.5)));
+        // Reduced from -10.0 to -5.0: less aggressive gating, ML predictions survive even
+        // when heuristic is less confident (avoids killing good ML signals)
+        let gate = 1.0 / (1.0 + f64::exp(-5.0 * (hc_pred_score.abs() - 0.5)));
         
-        let fused_score = (w_hc * hc_pred_score + w_ml * ml_pred_score) * gate;
+        let fused_raw = (w_hc * hc_pred_score + w_ml * ml_pred_score) * gate;
+        // NaN-safe: if any input was NaN, fall back to the max of the individual scores
+        let fused_score = if fused_raw.is_finite() {
+            fused_raw.clamp(0.0, 1.0)
+        } else {
+            hc_pred_score.abs().max(ml_pred_score.abs()).clamp(0.0, 1.0)
+        };
 
         // Create fused prediction
         let mut fused_pred = if ml_pred_score >= hc_pred_score { ml_pred.clone() } else { hard_pred.clone() };
-        fused_pred.score_norm = fused_score as f32;
+        // Extra NaN-safe guard for the final f32 assignment
+        fused_pred.score_norm = if (fused_score as f32).is_finite() {
+            (fused_score as f32).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
 
         // Update details
         if let Some(ref mut details) = fused_pred.details_json {

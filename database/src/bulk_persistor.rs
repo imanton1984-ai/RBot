@@ -498,7 +498,9 @@ async fn flush_predictors_chunk(
             calc_source.push(cs);
             predictor_id.push(pid);
 
-            score_norm.push(sn);
+            // NaN-safe: f32::NAN.clamp() returns NaN which violates DB CHECK constraint
+            let safe_sn = if sn.is_finite() { sn.clamp(0.0, 1.0) } else { 0.0 };
+            score_norm.push(safe_sn);
             value.push(val);
             value_low.push(vl);
             value_high.push(vh);

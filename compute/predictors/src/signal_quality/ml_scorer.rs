@@ -20,7 +20,7 @@ use super::heuristic_scorer::HeuristicQualityScorer;
 /// XGBoost-based signal quality scorer
 pub struct MlQualityScorer {
     /// Path to the XGBoost model file (.ubj format)
-    model_path: String,
+    _model_path: String,
     /// Whether the model is loaded and ready for inference
     model_loaded: bool,
     /// Fallback heuristic scorer (used when model is not loaded)
@@ -52,7 +52,7 @@ impl MlQualityScorer {
         }
 
         Self {
-            model_path: model_path.to_string(),
+            _model_path: model_path.to_string(),
             model_loaded,
             heuristic_fallback: HeuristicQualityScorer::new(),
             ml_weight: 0.6, // 60% ML, 40% heuristic when both available
