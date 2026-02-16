@@ -38,11 +38,11 @@
   ],
   "n_features": 32,
   "metrics": {
-    "auc": 0.4293601135706399,
-    "precision": 0.4673913043478261,
-    "recall": 0.5222672064777328
+    "auc": 0.5796052766114392,
+    "precision": 0.5577715729291317,
+    "recall": 0.4690295169946333
   },
-  "best_iteration": 0,
-  "n_trees": 1,
+  "best_iteration": 16,
+  "n_trees": 17,
   "note": "Output is win probability [0,1]. Convert to quality_multiplier: 0.5 + prob"
 }
