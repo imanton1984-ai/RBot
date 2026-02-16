@@ -237,7 +237,8 @@ pub async fn run_candles_ingest() -> Result<()> {
         );
 
         // Log effective request rate based on the limit and weight
-        let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;  // Use 500 for initial load to reduce weight
+        let backfill_override: Option<usize> = std::env::var("BACKFILL_CANDLES").ok().and_then(|v| v.parse().ok());
+        let limit = backfill_override.unwrap_or(cfg.runtime.backfill_candles).min(1500).max(1);
         let weight = klines_weight(limit);
         let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
         tracing::info!(
@@ -272,7 +273,7 @@ pub async fn run_candles_ingest() -> Result<()> {
 
                     // Use a smaller limit (500 instead of 700) to reduce weight from 5 to 2
                     // This allows more requests per second within the same weight budget
-                    let limit = cfg_clone.runtime.backfill_candles.min(500).max(1) as usize;
+                    let limit = backfill_override.unwrap_or(cfg_clone.runtime.backfill_candles).min(1500).max(1);
                     let bytes = crate::market::candles::candle_rest::rest_fetch_klines_bytes(
                         &http_clone,
                         &cfg_clone,
@@ -376,7 +377,8 @@ pub async fn run_candles_ingest() -> Result<()> {
         ));
 
         // Log effective request rate based on the limit and weight
-        let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;  // Use 500 for initial load to reduce weight
+        let backfill_override: Option<usize> = std::env::var("BACKFILL_CANDLES").ok().and_then(|v| v.parse().ok());
+        let limit = backfill_override.unwrap_or(cfg.runtime.backfill_candles).min(1500).max(1);
         let weight = klines_weight(limit);
         let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
         tracing::info!(

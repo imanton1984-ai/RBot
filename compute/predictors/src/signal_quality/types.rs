@@ -168,7 +168,7 @@ impl SignalFeatures {
         breakout_score: Option<f64>,
     ) -> Self {
         let get_f64 = |key: &str| reason.get(key).and_then(|v| v.as_f64());
-        let get_str = |key: &str| reason.get(key).and_then(|v| v.as_str()).map(String::from);
+        let _get_str = |key: &str| reason.get(key).and_then(|v| v.as_str()).map(String::from);
 
         let final_score = get_f64("final").unwrap_or(0.0);
         let base_score = get_f64("base_score").unwrap_or(0.0);

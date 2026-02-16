@@ -127,7 +127,7 @@ impl HeuristicQualityScorer {
             return 0.5; // Neutral if no levels used
         }
 
-        let mut score = 0.5;
+        let mut score: f64 = 0.5;
 
         // For LONG: want support below and resistance far above
         // For SHORT: want resistance above and support far below

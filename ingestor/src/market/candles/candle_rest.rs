@@ -185,7 +185,11 @@ pub async fn rest_backfill_one(
     let interval = tf.as_str();
     // Делаем limit <= 500 => weight=2 вместо weight=5 (если 700).
     // Это обычно выгоднее по "весу на свечу" и снижает вероятность 429.
-    let limit = cfg.runtime.backfill_candles.min(500).max(1) as usize;
+    // Use env override BACKFILL_CANDLES if set, otherwise config value. Max 1500 (Binance API limit)
+    let backfill: usize = std::env::var("BACKFILL_CANDLES")
+        .ok().and_then(|v| v.parse().ok())
+        .unwrap_or(cfg.runtime.backfill_candles);
+    let limit = backfill.min(1500).max(1);
 
     let max_loops: usize = std::env::var("INGEST_BACKFILL_MAX_LOOPS")
         .ok()

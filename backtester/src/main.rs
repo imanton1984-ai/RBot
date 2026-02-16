@@ -111,9 +111,22 @@ async fn main() -> Result<()> {
     let saved = save_results(&pool, &results).await?;
     tracing::info!("Saved {} backtest results to trade.backtest_results", saved);
 
-    // Export CSV for XGBoost training
+    // Export CSV for XGBoost training — global + per-TF
     export_training_csv(&results, &csv_output)?;
     tracing::info!("Exported training CSV to {}", csv_output);
+
+    // Export per-TF CSVs
+    let mut by_tf: HashMap<i16, Vec<&BacktestResult>> = HashMap::new();
+    for r in &results {
+        by_tf.entry(r.tf_minutes).or_default().push(r);
+    }
+    for (tf, group) in &by_tf {
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"unknown" };
+        let tf_csv = format!("backtest_results_{}.csv", tf_name);
+        let owned: Vec<BacktestResult> = group.iter().map(|r| (*r).clone()).collect();
+        export_training_csv(&owned, &tf_csv)?;
+        tracing::info!("Exported {} {} results to {}", owned.len(), tf_name, tf_csv);
+    }
 
     // Print summary statistics
     print_summary(&results);
@@ -156,6 +169,7 @@ async fn load_signals(pool: &PgPool, min_score: f64, max_rows: i64) -> Result<Ve
 
 /// Create backtest results table if it doesn't exist
 async fn create_backtest_table(pool: &PgPool) -> Result<()> {
+    // sqlx requires one statement per query() call
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS trade.backtest_results (
@@ -167,35 +181,32 @@ async fn create_backtest_table(pool: &PgPool) -> Result<()> {
             tf_minutes      SMALLINT NOT NULL,
             side            SMALLINT NOT NULL,
             final_score     REAL NOT NULL,
-            
             entry_price     REAL NOT NULL,
             sl_price        REAL NOT NULL,
             tp1_price       REAL NOT NULL,
             tp2_price       REAL,
             tp3_price       REAL,
-            
-            -- Outcome
-            outcome         TEXT NOT NULL,       -- 'win_tp1', 'win_tp2', 'win_tp3', 'loss_sl', 'expired'
+            outcome         TEXT NOT NULL,
             pnl_pct         DOUBLE PRECISION NOT NULL,
             exit_price      DOUBLE PRECISION,
             bars_to_outcome INT NOT NULL,
             max_favorable   DOUBLE PRECISION NOT NULL,
             max_adverse     DOUBLE PRECISION NOT NULL,
-            
-            -- Computed at backtest time
             created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-            
             PRIMARY KEY (symbol_id, tf_minutes, signal_time)
-        );
-
-        CREATE INDEX IF NOT EXISTS ix_backtest_results_symbol_time
-            ON trade.backtest_results(symbol, signal_time DESC);
-        CREATE INDEX IF NOT EXISTS ix_backtest_results_outcome
-            ON trade.backtest_results(outcome, final_score DESC);
+        )
         "#,
     )
     .execute(pool)
     .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS ix_backtest_results_symbol_time ON trade.backtest_results(symbol, signal_time DESC)"
+    ).execute(pool).await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS ix_backtest_results_outcome ON trade.backtest_results(outcome, final_score DESC)"
+    ).execute(pool).await?;
 
     Ok(())
 }
@@ -288,16 +299,19 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
 
     let mut file = std::fs::File::create(path)?;
 
-    // Header: signal features + outcome labels
+    // Header: signal features + derived features + outcome labels
     writeln!(file,
         "symbol,tf_minutes,side,final_score,ml_score,heur_score,\
-         entry_price,sl_pct,tp1_pct,risk_reward,\
+         entry_price,sl_pct,tp1_pct,tp2_pct,tp3_pct,risk_reward,risk_reward_tp2,\
          predictors_score,raw_signals_score,indicators_score,market_score,\
          coverage_score,consensus_score,\
          price10_score,bounce_prob,bounce_score,breakout_prob,breakout_score,\
          trend_strength,momentum_strength,volatility_regime,volume_spike_score,\
          level_aware,market_quality_score,\
-         label_win,label_pnl_pct,label_max_favorable,label_max_adverse,label_bars"
+         quality_multiplier,quality_grade,original_score,\
+         pred_vs_raw,pred_vs_ind,component_std,component_min,ml_heur_gap,score_per_risk,\
+         atr_pct,market_factor,score_factor,\
+         label_win,label_tp_level,label_pnl_pct,label_max_favorable,label_max_adverse,label_bars"
     )?;
 
     for r in results {
@@ -309,31 +323,61 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
                 .unwrap_or(0.0)
         };
 
-        let sl_pct = if r.entry_price > 0.0 {
-            (r.sl_price - r.entry_price).abs() / r.entry_price
-        } else { 0.0 };
-        let tp1_pct = if r.entry_price > 0.0 {
-            (r.tp1_price - r.entry_price).abs() / r.entry_price
-        } else { 0.0 };
+        let ep = r.entry_price as f64;
+        let sl_pct = if ep > 0.0 { (r.sl_price as f64 - ep).abs() / ep } else { 0.0 };
+        let tp1_pct = if ep > 0.0 { (r.tp1_price as f64 - ep).abs() / ep } else { 0.0 };
+        let tp2_pct = r.tp2_price.map(|t| if ep > 0.0 { (t as f64 - ep).abs() / ep } else { 0.0 }).unwrap_or(0.0);
+        let tp3_pct = r.tp3_price.map(|t| if ep > 0.0 { (t as f64 - ep).abs() / ep } else { 0.0 }).unwrap_or(0.0);
         let rr = if sl_pct > 0.0 { tp1_pct / sl_pct } else { 0.0 };
+        let rr2 = if sl_pct > 0.0 { tp2_pct / sl_pct } else { 0.0 };
 
         let level_aware = reason.get("level_aware").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        // Quality scorer info (from reason JSON)
+        let quality_mult = get("quality_multiplier");
+        let quality_grade = reason.get("quality_grade").and_then(|v| v.as_str()).unwrap_or("?");
+        let original_score = get("original_score");
+
+        // Derived features for better ML training
+        let pred = debug_get("predictors_score");
+        let raw = debug_get("raw_signals_score");
+        let ind = debug_get("indicators_score");
+        let mkt = debug_get("market_score");
+        let pred_vs_raw = if raw > 0.0001 { pred / raw } else { 0.0 };
+        let pred_vs_ind = if ind > 0.0001 { pred / ind } else { 0.0 };
+        let scores = [pred, raw, ind, mkt];
+        let mean_s = scores.iter().sum::<f64>() / 4.0;
+        let var_s = scores.iter().map(|x| (x - mean_s).powi(2)).sum::<f64>() / 4.0;
+        let component_std = var_s.sqrt();
+        let component_min = scores.iter().cloned().fold(f64::INFINITY, f64::min);
+        let ml_s = r.ml_score.unwrap_or(0.0) as f64;
+        let heur_s = r.heur_score.unwrap_or(0.0) as f64;
+        let ml_heur_gap = (ml_s - heur_s).abs();
+        let score_per_risk = if sl_pct > 0.0 { r.final_score as f64 / sl_pct } else { 0.0 };
+
         let label_win = if matches!(r.outcome, Outcome::Win { .. }) { 1.0 } else { 0.0 };
+        let label_tp = match &r.outcome {
+            Outcome::Win { tp_level, .. } => *tp_level as f64,
+            Outcome::Loss { .. } => -1.0,
+            Outcome::Expired { .. } => 0.0,
+        };
 
         writeln!(file,
             "{},{},{},{:.4},{:.4},{:.4},\
-             {:.6},{:.6},{:.6},{:.4},\
+             {:.6},{:.6},{:.6},{:.6},{:.6},{:.4},{:.4},\
              {:.4},{:.4},{:.4},{:.4},\
              {:.4},{:.4},\
              {:.4},{:.4},{:.4},{:.4},{:.4},\
              {:.4},{:.4},{:.4},{:.4},\
              {},{:.4},\
-             {:.1},{:.6},{:.6},{:.6},{}",
+             {:.4},{},{:.4},\
+             {:.4},{:.4},{:.6},{:.4},{:.4},{:.2},\
+             {:.6},{:.4},{:.4},\
+             {:.1},{:.1},{:.6},{:.6},{:.6},{}",
             r.symbol, r.tf_minutes, r.side, r.final_score,
-            r.ml_score.unwrap_or(0.0), r.heur_score.unwrap_or(0.0),
-            r.entry_price, sl_pct, tp1_pct, rr,
-            debug_get("predictors_score"), debug_get("raw_signals_score"),
-            debug_get("indicators_score"), debug_get("market_score"),
+            ml_s, heur_s,
+            ep, sl_pct, tp1_pct, tp2_pct, tp3_pct, rr, rr2,
+            pred, raw, ind, mkt,
             debug_get("coverage_score"), debug_get("consensus_score"),
             r.price10_score.unwrap_or(0.0),
             r.bounce_prob.unwrap_or(0.0), r.bounce_score.unwrap_or(0.0),
@@ -342,7 +386,10 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
             debug_get("volatility_regime"), debug_get("volume_spike_score"),
             if level_aware { 1 } else { 0 },
             get("market_quality_score"),
-            label_win, r.pnl_pct, r.max_favorable, r.max_adverse, r.bars_to_outcome
+            quality_mult, quality_grade, original_score,
+            pred_vs_raw, pred_vs_ind, component_std, component_min, ml_heur_gap, score_per_risk,
+            get("atr_pct"), get("market_factor"), get("score_factor"),
+            label_win, label_tp, r.pnl_pct, r.max_favorable, r.max_adverse, r.bars_to_outcome
         )?;
     }
 
@@ -401,4 +448,43 @@ fn print_summary(results: &[BacktestResult]) {
     println!("TOTAL: {} signals, {} wins ({:.1}%), avg PnL: {:.4}%",
         total, wins, wins as f64 / total as f64 * 100.0, avg_pnl * 100.0);
     println!("==================================\n");
+
+    // Score breakdown table: TF × score bucket
+    println!("======== WIN RATE BY SCORE BUCKET ========");
+    println!("{:<6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}",
+        "TF", "0.55-0.60", "0.60-0.65", "0.65-0.70", "0.70-0.75", "0.75-0.80", "0.80+");
+
+    let buckets: Vec<(f32, f32, &str)> = vec![
+        (0.55, 0.60, "0.55-0.60"),
+        (0.60, 0.65, "0.60-0.65"),
+        (0.65, 0.70, "0.65-0.70"),
+        (0.70, 0.75, "0.70-0.75"),
+        (0.75, 0.80, "0.75-0.80"),
+        (0.80, 1.01, "0.80+"),
+    ];
+
+    let tfs2: Vec<i16> = by_tf.keys().copied().collect::<Vec<_>>().into_iter().collect();
+    let mut tfs_sorted = tfs2; tfs_sorted.sort();
+    for tf in &tfs_sorted {
+        let group = &by_tf[tf];
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"??" };
+
+        let mut cells: Vec<String> = Vec::new();
+        for (lo, hi, _) in &buckets {
+            let in_bucket: Vec<&&BacktestResult> = group.iter()
+                .filter(|r| r.final_score >= *lo && r.final_score < *hi)
+                .collect();
+            let n = in_bucket.len();
+            if n == 0 {
+                cells.push("  -  ".to_string());
+            } else {
+                let w = in_bucket.iter().filter(|r| matches!(r.outcome, Outcome::Win { .. })).count();
+                cells.push(format!("{:.0}% ({})", w as f64 / n as f64 * 100.0, n));
+            }
+        }
+
+        println!("{:<6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}",
+            tf_name, cells[0], cells[1], cells[2], cells[3], cells[4], cells[5]);
+    }
+    println!("==========================================\n");
 }

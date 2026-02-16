@@ -226,7 +226,9 @@ async fn run_realtime_consumer(
 
                                             let tf_ms = timeframe.to_minutes() as i64 * 60_000;
                                             let window_end = event.close_time;
-                                            let window_start = window_end - (500 as i64) * tf_ms; // Lookback 500 candles for indicators (to accommodate EMA200)
+                                            let lookback: i64 = std::env::var("BACKFILL_CANDLES")
+                                                .ok().and_then(|v| v.parse().ok()).unwrap_or(500);
+                                            let window_start = window_end - lookback * tf_ms; // Lookback from BACKFILL_CANDLES env var
 
                                             let job = ComputeJob {
                                                 symbol: Symbol::from(event.symbol),

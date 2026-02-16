@@ -13,3 +13,4 @@ pub mod persistence;  // Fixed typo from persisence
 pub mod feature_schema;
 pub mod pipeline;
 pub mod consensus;
+pub mod signal_quality;  // Signal Quality meta-scorer (heuristic + ML)

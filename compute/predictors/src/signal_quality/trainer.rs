@@ -15,6 +15,7 @@
 // NOT YET WIRED INTO PIPELINE — needs backtester module first.
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use super::types::*;
 

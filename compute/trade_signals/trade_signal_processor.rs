@@ -18,6 +18,8 @@ use tokio::sync::mpsc;
 use common::Symbol;
 
 use crate::predictors::types::{PredictionAspect, CalcSource};
+use crate::predictors::signal_quality::heuristic_scorer::HeuristicQualityScorer;
+use crate::predictors::signal_quality::types::SignalFeatures;
 pub use crate::predictors::pipeline::TradeSignalInput;
 
 use super::final_score::FinalScorer;
@@ -30,6 +32,7 @@ pub struct TradeSignalStage {
     market_params_calc: MarketParamsCalculator,
     final_scorer: FinalScorer,
     trade_calc: TradeSignalCalculator,
+    quality_scorer: HeuristicQualityScorer,
     bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
     prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
 }
@@ -50,6 +53,7 @@ impl TradeSignalStage {
             market_params_calc,
             final_scorer: FinalScorer::new(min_score),
             trade_calc: TradeSignalCalculator::new(min_score),
+            quality_scorer: HeuristicQualityScorer::new(),
             bulk_sender,
             prediction_rx,
         }
@@ -136,8 +140,36 @@ impl TradeSignalStage {
             )
             .await?;
 
-        // 3. If signal was produced, persist it
-        if let Some(signal) = signal_opt {
+        // 3. If signal was produced, apply quality scoring and persist
+        if let Some(mut signal) = signal_opt {
+            // Apply Signal Quality Scorer — adjusts final_score based on
+            // signal pattern quality (risk/reward, component agreement, etc.)
+            let features = SignalFeatures::from_reason_json(
+                &signal.breakdown_json,
+                &signal.symbol,
+                signal.tf_minutes,
+                signal.side as i16,
+                signal.entry,
+                signal.stop_loss,
+                signal.tp1,
+                signal.tp2,
+                signal.tp3,
+                None, // ml_score extracted separately
+                None, // heur_score extracted separately
+                None, None, None, None, None, None,
+            );
+
+            let quality = self.quality_scorer.score(&features);
+            let original_score = signal.final_score;
+            signal.final_score = (signal.final_score * quality.quality_multiplier).clamp(0.0, 0.99);
+
+            // Add quality info to breakdown
+            if let Value::Object(ref mut obj) = signal.breakdown_json {
+                obj.insert("quality_multiplier".to_string(), json!(quality.quality_multiplier));
+                obj.insert("quality_grade".to_string(), json!(quality.grade.as_str()));
+                obj.insert("original_score".to_string(), json!(original_score));
+            }
+
             let record = trade_signal_to_persist_record(&signal, &input);
 
             if let Err(e) = self.bulk_sender.send(record).await {
@@ -152,10 +184,11 @@ impl TradeSignalStage {
 
             tracing::info!(
                 target: "trade_signal_stage",
-                "Trade signal produced: {} {} tf={} side={} score={:.4} entry={:.6} sl={:.6} tp1={:.6}",
+                "Trade signal produced: {} {} tf={} side={} score={:.4} (was {:.4}, quality={:.2} grade={}) entry={:.6} sl={:.6} tp1={:.6}",
                 signal.symbol, signal.time, signal.tf_minutes,
-                signal.side, signal.final_score, signal.entry,
-                signal.stop_loss, signal.tp1
+                signal.side, signal.final_score, original_score,
+                quality.quality_multiplier, quality.grade.as_str(),
+                signal.entry, signal.stop_loss, signal.tp1
             );
         }
 
