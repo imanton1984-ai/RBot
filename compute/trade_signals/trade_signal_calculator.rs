@@ -25,23 +25,23 @@ struct TfTargets {
 
 fn tf_targets(tf_minutes: i16) -> TfTargets {
     let mut t = match tf_minutes {
-        1 => TfTargets {  // 1m
-            min_tp1_pct: 0.010, min_tp2_pct: 0.018, min_tp3_pct: 0.026, min_sl_pct: 0.007
+        1 => TfTargets {  // 1m: Reduced from 1.0% to 0.3% for realistic scalping
+            min_tp1_pct: 0.003, min_tp2_pct: 0.006, min_tp3_pct: 0.010, min_sl_pct: 0.002
         },
-        5 => TfTargets {  // 5m
-            min_tp1_pct: 0.012, min_tp2_pct: 0.022, min_tp3_pct: 0.032, min_sl_pct: 0.008
+        5 => TfTargets {  // 5m: Reduced from 1.2% to 0.6%
+            min_tp1_pct: 0.006, min_tp2_pct: 0.012, min_tp3_pct: 0.020, min_sl_pct: 0.004
         },
-        15 => TfTargets { // 15m
+        15 => TfTargets { // 15m: Reduced from 1.5% to 1.0%
+            min_tp1_pct: 0.010, min_tp2_pct: 0.020, min_tp3_pct: 0.030, min_sl_pct: 0.007
+        },
+        60 => TfTargets { // 1h: Reduced from 2.0% to 1.5%
             min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010
         },
-        60 => TfTargets { // 1h
-            min_tp1_pct: 0.020, min_tp2_pct: 0.038, min_tp3_pct: 0.055, min_sl_pct: 0.013
+        240 => TfTargets { // 4h: Reduced from 3.0% to 2.5%
+            min_tp1_pct: 0.025, min_tp2_pct: 0.045, min_tp3_pct: 0.065, min_sl_pct: 0.015
         },
-        240 => TfTargets { // 4h
-            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080, min_sl_pct: 0.018
-        },
-        1440 => TfTargets { // 1d
-            min_tp1_pct: 0.050, min_tp2_pct: 0.090, min_tp3_pct: 0.130, min_sl_pct: 0.028
+        1440 => TfTargets { // 1d: Reduced from 5.0% to 3.0%
+            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080, min_sl_pct: 0.020
         },
         _ => TfTargets { // default conservative
             min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010

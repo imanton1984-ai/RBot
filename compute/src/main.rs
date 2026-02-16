@@ -236,7 +236,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut predictors_pipeline = crate::predictors::pipeline::PredictorsPipeline::new(
-        predictors_config,
+        predictors_config.clone(), // Clone to avoid moving the original
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
@@ -260,6 +260,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         market_params_calc,
         bulk_history_sender.clone(),
         trade_signal_rx,
+        predictors_config.min_final_score, // Pass min_final_score from config
     );
 
     tokio::spawn(async move {

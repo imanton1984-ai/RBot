@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Predictors Pipeline
     let message_bus = MessageBus::new_from_env()?;
     let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
-    
+
     let pred_config = PredictorsConfig {
         enabled: true,
         horizon_bars: 10,
@@ -83,9 +83,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
-    
+
     let mut predictors_pipeline = PredictorsPipeline::new(
-        pred_config,
+        pred_config.clone(), // Clone to avoid moving the original
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
@@ -105,6 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         market_params_calc,
         bulk_sender.clone(),
         trade_signal_rx,
+        pred_config.min_final_score, // Pass min_final_score from config
     );
 
     tokio::spawn(async move {
@@ -216,7 +217,7 @@ async fn run_realtime_consumer(
 
                                             let tf_ms = timeframe.to_minutes() as i64 * 60_000;
                                             let window_end = event.close_time;
-                                            let window_start = window_end - (120 as i64) * tf_ms; // Lookback 120 candles for indicators
+                                            let window_start = window_end - (500 as i64) * tf_ms; // Lookback 500 candles for indicators (to accommodate EMA200)
 
                                             let job = ComputeJob {
                                                 symbol: Symbol::from(event.symbol),

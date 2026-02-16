@@ -40,8 +40,11 @@ impl TradeSignalStage {
         market_params_calc: MarketParamsCalculator,
         bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
         prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
+        min_score: f64,  // Accept min_score as parameter
     ) -> Self {
-        let min_score = 0.96;
+        // Log for debugging
+        tracing::info!("Initializing TradeSignalStage with min_score: {}", min_score);
+        
         Self {
             db_pool,
             market_params_calc,

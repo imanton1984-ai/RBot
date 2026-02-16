@@ -356,7 +356,7 @@ impl CudaBackend {
         let poc_f32_dev = self.indicator_runner.cast_f64_to_f32(&poc_dev, batch * n)?;
 
         // Combine all features into a single matrix
-        let feature_matrix_dev = self.indicator_runner.combine_features_v1(
+        let _feature_matrix_dev = self.indicator_runner.combine_features_v1(
             &rsi_f32_dev,
             &cci_f32_dev,
             &stoch_k_f32_dev,

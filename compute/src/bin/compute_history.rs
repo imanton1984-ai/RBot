@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
     
     let mut predictors_pipeline = PredictorsPipeline::new(
-        pred_config,
+        pred_config.clone(), // Clone to avoid moving the original
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(),
@@ -121,6 +121,7 @@ async fn main() -> Result<()> {
         market_params_calc,
         bulk_sender.clone(),
         trade_signal_rx,
+        pred_config.min_final_score, // Pass min_final_score from config
     );
 
     tokio::spawn(async move {
