@@ -34819,9 +34819,10 @@ async fn fetch_active_symbols_from_db(pool: &PgPool) -> Result<Vec<Symbol>> {
     Ok(rows.into_iter().map(|r| Symbol::from(r.get::<String, _>("symbol"))).collect())
 }
 
-
+   
 
 # compute/src/bin/compute_realtime.rs
+
 
 use std::sync::Arc;
 use dotenvy::dotenv;
@@ -35103,3 +35104,4 @@ async fn run_realtime_consumer(
 // CandleCloseEvent is imported from common::CandleCloseEvent
 
 
+//sandbox
