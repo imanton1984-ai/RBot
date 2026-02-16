@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 // lib.rs for the predictors crate
 // Re-export all modules from the predictors directory
 

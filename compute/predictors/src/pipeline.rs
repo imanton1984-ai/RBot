@@ -284,6 +284,7 @@ impl PredictorsPipeline {
                 predictions: final_preds.clone(),
                 raw_signals_summary: build_raw_signals_summary(
                     &view.indicators,
+                    view.sr_levels.as_ref(),
                 ),
                 is_realtime: is_realtime,
             };
@@ -910,9 +911,12 @@ impl FeatureSnapshot {
     }
 }
 
-/// Build a minimal raw_signals_summary from indicators for use by FinalScorer.
-/// This is a stopgap until the raw signals pipeline provides a full summary.
-fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Value {
+/// Build a comprehensive raw_signals_summary from ALL available indicators + SR levels.
+/// This feeds into FinalScorer which uses multi-indicator directional scoring.
+fn build_raw_signals_summary(
+    indicators: &IndicatorsWideRow,
+    sr_levels: Option<&serde_json::Value>,
+) -> serde_json::Value {
     let close = indicators.close as f64;
     let atr = indicators.atr as f64;
     let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
@@ -934,9 +938,18 @@ fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Valu
 
     let best_momentum = momentum_strength;
     let best_volume = volume_spike_score;
-    // Derive best_levels from trend+momentum confluence instead of hardcoding 0.5
     let best_levels = ((trend_strength * 0.5 + momentum_strength * 0.3 + volume_spike_score * 0.2) * 1.1).clamp(0.0, 1.0);
     let best_raw = ((trend_strength + momentum_strength) / 2.0).clamp(0.0, 1.0);
+
+    // Extract SR level prices from JSON if available
+    let sr = sr_levels.unwrap_or(&serde_json::Value::Null);
+    let get_sr = |key: &str| -> serde_json::Value {
+        sr.get(key)
+            .and_then(|v| v.as_f64())
+            .filter(|v| v.is_finite() && *v > 0.0)
+            .map(|v| serde_json::json!(v))
+            .unwrap_or(serde_json::Value::Null)
+    };
 
     serde_json::json!({
         "atr": indicators.atr,
@@ -952,14 +965,53 @@ fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Valu
         "best_momentum_score": best_momentum,
         "best_volume_score": best_volume,
         "feature_coverage": 1.0,
-        // Directional indicators for FinalScorer direction alignment
-        "trend_short": indicators.trend_short,
-        "trend_medium": indicators.trend_medium,
-        "rsi": indicators.rsi,
-        "macd_hist": indicators.macd_histogram,
+
+        // === ALL directional indicators for comprehensive scoring ===
+        // Price & EMAs
         "close": indicators.close,
+        "open": indicators.open,
+        "high": indicators.high,
+        "low": indicators.low,
         "ema_20": indicators.ema_20,
         "ema_50": indicators.ema_50,
         "ema_200": indicators.ema_200,
+        "sma": indicators.sma,
+
+        // Trend indicators (short → medium → long for multi-TF confirmation)
+        "trend_short": indicators.trend_short,
+        "trend_medium": indicators.trend_medium,
+        "trend_long": indicators.trend_long,
+        "adx": indicators.adx,
+
+        // Momentum oscillators
+        "rsi": indicators.rsi,
+        "macd_hist": indicators.macd_histogram,
+        "macd_line": indicators.macd_line,
+        "macd_signal": indicators.macd_signal,
+        "stoch_k": indicators.stoch_k,
+        "stoch_d": indicators.stoch_d,
+        "williams_r": indicators.williams_r,
+        "cci": indicators.cci,
+
+        // Bollinger Bands
+        "bb_upper": indicators.bb_upper,
+        "bb_lower": indicators.bb_lower,
+        "bb_middle": indicators.bb_middle,
+
+        // Volume indicators
+        "volume": indicators.volume,
+        "volume_sma": indicators.volume_sma,
+        "vwap": indicators.vwap,
+        "obv": indicators.obv,
+
+        // Support/Resistance levels (primary strategy component)
+        "sr_levels": {
+            "strong_support": get_sr("strong_support"),
+            "mid_support": get_sr("mid_support"),
+            "light_support": get_sr("light_support"),
+            "strong_resistance": get_sr("strong_resistance"),
+            "mid_resistance": get_sr("mid_resistance"),
+            "light_resistance": get_sr("light_resistance"),
+        },
     })
 }

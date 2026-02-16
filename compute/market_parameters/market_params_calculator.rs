@@ -360,13 +360,22 @@ async fn fetch_recent_indicators(
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
         let time: DateTime<Utc> = r.try_get("time")?;
-        let ema_50: Option<f64> = r.try_get("ema_50")?;
-        let ema_200: Option<f64> = r.try_get("ema_200")?;
-        let adx: Option<f64> = r.try_get("adx")?;
-        let atr: Option<f64> = r.try_get("atr")?;
+        // DB columns are FLOAT4 (real/f32), read as f32 then widen to f64
+        let ema_50: Option<f32> = r.try_get("ema_50")?;
+        let ema_200: Option<f32> = r.try_get("ema_200")?;
+        let adx: Option<f32> = r.try_get("adx")?;
+        let atr: Option<f32> = r.try_get("atr")?;
         let trend: Option<i16> = r.try_get("trend")?;
         let trend_short: Option<i16> = r.try_get("trend_short")?;
-        out.push((time, ema_50, ema_200, adx, atr, trend, trend_short));
+        out.push((
+            time,
+            ema_50.map(|v| v as f64),
+            ema_200.map(|v| v as f64),
+            adx.map(|v| v as f64),
+            atr.map(|v| v as f64),
+            trend,
+            trend_short,
+        ));
     }
 
     Ok(out)

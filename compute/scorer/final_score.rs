@@ -324,104 +324,245 @@ impl FinalScorer {
         (0.75 * m + 0.25 * avg).clamp(0.0, 1.0)
     }
 
-    /// Direction-aware indicator score.
-    /// Checks that indicators AGREE with the signal's side direction.
-    /// A strong BUY signal in a downtrend gets penalized.
+    /// Conservative multi-indicator directional score.
+    ///
+    /// Philosophy: **Generous direction alignment base** (like the original 57% WR version)
+    /// **+ confluence bonuses** that push high-quality signals higher
+    /// **+ penalties ONLY at TRUE extremes** (RSI>85, Stoch>90, etc.)
+    ///
+    /// Crypto momentum signals work. Don't fight the trend. Just reward confluence.
     fn calculate_indicator_score_directional(&self, raw: &Value, side: i8) -> f64 {
         let trend_strength = raw.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let momentum_strength = raw.get("momentum_strength").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let volatility_regime = raw.get("volatility_regime").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let volume_spike = raw.get("volume_spike_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
-        // === DIRECTION ALIGNMENT CHECK ===
-        // Extract directional indicators
         let trend_short = raw.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let trend_medium = raw.get("trend_medium").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let trend_long = raw.get("trend_long").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let rsi = raw.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
         let macd_hist = raw.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let ema_20 = raw.get("ema_20").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let ema_50 = raw.get("ema_50").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let ema_200 = raw.get("ema_200").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let close = raw.get("close").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let stoch_k = raw.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let stoch_d = raw.get("stoch_d").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let williams = raw.get("williams_r").and_then(|v| v.as_f64()).unwrap_or(-50.0);
+        let cci = raw.get("cci").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let bb_upper = raw.get("bb_upper").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let bb_lower = raw.get("bb_lower").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let vwap = raw.get("vwap").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let adx = raw.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let atr = raw.get("atr").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
-        let _side_f = side as f64;
-        let mut alignment_score: f64 = 0.0;
-        let mut alignment_count: f64 = 0.0;
+        // ====================================================================
+        //  PART A: Direction Alignment (generous, like original — pass/fail)
+        //  This produced ~57% WR before. Keep it as the solid base.
+        // ====================================================================
+        let mut align_score: f64 = 0.0;
+        let mut align_count: f64 = 0.0;
 
-        // 1. Trend alignment (short-term trend must agree with side)
+        // 1. Short-term trend
         if trend_short != 0.0 {
             let aligned = (trend_short > 0.0 && side > 0) || (trend_short < 0.0 && side < 0);
-            alignment_score += if aligned { 1.0 } else { 0.0 };
-            alignment_count += 1.0;
+            align_score += if aligned { 1.0 } else { 0.0 };
+            align_count += 1.0;
         }
 
-        // 2. Medium trend alignment
+        // 2. Medium-term trend
         if trend_medium != 0.0 {
             let aligned = (trend_medium > 0.0 && side > 0) || (trend_medium < 0.0 && side < 0);
-            alignment_score += if aligned { 1.0 } else { 0.0 };
-            alignment_count += 1.0;
+            align_score += if aligned { 1.0 } else { 0.0 };
+            align_count += 1.0;
         }
 
-        // 3. Trend conflict: short vs medium (conflicting trends = danger)
+        // 3. Trend short vs medium confluence
         if trend_short != 0.0 && trend_medium != 0.0 {
-            let trending_same = trend_short.signum() == trend_medium.signum();
-            alignment_score += if trending_same { 0.5 } else { 0.0 };
-            alignment_count += 0.5;
+            let same = trend_short.signum() == trend_medium.signum();
+            align_score += if same { 0.5 } else { 0.0 };
+            align_count += 0.5;
         }
 
-        // 4. MACD direction alignment
+        // 4. MACD direction
         if macd_hist.abs() > 0.0001 {
             let aligned = (macd_hist > 0.0 && side > 0) || (macd_hist < 0.0 && side < 0);
-            alignment_score += if aligned { 1.0 } else { 0.0 };
-            alignment_count += 1.0;
+            align_score += if aligned { 1.0 } else { 0.0 };
+            align_count += 1.0;
         }
 
-        // 5. RSI: penalize buying overbought or selling oversold
+        // 5. RSI: generous — only penalize TRUE extreme (>80/<20)
         if rsi > 0.0 {
-            let rsi_ok = if side > 0 {
-                rsi < 70.0 // Don't buy overbought
-            } else {
-                rsi > 30.0 // Don't sell oversold
-            };
-            alignment_score += if rsi_ok { 0.7 } else { 0.0 };
-            alignment_count += 0.7;
+            let rsi_ok = if side > 0 { rsi < 80.0 } else { rsi > 20.0 };
+            align_score += if rsi_ok { 0.7 } else { 0.0 };
+            align_count += 0.7;
         }
 
-        // 6. EMA position: close should be on the right side of EMAs
+        // 6. EMA20: close on right side (generous, binary)
         if close > 0.0 && ema_20 > 0.0 {
-            let above_ema20 = close > ema_20;
-            let aligned = (above_ema20 && side > 0) || (!above_ema20 && side < 0);
-            alignment_score += if aligned { 0.8 } else { 0.0 };
-            alignment_count += 0.8;
-        }
-        if close > 0.0 && ema_50 > 0.0 {
-            let above_ema50 = close > ema_50;
-            let aligned = (above_ema50 && side > 0) || (!above_ema50 && side < 0);
-            alignment_score += if aligned { 0.6 } else { 0.0 };
-            alignment_count += 0.6;
-        }
-        if close > 0.0 && ema_200 > 0.0 {
-            let above_ema200 = close > ema_200;
-            let aligned = (above_ema200 && side > 0) || (!above_ema200 && side < 0);
-            alignment_score += if aligned { 0.4 } else { 0.0 };
-            alignment_count += 0.4;
+            let aligned = (close > ema_20 && side > 0) || (close < ema_20 && side < 0);
+            align_score += if aligned { 0.8 } else { 0.0 };
+            align_count += 0.8;
         }
 
-        // Direction alignment: 0..1 (1 = all indicators agree with side)
-        let direction_alignment = if alignment_count > 0.0 {
-            (alignment_score / alignment_count).clamp(0.0, 1.0)
+        // 7. EMA50 alignment
+        if close > 0.0 && ema_50 > 0.0 {
+            let aligned = (close > ema_50 && side > 0) || (close < ema_50 && side < 0);
+            align_score += if aligned { 0.6 } else { 0.0 };
+            align_count += 0.6;
+        }
+
+        // 8. EMA200 alignment
+        if close > 0.0 && ema_200 > 0.0 {
+            let aligned = (close > ema_200 && side > 0) || (close < ema_200 && side < 0);
+            align_score += if aligned { 0.4 } else { 0.0 };
+            align_count += 0.4;
+        }
+
+        let direction_alignment = if align_count > 0.0 {
+            (align_score / align_count).clamp(0.0, 1.0)
         } else {
-            0.5 // neutral if no data
+            0.5
         };
 
-        // Base indicator quality (original formula)
-        let base_ind = (0.30 * trend_strength + 0.30 * momentum_strength +
-                       0.20 * (1.0 - volatility_regime) + 0.20 * volume_spike)
+        // Base quality (same formula as original)
+        let base_ind = (0.30 * trend_strength + 0.30 * momentum_strength
+            + 0.20 * (1.0 - volatility_regime) + 0.20 * volume_spike)
             .clamp(0.0, 1.0);
 
-        // Final: blend base quality with direction alignment
-        // 40% base quality + 60% direction alignment
-        (0.40 * base_ind + 0.60 * direction_alignment).clamp(0.0, 1.0)
+        // Main score: 40% base quality + 60% direction alignment (original formula)
+        let mut score = 0.40 * base_ind + 0.60 * direction_alignment;
+
+        // ====================================================================
+        //  PART B: CONFLUENCE BONUSES (additive, push best signals higher)
+        //  Each bonus is small (+0.01 to +0.04). They accumulate for
+        //  well-confirmed signals. Neutral signal gets ~0 bonus total.
+        // ====================================================================
+        let mut bonus: f64 = 0.0;
+
+        // B1. Higher-TF trend confirmation via trend_long (+0.03)
+        if trend_long != 0.0 {
+            let aligned = (trend_long > 0.0 && side > 0) || (trend_long < 0.0 && side < 0);
+            if aligned { bonus += 0.03; }
+        }
+
+        // B2. All 3 trend timeframes agree with side (+0.04)
+        if trend_short != 0.0 && trend_medium != 0.0 && trend_long != 0.0 {
+            let all_agree = trend_short.signum() == trend_medium.signum()
+                && trend_medium.signum() == trend_long.signum()
+                && ((trend_short > 0.0 && side > 0) || (trend_short < 0.0 && side < 0));
+            if all_agree { bonus += 0.04; }
+        }
+
+        // B3. Stochastic direction confirmation (+0.02)
+        if stoch_k > 0.0 && stoch_k < 100.0 {
+            let stoch_ok = if side > 0 { stoch_k < 75.0 } else { stoch_k > 25.0 };
+            if stoch_ok { bonus += 0.02; }
+
+            // B3b. Stoch %K/%D crossover in right direction (+0.02)
+            if side > 0 && stoch_k > stoch_d { bonus += 0.02; }
+            if side < 0 && stoch_k < stoch_d { bonus += 0.02; }
+        }
+
+        // B4. Williams %R direction confirmation (+0.02)
+        {
+            let williams_ok = if side > 0 { williams < -20.0 } else { williams > -80.0 };
+            if williams_ok { bonus += 0.02; }
+        }
+
+        // B5. CCI direction confirmation (+0.02)
+        {
+            let cci_ok = if side > 0 { cci < 100.0 } else { cci > -100.0 };
+            if cci_ok { bonus += 0.02; }
+        }
+
+        // B6. Bollinger Band favorable position (+0.03)
+        if bb_upper > bb_lower && bb_lower > 0.0 {
+            let bb_pos = (close - bb_lower) / (bb_upper - bb_lower);
+            let bb_favorable = if side > 0 { bb_pos < 0.65 } else { bb_pos > 0.35 };
+            if bb_favorable { bonus += 0.03; }
+        }
+
+        // B7. VWAP support/resistance confirmation (+0.02)
+        if vwap > 0.0 && close > 0.0 {
+            let vwap_ok = if side > 0 { close >= vwap * 0.998 } else { close <= vwap * 1.002 };
+            if vwap_ok { bonus += 0.02; }
+        }
+
+        // B8. ADX shows trending market (+0.02 if >25)
+        if adx > 25.0 { bonus += 0.02; }
+
+        // B9. SR level proximity bonus (+0.04 if near favorable level)
+        if close > 0.0 && atr > 0.0 {
+            let sr = raw.get("sr_levels").unwrap_or(raw);
+            let got_favorable_level = self.check_sr_proximity_bonus(sr, side, close, atr);
+            if got_favorable_level { bonus += 0.04; }
+        }
+
+        // B10. Oscillator multi-confluence (+0.03 if RSI+Stoch+Williams all agree)
+        {
+            let rsi_confirms = if side > 0 { rsi > 40.0 && rsi < 75.0 } else { rsi > 25.0 && rsi < 60.0 };
+            let stoch_confirms = if side > 0 { stoch_k < 75.0 } else { stoch_k > 25.0 };
+            let will_confirms = if side > 0 { williams < -25.0 } else { williams > -75.0 };
+            if rsi_confirms && stoch_confirms && will_confirms { bonus += 0.03; }
+        }
+
+        score += bonus;
+
+        // ====================================================================
+        //  PART C: EXTREME PENALTIES (rare, only at truly dangerous levels)
+        //  These fire only when indicators are at extremes that almost always
+        //  precede reversals.
+        // ====================================================================
+        let mut penalty: f64 = 0.0;
+
+        // C1. RSI extreme: >85 for longs or <15 for shorts → exhaustion
+        if side > 0 && rsi > 85.0 { penalty += 0.08; }
+        if side < 0 && rsi < 15.0 { penalty += 0.08; }
+
+        // C2. Stochastic extreme: >90 for longs or <10 for shorts
+        if side > 0 && stoch_k > 90.0 { penalty += 0.06; }
+        if side < 0 && stoch_k < 10.0 { penalty += 0.06; }
+
+        // C3. Williams extreme: >-5 for longs or <-95 for shorts
+        if side > 0 && williams > -5.0 { penalty += 0.04; }
+        if side < 0 && williams < -95.0 { penalty += 0.04; }
+
+        // C4. CCI extreme: >200 for longs or <-200 for shorts
+        if side > 0 && cci > 200.0 { penalty += 0.04; }
+        if side < 0 && cci < -200.0 { penalty += 0.04; }
+
+        // C5. Price way outside Bollinger Bands (>1.05 * upper for long)
+        if bb_upper > 0.0 && bb_lower > 0.0 {
+            if side > 0 && close > bb_upper * 1.02 { penalty += 0.04; }
+            if side < 0 && close < bb_lower * 0.98 { penalty += 0.04; }
+        }
+
+        score -= penalty;
+
+        score.clamp(0.0, 1.0)
+    }
+
+    /// Check if price is near a favorable SR level (bonus trigger)
+    fn check_sr_proximity_bonus(&self, sr: &Value, side: i8, close: f64, atr: f64) -> bool {
+        // Favorable levels: support for longs, resistance for shorts
+        let fav_keys = if side > 0 {
+            ["strong_support", "mid_support", "light_support"]
+        } else {
+            ["strong_resistance", "mid_resistance", "light_resistance"]
+        };
+
+        for key in fav_keys {
+            if let Some(level_price) = sr.get(key).and_then(|v| v.as_f64()) {
+                if level_price > 0.0 {
+                    let dist_atr = (close - level_price).abs() / atr;
+                    if dist_atr < 2.0 {
+                        return true; // Near a favorable level
+                    }
+                }
+            }
+        }
+        false
     }
 
     fn calculate_feature_coverage_score(&self, predictors: &[PredictionRow], raw_signals_summary: &Value, has_market: bool) -> f64 {

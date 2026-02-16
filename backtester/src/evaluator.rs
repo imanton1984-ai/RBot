@@ -1,7 +1,8 @@
 // backtester/src/evaluator.rs
 //
 // Core evaluation logic: for each signal, walk forward through future candles
-// and determine if TP1/TP2/TP3 or SL was hit first.
+// and determine if TP1 or SL was hit first.
+// NOTE: TP2/TP3 evaluation is commented out — we focus on TP1 as the win condition.
 
 use anyhow::Result;
 use sqlx::PgPool;
@@ -25,8 +26,9 @@ impl SignalEvaluator {
         let entry = signal.entry_price.unwrap_or(0.0) as f64;
         let sl = signal.sl_price.unwrap_or(0.0) as f64;
         let tp1 = signal.tp1_price.unwrap_or(0.0) as f64;
-        let tp2 = signal.tp2_price.map(|v| v as f64);
-        let tp3 = signal.tp3_price.map(|v| v as f64);
+        // TP2/TP3 commented out — focus on TP1 only as win condition
+        // let tp2 = signal.tp2_price.map(|v| v as f64);
+        // let tp3 = signal.tp3_price.map(|v| v as f64);
 
         if entry <= 0.0 || sl <= 0.0 || tp1 <= 0.0 {
             return Ok(None);
@@ -76,16 +78,15 @@ impl SignalEvaluator {
                 candle.high >= sl
             };
 
-            // Check TP hits (highest TP first for best outcome tracking)
-            let tp3_hit = tp3.map(|t| if is_long { candle.high >= t } else { candle.low <= t }).unwrap_or(false);
-            let tp2_hit = tp2.map(|t| if is_long { candle.high >= t } else { candle.low <= t }).unwrap_or(false);
+            // Check TP1 hit only (TP2/TP3 commented out — focus on TP1)
             let tp1_hit = if is_long { candle.high >= tp1 } else { candle.low <= tp1 };
 
-            // Priority: If both SL and TP hit in same candle, check open direction
-            // Simplification: assume SL checked first if the candle opened adversely
-            if sl_hit && (tp1_hit || tp2_hit || tp3_hit) {
-                // Both hit in same candle - check which was more likely hit first
-                // If the candle opened on the adverse side, SL probably hit first
+            // TP2/TP3 commented out
+            // let tp2_hit = tp2.map(|t| if is_long { candle.high >= t } else { candle.low <= t }).unwrap_or(false);
+            // let tp3_hit = tp3.map(|t| if is_long { candle.high >= t } else { candle.low <= t }).unwrap_or(false);
+
+            // Priority: If both SL and TP1 hit in same candle, check open direction
+            if sl_hit && tp1_hit {
                 let opened_adverse = if is_long {
                     candle.open < entry
                 } else {
@@ -94,10 +95,6 @@ impl SignalEvaluator {
 
                 if opened_adverse {
                     outcome = Some(Outcome::Loss { exit_price: sl });
-                } else if tp3_hit {
-                    outcome = Some(Outcome::Win { tp_level: 3, exit_price: tp3.unwrap() });
-                } else if tp2_hit {
-                    outcome = Some(Outcome::Win { tp_level: 2, exit_price: tp2.unwrap() });
                 } else {
                     outcome = Some(Outcome::Win { tp_level: 1, exit_price: tp1 });
                 }
@@ -109,18 +106,20 @@ impl SignalEvaluator {
                 break;
             }
 
-            if tp3_hit {
-                outcome = Some(Outcome::Win { tp_level: 3, exit_price: tp3.unwrap() });
-                break;
-            }
-            if tp2_hit {
-                outcome = Some(Outcome::Win { tp_level: 2, exit_price: tp2.unwrap() });
-                break;
-            }
             if tp1_hit {
                 outcome = Some(Outcome::Win { tp_level: 1, exit_price: tp1 });
                 break;
             }
+
+            // TP2/TP3 checks commented out
+            // if tp2_hit {
+            //     outcome = Some(Outcome::Win { tp_level: 2, exit_price: tp2.unwrap() });
+            //     break;
+            // }
+            // if tp3_hit {
+            //     outcome = Some(Outcome::Win { tp_level: 3, exit_price: tp3.unwrap() });
+            //     break;
+            // }
         }
 
         // If no outcome within timeout, mark as expired

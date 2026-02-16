@@ -50,11 +50,11 @@ impl BulkPersistorConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or(50);
 
-        // Increased default from 20_000 to 50_000 to reduce flush frequency for history
+        // Reduced from 50_000 to 20_000: smaller batches = faster commits, less lock contention
         let max_batch = std::env::var("DB_PERSIST_MAX_BATCH")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(50_000);
+            .unwrap_or(20_000);
 
         let mode = PersistMode::from_env_var(std::env::var("DB_PERSIST_MODE").ok());
 
@@ -63,7 +63,7 @@ impl BulkPersistorConfig {
             PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(50_000),
+                .unwrap_or(20_000),
             PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -101,7 +101,7 @@ impl BulkPersistorConfig {
             PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(50_000),
+                .unwrap_or(20_000),
             PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
                 .ok()
                 .and_then(|v| v.parse().ok())
