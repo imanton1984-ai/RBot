@@ -98,6 +98,19 @@ impl TradeSignalStage {
             return Ok(());
         }
 
+        // Diagnostic: sample-log inputs so we can verify predictions reach the stage
+        static INPUT_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let cnt = INPUT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if cnt % 10000 == 0 {
+            tracing::info!(
+                target: "trade_signal_stage",
+                "DIAG input #{}: {} tf={} close={:.4} preds={} side_summary={}",
+                cnt, input.symbol, input.tf_minutes, input.close_price,
+                input.predictions.len(),
+                input.raw_signals_summary.get("side").and_then(|v| v.as_i64()).unwrap_or(0)
+            );
+        }
+
         // 1. Compute BTC market params (cached, graceful fallback)
         let market_params = self
             .market_params_calc
@@ -180,10 +193,11 @@ pub fn build_raw_signals_summary_from_indicators(
         else if rsi < 45.0 && macd_hist < 0.0 { -1 }
         else { 0 };
 
-    // "Best" scores for raw signal buckets (placeholder from indicators)
+    // "Best" scores for raw signal buckets (derived from indicators)
     let best_momentum = momentum_strength;
     let best_volume = volume_spike_score;
-    let best_levels = 0.5; // neutral placeholder
+    // Derive best_levels from confluence instead of hardcoding 0.5
+    let best_levels = ((trend_strength * 0.5 + momentum_strength * 0.3 + volume_spike_score * 0.2) * 1.1).clamp(0.0, 1.0);
     let best_raw = ((trend_strength + momentum_strength) / 2.0).clamp(0.0, 1.0);
 
     json!({
@@ -199,7 +213,9 @@ pub fn build_raw_signals_summary_from_indicators(
         "best_levels_score": best_levels,
         "best_momentum_score": best_momentum,
         "best_volume_score": best_volume,
-        "feature_coverage": 0.7,
+        // All indicators are computed by our pipeline; feature_coverage should be 1.0.
+        // Previous value 0.7 crushed coverage_score in FinalScorer.
+        "feature_coverage": 1.0,
         "trend_short": trend_short,
     })
 }

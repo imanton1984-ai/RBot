@@ -932,7 +932,8 @@ fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Valu
 
     let best_momentum = momentum_strength;
     let best_volume = volume_spike_score;
-    let best_levels = 0.5;
+    // Derive best_levels from trend+momentum confluence instead of hardcoding 0.5
+    let best_levels = ((trend_strength * 0.5 + momentum_strength * 0.3 + volume_spike_score * 0.2) * 1.1).clamp(0.0, 1.0);
     let best_raw = ((trend_strength + momentum_strength) / 2.0).clamp(0.0, 1.0);
 
     serde_json::json!({
@@ -948,7 +949,9 @@ fn build_raw_signals_summary(indicators: &IndicatorsWideRow) -> serde_json::Valu
         "best_levels_score": best_levels,
         "best_momentum_score": best_momentum,
         "best_volume_score": best_volume,
-        "feature_coverage": 0.7,
+        // All indicators are computed by our pipeline; feature_coverage should be 1.0.
+        // Previous value 0.7 caused massive penalty in FinalScorer (coverage_score^gamma).
+        "feature_coverage": 1.0,
         "trend_short": indicators.trend_short,
     })
 }

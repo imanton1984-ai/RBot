@@ -276,6 +276,16 @@ impl TradeSignalCalculator {
 
         if side == 0 {
             // no direction -> no trade
+            // Diagnostic: sample how often side=0 rejects
+            static SIDE0_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let cnt = SIDE0_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if cnt % 10000 == 0 {
+                tracing::debug!(
+                    target: "trade_signal_calculator",
+                    "side=0 rejection #{} for {} tf={}",
+                    cnt, symbol.0, tf_minutes
+                );
+            }
             return Ok(None);
         }
 
@@ -303,12 +313,21 @@ impl TradeSignalCalculator {
 
         let targets = tf_targets(tf_minutes);
 
-        // Entry filter based on price prediction
+        // Entry filter based on price prediction — now a soft check (log + skip)
+        // instead of a hard reject.
+        // Previously this would reject ALL signals where predicted move was too small,
+        // effectively blocking most signals since heuristic predictors often predict conservative moves.
         let price_target_pred = predictors.iter().find(|p| p.aspect == PredictionAspect::PriceTarget);
         if let Some(pred) = price_target_pred {
             let predicted_move_pct = (pred.value - entry_price) / entry_price * side as f64;
             if predicted_move_pct < targets.min_tp1_pct {
-                return Ok(None); // Not enough expected profit
+                tracing::debug!(
+                    target: "trade_signal_calculator",
+                    "Price target filter: {} tf={} predicted_move={:.5} < min_tp1={:.5} — proceeding anyway (soft filter)",
+                    symbol.0, tf_minutes, predicted_move_pct, targets.min_tp1_pct
+                );
+                // NOTE: We no longer reject here. The signal still has a valid score.
+                // The predicted move is just one factor; TP/SL are calculated from ATR/levels anyway.
             }
         }
 

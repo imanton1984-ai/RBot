@@ -85,11 +85,20 @@ async fn main() -> Result<()> {
     let message_bus = MessageBus::new_from_env()?;
     let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
     
+    // min_final_score: configurable via env var.
+    // Default 0.55 is achievable with heuristic-only predictors.
+    let min_final_score: f64 = std::env::var("MIN_FINAL_SCORE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0.55);
+
+    tracing::info!("Using min_final_score = {}", min_final_score);
+
     let pred_config = PredictorsConfig {
         enabled: true,
         horizon_bars: 10,
-        min_store_score: 0.60,
-        min_final_score: 0.70,
+        min_store_score: 0.50,
+        min_final_score,
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: config.use_cuda,
@@ -103,7 +112,7 @@ async fn main() -> Result<()> {
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
     
     let mut predictors_pipeline = PredictorsPipeline::new(
-        pred_config.clone(), // Clone to avoid moving the original
+        pred_config.clone(),
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(),
@@ -121,7 +130,7 @@ async fn main() -> Result<()> {
         market_params_calc,
         bulk_sender.clone(),
         trade_signal_rx,
-        pred_config.min_final_score, // Pass min_final_score from config
+        pred_config.min_final_score,
     );
 
     tokio::spawn(async move {
@@ -151,10 +160,34 @@ async fn main() -> Result<()> {
 
     // --- PIPELINE SETUP END ---
 
-    // 1) Ждем и получаем список активных пар
-    let symbols = wait_for_active_symbols(&db_pool).await?;
+    // =====================================================================
+    // INCREMENTAL GAP-AWARE PROCESSING LOOP
+    // Instead of processing all history once and exiting,
+    // we poll for uncomputed candle gaps and process only what's missing.
+    // This handles the race condition where ingestor is still backfilling
+    // candles via REST while we're already running.
+    // =====================================================================
 
-    // 2) Обрабатываем таймфреймы
+    // Config for the polling loop
+    let max_idle_cycles: u32 = std::env::var("HISTORY_MAX_IDLE_CYCLES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10); // Exit after N consecutive cycles with no new work
+
+    let poll_interval_secs: u64 = std::env::var("HISTORY_POLL_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30); // Check for new gaps every 30s
+
+    let initial_wait_secs: u64 = std::env::var("HISTORY_INITIAL_WAIT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(15); // Wait for ingestor to populate initial data
+
+    // 1) Wait for active pairs to appear
+    let symbols = wait_for_active_symbols(&db_pool).await?;
+    tracing::info!("Found {} active symbols", symbols.len());
+
     let timeframes = [
         Timeframe::M1,
         Timeframe::M5,
@@ -164,87 +197,232 @@ async fn main() -> Result<()> {
         Timeframe::D1,
     ];
 
-    for timeframe in &timeframes {
-        let table_name = format!("market.candles_{}", timeframe.as_str());
+    // Initial wait to let ingestor start backfilling
+    tracing::info!(
+        "Waiting {}s for ingestor to populate candle data...",
+        initial_wait_secs
+    );
+    tokio::time::sleep(Duration::from_secs(initial_wait_secs)).await;
 
-        // ВАЖНО: Ждем данные вместо пропуска
-        if !wait_for_table_data(&db_pool, &table_name).await {
-            eprintln!("Timeout waiting for data in {}, skipping TF", table_name);
-            continue;
-        }
+    let mut idle_cycles: u32 = 0;
+    let mut total_jobs_submitted: u64 = 0;
+    let mut cycle_count: u64 = 0;
 
-        println!("Processing historical data for timeframe: {:?}", timeframe);
+    loop {
+        cycle_count += 1;
+        let mut jobs_this_cycle: u64 = 0;
 
-        for symbol in &symbols {
-            // Check if candles exist for this specific symbol
-            let symbol_query = format!(
-                "SELECT MIN(time) as first_time, MAX(time) as last_time, COUNT(*) as total_count
-                 FROM {} WHERE symbol = $1",
-                table_name
-            );
+        for timeframe in &timeframes {
+            let candle_table = format!("market.candles_{}", timeframe.as_str());
+            let tf_minutes = timeframe.to_minutes() as i16;
 
-            match sqlx::query(&symbol_query)
-                .bind(symbol.as_str())
-                .fetch_optional(&db_pool)
-                .await {
+            // Check if candle table has any data
+            if !table_has_data(&db_pool, &candle_table).await {
+                continue;
+            }
 
-                Ok(Some(row)) => {
-                    let total_count: i64 = row.get("total_count");
-                    if total_count == 0 {
-                        continue;
-                    }
+            for symbol in &symbols {
+                // Find the gap: latest candle time vs latest indicator time
+                let gap = find_uncomputed_gap(
+                    &db_pool,
+                    symbol.as_str(),
+                    &candle_table,
+                    tf_minutes,
+                )
+                .await;
 
-                    let first_time: Option<chrono::DateTime<chrono::Utc>> = row.get("first_time");
-                    let last_time: Option<chrono::DateTime<chrono::Utc>> = row.get("last_time");
+                match gap {
+                    Ok(Some(gap_info)) => {
+                        if gap_info.candle_count < 15 {
+                            // Not enough data for ATR etc.
+                            continue;
+                        }
 
-                    if let (Some(start), Some(end)) = (first_time, last_time) {
-                        let duration_min = (end - start).num_minutes();
-                        let tf_min = timeframe.to_minutes() as i64;
-                        let length = if tf_min > 0 { (duration_min / tf_min) as usize } else { 0 };
+                        // We need warmup candles before the gap start for indicator calculations
+                        // Fetch enough history: gap + 200 warmup bars
+                        let length = (gap_info.candle_count as usize + 200).min(10_000);
 
-                        if length > 0 {
-                            // Minimum required length for ATR and other indicators to work properly
-                            // ATR typically needs at least period (14) + 1 data points
-                            let min_required_length = 15; // 14 + 1 for ATR calculation
-                            
-                            if length < min_required_length {
-                                tracing::warn!(
-                                    "Skipping symbol {} on timeframe {} due to insufficient data: {} < {}", 
-                                    symbol.as_str(), 
-                                    timeframe.as_str(), 
-                                    length, 
-                                    min_required_length
-                                );
-                                continue; // Skip this symbol-timeframe combination
-                            }
+                        tracing::info!(
+                            "Gap detected: {} {} gap_candles={} total_fetch={}",
+                            symbol.as_str(),
+                            timeframe.as_str(),
+                            gap_info.candle_count,
+                            length
+                        );
 
-                            let window_spec = WindowSpec {
-                                length: std::cmp::min(length + 100, 10_000), // +buffer
-                                warmup: 100,
-                            };
+                        let window_spec = WindowSpec {
+                            length,
+                            warmup: 100,
+                        };
 
-                            println!("Submitting batch: {} {}, len={}", symbol.as_str(), timeframe.as_str(), window_spec.length);
-
-                            if let Err(e) = job_scheduler.submit_batch(*timeframe, vec![symbol.clone()], window_spec).await {
-                                eprintln!("Submit batch failed: {}", e);
-                            }
+                        if let Err(e) = job_scheduler
+                            .submit_batch(*timeframe, vec![symbol.clone()], window_spec)
+                            .await
+                        {
+                            tracing::error!("Submit batch failed for {} {}: {}", symbol.as_str(), timeframe.as_str(), e);
+                        } else {
+                            jobs_this_cycle += 1;
                         }
                     }
+                    Ok(None) => {
+                        // No gap — this symbol/tf is up to date
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Error checking gap for {} {}: {}",
+                            symbol.as_str(),
+                            timeframe.as_str(),
+                            e
+                        );
+                    }
                 }
-                Err(e) => eprintln!("DB Error: {}", e),
-                _ => {}
             }
+        }
+
+        total_jobs_submitted += jobs_this_cycle;
+
+        if jobs_this_cycle > 0 {
+            idle_cycles = 0;
+            tracing::info!(
+                "Cycle {}: submitted {} jobs (total: {}). Waiting for processing...",
+                cycle_count,
+                jobs_this_cycle,
+                total_jobs_submitted
+            );
+            // Give time for computation to complete before next cycle
+            // Longer wait when processing lots of jobs
+            let wait = if jobs_this_cycle > 100 {
+                Duration::from_secs(120)
+            } else if jobs_this_cycle > 20 {
+                Duration::from_secs(60)
+            } else {
+                Duration::from_secs(poll_interval_secs)
+            };
+            tokio::time::sleep(wait).await;
+        } else {
+            idle_cycles += 1;
+            tracing::info!(
+                "Cycle {}: no gaps found (idle {}/{}). Total jobs submitted: {}",
+                cycle_count,
+                idle_cycles,
+                max_idle_cycles,
+                total_jobs_submitted
+            );
+
+            if idle_cycles >= max_idle_cycles {
+                tracing::info!(
+                    "No new data for {} consecutive cycles. History processing complete. \
+                     Total cycles: {}, total jobs: {}",
+                    max_idle_cycles,
+                    cycle_count,
+                    total_jobs_submitted
+                );
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
         }
     }
 
-    println!("Jobs submitted. Waiting for processing...");
-    // Даем время на обработку задач (можно улучшить через счетчик задач)
-    tokio::time::sleep(Duration::from_secs(300)).await;
-    
+    // Give final batch time to flush
+    tracing::info!("Waiting 30s for final flush...");
+    tokio::time::sleep(Duration::from_secs(30)).await;
+
+    tracing::info!("compute_history exiting gracefully");
     Ok(())
 }
 
-/// Helper: Ждет появления активных пар в БД
+/// Information about an uncomputed gap for a symbol/timeframe pair
+struct GapInfo {
+    /// Number of candles that don't have corresponding indicators
+    candle_count: i64,
+}
+
+/// Find candles that exist but don't have computed indicators yet.
+/// Returns None if everything is up to date.
+async fn find_uncomputed_gap(
+    pool: &PgPool,
+    symbol: &str,
+    candle_table: &str,
+    tf_minutes: i16,
+) -> Result<Option<GapInfo>> {
+    // Strategy: Compare max(time) in candle table vs max(time) in indicators_wide.
+    // If indicators lag behind candles, there's a gap to process.
+    //
+    // We also check if there are ANY indicators for this symbol/tf.
+    // If none exist at all, that's a full gap.
+
+    let query = format!(
+        r#"
+        WITH candle_range AS (
+            SELECT 
+                MIN(time) as first_candle,
+                MAX(time) as last_candle,
+                COUNT(*) as total_candles
+            FROM {} 
+            WHERE symbol = $1
+        ),
+        indicator_range AS (
+            SELECT MAX(time) as last_indicator
+            FROM market.indicators_wide 
+            WHERE symbol = $1 AND tf_minutes = $2
+        )
+        SELECT 
+            cr.total_candles,
+            cr.first_candle,
+            cr.last_candle,
+            ir.last_indicator,
+            CASE
+                WHEN cr.total_candles = 0 THEN 0
+                WHEN ir.last_indicator IS NULL THEN cr.total_candles
+                ELSE (
+                    SELECT COUNT(*) FROM {} c
+                    WHERE c.symbol = $1 AND c.time > ir.last_indicator
+                )
+            END as gap_candles
+        FROM candle_range cr, indicator_range ir
+        "#,
+        candle_table, candle_table
+    );
+
+    let row = sqlx::query(&query)
+        .bind(symbol)
+        .bind(tf_minutes)
+        .fetch_optional(pool)
+        .await?;
+
+    let row = match row {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+
+    let total_candles: i64 = row.get("total_candles");
+    if total_candles == 0 {
+        return Ok(None);
+    }
+
+    let gap_candles: i64 = row.get("gap_candles");
+    if gap_candles <= 0 {
+        return Ok(None);
+    }
+
+    Ok(Some(GapInfo {
+        candle_count: gap_candles,
+    }))
+}
+
+/// Check if table has any data (fast: LIMIT 1)
+async fn table_has_data(pool: &PgPool, table_name: &str) -> bool {
+    let query = format!("SELECT 1 FROM {} LIMIT 1", table_name);
+    sqlx::query(&query)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+}
+
+/// Wait for active symbols in market.pairs
 async fn wait_for_active_symbols(pool: &PgPool) -> Result<Vec<Symbol>> {
     let start = std::time::Instant::now();
     loop {
@@ -259,30 +437,6 @@ async fn wait_for_active_symbols(pool: &PgPool) -> Result<Vec<Symbol>> {
 
         eprintln!("Waiting for active symbols in market.pairs...");
         tokio::time::sleep(Duration::from_secs(5)).await;
-    }
-}
-
-/// Helper: Ждет появления данных в таблице свечей
-async fn wait_for_table_data(pool: &PgPool, table_name: &str) -> bool {
-    let start = std::time::Instant::now();
-    loop {
-        // Проверяем наличие хотя бы одной записи
-        let query = format!("SELECT 1 FROM {} LIMIT 1", table_name);
-        match sqlx::query(&query).fetch_optional(pool).await {
-            Ok(Some(_)) => return true,
-            Ok(None) => {
-                if start.elapsed() > Duration::from_secs(300) {
-                    return false;
-                }
-                eprintln!("Waiting for data in {} (elapsed: {:.0}s)...", table_name, start.elapsed().as_secs_f64());
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
-            Err(e) => {
-                // Если таблицы еще нет (например, миграция не прошла), тоже ждем
-                eprintln!("Error checking {}: {}. Retrying...", table_name, e);
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
-        }
     }
 }
 

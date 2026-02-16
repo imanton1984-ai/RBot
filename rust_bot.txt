@@ -15866,23 +15866,23 @@ struct TfTargets {
 
 fn tf_targets(tf_minutes: i16) -> TfTargets {
     let mut t = match tf_minutes {
-        1 => TfTargets {  // 1m
-            min_tp1_pct: 0.010, min_tp2_pct: 0.018, min_tp3_pct: 0.026, min_sl_pct: 0.007
+        1 => TfTargets {  // 1m: Reduced from 1.0% to 0.3% for realistic scalping
+            min_tp1_pct: 0.003, min_tp2_pct: 0.006, min_tp3_pct: 0.010, min_sl_pct: 0.002
         },
-        5 => TfTargets {  // 5m
-            min_tp1_pct: 0.012, min_tp2_pct: 0.022, min_tp3_pct: 0.032, min_sl_pct: 0.008
+        5 => TfTargets {  // 5m: Reduced from 1.2% to 0.6%
+            min_tp1_pct: 0.006, min_tp2_pct: 0.012, min_tp3_pct: 0.020, min_sl_pct: 0.004
         },
-        15 => TfTargets { // 15m
+        15 => TfTargets { // 15m: Reduced from 1.5% to 1.0%
+            min_tp1_pct: 0.010, min_tp2_pct: 0.020, min_tp3_pct: 0.030, min_sl_pct: 0.007
+        },
+        60 => TfTargets { // 1h: Reduced from 2.0% to 1.5%
             min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010
         },
-        60 => TfTargets { // 1h
-            min_tp1_pct: 0.020, min_tp2_pct: 0.038, min_tp3_pct: 0.055, min_sl_pct: 0.013
+        240 => TfTargets { // 4h: Reduced from 3.0% to 2.5%
+            min_tp1_pct: 0.025, min_tp2_pct: 0.045, min_tp3_pct: 0.065, min_sl_pct: 0.015
         },
-        240 => TfTargets { // 4h
-            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080, min_sl_pct: 0.018
-        },
-        1440 => TfTargets { // 1d
-            min_tp1_pct: 0.050, min_tp2_pct: 0.090, min_tp3_pct: 0.130, min_sl_pct: 0.028
+        1440 => TfTargets { // 1d: Reduced from 5.0% to 3.0%
+            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080, min_sl_pct: 0.020
         },
         _ => TfTargets { // default conservative
             min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010
@@ -16417,8 +16417,11 @@ impl TradeSignalStage {
         market_params_calc: MarketParamsCalculator,
         bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
         prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
+        min_score: f64,  // Accept min_score as parameter
     ) -> Self {
-        let min_score = 0.96;
+        // Log for debugging
+        tracing::info!("Initializing TradeSignalStage with min_score: {}", min_score);
+        
         Self {
             db_pool,
             market_params_calc,
@@ -28957,7 +28960,7 @@ impl CudaBackend {
         let poc_f32_dev = self.indicator_runner.cast_f64_to_f32(&poc_dev, batch * n)?;
 
         // Combine all features into a single matrix
-        let feature_matrix_dev = self.indicator_runner.combine_features_v1(
+        let _feature_matrix_dev = self.indicator_runner.combine_features_v1(
             &rsi_f32_dev,
             &cci_f32_dev,
             &stoch_k_f32_dev,
@@ -29840,7 +29843,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut predictors_pipeline = crate::predictors::pipeline::PredictorsPipeline::new(
-        predictors_config,
+        predictors_config.clone(), // Clone to avoid moving the original
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
@@ -29864,6 +29867,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         market_params_calc,
         bulk_history_sender.clone(),
         trade_signal_rx,
+        predictors_config.min_final_score, // Pass min_final_score from config
     );
 
     tokio::spawn(async move {
@@ -31157,7 +31161,7 @@ async fn main() -> Result<()> {
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
     
     let mut predictors_pipeline = PredictorsPipeline::new(
-        pred_config,
+        pred_config.clone(), // Clone to avoid moving the original
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(),
@@ -31175,6 +31179,7 @@ async fn main() -> Result<()> {
         market_params_calc,
         bulk_sender.clone(),
         trade_signal_rx,
+        pred_config.min_final_score, // Pass min_final_score from config
     );
 
     tokio::spawn(async move {
@@ -31423,7 +31428,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Predictors Pipeline
     let message_bus = MessageBus::new_from_env()?;
     let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
-    
+
     let pred_config = PredictorsConfig {
         enabled: true,
         horizon_bars: 10,
@@ -31440,9 +31445,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
-    
+
     let mut predictors_pipeline = PredictorsPipeline::new(
-        pred_config,
+        pred_config.clone(), // Clone to avoid moving the original
         db_pool.clone(),
         message_bus,
         shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
@@ -31462,6 +31467,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         market_params_calc,
         bulk_sender.clone(),
         trade_signal_rx,
+        pred_config.min_final_score, // Pass min_final_score from config
     );
 
     tokio::spawn(async move {
@@ -31573,7 +31579,7 @@ async fn run_realtime_consumer(
 
                                             let tf_ms = timeframe.to_minutes() as i64 * 60_000;
                                             let window_end = event.close_time;
-                                            let window_start = window_end - (120 as i64) * tf_ms; // Lookback 120 candles for indicators
+                                            let window_start = window_end - (500 as i64) * tf_ms; // Lookback 500 candles for indicators (to accommodate EMA200)
 
                                             let job = ComputeJob {
                                                 symbol: Symbol::from(event.symbol),

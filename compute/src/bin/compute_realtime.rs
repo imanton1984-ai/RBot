@@ -67,11 +67,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message_bus = MessageBus::new_from_env()?;
     let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
 
+    // min_final_score: configurable via env var for tuning.
+    // Default 0.55 is achievable with heuristic-only predictors.
+    let min_final_score: f64 = std::env::var("MIN_FINAL_SCORE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0.55);
+
+    tracing::info!("Using min_final_score = {}", min_final_score);
+
     let pred_config = PredictorsConfig {
         enabled: true,
         horizon_bars: 10,
-        min_store_score: 0.60,
-        min_final_score: 0.70,
+        min_store_score: 0.50,
+        min_final_score,
         prefer_ml: true,
         max_levels_per_side: 2,
         use_cuda: cfg!(feature = "cuda"), // Can use GPU for inference even in RT

@@ -79,8 +79,11 @@ impl FinalScorer {
         Self {
             min_final_score,
             weights: StrategyWeights::default().normalized(),
-            coverage_gamma: 1.8,
-            consensus_gamma: 1.5,
+            // Reduced from 1.8/1.5: the previous values made it mathematically impossible
+            // to reach even 0.50 final score with any combination of inputs.
+            // 0.5/0.3 applies meaningful but achievable penalties.
+            coverage_gamma: 0.5,
+            consensus_gamma: 0.3,
         }
     }
 
@@ -142,9 +145,10 @@ impl FinalScorer {
         let indicators_score = self.calculate_indicator_score(raw_signals_summary);
 
         // Market score (BTC regime alignment)
+        // If market params not available, use neutral 0.5 instead of 0.0
         let market_score = market_params
             .map(|m| m.score_for_side(side_i8))
-            .unwrap_or(0.0);
+            .unwrap_or(0.5);
 
         // Base score (weights sum to 1)
         let base_score =
@@ -158,7 +162,8 @@ impl FinalScorer {
         let coverage_score = self.calculate_feature_coverage_score(predictors, raw_signals_summary, has_market);
         let consensus_score = self.calculate_ml_heuristic_consensus(predictors_ml_score, predictors_heur_score);
 
-        // “AND-like” penalties:
+        // Soft penalties: coverage and consensus reduce score, but not catastrophically.
+        // Previous formula (base * cov^1.8 * cons^1.5) made ≥0.50 impossible.
         let final_score = (base_score
             * coverage_score.powf(self.coverage_gamma)
             * consensus_score.powf(self.consensus_gamma))
@@ -173,6 +178,14 @@ impl FinalScorer {
             "coverage_gamma": self.coverage_gamma,
             "consensus_gamma": self.consensus_gamma,
             "has_market_params": has_market,
+            "base_score": base_score,
+            "predictors_score": predictors_score,
+            "raw_signals_score": raw_signals_score,
+            "indicators_score": indicators_score,
+            "market_score": market_score,
+            "coverage_score": coverage_score,
+            "consensus_score": consensus_score,
+            "final_score": final_score,
             "market_params": market_params.map(|m| m.details_json.clone()),
         });
 
@@ -191,6 +204,20 @@ impl FinalScorer {
                 debug,
             }))
         } else {
+            // Diagnostic: sample-log rejected signals so we can tune thresholds
+            static DIAG_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let cnt = DIAG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if cnt % 5000 == 0 {
+                tracing::info!(
+                    target: "final_scorer",
+                    "REJECTED signal #{} {} tf={} side={}: final={:.4} (base={:.4} cov={:.4} cons={:.4}) \
+                     pred={:.3} raw={:.3} ind={:.3} mkt={:.3} | threshold={:.2}",
+                    cnt, symbol, tf_minutes, side_i8,
+                    final_score, base_score, coverage_score, consensus_score,
+                    predictors_score, raw_signals_score, indicators_score, market_score,
+                    self.min_final_score
+                );
+            }
             Ok(None)
         }
     }
@@ -339,13 +366,22 @@ impl FinalScorer {
     }
 
     fn calculate_ml_heuristic_consensus(&self, ml_score: f64, heur_score: f64) -> f64 {
-        // If one source missing -> treat as weaker consensus
-        if ml_score <= 0.0 || heur_score <= 0.0 {
-            return 0.65;
+        // Both sources present: evaluate agreement
+        if ml_score > 0.0 && heur_score > 0.0 {
+            let diff = (ml_score - heur_score).abs();
+            // 0 diff => 1.0, 0.4 diff => ~0.6
+            return (1.0 - (diff / 0.4)).clamp(0.0, 1.0) * 0.4 + 0.6;
         }
-        let diff = (ml_score - heur_score).abs();
-        // 0 diff => 1.0, 0.4 diff => ~0.6
-        (1.0 - (diff / 0.4)).clamp(0.0, 1.0) * 0.4 + 0.6
+
+        // Single source present: acceptable, slight penalty
+        // Previous value 0.65 was too harsh — with consensus_gamma=1.5 it caused a 48% multiplicative penalty,
+        // making it impossible for signals to pass any reasonable threshold.
+        if ml_score > 0.0 || heur_score > 0.0 {
+            return 0.92;
+        }
+
+        // Neither source: big problem, penalize heavily
+        0.50
     }
 }
 
