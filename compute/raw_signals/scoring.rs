@@ -206,10 +206,12 @@ fn normalize_generic_score(value: f64) -> f64 {
     sigmoid_normalize(normalized, 0.3, 5.0)
 }
 
-/// Applies threshold filtering to remove only weak signals (below 0.80)
-/// Stronger signals (0.80+) are kept for further processing by predictor
+/// Applies threshold filtering to remove only weak signals (below 0.55)
+/// Stronger signals (0.55+) are kept for further processing by predictor
+/// NOTE: Lowered from 0.80 to 0.55 to allow more signals through
+/// (0.80 was too aggressive and blocked most signals)
 pub fn filter_weak_signals(score: f64) -> bool {
-    score >= 0.80  // Only filter out signals below 0.80
+    score >= 0.55  // Allow signals >= 0.55 (was 0.80)
 }
 
 // ---------------------------------------------------------------------------
@@ -273,7 +275,8 @@ mod tests {
     #[test]
     fn test_filter_weak_signals() {
         assert!(filter_weak_signals(0.85));  // Above threshold
-        assert!(!filter_weak_signals(0.75)); // Below threshold
+        assert!(filter_weak_signals(0.55));  // At threshold (changed from 0.75)
+        assert!(!filter_weak_signals(0.50)); // Below threshold
     }
 
     // ---- Price-aware ATR tests ----

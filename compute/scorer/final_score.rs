@@ -11,6 +11,13 @@ use crate::predictors::types::{PredictionAspect, PredictionRow, CalcSource};
 
 use super::market_params_calculator::MarketParams;
 
+/// Setup kind: distinguishes bounce vs breakout trades
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetupKind {
+    Bounce,
+    Breakout,
+}
+
 /// Final scorer configuration (weights + strictness)
 pub struct FinalScorer {
     min_final_score: f64,
@@ -70,6 +77,21 @@ pub struct FinalScoreBreakdown {
 
     pub coverage_score: f64,
     pub consensus_score: f64,
+
+    // Setup inference fields
+    pub setup_kind: SetupKind,
+    pub setup_confidence: f64,
+    pub bounce_prob: Option<f64>,
+    pub breakout_prob: Option<f64>,
+
+    // Level context
+    pub level_distance_atr: Option<f64>,
+    pub level_strength: Option<f64>,
+
+    // Regime alignment
+    pub trend_align: f64,
+    pub volatility_ok: f64,
+    pub momentum_ok: f64,
 
     pub debug: Value,
 }
@@ -138,6 +160,9 @@ impl FinalScorer {
         let predictors_ml_score = pred_comp.ml;
         let predictors_heur_score = pred_comp.heur;
 
+        // Extract bounce/breakout probs from predictors
+        let (bounce_prob, breakout_prob) = self.extract_level_probs(predictors);
+
         // Raw signals score (use BEST signals, but penalize missing coverage)
         let raw_signals_score = self.calculate_raw_signals_score(raw_signals_summary);
 
@@ -162,11 +187,38 @@ impl FinalScorer {
         let coverage_score = self.calculate_feature_coverage_score(predictors, raw_signals_summary, has_market);
         let consensus_score = self.calculate_ml_heuristic_consensus(predictors_ml_score, predictors_heur_score);
 
+        // Infer setup kind (bounce vs breakout)
+        let (setup_kind, setup_confidence) = self.infer_setup(bounce_prob, breakout_prob);
+
+        // Extract level context
+        let level_distance_atr = self.extract_level_distance_atr(raw_signals_summary, side_i8);
+        let level_strength = self.extract_level_strength(raw_signals_summary, side_i8);
+
+        // Regime alignment factors
+        let trend_align = raw_signals_summary.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.5);
+        let volatility_regime = raw_signals_summary.get("volatility_regime").and_then(|v| v.as_f64()).unwrap_or(0.5);
+        let momentum_strength = raw_signals_summary.get("momentum_strength").and_then(|v| v.as_f64()).unwrap_or(0.5);
+
+        // volatility_ok: bounce prefers calm, breakout can handle volatility
+        let volatility_ok = match setup_kind {
+            SetupKind::Bounce => (1.0 - volatility_regime).clamp(0.0, 1.0),
+            SetupKind::Breakout => (0.6 + 0.4 * volatility_regime).clamp(0.0, 1.0),
+        };
+
+        // momentum_ok: bounce prefers moderate momentum, breakout prefers high
+        let momentum_ok = match setup_kind {
+            SetupKind::Bounce => (1.0 - (momentum_strength - 0.5).abs() * 2.0).clamp(0.0, 1.0),
+            SetupKind::Breakout => momentum_strength,
+        };
+
         // Soft penalties: coverage and consensus reduce score, but not catastrophically.
         // Previous formula (base * cov^1.8 * cons^1.5) made ≥0.50 impossible.
+        // Apply setup confidence dampening
+        let setup_damp = 0.75 + 0.25 * setup_confidence;
         let final_score = (base_score
             * coverage_score.powf(self.coverage_gamma)
-            * consensus_score.powf(self.consensus_gamma))
+            * consensus_score.powf(self.consensus_gamma)
+            * setup_damp)
             .clamp(0.0, 1.0);
 
         let debug = json!({
@@ -187,6 +239,10 @@ impl FinalScorer {
             "consensus_score": consensus_score,
             "final_score": final_score,
             "market_params": market_params.map(|m| m.details_json.clone()),
+            "setup_kind": format!("{:?}", setup_kind),
+            "setup_confidence": setup_confidence,
+            "bounce_prob": bounce_prob,
+            "breakout_prob": breakout_prob,
         });
 
         if final_score >= self.min_final_score {
@@ -201,6 +257,15 @@ impl FinalScorer {
                 market_score,
                 coverage_score,
                 consensus_score,
+                setup_kind,
+                setup_confidence,
+                bounce_prob,
+                breakout_prob,
+                level_distance_atr,
+                level_strength,
+                trend_align,
+                volatility_ok,
+                momentum_ok,
                 debug,
             }))
         } else {
@@ -658,6 +723,100 @@ impl FinalScorer {
 
         // Neither source: big problem, penalize heavily
         0.50
+    }
+
+    /// Extract bounce and breakout probabilities from predictors
+    fn extract_level_probs(&self, predictors: &[PredictionRow]) -> (Option<f64>, Option<f64>) {
+        let mut bounce_prob: Option<f64> = None;
+        let mut breakout_prob: Option<f64> = None;
+
+        for p in predictors {
+            match p.aspect {
+                PredictionAspect::LevelBounce => {
+                    bounce_prob = Some(p.value as f64);
+                }
+                PredictionAspect::LevelBreakout => {
+                    breakout_prob = Some(p.value as f64);
+                }
+                _ => {}
+            }
+        }
+
+        (bounce_prob, breakout_prob)
+    }
+
+    /// Infer setup kind from bounce/breakout probabilities
+    fn infer_setup(&self, bounce_prob: Option<f64>, breakout_prob: Option<f64>) -> (SetupKind, f64) {
+        let b = bounce_prob.unwrap_or(0.5);
+        let k = breakout_prob.unwrap_or(0.5);
+
+        let diff = (b - k).abs();
+        let margin = 0.10; // Minimum difference to be confident
+        let conf = ((diff - margin) / (1.0 - margin)).clamp(0.0, 1.0);
+
+        if b >= k + margin {
+            (SetupKind::Bounce, conf)
+        } else if k >= b + margin {
+            (SetupKind::Breakout, conf)
+        } else {
+            // Ambiguous: default to Bounce (safer for level trading), but low confidence
+            (SetupKind::Bounce, conf * 0.5)
+        }
+    }
+
+    /// Extract level distance in ATR units from raw_signals_summary
+    fn extract_level_distance_atr(&self, raw: &Value, side: i8) -> Option<f64> {
+        let close = raw.get("close").and_then(|v| v.as_f64())?;
+        let atr = raw.get("atr").and_then(|v| v.as_f64())?;
+        if atr <= 0.0 { return None; }
+
+        let sr = raw.get("sr_levels").unwrap_or(raw);
+
+        // For LONG: distance to nearest support below
+        // For SHORT: distance to nearest resistance above
+        let level_price = if side > 0 {
+            ["strong_support", "mid_support", "light_support"]
+                .iter()
+                .filter_map(|&k| sr.get(k).and_then(|v| v.as_f64()))
+                .filter(|&p| p < close)
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+        } else {
+            ["strong_resistance", "mid_resistance", "light_resistance"]
+                .iter()
+                .filter_map(|&k| sr.get(k).and_then(|v| v.as_f64()))
+                .filter(|&p| p > close)
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+        }?;
+
+        let dist_atr = (close - level_price).abs() / atr;
+        // Normalize to 0..1 (0 = at level, 1 = far: 3+ ATR)
+        Some((dist_atr / 3.0).clamp(0.0, 1.0))
+    }
+
+    /// Extract level strength from raw_signals_summary
+    fn extract_level_strength(&self, raw: &Value, side: i8) -> Option<f64> {
+        let sr = raw.get("sr_levels").unwrap_or(raw);
+
+        // Check if we have a strong level in trade direction
+        let has_strong = if side > 0 {
+            sr.get("strong_support").and_then(|v| v.as_f64()).is_some()
+        } else {
+            sr.get("strong_resistance").and_then(|v| v.as_f64()).is_some()
+        };
+
+        let has_mid = if side > 0 {
+            sr.get("mid_support").and_then(|v| v.as_f64()).is_some()
+        } else {
+            sr.get("mid_resistance").and_then(|v| v.as_f64()).is_some()
+        };
+
+        if has_strong {
+            Some(1.0)
+        } else if has_mid {
+            Some(0.6)
+        } else {
+            Some(0.3)
+        }
     }
 }
 

@@ -1,63 +1,47 @@
-[2m2026-02-16T18:26:29.369977Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m === Signal Quality Backtester ===
-[2m2026-02-16T18:26:29.369986Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m min_score=0.55, max_signals=500000, timeout_bars=100
-[2m2026-02-16T18:26:30.411855Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"SELECT s.symbol_id, COALESCE(s.symbol, p.symbol) …" [3mdb.statement[0m[2m=[0m"\n\n\n        SELECT \n            s.symbol_id, COALESCE(s.symbol, p.symbol) as symbol, \n            s.tf_minutes, s.side, s.final_score,\n            s.ml_score, s.heur_score,\n            s.entry_price, s.sl_price, s.tp1_price, s.tp2_price, s.tp3_price,\n            s.reason,\n            s.price10_target, s.price10_score,\n            s.bounce_prob, s.bounce_score,\n            s.breakout_prob, s.breakout_score,\n            s.time, s.time_ms\n        FROM trade.final_signals s\n        LEFT JOIN market.pairs p ON p.symbol_id = s.symbol_id\n        WHERE s.reason IS NOT NULL\n          AND s.final_score >= $1\n          AND s.entry_price IS NOT NULL\n          AND s.sl_price IS NOT NULL\n          AND s.tp1_price IS NOT NULL\n        ORDER BY s.time ASC\n        LIMIT $2\n        \n" [3mrows_affected[0m[2m=[0m27722 [3mrows_returned[0m[2m=[0m27722 [3melapsed[0m[2m=[0m1.001401071s [3melapsed_secs[0m[2m=[0m1.001401071 [3mslow_threshold[0m[2m=[0m1s
-[2m2026-02-16T18:26:30.411877Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Loaded 27722 signals for backtesting
-[2m2026-02-16T18:26:30.898536Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 1000/27722 signals: 469 wins, 495 losses, 36 expired
-[2m2026-02-16T18:26:31.265290Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 2000/27722 signals: 971 wins, 936 losses, 93 expired
-[2m2026-02-16T18:26:31.615618Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 3000/27722 signals: 1432 wins, 1170 losses, 398 expired
-[2m2026-02-16T18:26:31.949771Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 4000/27722 signals: 2197 wins, 1318 losses, 485 expired
-[2m2026-02-16T18:26:32.270016Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 5000/27722 signals: 2884 wins, 1564 losses, 552 expired
-[2m2026-02-16T18:26:32.596964Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 6000/27722 signals: 3459 wins, 1945 losses, 596 expired
-[2m2026-02-16T18:26:32.914117Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 7000/27722 signals: 4303 wins, 2040 losses, 657 expired
-[2m2026-02-16T18:26:33.231103Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 8000/27722 signals: 5030 wins, 2269 losses, 701 expired
-[2m2026-02-16T18:26:33.547522Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 9000/27722 signals: 5937 wins, 2359 losses, 704 expired
-[2m2026-02-16T18:26:33.915730Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 10000/27722 signals: 6793 wins, 2442 losses, 765 expired
-[2m2026-02-16T18:26:34.254524Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 11000/27722 signals: 7436 wins, 2645 losses, 919 expired
-[2m2026-02-16T18:26:34.555587Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 12000/27722 signals: 7773 wins, 3210 losses, 1017 expired
-[2m2026-02-16T18:26:34.851721Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 13000/27722 signals: 8398 wins, 3487 losses, 1115 expired
-[2m2026-02-16T18:26:35.151975Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 14000/27722 signals: 9027 wins, 3783 losses, 1190 expired
-[2m2026-02-16T18:26:35.478951Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 15000/27722 signals: 9490 wins, 4248 losses, 1262 expired
-[2m2026-02-16T18:26:35.806647Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 16000/27722 signals: 10000 wins, 4626 losses, 1374 expired
-[2m2026-02-16T18:26:36.124609Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 17000/27722 signals: 10712 wins, 4857 losses, 1431 expired
-[2m2026-02-16T18:26:36.441317Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 18000/27722 signals: 11431 wins, 5097 losses, 1472 expired
-[2m2026-02-16T18:26:36.752119Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 19000/27722 signals: 12026 wins, 5476 losses, 1498 expired
-[2m2026-02-16T18:26:37.082001Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 20000/27722 signals: 12599 wins, 5844 losses, 1557 expired
-[2m2026-02-16T18:26:37.397718Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 21000/27722 signals: 13092 wins, 6154 losses, 1753 expired
-[2m2026-02-16T18:26:37.712788Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 22000/27722 signals: 13658 wins, 6543 losses, 1798 expired
-[2m2026-02-16T18:26:38.020636Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 23000/27722 signals: 14182 wins, 6937 losses, 1880 expired
-[2m2026-02-16T18:26:38.323454Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 24000/27722 signals: 14778 wins, 7242 losses, 1979 expired
-[2m2026-02-16T18:26:38.619401Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 25000/27722 signals: 15295 wins, 7709 losses, 1995 expired
-[2m2026-02-16T18:26:38.906684Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 26000/27722 signals: 15957 wins, 8016 losses, 2026 expired
-[2m2026-02-16T18:26:39.213801Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 27000/27722 signals: 16404 wins, 8441 losses, 2154 expired
-[2m2026-02-16T18:26:39.436719Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Evaluation complete: 27713 results from 27722 signals
-[2m2026-02-16T18:26:40.199023Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Saved 27713 backtest results to trade.backtest_results
-[2m2026-02-16T18:26:51.594946Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported training CSV to backtest_results.csv
-[2m2026-02-16T18:26:53.695224Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 5082 1h results to backtest_results_1h.csv
-[2m2026-02-16T18:26:56.099238Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 5835 5m results to backtest_results_5m.csv
-[2m2026-02-16T18:26:58.232492Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 4948 4h results to backtest_results_4h.csv
-[2m2026-02-16T18:27:00.581476Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 5639 1m results to backtest_results_1m.csv
-[2m2026-02-16T18:27:02.453288Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 4124 15m results to backtest_results_15m.csv
-[2m2026-02-16T18:27:03.338675Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2085 1d results to backtest_results_1d.csv
+[2m2026-02-16T19:36:30.359886Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m === Signal Quality Backtester ===
+[2m2026-02-16T19:36:30.359895Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m min_score=0.55, max_signals=500000, timeout_bars=100
+[2m2026-02-16T19:36:30.883198Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Loaded 12339 signals for backtesting
+[2m2026-02-16T19:36:31.308947Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 1000/12339 signals: 583 wins, 252 losses, 165 expired
+[2m2026-02-16T19:36:31.677904Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 2000/12339 signals: 1350 wins, 409 losses, 241 expired
+[2m2026-02-16T19:36:32.026144Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 3000/12339 signals: 2163 wins, 538 losses, 299 expired
+[2m2026-02-16T19:36:32.340813Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 4000/12339 signals: 3063 wins, 609 losses, 328 expired
+[2m2026-02-16T19:36:32.652205Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 5000/12339 signals: 3669 wins, 831 losses, 500 expired
+[2m2026-02-16T19:36:32.970794Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 6000/12339 signals: 4371 wins, 998 losses, 631 expired
+[2m2026-02-16T19:36:33.274530Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 7000/12339 signals: 5207 wins, 1099 losses, 694 expired
+[2m2026-02-16T19:36:33.589987Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 8000/12339 signals: 6046 wins, 1200 losses, 754 expired
+[2m2026-02-16T19:36:33.909386Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 9000/12339 signals: 6696 wins, 1428 losses, 876 expired
+[2m2026-02-16T19:36:34.207792Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 10000/12339 signals: 7387 wins, 1643 losses, 970 expired
+[2m2026-02-16T19:36:34.502305Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 11000/12339 signals: 8082 wins, 1902 losses, 1016 expired
+[2m2026-02-16T19:36:34.784088Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 12000/12339 signals: 8663 wins, 2220 losses, 1116 expired
+[2m2026-02-16T19:36:34.869540Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Evaluation complete: 12338 results from 12339 signals
+[2m2026-02-16T19:36:35.164093Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Saved 12338 backtest results to trade.backtest_results
+[2m2026-02-16T19:36:40.542538Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported training CSV to backtest_results.csv
+[2m2026-02-16T19:36:41.793116Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2985 1m results to backtest_results_1m.csv
+[2m2026-02-16T19:36:42.604917Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 1942 4h results to backtest_results_4h.csv
+[2m2026-02-16T19:36:43.457222Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2118 1h results to backtest_results_1h.csv
+[2m2026-02-16T19:36:44.092854Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 1523 15m results to backtest_results_15m.csv
+[2m2026-02-16T19:36:45.397572Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3153 5m results to backtest_results_5m.csv
+[2m2026-02-16T19:36:45.647033Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 617 1d results to backtest_results_1d.csv
 
 ======== BACKTEST SUMMARY ========
 TF      Total   Wins   Loss    Exprd  WinRate   AvgPnL     Sharpe
-1m       5639   3101   2100      438    55.0%  0.0394%      0.030
-5m       5835   3521   1915      399    60.3%  0.1311%      0.057
-15m      4124   2174   1701      249    52.7% -0.2247%     -0.057
-1h       5082   3676    938      468    72.3%  0.8802%      0.151
-4h       4948   3203   1183      562    64.7% -0.7881%     -0.046
-1d       2085   1053    807      225    50.5% -3.6237%     -0.076
+1m       2985   2009    717      259    67.3% -0.0087%     -0.006
+5m       3153   2483    451      219    78.8%  0.1994%      0.093
+15m      1523   1039    366      118    68.2% -0.1458%     -0.031
+1h       2118   1595    273      250    75.3%  0.6159%      0.103
+4h       1942   1413    270      259    72.8% -0.1458%     -0.010
+1d        617    378    173       66    61.3% -3.0376%     -0.071
 -------------------------------
-TOTAL: 27713 signals, 16728 wins (60.4%), avg PnL: -0.2497%
+TOTAL: 12338 signals, 8917 wins (72.3%), avg PnL: -0.0383%
 ==================================
 
 ======== WIN RATE BY SCORE BUCKET ========
 TF      0.55-0.60  0.60-0.65  0.65-0.70  0.70-0.75  0.75-0.80      0.80+
-1m     56% (3836) 57% (1124)  55% (446)  35% (148)   21% (67)   22% (18)
-5m     62% (3582) 63% (1486)  56% (565)  35% (124)   12% (65)   15% (13)
-15m    58% (1781) 50% (1439)  48% (643)  37% (198)   44% (39)   58% (24)
-1h     70% (1954) 75% (1915)  75% (911)  75% (209)   47% (64)   17% (29)
-4h     60% (1967) 67% (1616)  71% (846)  70% (345)  60% (130)   25% (44)
-1d     50% (1016)  51% (568)  56% (333)  50% (110)   41% (44)   21% (14)
+1m     68% (2151)  66% (786)   58% (48)        -          -          -  
+5m     79% (2239)  78% (833)   84% (80)     0% (1)        -          -  
+15m    67% (1255)  72% (240)   71% (28)        -          -          -  
+1h     75% (1557)  76% (521)   75% (40)        -          -          -  
+4h     70% (1337)  77% (518)   82% (87)        -          -          -  
+1d      58% (491)  76% (115)   73% (11)        -          -          -  
 ==========================================
 

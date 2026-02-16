@@ -10,12 +10,11 @@
 //   2. trainer.rs builds TrainingExample dataset → exports CSV/DMatrix
 //   3. Python or Rust XGBoost trains model → saves .ubj artifact
 //   4. MlQualityScorer loads .ubj and predicts on new signals
-//
-// NOT YET WIRED INTO PIPELINE — standalone, ready for integration after backtester.
 
 use anyhow::Result;
 use super::types::*;
 use super::heuristic_scorer::HeuristicQualityScorer;
+use crate::ml::xgb_runtime::{Booster, Device, ModelKind};
 
 /// XGBoost-based signal quality scorer
 pub struct MlQualityScorer {
@@ -27,8 +26,8 @@ pub struct MlQualityScorer {
     heuristic_fallback: HeuristicQualityScorer,
     /// Weight for ML vs heuristic blend (0.0 = pure heuristic, 1.0 = pure ML)
     ml_weight: f64,
-    // TODO: Add actual XGBoost booster handle when integrating with ml/ module
-    // booster: Option<crate::ml::xgb_runtime::XgbModel>,
+    /// The loaded XGBoost booster
+    booster: Option<Booster>,
 }
 
 impl MlQualityScorer {
@@ -37,25 +36,40 @@ impl MlQualityScorer {
     pub fn new(model_path: &str) -> Self {
         let model_loaded = std::path::Path::new(model_path).exists();
 
-        if model_loaded {
-            tracing::info!(
-                target: "signal_quality",
-                "ML quality model found at: {}. Will load on first prediction.",
-                model_path
-            );
+        let booster = if model_loaded {
+            match Booster::load(model_path, Device::Cpu) {
+                Ok(b) => {
+                    tracing::info!(
+                        target: "signal_quality",
+                        "ML quality model loaded successfully from: {}",
+                        model_path
+                    );
+                    Some(b)
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "signal_quality",
+                        "Failed to load ML quality model from {}: {}. Using heuristic fallback.",
+                        model_path, e
+                    );
+                    None
+                }
+            }
         } else {
             tracing::warn!(
                 target: "signal_quality",
                 "ML quality model not found at: {}. Using heuristic-only fallback.",
                 model_path
             );
-        }
+            None
+        };
 
         Self {
             _model_path: model_path.to_string(),
-            model_loaded,
+            model_loaded: booster.is_some(),
             heuristic_fallback: HeuristicQualityScorer::new(),
             ml_weight: 0.6, // 60% ML, 40% heuristic when both available
+            booster,
         }
     }
 
@@ -122,18 +136,20 @@ impl MlQualityScorer {
             return Ok(None);
         }
 
+        let booster = self.booster.as_ref().ok_or_else(|| anyhow::anyhow!("Model not loaded"))?;
         let feature_vec = features.to_feature_vector();
+        let ncol = feature_vec.len();
 
-        // TODO: Integrate with crate::ml::xgb_runtime::XgbModel
-        // Pseudocode for when the model is integrated:
-        //
-        // let booster = self.booster.as_ref().ok_or(anyhow!("Model not loaded"))?;
-        // let prediction = booster.predict_one(&feature_vec)?;
-        // Ok(Some(prediction[0] as f64))
-        //
-        // For now, return None (heuristic-only mode)
-        let _ = feature_vec; // suppress unused warning
-        Ok(None)
+        // Predict using XGBoost
+        let output = booster.predict_dense_cpu(&feature_vec, 1, ncol, ModelKind::Regressor1)?;
+
+        // Output should be a single probability value
+        if output.is_empty() {
+            return Ok(None);
+        }
+
+        let pred = output[0].clamp(0.0, 1.0) as f64;
+        Ok(Some(pred))
     }
 
     /// Apply quality multiplier to a final_score.

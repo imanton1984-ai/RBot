@@ -12,7 +12,7 @@ use sqlx::{PgPool, Row};
 use common::Symbol;
 use crate::predictors::types::{PredictionRow, PredictionAspect};
 
-use super::final_score::{FinalScorer, FinalScoreBreakdown};
+use super::final_score::{FinalScorer, FinalScoreBreakdown, SetupKind};
 use super::market_params_calculator::MarketParams;
 
 #[derive(Debug, Clone, Copy)]
@@ -105,11 +105,17 @@ pub struct TradeSignalCalculator {
 
     pub base_leverage: i16,
 
-    /// Risk parameters
-    pub sl_atr_mult: f64,
-    pub tp1_atr_mult: f64,
-    pub tp2_atr_mult: f64,
-    pub tp3_atr_mult: f64,
+    /// Risk parameters - BOUNCE (short TP1 for high winrate)
+    pub sl_atr_mult_bounce: f64,      // 0.55 (SL behind level)
+    pub tp1_atr_mult_bounce: f64,     // 0.6-0.9 (short TP for easy hit)
+    pub tp2_atr_mult_bounce: f64,     // 1.4
+    pub tp3_atr_mult_bounce: f64,     // 2.2
+
+    /// Risk parameters - BREAKOUT (larger targets)
+    pub sl_atr_mult_breakout: f64,    // 0.75
+    pub tp1_atr_mult_breakout: f64,   // 1.1
+    pub tp2_atr_mult_breakout: f64,   // 1.8
+    pub tp3_atr_mult_breakout: f64,   // 2.8
 
     pub tp2_ratio_min: f64,
     pub tp3_ratio_min: f64,
@@ -124,10 +130,16 @@ impl Default for TradeSignalCalculator {
         Self {
             min_final_score: 0.96,
             base_leverage: 5,
-            sl_atr_mult: 1.6,
-            tp1_atr_mult: 1.2,
-            tp2_atr_mult: 2.2,
-            tp3_atr_mult: 3.4,
+            // Bounce: tight TP1 for 80-85% winrate
+            sl_atr_mult_bounce: 0.55,
+            tp1_atr_mult_bounce: 0.75,  // 0.6-0.9 range
+            tp2_atr_mult_bounce: 1.4,
+            tp3_atr_mult_bounce: 2.2,
+            // Breakout: larger targets
+            sl_atr_mult_breakout: 0.75,
+            tp1_atr_mult_breakout: 1.1,
+            tp2_atr_mult_breakout: 1.8,
+            tp3_atr_mult_breakout: 2.8,
             tp2_ratio_min: 1.6,
             tp3_ratio_min: 1.45,
             min_tp_gap_pct: 0.002,
@@ -141,19 +153,17 @@ impl TradeSignalCalculator {
         Self { min_final_score, ..Default::default() }
     }
 
-    /// Level-aware TP/SL calculation.
+    /// Level-aware TP/SL calculation with setup kind (bounce vs breakout).
     ///
-    /// For **LONG** (`side = +1`):
-    /// - SL  = nearest support below entry − 0.3 × ATR
-    /// - TP1 = nearest resistance above entry
-    /// - TP2 = next resistance above TP1
-    /// - TP3 = max(ATR-based, next resistance above TP2)
+    /// For **BOUNCE** setups:
+    /// - SL  = nearest support/resistance behind entry − buffer (0.55 ATR)
+    /// - TP1 = short target (0.6-0.9 ATR) for high winrate
+    /// - TP2/TP3 = next levels or ATR multiples
     ///
-    /// For **SHORT** (`side = -1`):
-    /// - SL  = nearest resistance above entry + 0.3 × ATR
-    /// - TP1 = nearest support below entry
-    /// - TP2 = next support below TP1
-    /// - TP3 = min(ATR-based, next support below TP2)
+    /// For **BREAKOUT** setups:
+    /// - SL  = entry − 0.75 ATR (tighter, behind retest)
+    /// - TP1 = larger target (1.1+ ATR)
+    /// - TP2/TP3 = next levels or larger ATR multiples
     ///
     /// Falls back to fully ATR-based targets when insufficient levels exist.
     /// Minimum distances from `tf_targets` are always enforced.
@@ -166,23 +176,44 @@ impl TradeSignalCalculator {
         support_levels: &[f64],    // sorted ascending
         resistance_levels: &[f64], // sorted ascending
         tf_targets: &TfTargets,
+        setup_kind: SetupKind,
     ) -> (f64, f64, f64, f64) {
         let side_f = side as f64;
 
+        // Select ATR multipliers based on setup kind
+        let (sl_mult, tp1_mult, tp2_mult, tp3_mult) = match setup_kind {
+            SetupKind::Bounce => (
+                self.sl_atr_mult_bounce,
+                self.tp1_atr_mult_bounce,
+                self.tp2_atr_mult_bounce,
+                self.tp3_atr_mult_bounce,
+            ),
+            SetupKind::Breakout => (
+                self.sl_atr_mult_breakout,
+                self.tp1_atr_mult_breakout,
+                self.tp2_atr_mult_breakout,
+                self.tp3_atr_mult_breakout,
+            ),
+        };
+
         // ATR-based fallbacks
-        let fb_sl  = entry_price - side_f * self.sl_atr_mult  * atr;
-        let fb_tp1 = entry_price + side_f * self.tp1_atr_mult * atr;
-        let fb_tp2 = entry_price + side_f * self.tp2_atr_mult * atr;
-        let fb_tp3 = entry_price + side_f * self.tp3_atr_mult * atr;
+        let fb_sl  = entry_price - side_f * sl_mult * atr;
+        let fb_tp1 = entry_price + side_f * tp1_mult * atr;
+        let fb_tp2 = entry_price + side_f * tp2_mult * atr;
+        let fb_tp3 = entry_price + side_f * tp3_mult * atr;
 
         let (stop_loss, tp1, tp2, tp3) = if side > 0 {
             // ── LONG ───────────────────────────────────────────────────
-            // SL: nearest support *below* entry − 0.3 ATR
+            // SL: nearest support *below* entry − buffer
+            let sl_buffer = match setup_kind {
+                SetupKind::Bounce => 0.3 * atr,  // Behind level
+                SetupKind::Breakout => 0.0,       // Tighter, at entry level
+            };
             let sl = support_levels
                 .iter()
                 .rev() // descending
                 .find(|&&p| p < entry_price)
-                .map(|&p| p - 0.3 * atr)
+                .map(|&p| p - sl_buffer)
                 .unwrap_or(fb_sl);
 
             // TP1: nearest resistance *above* entry
@@ -198,11 +229,15 @@ impl TradeSignalCalculator {
             (sl, t1, t2, t3)
         } else {
             // ── SHORT ──────────────────────────────────────────────────
-            // SL: nearest resistance *above* entry + 0.3 ATR
+            // SL: nearest resistance *above* entry + buffer
+            let sl_buffer = match setup_kind {
+                SetupKind::Bounce => 0.3 * atr,  // Behind level
+                SetupKind::Breakout => 0.0,       // Tighter, at entry level
+            };
             let sl = resistance_levels
                 .iter()
                 .find(|&&p| p > entry_price)
-                .map(|&p| p + 0.3 * atr)
+                .map(|&p| p + sl_buffer)
                 .unwrap_or(fb_sl);
 
             // TP1: nearest support *below* entry (descending order)
@@ -365,6 +400,9 @@ impl TradeSignalCalculator {
 
         let has_levels = !support_prices.is_empty() || !resistance_prices.is_empty();
 
+        // Get setup kind from breakdown (default to Bounce if not available)
+        let setup_kind = breakdown.setup_kind;
+
         let (stop_loss, tp1, tp2, tp3) = if has_levels {
             // ── Level-aware path ───────────────────────────────────────
             self.level_aware_targets(
@@ -374,13 +412,29 @@ impl TradeSignalCalculator {
                 &support_prices,
                 &resistance_prices,
                 &targets,
+                setup_kind,
             )
         } else {
-            // ── Original ATR-only path ─────────────────────────────────
-            let d_sl_atr  = self.sl_atr_mult  * atr;
-            let d_tp1_atr = self.tp1_atr_mult * atr;
-            let d_tp2_atr = self.tp2_atr_mult * atr;
-            let d_tp3_atr = self.tp3_atr_mult * atr;
+            // ── Setup-aware ATR-only path ──────────────────────────────
+            let (sl_mult, tp1_mult, tp2_mult, tp3_mult) = match setup_kind {
+                SetupKind::Bounce => (
+                    self.sl_atr_mult_bounce,
+                    self.tp1_atr_mult_bounce,
+                    self.tp2_atr_mult_bounce,
+                    self.tp3_atr_mult_bounce,
+                ),
+                SetupKind::Breakout => (
+                    self.sl_atr_mult_breakout,
+                    self.tp1_atr_mult_breakout,
+                    self.tp2_atr_mult_breakout,
+                    self.tp3_atr_mult_breakout,
+                ),
+            };
+
+            let d_sl_atr  = sl_mult * atr;
+            let d_tp1_atr = tp1_mult * atr;
+            let d_tp2_atr = tp2_mult * atr;
+            let d_tp3_atr = tp3_mult * atr;
 
             let d_sl_min  = entry_price * targets.min_sl_pct;
             let d_tp1_min = entry_price * targets.min_tp1_pct;
@@ -435,6 +489,10 @@ impl TradeSignalCalculator {
             "level_aware": has_levels,
             "support_levels_used": support_prices,
             "resistance_levels_used": resistance_prices,
+            "setup_kind": format!("{:?}", breakdown.setup_kind),
+            "setup_confidence": breakdown.setup_confidence,
+            "bounce_prob": breakdown.bounce_prob,
+            "breakout_prob": breakdown.breakout_prob,
             "market_params": market_params.map(|m| m.details_json.clone()),
             "debug": breakdown.debug,
         });
@@ -465,20 +523,54 @@ fn infer_side(raw_signals_summary: &Value, predictors: &[PredictionRow]) -> Opti
         if ss != 0 { return Some(ss); }
     }
 
-    // 2) best prediction by score_norm
-    let mut best: Option<(f32, i16)> = None;
+    // 2) Majority voting with score weighting
+    // Count weighted votes for long vs short
+    let mut long_score: f32 = 0.0;
+    let mut short_score: f32 = 0.0;
+    let mut vote_count: usize = 0;
+
     for p in predictors {
         let sc = p.score_norm;
         let sd = p.side.unwrap_or(0);
         if sd == 0 { continue; }
-        match best {
-            None => best = Some((sc, sd)),
-            Some((bsc, _)) if sc > bsc => best = Some((sc, sd)),
-            _ => {}
+
+        vote_count += 1;
+        if sd > 0 {
+            long_score += sc;
+        } else {
+            short_score += sc;
         }
     }
 
-    best.map(|(_, sd)| sd.signum() as i8)
+    // Need at least 2 predictors voting
+    if vote_count < 2 {
+        return None;
+    }
+
+    // Return direction with higher weighted score
+    // Require at least 60% agreement to avoid ambiguous signals
+    let total = long_score + short_score;
+    if total <= 0.0 {
+        return None;
+    }
+
+    let long_ratio = long_score / total;
+    let short_ratio = short_score / total;
+
+    if long_ratio >= 0.6 {
+        Some(1)
+    } else if short_ratio >= 0.6 {
+        Some(-1)
+    } else {
+        // Ambiguous - use simple majority
+        if long_score > short_score {
+            Some(1)
+        } else if short_score > long_score {
+            Some(-1)
+        } else {
+            None
+        }
+    }
 }
 
 fn infer_side_from_summary_fields(raw_signals_summary: &Value) -> Option<i8> {

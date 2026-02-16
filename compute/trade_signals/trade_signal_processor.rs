@@ -142,8 +142,10 @@ impl TradeSignalStage {
 
         // 3. If signal was produced, apply quality scoring and persist
         if let Some(mut signal) = signal_opt {
-            // Apply Signal Quality Scorer — adjusts final_score based on
-            // signal pattern quality (risk/reward, component agreement, etc.)
+            // Apply Signal Quality Scorer — computes quality metrics for analysis.
+            // NOTE: combined_quality is NOT yet a calibrated win probability
+            // (requires trained ML model on backtest outcomes).
+            // For now: keep original final_score, store quality metrics separately for analysis.
             let features = SignalFeatures::from_reason_json(
                 &signal.breakdown_json,
                 &signal.symbol,
@@ -161,13 +163,21 @@ impl TradeSignalStage {
 
             let quality = self.quality_scorer.score(&features);
             let original_score = signal.final_score;
-            signal.final_score = (signal.final_score * quality.quality_multiplier).clamp(0.0, 0.99);
+            let win_prob = quality.breakdown.combined_quality.clamp(0.0, 0.99);
+
+            // DO NOT overwrite final_score - keep original (set by FinalScorer)
+            // DO NOT filter by win_prob < 0.80 - heuristic is not calibrated yet
+            // Store quality metrics in breakdown for later backtest analysis
 
             // Add quality info to breakdown
             if let Value::Object(ref mut obj) = signal.breakdown_json {
-                obj.insert("quality_multiplier".to_string(), json!(quality.quality_multiplier));
-                obj.insert("quality_grade".to_string(), json!(quality.grade.as_str()));
                 obj.insert("original_score".to_string(), json!(original_score));
+                obj.insert("win_prob".to_string(), json!(win_prob));
+                obj.insert("quality_grade".to_string(), json!(quality.grade.as_str()));
+                obj.insert("quality_multiplier".to_string(), json!(quality.quality_multiplier));
+                obj.insert("combined_quality".to_string(), json!(quality.breakdown.combined_quality));
+                obj.insert("heuristic_quality".to_string(), json!(quality.breakdown.heuristic_quality));
+                obj.insert("ml_quality".to_string(), json!(quality.breakdown.ml_quality));
             }
 
             let record = trade_signal_to_persist_record(&signal, &input);
@@ -184,10 +194,10 @@ impl TradeSignalStage {
 
             tracing::warn!(
                 target: "trade_signal_stage",
-                "Trade signal produced: {} {} tf={} side={} score={:.4} (was {:.4}, quality={:.2} grade={}) entry={:.6} sl={:.6} tp1={:.6}",
+                "Trade signal produced: {} {} tf={} side={} score={:.4} win_prob={:.4} (quality={:.2} grade={}) entry={:.6} sl={:.6} tp1={:.6}",
                 signal.symbol, signal.time, signal.tf_minutes,
-                signal.side, signal.final_score, original_score,
-                quality.quality_multiplier, quality.grade.as_str(),
+                signal.side, signal.final_score, win_prob,
+                quality.breakdown.combined_quality, quality.grade.as_str(),
                 signal.entry, signal.stop_loss, signal.tp1
             );
         }
