@@ -36,7 +36,17 @@ DROP TABLE IF EXISTS market.pairs CASCADE;
 -- Drop raw signals table
 DROP TABLE IF EXISTS market.raw_signals CASCADE;
 
--- Drop trade schema
+-- Drop trade tables explicitly (all in trade schema)
+-- These will also be dropped by the CASCADE below, but listed for clarity
+DROP TABLE IF EXISTS trade.final_signals CASCADE;
+DROP TABLE IF EXISTS trade.predictors CASCADE;
+DROP TABLE IF EXISTS trade.predictor_registry CASCADE;
+DROP TABLE IF EXISTS trade.ml_train_examples CASCADE;
+DROP TABLE IF EXISTS trade.position_events CASCADE;
+DROP TABLE IF EXISTS trade.positions CASCADE;
+DROP TABLE IF EXISTS trade.orders CASCADE;
+
+-- Drop entire trade schema (catches any remaining tables)
 DROP SCHEMA IF EXISTS trade CASCADE;
 
 -- Recreate the market and trade schemas

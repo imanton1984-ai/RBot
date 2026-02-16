@@ -238,11 +238,19 @@ fn trade_signal_to_persist_record(
     for p in &input.predictions {
         match p.aspect {
             PredictionAspect::PriceTarget => {
+                // After consensus fusion, a prediction may have calc_source of the "winner".
+                // Try to extract original scores from details_json if consensus was applied.
+                let (orig_ml, orig_hard) = extract_consensus_scores(&p.details_json);
+
                 match p.calc_source {
                     CalcSource::Ml => {
                         price10_target = Some(p.value);
                         price10_score = Some(p.score_norm);
                         ml_score = Some(p.score_norm);
+                        // If consensus was applied, also set heur from original
+                        if let Some(hs) = orig_hard {
+                            heur_score = Some(hs as f32);
+                        }
                     }
                     CalcSource::Hard => {
                         if price10_target.is_none() {
@@ -250,6 +258,10 @@ fn trade_signal_to_persist_record(
                             price10_score = Some(p.score_norm);
                         }
                         heur_score = Some(p.score_norm);
+                        // If consensus was applied, also set ml from original
+                        if let Some(ms) = orig_ml {
+                            ml_score = Some(ms as f32);
+                        }
                     }
                 }
             }
@@ -285,4 +297,22 @@ fn trade_signal_to_persist_record(
         breakout_prob,
         breakout_score,
     }
+}
+
+/// Extract original ML and hard scores from consensus details_json
+/// (when consensus engine fused two predictors, it stores original scores)
+fn extract_consensus_scores(details: &Option<serde_json::Value>) -> (Option<f64>, Option<f64>) {
+    let details = match details {
+        Some(d) => d,
+        None => return (None, None),
+    };
+
+    let consensus = details.get("consensus_applied").and_then(|v| v.as_bool()).unwrap_or(false);
+    if !consensus {
+        return (None, None);
+    }
+
+    let ml = details.get("original_ml_score").and_then(|v| v.as_f64());
+    let hard = details.get("original_hard_score").and_then(|v| v.as_f64());
+    (ml, hard)
 }

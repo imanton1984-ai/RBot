@@ -1314,11 +1314,13 @@ async fn flush_trade_signals_chunk(
     if chunk.is_empty() { return Ok(()); }
 
     let now: DateTime<Utc> = Utc::now();
-    let skip_json = cfg.mode == PersistMode::History && cfg.history_skip_json;
+    // NOTE: We NEVER skip JSON for trade signals — they are rare (tens, not millions)
+    // and the reason JSON contains critical score breakdown for analysis.
 
     let mut time: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
     let mut time_ms: Vec<i64> = Vec::with_capacity(chunk.len());
     let mut symbol_id: Vec<i64> = Vec::with_capacity(chunk.len());
+    let mut symbol: Vec<String> = Vec::with_capacity(chunk.len());
     let mut tf_minutes: Vec<i16> = Vec::with_capacity(chunk.len());
     let mut side: Vec<i16> = Vec::with_capacity(chunk.len());
     let mut final_score: Vec<f32> = Vec::with_capacity(chunk.len());
@@ -1340,7 +1342,7 @@ async fn flush_trade_signals_chunk(
 
     for (rec, sym_id) in chunk {
         if let PersistRecord::TradeSignal {
-            symbol: _sym, timeframe: tf, time_ms: tms,
+            symbol: sym, timeframe: tf, time_ms: tms,
             side: sd, final_score: fs, ml_score: mls, heur_score: hs,
             entry_price: ep, sl_price: slp,
             tp1_price: t1, tp2_price: t2, tp3_price: t3,
@@ -1353,6 +1355,7 @@ async fn flush_trade_signals_chunk(
             time.push(ms_to_ts(tms));
             time_ms.push(tms);
             symbol_id.push(sym_id);
+            symbol.push(sym.0);
             tf_minutes.push(tf);
             side.push(sd);
             final_score.push(fs);
@@ -1363,11 +1366,8 @@ async fn flush_trade_signals_chunk(
             tp1_price.push(t1);
             tp2_price.push(t2);
             tp3_price.push(t3);
-            if skip_json {
-                reason.push(None);
-            } else {
-                reason.push(rsn.map(Json));
-            }
+            // ALWAYS write reason — trade signals are rare, JSON is critical
+            reason.push(rsn.map(Json));
             price10_target.push(p10t);
             price10_score.push(p10s);
             bounce_prob.push(bp);
@@ -1390,6 +1390,7 @@ async fn flush_trade_signals_chunk(
         .bind(time_ms)
         .bind(time)
         .bind(symbol_id)
+        .bind(symbol)
         .bind(tf_minutes)
         .bind(side)
         .bind(final_score)
@@ -1419,7 +1420,7 @@ async fn flush_trade_signals_chunk(
 fn trade_signals_sql_realtime() -> &'static str {
     r#"
     INSERT INTO trade.final_signals
-    (time_ms, time, symbol_id, tf_minutes,
+    (time_ms, time, symbol_id, symbol, tf_minutes,
      side, final_score, ml_score, heur_score,
      entry_price, sl_price, tp1_price, tp2_price, tp3_price,
      reason,
@@ -1431,9 +1432,9 @@ fn trade_signals_sql_realtime() -> &'static str {
         $1::bigint[],
         $2::timestamptz[],
         $3::bigint[],
-        $4::smallint[],
+        $4::text[],
         $5::smallint[],
-        $6::real[],
+        $6::smallint[],
         $7::real[],
         $8::real[],
         $9::real[],
@@ -1441,16 +1442,18 @@ fn trade_signals_sql_realtime() -> &'static str {
         $11::real[],
         $12::real[],
         $13::real[],
-        $14::jsonb[],
-        $15::double precision[],
-        $16::real[],
+        $14::real[],
+        $15::jsonb[],
+        $16::double precision[],
         $17::real[],
         $18::real[],
         $19::real[],
         $20::real[],
-        $21::timestamptz[]
+        $21::real[],
+        $22::timestamptz[]
     )
     ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+        symbol = EXCLUDED.symbol,
         side = EXCLUDED.side,
         final_score = EXCLUDED.final_score,
         ml_score = EXCLUDED.ml_score,
@@ -1473,7 +1476,7 @@ fn trade_signals_sql_realtime() -> &'static str {
 fn trade_signals_sql_history_append() -> &'static str {
     r#"
     INSERT INTO trade.final_signals
-    (time_ms, time, symbol_id, tf_minutes,
+    (time_ms, time, symbol_id, symbol, tf_minutes,
      side, final_score, ml_score, heur_score,
      entry_price, sl_price, tp1_price, tp2_price, tp3_price,
      reason,
@@ -1485,9 +1488,9 @@ fn trade_signals_sql_history_append() -> &'static str {
         $1::bigint[],
         $2::timestamptz[],
         $3::bigint[],
-        $4::smallint[],
+        $4::text[],
         $5::smallint[],
-        $6::real[],
+        $6::smallint[],
         $7::real[],
         $8::real[],
         $9::real[],
@@ -1495,14 +1498,15 @@ fn trade_signals_sql_history_append() -> &'static str {
         $11::real[],
         $12::real[],
         $13::real[],
-        $14::jsonb[],
-        $15::double precision[],
-        $16::real[],
+        $14::real[],
+        $15::jsonb[],
+        $16::double precision[],
         $17::real[],
         $18::real[],
         $19::real[],
         $20::real[],
-        $21::timestamptz[]
+        $21::real[],
+        $22::timestamptz[]
     )
     ON CONFLICT (symbol_id, tf_minutes, time) DO NOTHING
     "#

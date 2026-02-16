@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS trade.final_signals (
     time      TIMESTAMPTZ NOT NULL, -- Обычная
 
     symbol_id BIGINT NOT NULL REFERENCES market.pairs(symbol_id) ON DELETE CASCADE,
+    symbol    TEXT,  -- Human-readable pair name (BTCUSDT, ETHUSDT etc.)
     tf_minutes SMALLINT NOT NULL,
 
     side SMALLINT NOT NULL,
@@ -140,6 +141,7 @@ SELECT create_hypertable('trade.ml_train_examples','time', if_not_exists=>TRUE, 
 
 -- 8. Индексы
 CREATE INDEX IF NOT EXISTS ix_final_signals_time_desc ON trade.final_signals(time DESC);
+CREATE INDEX IF NOT EXISTS ix_final_signals_symbol_time ON trade.final_signals(symbol, time DESC);
 CREATE INDEX IF NOT EXISTS ix_position_events_position_time ON trade.position_events(position_id, time DESC);
 CREATE INDEX IF NOT EXISTS ix_ml_examples_time_desc ON trade.ml_train_examples(time DESC);
 

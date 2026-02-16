@@ -9,6 +9,7 @@ members = [
   "cuda",             # <-- модуль CUDA вычислений
   "compute/predictors", # <-- модуль предсказаний
   "orderflow",        # <-- модуль order flow метрик
+  "backtester",       # <-- бэктестер для оценки сигналов
 ]
 resolver = "2"
 
