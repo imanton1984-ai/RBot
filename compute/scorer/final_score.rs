@@ -26,6 +26,30 @@ pub struct FinalScorer {
     coverage_gamma: f64,
     /// How strict to penalize ML vs heuristic disagreement (>= 1.0)
     consensus_gamma: f64,
+    
+    // Level Strategy parameters (from Python level_strategy_scorer.py)
+    /// SR alignment boost with trend (Python: SR_ALIGN_BOOST = 1.08)
+    sr_align_boost: f64,
+    /// Synergy boost for SR + volume/alligator/pred (Python: SYNERGY_BOOST = 1.12)
+    synergy_boost: f64,
+    /// Trend conflict penalty (Python: TREND_CONFLICT_PENALTY = 0.75)
+    trend_conflict_penalty: f64,
+    /// Correction penalty weight for overextension (Python: CORRECTION_PENALTY_WEIGHT = 0.70)
+    correction_penalty_weight: f64,
+    /// Stochastic threshold for long correction risk (Python: STOCH_CORRECTION_LONG_MIN = 78)
+    stoch_correction_long_min: f64,
+    /// Stochastic threshold for short correction risk (Python: STOCH_CORRECTION_SHORT_MAX = 22)
+    stoch_correction_short_max: f64,
+    /// VWAP distance threshold in ATR units (Python: VWAP_DIST_ATR_THRESHOLD = 0.8)
+    vwap_dist_atr_threshold: f64,
+    /// ADX filter threshold (Python: ADX < 25 → skip)
+    adx_filter_threshold: f64,
+    /// ATR percentile threshold for volatility guard (Python: ATR_PCTL_THRESHOLD = 70)
+    atr_pct_threshold: f64,
+    /// HTF confirmation boost
+    htf_conf_boost: f64,
+    /// Touches/retouches boost (Python: touches >= 3 → +25%)
+    touches_boost: f64,
 }
 
 /// Weights for base score components (must sum to 1.0 after normalization)
@@ -106,6 +130,18 @@ impl FinalScorer {
             // 0.5/0.3 applies meaningful but achievable penalties.
             coverage_gamma: 0.5,
             consensus_gamma: 0.3,
+            // Level Strategy parameters (from Python level_strategy_scorer.py)
+            sr_align_boost: 1.08,
+            synergy_boost: 1.12,
+            trend_conflict_penalty: 0.75,
+            correction_penalty_weight: 0.70,
+            stoch_correction_long_min: 78.0,
+            stoch_correction_short_max: 22.0,
+            vwap_dist_atr_threshold: 0.8,
+            adx_filter_threshold: 25.0,
+            atr_pct_threshold: 70.0,
+            htf_conf_boost: 1.30,
+            touches_boost: 1.25,
         }
     }
 
@@ -115,6 +151,18 @@ impl FinalScorer {
             weights: weights.normalized(),
             coverage_gamma: 1.8,
             consensus_gamma: 1.5,
+            // Level Strategy parameters
+            sr_align_boost: 1.08,
+            synergy_boost: 1.12,
+            trend_conflict_penalty: 0.75,
+            correction_penalty_weight: 0.70,
+            stoch_correction_long_min: 78.0,
+            stoch_correction_short_max: 22.0,
+            vwap_dist_atr_threshold: 0.8,
+            adx_filter_threshold: 25.0,
+            atr_pct_threshold: 70.0,
+            htf_conf_boost: 1.30,
+            touches_boost: 1.25,
         }
     }
 
@@ -211,11 +259,167 @@ impl FinalScorer {
             SetupKind::Breakout => momentum_strength,
         };
 
+        // ====================================================================
+        // LEVEL STRATEGY SCORING (from Python level_strategy_scorer.py)
+        // Apply SR-weighted scoring with trend alignment, synergy boosts,
+        // trend conflict penalties, and correction penalties
+        // ====================================================================
+        
+        // Extract key indicator values for level strategy logic
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let stoch_k = raw_signals_summary.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let close = raw_signals_summary.get("close").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let atr = raw_signals_summary.get("atr").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let vwap = raw_signals_summary.get("vwap").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        // ADX filter: weak market → return None (skip signal)
+        // From Python: if adx_value < 25.0: return 0.0, "neutral", {}
+        if adx > 0.0 && adx < self.adx_filter_threshold {
+            return Ok(None);
+        }
+        
+        // Calculate level strategy adjustments
+        let mut level_adjusted_score = base_score;
+        let mut sr_boost_applied = 1.0;
+        let mut synergy_boost_applied = 1.0;
+        let mut trend_conflict_applied = 1.0;
+        let mut correction_penalty_applied = 1.0;
+        
+        // 1. SR alignment boost (if SR signal aligns with trend)
+        // From Python: weights[sr_mask_aligned] *= SR_ALIGN_BOOST
+        let sr_present = raw_signals_summary.get("best_levels_score")
+            .and_then(|v| v.as_f64())
+            .map(|s| s > 0.3)
+            .unwrap_or(false);
+        
+        if sr_present {
+            // Check if trend aligns with trade direction
+            let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let trend_aligned = (trend_short > 0.0 && side_i8 > 0) || (trend_short < 0.0 && side_i8 < 0);
+            
+            if trend_aligned {
+                sr_boost_applied = self.sr_align_boost;
+                level_adjusted_score *= sr_boost_applied;
+            }
+            
+            // 2. HTF confirmation boost (from Python level_strategy)
+            let htf_conf = raw_signals_summary.get("htf_confirmed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if htf_conf {
+                level_adjusted_score *= self.htf_conf_boost;
+            }
+            
+            // 3. Touches/retouches boost (multiple retests = stronger level)
+            let touches = raw_signals_summary.get("level_touches")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            if touches >= 3 {
+                level_adjusted_score *= self.touches_boost;
+            }
+        }
+        
+        // 4. Synergy boost: SR + (volume | alligator | pred) on same side
+        // From Python: if has_sr and same_side_mask.any(): total *= SYNERGY_BOOST
+        let volume_present = raw_signals_summary.get("best_volume_score")
+            .and_then(|v| v.as_f64())
+            .map(|s| s > 0.3)
+            .unwrap_or(false);
+        
+        let has_alligator_pred = predictors.iter().any(|p| {
+            p.aspect.as_int() == PredictionAspect::LevelBounce.as_int() ||
+            p.aspect.as_int() == PredictionAspect::LevelBreakout.as_int()
+        });
+        
+        if sr_present && (volume_present || has_alligator_pred) {
+            // Check if volume/alligator/pred is on same side as trade
+            let volume_side = raw_signals_summary.get("volume_side")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let same_side = volume_side == 0 || (volume_side == side as i64);
+            
+            if same_side {
+                synergy_boost_applied = self.synergy_boost;
+                level_adjusted_score *= synergy_boost_applied;
+            }
+        }
+        
+        // 5. Trend conflict handling (from Python: TREND_CONFLICT_MODE = "downgrade")
+        // From Python: if trend_conflict: weights *= TREND_CONFLICT_PENALTY
+        let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let trend_medium = raw_signals_summary.get("trend_medium").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        let trend_conflict = (trend_short > 0.0 && trend_medium < 0.0) || 
+                            (trend_short < 0.0 && trend_medium > 0.0);
+        
+        if trend_conflict {
+            trend_conflict_applied = self.trend_conflict_penalty;
+            level_adjusted_score *= trend_conflict_applied;
+        }
+        
+        // Additional penalty for signals against combined trend
+        let combined_trend_side = if trend_medium != 0.0 {
+            trend_medium.signum() as i8
+        } else if trend_short != 0.0 {
+            trend_short.signum() as i8
+        } else {
+            0
+        };
+        
+        if combined_trend_side != 0 && side_i8 != combined_trend_side {
+            trend_conflict_applied *= self.trend_conflict_penalty;
+            level_adjusted_score *= self.trend_conflict_penalty;
+        }
+        
+        // 6. Correction penalty for overextension (from Python level_strategy)
+        // Check Stochastic overextension
+        let mut is_risky_long = stoch_k >= self.stoch_correction_long_min;
+        let mut is_risky_short = stoch_k <= self.stoch_correction_short_max;
+        
+        // Check VWAP overextension (|Close-VWAP| / ATR > threshold)
+        if vwap > 0.0 && close > 0.0 && atr > 0.0 {
+            let vwap_dist = (close - vwap).abs() / atr;
+            
+            // Check if overextension is in trade direction
+            let vwap_side = if close > vwap { 1 } else { -1 };
+            if vwap_dist > self.vwap_dist_atr_threshold && vwap_side == side_i8 {
+                if side_i8 > 0 {
+                    is_risky_long = true;
+                } else {
+                    is_risky_short = true;
+                }
+            }
+        }
+        
+        // Apply correction penalty if risky
+        let potential_side = if base_score > 0.5 { "long" } else { "short" };
+        if (potential_side == "long" && is_risky_long) || 
+           (potential_side == "short" && is_risky_short) {
+            correction_penalty_applied = self.correction_penalty_weight;
+            level_adjusted_score *= correction_penalty_applied;
+        }
+        
+        // 7. ATR volatility guard (from Python: if atr_pct > ATR_PCTL_THRESHOLD: weights *= 0.8)
+        let atr_pct = raw_signals_summary.get("atr_pct")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        if atr_pct > 0.0 && atr_pct > (self.atr_pct_threshold / 100.0) {
+            level_adjusted_score *= 0.8;
+        }
+        
+        // Use level-adjusted score if it differs significantly from base
+        let adjusted_base_score = if (level_adjusted_score - base_score).abs() > 0.01 {
+            level_adjusted_score
+        } else {
+            base_score
+        };
+
         // Soft penalties: coverage and consensus reduce score, but not catastrophically.
         // Previous formula (base * cov^1.8 * cons^1.5) made ≥0.50 impossible.
         // Apply setup confidence dampening
         let setup_damp = 0.75 + 0.25 * setup_confidence;
-        let final_score = (base_score
+        let final_score = (adjusted_base_score
             * coverage_score.powf(self.coverage_gamma)
             * consensus_score.powf(self.consensus_gamma)
             * setup_damp)
@@ -231,6 +435,7 @@ impl FinalScorer {
             "consensus_gamma": self.consensus_gamma,
             "has_market_params": has_market,
             "base_score": base_score,
+            "adjusted_base_score": adjusted_base_score,
             "predictors_score": predictors_score,
             "raw_signals_score": raw_signals_score,
             "indicators_score": indicators_score,
@@ -243,12 +448,23 @@ impl FinalScorer {
             "setup_confidence": setup_confidence,
             "bounce_prob": bounce_prob,
             "breakout_prob": breakout_prob,
+            // Level strategy fields
+            "sr_boost_applied": sr_boost_applied,
+            "synergy_boost_applied": synergy_boost_applied,
+            "trend_conflict_applied": trend_conflict_applied,
+            "correction_penalty_applied": correction_penalty_applied,
+            "adx": adx,
+            "adx_filter_passed": adx == 0.0 || adx >= self.adx_filter_threshold,
+            "stoch_k": stoch_k,
+            "rsi": rsi,
+            "level_touches": raw_signals_summary.get("level_touches").and_then(|v| v.as_i64()),
+            "htf_confirmed": raw_signals_summary.get("htf_confirmed").and_then(|v| v.as_bool()),
         });
 
         if final_score >= self.min_final_score {
             Ok(Some(FinalScoreBreakdown {
                 final_score,
-                base_score,
+                base_score: adjusted_base_score,
                 predictors_score,
                 predictors_ml_score,
                 predictors_heur_score,
