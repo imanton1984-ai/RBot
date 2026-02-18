@@ -1,0 +1,26 @@
+[package]
+name = "level_consensus_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-postgres.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+config.workspace = true
+
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+
+[lib]
+path = "src/lib.rs"

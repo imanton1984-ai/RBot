@@ -389,6 +389,8 @@ impl SignalEvaluator {
             tp2_hit,
             tp3_hit,
             reason_json: signal.reason.clone().unwrap_or(serde_json::json!({})),
+            strategy_id: signal.strategy_id,
+            strategy_name: signal.strategy_name.clone(),
         }))
     }
 

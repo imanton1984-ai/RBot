@@ -224,6 +224,8 @@ pub enum PersistRecord {
         bounce_score: Option<f32>,
         breakout_prob: Option<f32>,
         breakout_score: Option<f32>,
+        strategy_id: i16,
+        strategy_name: String,
     },
 }
 
@@ -1340,6 +1342,8 @@ async fn flush_trade_signals_chunk(
     let mut bounce_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut breakout_prob: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
     let mut breakout_score: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut strategy_id: Vec<i16> = Vec::with_capacity(chunk.len());
+    let mut strategy_name: Vec<String> = Vec::with_capacity(chunk.len());
     let mut created_at: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
 
     for (rec, sym_id) in chunk {
@@ -1352,6 +1356,7 @@ async fn flush_trade_signals_chunk(
             price10_target: p10t, price10_score: p10s,
             bounce_prob: bp, bounce_score: bs,
             breakout_prob: brp, breakout_score: brs,
+            strategy_id: sid, strategy_name: sname,
         } = rec
         {
             time.push(ms_to_ts(tms));
@@ -1376,6 +1381,8 @@ async fn flush_trade_signals_chunk(
             bounce_score.push(bs);
             breakout_prob.push(brp);
             breakout_score.push(brs);
+            strategy_id.push(sid);
+            strategy_name.push(sname);
             created_at.push(now);
         }
     }
@@ -1410,6 +1417,8 @@ async fn flush_trade_signals_chunk(
         .bind(bounce_score)
         .bind(breakout_prob)
         .bind(breakout_score)
+        .bind(strategy_id)
+        .bind(strategy_name)
         .bind(created_at)
         .execute(pool)
         .await?;
@@ -1429,6 +1438,7 @@ fn trade_signals_sql_realtime() -> &'static str {
      price10_target, price10_score,
      bounce_prob, bounce_score,
      breakout_prob, breakout_score,
+     strategy_id, strategy_name,
      created_at)
     SELECT * FROM UNNEST(
         $1::bigint[],
@@ -1452,7 +1462,9 @@ fn trade_signals_sql_realtime() -> &'static str {
         $19::real[],
         $20::real[],
         $21::real[],
-        $22::timestamptz[]
+        $22::smallint[],
+        $23::text[],
+        $24::timestamptz[]
     )
     ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
         symbol = EXCLUDED.symbol,
@@ -1471,7 +1483,9 @@ fn trade_signals_sql_realtime() -> &'static str {
         bounce_prob = EXCLUDED.bounce_prob,
         bounce_score = EXCLUDED.bounce_score,
         breakout_prob = EXCLUDED.breakout_prob,
-        breakout_score = EXCLUDED.breakout_score
+        breakout_score = EXCLUDED.breakout_score,
+        strategy_id = EXCLUDED.strategy_id,
+        strategy_name = EXCLUDED.strategy_name
     "#
 }
 
@@ -1485,6 +1499,7 @@ fn trade_signals_sql_history_append() -> &'static str {
      price10_target, price10_score,
      bounce_prob, bounce_score,
      breakout_prob, breakout_score,
+     strategy_id, strategy_name,
      created_at)
     SELECT * FROM UNNEST(
         $1::bigint[],
@@ -1508,7 +1523,9 @@ fn trade_signals_sql_history_append() -> &'static str {
         $19::real[],
         $20::real[],
         $21::real[],
-        $22::timestamptz[]
+        $22::smallint[],
+        $23::text[],
+        $24::timestamptz[]
     )
     ON CONFLICT (symbol_id, tf_minutes, time) DO NOTHING
     "#

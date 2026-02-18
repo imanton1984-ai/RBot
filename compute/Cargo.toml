@@ -46,6 +46,14 @@ dashmap = "5.5"
 cudarc = { version = "0.11.2", optional = true, features = ["f16", "cuda-12050"] }
 config = "0.15"
 
+# Strategy libraries
+indicator_ml_strategy = { path = "../strategies/indicator_ml_strategy" }
+indicator_heuristic_strategy = { path = "../strategies/indicator_heuristic_strategy" }
+indicator_consensus_strategy = { path = "../strategies/indicator_consensus_strategy" }
+level_ml_strategy = { path = "../strategies/level_ml_strategy" }
+level_heuristic_strategy = { path = "../strategies/level_heuristic_strategy" }
+level_consensus_strategy = { path = "../strategies/level_consensus_strategy" }
+
 [features]
 default = []
 cuda = ["dep:cuda", "dep:cudarc", "predictors/cuda"]

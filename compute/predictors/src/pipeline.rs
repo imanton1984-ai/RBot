@@ -596,7 +596,33 @@ impl PredictorsPipeline {
                     
                     let score = if !predicted_prices.is_empty() { predicted_prices[0].abs().min(1.0) as f64 } else { 0.5 };
                     let last_predicted_price = predicted_prices.last().copied().unwrap_or(view_close as f32) as f64;
-                    let safe_predicted_price = last_predicted_price.max(0.00000001);
+                    
+                    // ═══════════════════════════════════════════════════════════
+                    // SANITY CHECK: ML predicted price must be within reasonable
+                    // range of current price. XGBoost models may return garbage
+                    // (e.g. raw feature values instead of calibrated prices).
+                    // Cap deviation at ±20% from current close price.
+                    // ═══════════════════════════════════════════════════════════
+                    let max_deviation_pct = 0.20; // 20% max deviation
+                    let close_f64 = view_close as f64;
+                    let safe_predicted_price = if close_f64 > 0.0 {
+                        let deviation = (last_predicted_price - close_f64).abs() / close_f64;
+                        if deviation > max_deviation_pct || last_predicted_price <= 0.0 {
+                            // Model output is unreasonable — clamp to close ± max_deviation
+                            let direction = if last_predicted_price > close_f64 { 1.0 } else { -1.0 };
+                            let clamped = close_f64 * (1.0 + direction * max_deviation_pct);
+                            tracing::debug!(
+                                target: "compute_predictors",
+                                "ML price prediction clamped: raw={:.6} close={:.6} deviation={:.2}% → clamped={:.6} for {}:{}",
+                                last_predicted_price, close_f64, deviation * 100.0, clamped, view.symbol, view.timeframe
+                            );
+                            clamped
+                        } else {
+                            last_predicted_price
+                        }
+                    } else {
+                        last_predicted_price.max(0.00000001)
+                    };
 
                     let atr = view.indicators.atr as f64;
                     let uncertainty_factor = 0.5;

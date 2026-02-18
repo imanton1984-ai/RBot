@@ -10,6 +10,18 @@ echo "=== Signal Quality Backtester ==="
 echo "Building backtester..."
 cargo build --release -p backtester 2>&1 | tail -5
 
+# Ensure database schema is up-to-date (apply strategy support migration)
+echo "Ensuring database schema is up-to-date..."
+STRATEGY_MIGRATION="$ROOT_DIR/database/ddl/090_strategy_support.sql"
+if [[ -f "$STRATEGY_MIGRATION" ]]; then
+  PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance \
+    -v ON_ERROR_STOP=1 \
+    -f "$STRATEGY_MIGRATION" >/dev/null 2>&1 || true
+  echo "Database schema check complete."
+else
+  echo "Warning: Strategy migration file not found: $STRATEGY_MIGRATION"
+fi
+
 # Config (override via env vars)
 export BACKTEST_MIN_SCORE="${BACKTEST_MIN_SCORE:-0.55}"
 export BACKTEST_MAX_SIGNALS="${BACKTEST_MAX_SIGNALS:-500000}"

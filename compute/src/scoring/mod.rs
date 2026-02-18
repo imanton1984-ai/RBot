@@ -11,3 +11,6 @@ pub mod trade_signal_calculator;
 
 #[path = "../../trade_signals/trade_signal_processor.rs"]
 pub mod trade_signal_processor;
+
+#[path = "../../trade_signals/multi_strategy_processor.rs"]
+pub mod multi_strategy_processor;

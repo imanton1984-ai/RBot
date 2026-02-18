@@ -7,7 +7,7 @@ use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBacken
 use raw_signals::thresholds::SignalConfig;
 use compute_lib::predictors::config::PredictorsConfig;
 use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
-use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::scoring::multi_strategy_processor::{MultiStrategyTradeSignalStage, TradeSignalInput};
 use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
 
 #[tokio::main]
@@ -104,22 +104,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Without this, the pipeline falls back to individual upsert_predictors() calls
     predictors_pipeline.set_bulk_sender(bulk_sender.clone());
 
-    // --- TradeSignalStage setup ---
+    // --- MultiStrategyTradeSignalStage setup ---
     let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
     predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
 
     let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
-    let trade_signal_stage = TradeSignalStage::new(
+    let trade_signal_stage = MultiStrategyTradeSignalStage::new(
         db_pool.clone(),
         market_params_calc,
         bulk_sender.clone(),
         trade_signal_rx,
-        pred_config.min_final_score, // Pass min_final_score from config
+        pred_config.min_final_score,
     );
 
     tokio::spawn(async move {
         if let Err(e) = trade_signal_stage.run().await {
-            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+            tracing::error!(target: "multi_strategy_stage", "MultiStrategyTradeSignalStage error: {}", e);
         }
     });
 

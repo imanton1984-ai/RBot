@@ -130,6 +130,9 @@ async fn main() -> Result<()> {
 
     // Print summary statistics
     print_summary(&results);
+    
+    // Print summary by strategy
+    print_summary_by_strategy(&results);
 
     Ok(())
 }
@@ -147,7 +150,8 @@ async fn load_signals(pool: &PgPool, min_score: f64, max_rows: i64) -> Result<Ve
             s.price10_target, s.price10_score,
             s.bounce_prob, s.bounce_score,
             s.breakout_prob, s.breakout_score,
-            s.time, s.time_ms
+            s.time, s.time_ms,
+            s.strategy_id, s.strategy_name
         FROM trade.final_signals s
         LEFT JOIN market.pairs p ON p.symbol_id = s.symbol_id
         WHERE s.reason IS NOT NULL
@@ -196,6 +200,8 @@ async fn create_backtest_table(pool: &PgPool) -> Result<()> {
             tp1_hit         BOOLEAN NOT NULL DEFAULT false,
             tp2_hit         BOOLEAN NOT NULL DEFAULT false,
             tp3_hit         BOOLEAN NOT NULL DEFAULT false,
+            strategy_id     SMALLINT NOT NULL DEFAULT 6,
+            strategy_name   TEXT NOT NULL DEFAULT 'level_consensus',
             created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
             PRIMARY KEY (symbol_id, tf_minutes, signal_time)
         )
@@ -213,12 +219,25 @@ async fn create_backtest_table(pool: &PgPool) -> Result<()> {
         let _ = sqlx::query(&sql).execute(pool).await;
     }
 
+    // Add strategy_id/strategy_name columns if they don't exist (migration for existing tables)
+    let _ = sqlx::query(
+        "ALTER TABLE trade.backtest_results ADD COLUMN IF NOT EXISTS strategy_id SMALLINT NOT NULL DEFAULT 6"
+    ).execute(pool).await;
+
+    let _ = sqlx::query(
+        "ALTER TABLE trade.backtest_results ADD COLUMN IF NOT EXISTS strategy_name TEXT NOT NULL DEFAULT 'level_consensus'"
+    ).execute(pool).await;
+
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS ix_backtest_results_symbol_time ON trade.backtest_results(symbol, signal_time DESC)"
     ).execute(pool).await?;
 
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS ix_backtest_results_outcome ON trade.backtest_results(outcome, final_score DESC)"
+    ).execute(pool).await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS ix_backtest_results_strategy ON trade.backtest_results(strategy_id, signal_time DESC)"
     ).execute(pool).await?;
 
     Ok(())
@@ -251,6 +270,8 @@ async fn save_results(pool: &PgPool, results: &[BacktestResult]) -> Result<usize
         let mut tp1_hit_v: Vec<bool> = Vec::with_capacity(chunk.len());
         let mut tp2_hit_v: Vec<bool> = Vec::with_capacity(chunk.len());
         let mut tp3_hit_v: Vec<bool> = Vec::with_capacity(chunk.len());
+        let mut strategy_id_v: Vec<i16> = Vec::with_capacity(chunk.len());
+        let mut strategy_name_v: Vec<String> = Vec::with_capacity(chunk.len());
 
         for r in chunk {
             time_v.push(r.signal_time);
@@ -274,6 +295,8 @@ async fn save_results(pool: &PgPool, results: &[BacktestResult]) -> Result<usize
             tp1_hit_v.push(r.tp1_hit);
             tp2_hit_v.push(r.tp2_hit);
             tp3_hit_v.push(r.tp3_hit);
+            strategy_id_v.push(r.strategy_id);
+            strategy_name_v.push(r.strategy_name.clone());
         }
 
         sqlx::query(
@@ -282,14 +305,15 @@ async fn save_results(pool: &PgPool, results: &[BacktestResult]) -> Result<usize
             (signal_time, signal_time_ms, symbol, symbol_id, tf_minutes, side, final_score,
              entry_price, sl_price, tp1_price, tp2_price, tp3_price,
              outcome, pnl_pct, exit_price, bars_to_outcome, max_favorable, max_adverse,
-             tp1_hit, tp2_hit, tp3_hit)
+             tp1_hit, tp2_hit, tp3_hit, strategy_id, strategy_name)
             SELECT * FROM UNNEST(
                 $1::timestamptz[], $2::bigint[], $3::text[], $4::bigint[],
                 $5::smallint[], $6::smallint[], $7::real[],
                 $8::real[], $9::real[], $10::real[], $11::real[], $12::real[],
                 $13::text[], $14::double precision[], $15::double precision[],
                 $16::int[], $17::double precision[], $18::double precision[],
-                $19::boolean[], $20::boolean[], $21::boolean[]
+                $19::boolean[], $20::boolean[], $21::boolean[],
+                $22::smallint[], $23::text[]
             )
             ON CONFLICT (symbol_id, tf_minutes, signal_time) DO UPDATE SET
                 outcome = EXCLUDED.outcome,
@@ -300,7 +324,9 @@ async fn save_results(pool: &PgPool, results: &[BacktestResult]) -> Result<usize
                 max_adverse = EXCLUDED.max_adverse,
                 tp1_hit = EXCLUDED.tp1_hit,
                 tp2_hit = EXCLUDED.tp2_hit,
-                tp3_hit = EXCLUDED.tp3_hit
+                tp3_hit = EXCLUDED.tp3_hit,
+                strategy_id = EXCLUDED.strategy_id,
+                strategy_name = EXCLUDED.strategy_name
             "#,
         )
         .bind(&time_v).bind(&time_ms_v).bind(&symbol_v).bind(&symbol_id_v)
@@ -309,6 +335,7 @@ async fn save_results(pool: &PgPool, results: &[BacktestResult]) -> Result<usize
         .bind(&outcome_v).bind(&pnl_v).bind(&exit_v)
         .bind(&bars_v).bind(&fav_v).bind(&adv_v)
         .bind(&tp1_hit_v).bind(&tp2_hit_v).bind(&tp3_hit_v)
+        .bind(&strategy_id_v).bind(&strategy_name_v)
         .execute(pool)
         .await?;
 
@@ -324,7 +351,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
 
     let mut file = std::fs::File::create(path)?;
 
-    // Header: signal features + derived features + outcome labels + partial close tracking
+    // Header: signal features + derived features + outcome labels + partial close tracking + strategy
     writeln!(file,
         "symbol,tf_minutes,side,final_score,ml_score,heur_score,\
          entry_price,sl_pct,tp1_pct,tp2_pct,tp3_pct,risk_reward,risk_reward_tp2,\
@@ -337,6 +364,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
          pred_vs_raw,pred_vs_ind,component_std,component_min,ml_heur_gap,score_per_risk,\
          atr_pct,market_factor,score_factor,\
          tp1_hit,tp2_hit,tp3_hit,\
+         strategy_id,strategy_name,\
          label_win,label_tp_level,label_pnl_pct,label_max_favorable,label_max_adverse,label_bars"
     )?;
 
@@ -400,6 +428,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
              {:.4},{:.4},{:.6},{:.4},{:.4},{:.2},\
              {:.6},{:.4},{:.4},\
              {},{},{},\
+             {},{},\
              {:.1},{:.1},{:.6},{:.6},{:.6},{}",
             r.symbol, r.tf_minutes, r.side, r.final_score,
             ml_s, heur_s,
@@ -419,6 +448,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
             if r.tp1_hit { 1 } else { 0 },
             if r.tp2_hit { 1 } else { 0 },
             if r.tp3_hit { 1 } else { 0 },
+            r.strategy_id, r.strategy_name,
             label_win, label_tp, r.pnl_pct, r.max_favorable, r.max_adverse, r.bars_to_outcome
         )?;
     }
@@ -553,4 +583,161 @@ fn print_summary(results: &[BacktestResult]) {
             tf_name, cells[0], cells[1], cells[2], cells[3], cells[4], cells[5]);
     }
     println!("==========================================\n");
+}
+
+/// Print summary statistics grouped by STRATEGY
+fn print_summary_by_strategy(results: &[BacktestResult]) {
+    if results.is_empty() {
+        return;
+    }
+
+    // Group by strategy
+    let mut by_strategy: HashMap<String, Vec<&BacktestResult>> = HashMap::new();
+    for r in results {
+        by_strategy.entry(r.strategy_name.clone()).or_default().push(r);
+    }
+
+    let mut strategies: Vec<String> = by_strategy.keys().cloned().collect();
+    strategies.sort();
+
+    // For each strategy, print 3 tables
+    for strategy in &strategies {
+        let group = &by_strategy[strategy];
+        
+        println!("\n╔════════════════════════════════════════════════════════════╗");
+        println!("║  STRATEGY: {:<44} ║", strategy);
+        println!("╚════════════════════════════════════════════════════════════╝\n");
+
+        // Table 1: Summary by TF
+        println!("======== BACKTEST SUMMARY ========");
+        println!("{:<6} {:>6} {:>6} {:>6} {:>8} {:>8} {:>8} {:>10}",
+            "TF", "Total", "Wins", "Loss", "Exprd", "WinRate", "AvgPnL", "Sharpe");
+
+        let mut by_tf: HashMap<i16, Vec<&BacktestResult>> = HashMap::new();
+        for r in group {
+            by_tf.entry(r.tf_minutes).or_default().push(r);
+        }
+
+        let mut tfs: Vec<i16> = by_tf.keys().copied().collect();
+        tfs.sort();
+
+        let mut total_signals = 0;
+        let mut total_wins = 0;
+        let mut sum_pnl = 0.0_f64;
+
+        for tf in &tfs {
+            let tf_group = &by_tf[tf];
+            let total = tf_group.len();
+            let wins = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Win { .. })).count();
+            let losses = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Loss { .. })).count();
+            let expired = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Expired { .. })).count();
+            let avg_pnl: f64 = tf_group.iter().map(|r| r.pnl_pct).sum::<f64>() / total as f64;
+            let win_rate = if total > 0 { wins as f64 / total as f64 * 100.0 } else { 0.0 };
+
+            let pnls: Vec<f64> = tf_group.iter().map(|r| r.pnl_pct).collect();
+            let mean = avg_pnl;
+            let variance = pnls.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / total as f64;
+            let sharpe = if variance > 0.0 { mean / variance.sqrt() } else { 0.0 };
+
+            let tf_name = match tf {
+                1 => "1m", 5 => "5m", 15 => "15m", 60 => "1h", 240 => "4h",
+                _ => "??",
+            };
+
+            println!("{:<6} {:>6} {:>6} {:>6} {:>8} {:>7.1}% {:>7.4}% {:>10.3}",
+                tf_name, total, wins, losses, expired, win_rate, avg_pnl * 100.0, sharpe);
+
+            total_signals += total;
+            total_wins += wins;
+            sum_pnl += tf_group.iter().map(|r| r.pnl_pct).sum::<f64>();
+        }
+
+        let overall_avg_pnl = if total_signals > 0 { sum_pnl / total_signals as f64 } else { 0.0 };
+        println!("-------------------------------");
+        println!("TOTAL: {} signals, {} wins ({:.1}%), avg PnL: {:.4}%",
+            total_signals, total_wins, total_wins as f64 / total_signals as f64 * 100.0, overall_avg_pnl * 100.0);
+        println!("==================================\n");
+
+        // Table 2: TP Level Distribution
+        println!("======== TP LEVEL DISTRIBUTION (Partial Close) ========");
+        println!("{:<6} {:>8} {:>8} {:>8} {:>10} {:>10} {:>12}",
+            "TF", "TP1_hit", "TP2_hit", "TP3_hit", "SL_only", "AvgPnL+", "AvgPnL-");
+
+        for tf in &tfs {
+            let tf_group = &by_tf[tf];
+            let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", _=>"??" };
+
+            let tp1_cnt = tf_group.iter().filter(|r| r.tp1_hit).count();
+            let tp2_cnt = tf_group.iter().filter(|r| r.tp2_hit).count();
+            let tp3_cnt = tf_group.iter().filter(|r| r.tp3_hit).count();
+            let sl_only = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Loss { .. })).count();
+
+            let win_pnls: Vec<f64> = tf_group.iter()
+                .filter(|r| matches!(r.outcome, Outcome::Win { .. }))
+                .map(|r| r.pnl_pct).collect();
+            let loss_pnls: Vec<f64> = tf_group.iter()
+                .filter(|r| matches!(r.outcome, Outcome::Loss { .. }))
+                .map(|r| r.pnl_pct).collect();
+            let avg_win_pnl = if !win_pnls.is_empty() {
+                win_pnls.iter().sum::<f64>() / win_pnls.len() as f64
+            } else { 0.0 };
+            let avg_loss_pnl = if !loss_pnls.is_empty() {
+                loss_pnls.iter().sum::<f64>() / loss_pnls.len() as f64
+            } else { 0.0 };
+
+            println!("{:<6} {:>8} {:>8} {:>8} {:>10} {:>9.4}% {:>10.4}%",
+                tf_name, tp1_cnt, tp2_cnt, tp3_cnt, sl_only,
+                avg_win_pnl * 100.0, avg_loss_pnl * 100.0);
+        }
+        println!("=====================================================\n");
+
+        // Table 3: Win Rate by Score Bucket
+        println!("======== WIN RATE BY SCORE BUCKET ========");
+        println!("{:<6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}",
+            "TF", "0.55-0.60", "0.60-0.65", "0.65-0.70", "0.70-0.75", "0.75-0.80", "0.80+");
+
+        let buckets: Vec<(f32, f32, &str)> = vec![
+            (0.55, 0.60, "0.55-0.60"),
+            (0.60, 0.65, "0.60-0.65"),
+            (0.65, 0.70, "0.65-0.70"),
+            (0.70, 0.75, "0.70-0.75"),
+            (0.75, 0.80, "0.75-0.80"),
+            (0.80, 1.01, "0.80+"),
+        ];
+
+        for tf in &tfs {
+            let tf_group = &by_tf[tf];
+            let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", _=>"??" };
+
+            let mut cells: Vec<String> = Vec::new();
+            for (lo, hi, _) in &buckets {
+                let in_bucket: Vec<&&BacktestResult> = tf_group.iter()
+                    .filter(|r| r.final_score >= *lo && r.final_score < *hi)
+                    .collect();
+                let n = in_bucket.len();
+                if n == 0 {
+                    cells.push("  -  ".to_string());
+                } else {
+                    let w = in_bucket.iter().filter(|r| matches!(r.outcome, Outcome::Win { .. })).count();
+                    cells.push(format!("{:.0}% ({})", w as f64 / n as f64 * 100.0, n));
+                }
+            }
+
+            println!("{:<6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}",
+                tf_name, cells[0], cells[1], cells[2], cells[3], cells[4], cells[5]);
+        }
+        println!("==========================================\n");
+    }
+
+    // Overall summary across ALL strategies
+    println!("\n╔════════════════════════════════════════════════════════════╗");
+    println!("║              OVERALL SUMMARY (ALL STRATEGIES)              ║");
+    println!("╚════════════════════════════════════════════════════════════╝\n");
+
+    let total = results.len();
+    let wins = results.iter().filter(|r| matches!(r.outcome, Outcome::Win { .. })).count();
+    let avg_pnl: f64 = results.iter().map(|r| r.pnl_pct).sum::<f64>() / total as f64;
+    println!("TOTAL: {} signals, {} wins ({:.1}%), avg PnL: {:.4}%",
+        total, wins, wins as f64 / total as f64 * 100.0, avg_pnl * 100.0);
+    println!("════════════════════════════════════════════════════════════\n");
 }

@@ -10,6 +10,12 @@ members = [
   "compute/predictors", # <-- модуль предсказаний
   "orderflow",        # <-- модуль order flow метрик
   "backtester",       # <-- бэктестер для оценки сигналов
+  "strategies/indicator_ml_strategy",
+  "strategies/indicator_heuristic_strategy",
+  "strategies/indicator_consensus_strategy",
+  "strategies/level_ml_strategy",
+  "strategies/level_heuristic_strategy",
+  "strategies/level_consensus_strategy",
 ]
 resolver = "2"
 

@@ -18,13 +18,31 @@ else
   warn "Database schema missing. Running initialization..."
   # Build tool if needed (using release profile for speed usually)
   cargo build -p database --bin svc_db_init
-  
+
   # Run it
   "$ROOT_DIR/target/debug/svc_db_init" 2>&1 | tee -a "logs/db_init.out"
-  
+
   if check_db_initialized; then
       ok "Database initialized successfully."
   else
       die "Database initialization failed."
   fi
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Apply strategy support migration (090_strategy_support.sql)
+# ═══════════════════════════════════════════════════════════════════════════
+
+log "Applying strategy support migration..."
+
+STRATEGY_MIGRATION="$ROOT_DIR/database/ddl/090_strategy_support.sql"
+
+if [[ -f "$STRATEGY_MIGRATION" ]]; then
+  PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance \
+    -v ON_ERROR_STOP=1 \
+    -f "$STRATEGY_MIGRATION" 2>&1 | tee -a "logs/db_init.out"
+  
+  ok "Strategy support migration applied successfully."
+else
+  warn "Strategy migration file not found: $STRATEGY_MIGRATION"
 fi

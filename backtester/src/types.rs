@@ -28,6 +28,10 @@ pub struct SignalForBacktest {
     pub breakout_score: Option<f32>,
     pub time: DateTime<Utc>,
     pub time_ms: i64,
+    
+    // Strategy fields
+    pub strategy_id: i16,
+    pub strategy_name: String,
 }
 
 /// Candle row fetched for outcome evaluation
@@ -110,4 +114,8 @@ pub struct BacktestResult {
     pub tp3_hit: bool,
 
     pub reason_json: serde_json::Value,
+    
+    // Strategy fields
+    pub strategy_id: i16,
+    pub strategy_name: String,
 }

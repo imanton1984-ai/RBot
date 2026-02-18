@@ -9,7 +9,7 @@ use std::time::Duration;
 use raw_signals::thresholds::SignalConfig;
 use compute_lib::predictors::config::PredictorsConfig;
 use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
-use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::scoring::multi_strategy_processor::{MultiStrategyTradeSignalStage, TradeSignalInput};
 use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
 
 #[tokio::main]
@@ -120,12 +120,12 @@ async fn main() -> Result<()> {
     predictors_pipeline.set_input_receiver(feature_rx);
     predictors_pipeline.set_bulk_sender(bulk_sender.clone());
 
-    // --- TradeSignalStage setup ---
+    // --- MultiStrategyTradeSignalStage setup ---
     let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
     predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
 
     let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
-    let trade_signal_stage = TradeSignalStage::new(
+    let trade_signal_stage = MultiStrategyTradeSignalStage::new(
         db_pool.clone(),
         market_params_calc,
         bulk_sender.clone(),
@@ -135,7 +135,7 @@ async fn main() -> Result<()> {
 
     tokio::spawn(async move {
         if let Err(e) = trade_signal_stage.run().await {
-            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+            tracing::error!(target: "multi_strategy_stage", "MultiStrategyTradeSignalStage error: {}", e);
         }
     });
 

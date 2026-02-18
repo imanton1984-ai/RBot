@@ -339,6 +339,8 @@ fn trade_signal_to_persist_record(
         bounce_score,
         breakout_prob,
         breakout_score,
+        strategy_id: 6, // default to level_consensus for backward compat
+        strategy_name: "level_consensus".to_string(),
     }
 }
 

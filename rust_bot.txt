@@ -12,6 +12,12 @@ members = [
   "compute/predictors", # <-- модуль предсказаний
   "orderflow",        # <-- модуль order flow метрик
   "backtester",       # <-- бэктестер для оценки сигналов
+  "strategies/indicator_ml_strategy",
+  "strategies/indicator_heuristic_strategy",
+  "strategies/indicator_consensus_strategy",
+  "strategies/level_ml_strategy",
+  "strategies/level_heuristic_strategy",
+  "strategies/level_consensus_strategy",
 ]
 resolver = "2"
 
@@ -646,6 +652,8 @@ impl SignalEvaluator {
             tp2_hit,
             tp3_hit,
             reason_json: signal.reason.clone().unwrap_or(serde_json::json!({})),
+            strategy_id: signal.strategy_id,
+            strategy_name: signal.strategy_name.clone(),
         }))
     }
 
@@ -820,6 +828,9 @@ async fn main() -> Result<()> {
 
     // Print summary statistics
     print_summary(&results);
+    
+    // Print summary by strategy
+    print_summary_by_strategy(&results);
 
     Ok(())
 }
@@ -837,7 +848,8 @@ async fn load_signals(pool: &PgPool, min_score: f64, max_rows: i64) -> Result<Ve
             s.price10_target, s.price10_score,
             s.bounce_prob, s.bounce_score,
             s.breakout_prob, s.breakout_score,
-            s.time, s.time_ms
+            s.time, s.time_ms,
+            s.strategy_id, s.strategy_name
         FROM trade.final_signals s
         LEFT JOIN market.pairs p ON p.symbol_id = s.symbol_id
         WHERE s.reason IS NOT NULL
@@ -1014,7 +1026,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
 
     let mut file = std::fs::File::create(path)?;
 
-    // Header: signal features + derived features + outcome labels + partial close tracking
+    // Header: signal features + derived features + outcome labels + partial close tracking + strategy
     writeln!(file,
         "symbol,tf_minutes,side,final_score,ml_score,heur_score,\
          entry_price,sl_pct,tp1_pct,tp2_pct,tp3_pct,risk_reward,risk_reward_tp2,\
@@ -1027,6 +1039,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
          pred_vs_raw,pred_vs_ind,component_std,component_min,ml_heur_gap,score_per_risk,\
          atr_pct,market_factor,score_factor,\
          tp1_hit,tp2_hit,tp3_hit,\
+         strategy_id,strategy_name,\
          label_win,label_tp_level,label_pnl_pct,label_max_favorable,label_max_adverse,label_bars"
     )?;
 
@@ -1090,6 +1103,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
              {:.4},{:.4},{:.6},{:.4},{:.4},{:.2},\
              {:.6},{:.4},{:.4},\
              {},{},{},\
+             {},{},\
              {:.1},{:.1},{:.6},{:.6},{:.6},{}",
             r.symbol, r.tf_minutes, r.side, r.final_score,
             ml_s, heur_s,
@@ -1109,6 +1123,7 @@ fn export_training_csv(results: &[BacktestResult], path: &str) -> Result<()> {
             if r.tp1_hit { 1 } else { 0 },
             if r.tp2_hit { 1 } else { 0 },
             if r.tp3_hit { 1 } else { 0 },
+            r.strategy_id, r.strategy_name,
             label_win, label_tp, r.pnl_pct, r.max_favorable, r.max_adverse, r.bars_to_outcome
         )?;
     }
@@ -1245,6 +1260,163 @@ fn print_summary(results: &[BacktestResult]) {
     println!("==========================================\n");
 }
 
+/// Print summary statistics grouped by STRATEGY
+fn print_summary_by_strategy(results: &[BacktestResult]) {
+    if results.is_empty() {
+        return;
+    }
+
+    // Group by strategy
+    let mut by_strategy: HashMap<String, Vec<&BacktestResult>> = HashMap::new();
+    for r in results {
+        by_strategy.entry(r.strategy_name.clone()).or_default().push(r);
+    }
+
+    let mut strategies: Vec<String> = by_strategy.keys().cloned().collect();
+    strategies.sort();
+
+    // For each strategy, print 3 tables
+    for strategy in &strategies {
+        let group = &by_strategy[strategy];
+        
+        println!("\n╔════════════════════════════════════════════════════════════╗");
+        println!("║  STRATEGY: {:<44} ║", strategy);
+        println!("╚════════════════════════════════════════════════════════════╝\n");
+
+        // Table 1: Summary by TF
+        println!("======== BACKTEST SUMMARY ========");
+        println!("{:<6} {:>6} {:>6} {:>6} {:>8} {:>8} {:>8} {:>10}",
+            "TF", "Total", "Wins", "Loss", "Exprd", "WinRate", "AvgPnL", "Sharpe");
+
+        let mut by_tf: HashMap<i16, Vec<&BacktestResult>> = HashMap::new();
+        for r in group {
+            by_tf.entry(r.tf_minutes).or_default().push(r);
+        }
+
+        let mut tfs: Vec<i16> = by_tf.keys().copied().collect();
+        tfs.sort();
+
+        let mut total_signals = 0;
+        let mut total_wins = 0;
+        let mut sum_pnl = 0.0_f64;
+
+        for tf in &tfs {
+            let tf_group = &by_tf[tf];
+            let total = tf_group.len();
+            let wins = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Win { .. })).count();
+            let losses = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Loss { .. })).count();
+            let expired = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Expired { .. })).count();
+            let avg_pnl: f64 = tf_group.iter().map(|r| r.pnl_pct).sum::<f64>() / total as f64;
+            let win_rate = if total > 0 { wins as f64 / total as f64 * 100.0 } else { 0.0 };
+
+            let pnls: Vec<f64> = tf_group.iter().map(|r| r.pnl_pct).collect();
+            let mean = avg_pnl;
+            let variance = pnls.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / total as f64;
+            let sharpe = if variance > 0.0 { mean / variance.sqrt() } else { 0.0 };
+
+            let tf_name = match tf {
+                1 => "1m", 5 => "5m", 15 => "15m", 60 => "1h", 240 => "4h",
+                _ => "??",
+            };
+
+            println!("{:<6} {:>6} {:>6} {:>6} {:>8} {:>7.1}% {:>7.4}% {:>10.3}",
+                tf_name, total, wins, losses, expired, win_rate, avg_pnl * 100.0, sharpe);
+
+            total_signals += total;
+            total_wins += wins;
+            sum_pnl += tf_group.iter().map(|r| r.pnl_pct).sum::<f64>();
+        }
+
+        let overall_avg_pnl = if total_signals > 0 { sum_pnl / total_signals as f64 } else { 0.0 };
+        println!("-------------------------------");
+        println!("TOTAL: {} signals, {} wins ({:.1}%), avg PnL: {:.4}%",
+            total_signals, total_wins, total_wins as f64 / total_signals as f64 * 100.0, overall_avg_pnl * 100.0);
+        println!("==================================\n");
+
+        // Table 2: TP Level Distribution
+        println!("======== TP LEVEL DISTRIBUTION (Partial Close) ========");
+        println!("{:<6} {:>8} {:>8} {:>8} {:>10} {:>10} {:>12}",
+            "TF", "TP1_hit", "TP2_hit", "TP3_hit", "SL_only", "AvgPnL+", "AvgPnL-");
+
+        for tf in &tfs {
+            let tf_group = &by_tf[tf];
+            let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", _=>"??" };
+
+            let tp1_cnt = tf_group.iter().filter(|r| r.tp1_hit).count();
+            let tp2_cnt = tf_group.iter().filter(|r| r.tp2_hit).count();
+            let tp3_cnt = tf_group.iter().filter(|r| r.tp3_hit).count();
+            let sl_only = tf_group.iter().filter(|r| matches!(r.outcome, Outcome::Loss { .. })).count();
+
+            let win_pnls: Vec<f64> = tf_group.iter()
+                .filter(|r| matches!(r.outcome, Outcome::Win { .. }))
+                .map(|r| r.pnl_pct).collect();
+            let loss_pnls: Vec<f64> = tf_group.iter()
+                .filter(|r| matches!(r.outcome, Outcome::Loss { .. }))
+                .map(|r| r.pnl_pct).collect();
+            let avg_win_pnl = if !win_pnls.is_empty() {
+                win_pnls.iter().sum::<f64>() / win_pnls.len() as f64
+            } else { 0.0 };
+            let avg_loss_pnl = if !loss_pnls.is_empty() {
+                loss_pnls.iter().sum::<f64>() / loss_pnls.len() as f64
+            } else { 0.0 };
+
+            println!("{:<6} {:>8} {:>8} {:>8} {:>10} {:>9.4}% {:>10.4}%",
+                tf_name, tp1_cnt, tp2_cnt, tp3_cnt, sl_only,
+                avg_win_pnl * 100.0, avg_loss_pnl * 100.0);
+        }
+        println!("=====================================================\n");
+
+        // Table 3: Win Rate by Score Bucket
+        println!("======== WIN RATE BY SCORE BUCKET ========");
+        println!("{:<6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}",
+            "TF", "0.55-0.60", "0.60-0.65", "0.65-0.70", "0.70-0.75", "0.75-0.80", "0.80+");
+
+        let buckets: Vec<(f32, f32, &str)> = vec![
+            (0.55, 0.60, "0.55-0.60"),
+            (0.60, 0.65, "0.60-0.65"),
+            (0.65, 0.70, "0.65-0.70"),
+            (0.70, 0.75, "0.70-0.75"),
+            (0.75, 0.80, "0.75-0.80"),
+            (0.80, 1.01, "0.80+"),
+        ];
+
+        for tf in &tfs {
+            let tf_group = &by_tf[tf];
+            let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", _=>"??" };
+
+            let mut cells: Vec<String> = Vec::new();
+            for (lo, hi, _) in &buckets {
+                let in_bucket: Vec<&&BacktestResult> = tf_group.iter()
+                    .filter(|r| r.final_score >= *lo && r.final_score < *hi)
+                    .collect();
+                let n = in_bucket.len();
+                if n == 0 {
+                    cells.push("  -  ".to_string());
+                } else {
+                    let w = in_bucket.iter().filter(|r| matches!(r.outcome, Outcome::Win { .. })).count();
+                    cells.push(format!("{:.0}% ({})", w as f64 / n as f64 * 100.0, n));
+                }
+            }
+
+            println!("{:<6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}",
+                tf_name, cells[0], cells[1], cells[2], cells[3], cells[4], cells[5]);
+        }
+        println!("==========================================\n");
+    }
+
+    // Overall summary across ALL strategies
+    println!("\n╔════════════════════════════════════════════════════════════╗");
+    println!("║              OVERALL SUMMARY (ALL STRATEGIES)              ║");
+    println!("╚════════════════════════════════════════════════════════════╝\n");
+
+    let total = results.len();
+    let wins = results.iter().filter(|r| matches!(r.outcome, Outcome::Win { .. })).count();
+    let avg_pnl: f64 = results.iter().map(|r| r.pnl_pct).sum::<f64>() / total as f64;
+    println!("TOTAL: {} signals, {} wins ({:.1}%), avg PnL: {:.4}%",
+        total, wins, wins as f64 / total as f64 * 100.0, avg_pnl * 100.0);
+    println!("════════════════════════════════════════════════════════════\n");
+}
+
 
 
 # backtester/src/types.rs
@@ -1279,6 +1451,10 @@ pub struct SignalForBacktest {
     pub breakout_score: Option<f32>,
     pub time: DateTime<Utc>,
     pub time_ms: i64,
+    
+    // Strategy fields
+    pub strategy_id: i16,
+    pub strategy_name: String,
 }
 
 /// Candle row fetched for outcome evaluation
@@ -1361,6 +1537,10 @@ pub struct BacktestResult {
     pub tp3_hit: bool,
 
     pub reason_json: serde_json::Value,
+    
+    // Strategy fields
+    pub strategy_id: i16,
+    pub strategy_name: String,
 }
 
 
@@ -2350,6 +2530,4509 @@ impl RedpandaConnection {
     }
 }
 
+
+
+
+# strategies/level_heuristic_strategy/Cargo.toml
+
+[package]
+name = "level_heuristic_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-postgres.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+config.workspace = true
+
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+
+[lib]
+path = "src/lib.rs"
+
+
+
+# strategies/level_heuristic_strategy/src/lib.rs
+
+// strategies/level_heuristic_strategy/src/lib.rs
+
+pub mod scorer;
+pub mod trade_signal_calculator;
+
+pub use scorer::{LevelHeuristicScorer, LevelHeuristicScoreBreakdown, SetupKind};
+pub use trade_signal_calculator::{TradeSignal, TradeSignalCalculator};
+
+pub const STRATEGY_ID: i16 = 5;
+pub const STRATEGY_NAME: &str = "level_heuristic";
+
+
+
+# strategies/level_heuristic_strategy/src/scorer.rs
+
+// strategies/level_heuristic_strategy/src/scorer.rs
+// Level Heuristic Strategy - использует ТОЛЬКО эвристические предсказания с уровнями
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use predictors::types::{PredictionAspect, PredictionRow, CalcSource};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetupKind {
+    Bounce,
+    Breakout,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LevelHeuristicScoreBreakdown {
+    pub final_score: f64,
+    pub base_score: f64,
+    pub heuristic_predictors_score: f64,
+    pub raw_signals_score: f64,
+    pub indicators_score: f64,
+    pub setup_kind: SetupKind,
+    pub setup_confidence: f64,
+    pub bounce_prob: Option<f64>,
+    pub breakout_prob: Option<f64>,
+    pub trend_align: f64,
+    pub debug: Value,
+}
+
+pub struct LevelHeuristicScorer {
+    min_final_score: f64,
+    adx_filter_threshold: f64,
+}
+
+impl LevelHeuristicScorer {
+    pub fn new(min_final_score: f64) -> Self {
+        Self {
+            min_final_score,
+            adx_filter_threshold: 25.0,
+        }
+    }
+
+    pub async fn score_signal(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<f64>> {
+        Ok(self
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictors)
+            .await?
+            .map(|b| b.final_score))
+    }
+
+    pub async fn score_signal_verbose(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<LevelHeuristicScoreBreakdown>> {
+        let side_i8 = side.signum() as i8;
+
+        // Heuristic Predictors score - ТОЛЬКО эвристика
+        let heuristic_predictors_score = self.calculate_heuristic_predictors_score(predictors);
+
+        // Raw signals score
+        let raw_signals_score = self.calculate_raw_signals_score(raw_signals_summary);
+
+        // Indicators score
+        let indicators_score = self.calculate_indicator_score(raw_signals_summary, side_i8);
+
+        // Base score: 50% heuristic, 30% raw, 20% indicators
+        let base_score = heuristic_predictors_score * 0.50 + raw_signals_score * 0.30 + indicators_score * 0.20;
+
+        // Extract level probs from heuristic predictors
+        let (bounce_prob, breakout_prob) = self.extract_heuristic_level_probs(predictors);
+
+        // Infer setup
+        let (setup_kind, setup_confidence) = self.infer_setup(bounce_prob, breakout_prob);
+
+        // Regime alignment
+        let trend_align = raw_signals_summary.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.5);
+
+        // ADX filter
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        if adx > 0.0 && adx < self.adx_filter_threshold {
+            return Ok(None);
+        }
+
+        // Level boost
+        let sr_present = raw_signals_summary.get("best_levels_score")
+            .and_then(|v| v.as_f64())
+            .map(|s| s > 0.3)
+            .unwrap_or(false);
+
+        let mut level_adjusted_score = base_score;
+        if sr_present {
+            let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let trend_aligned = (trend_short > 0.0 && side_i8 > 0) || (trend_short < 0.0 && side_i8 < 0);
+            if trend_aligned {
+                level_adjusted_score *= 1.08;
+            }
+        }
+
+        level_adjusted_score = level_adjusted_score.min(base_score * 1.3);
+
+        let setup_damp = 0.8 + 0.2 * setup_confidence;
+        let final_score = (level_adjusted_score * setup_damp).clamp(0.0, 1.0);
+
+        let debug = json!({
+            "symbol": symbol,
+            "tf_minutes": tf_minutes,
+            "timestamp": timestamp.to_rfc3339(),
+            "side": side_i8,
+            "base_score": base_score,
+            "heuristic_predictors_score": heuristic_predictors_score,
+            "raw_signals_score": raw_signals_score,
+            "indicators_score": indicators_score,
+            "final_score": final_score,
+            "setup_kind": format!("{:?}", setup_kind),
+            "setup_confidence": setup_confidence,
+            "bounce_prob": bounce_prob,
+            "breakout_prob": breakout_prob,
+        });
+
+        if final_score >= self.min_final_score {
+            Ok(Some(LevelHeuristicScoreBreakdown {
+                final_score,
+                base_score: level_adjusted_score,
+                heuristic_predictors_score,
+                raw_signals_score,
+                indicators_score,
+                setup_kind,
+                setup_confidence,
+                bounce_prob,
+                breakout_prob,
+                trend_align,
+                debug,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn calculate_heuristic_predictors_score(&self, predictors: &[PredictionRow]) -> f64 {
+        let heuristic_predictors: Vec<&PredictionRow> = predictors.iter()
+            .filter(|p| p.calc_source == CalcSource::Hard)
+            .collect();
+
+        if heuristic_predictors.is_empty() {
+            return 0.0;
+        }
+
+        let aspect_weight = |a: i16| -> f64 {
+            match a {
+                x if x == PredictionAspect::PriceTarget.as_int() => 1.0,
+                x if x == PredictionAspect::LevelBounce.as_int() => 0.85,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.85,
+                _ => 0.6,
+            }
+        };
+
+        let mut total_ws = 0.0;
+        let mut total_w = 0.0;
+
+        for p in &heuristic_predictors {
+            let aspect = p.aspect.as_int();
+            let score = (p.score_norm as f64).clamp(0.0, 1.0);
+            let w = aspect_weight(aspect);
+            total_ws += score * w;
+            total_w += w;
+        }
+
+        if total_w > 0.0 {
+            (total_ws / total_w).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+
+    fn calculate_raw_signals_score(&self, raw_signals_summary: &Value) -> f64 {
+        let best_raw = raw_signals_summary.get("best_raw_signal_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_levels = raw_signals_summary.get("best_levels_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_momentum = raw_signals_summary.get("best_momentum_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_volume = raw_signals_summary.get("best_volume_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        let m = best_raw.max(best_levels).max(best_momentum).max(best_volume);
+        let avg = (best_raw + best_levels + best_momentum + best_volume) / 4.0;
+        (0.75 * m + 0.25 * avg).clamp(0.0, 1.0)
+    }
+
+    fn calculate_indicator_score(&self, raw_signals_summary: &Value, side: i8) -> f64 {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let macd_hist = raw_signals_summary.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        let rsi_score = if side > 0 {
+            if rsi > 50.0 && rsi < 70.0 { 1.0 } else { 0.5 }
+        } else {
+            if rsi < 50.0 && rsi > 30.0 { 1.0 } else { 0.5 }
+        };
+
+        let macd_score = if side > 0 {
+            if macd_hist > 0.0 { 1.0 } else { 0.3 }
+        } else {
+            if macd_hist < 0.0 { 1.0 } else { 0.3 }
+        };
+
+        (rsi_score * 0.6_f64 + macd_score * 0.4_f64).clamp(0.0_f64, 1.0_f64)
+    }
+
+    fn extract_heuristic_level_probs(&self, predictors: &[PredictionRow]) -> (Option<f64>, Option<f64>) {
+        let bounce = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::LevelBounce && p.calc_source == CalcSource::Hard)
+            .map(|p| p.value);
+        let breakout = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::LevelBreakout && p.calc_source == CalcSource::Hard)
+            .map(|p| p.value);
+        (bounce, breakout)
+    }
+
+    fn infer_setup(&self, bounce_prob: Option<f64>, breakout_prob: Option<f64>) -> (SetupKind, f64) {
+        match (bounce_prob, breakout_prob) {
+            (Some(b), Some(br)) => {
+                if b > br { (SetupKind::Bounce, b) } else { (SetupKind::Breakout, br) }
+            }
+            (Some(b), None) => (SetupKind::Bounce, b),
+            (None, Some(br)) => (SetupKind::Breakout, br),
+            (None, None) => (SetupKind::Bounce, 0.5),
+        }
+    }
+}
+
+
+
+# strategies/level_heuristic_strategy/src/trade_signal_calculator.rs
+
+// strategies/level_heuristic_strategy/src/trade_signal_calculator.rs
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::{PgPool, Row};
+
+use common::Symbol;
+use predictors::types::{PredictionRow, PredictionAspect, CalcSource};
+
+use crate::scorer::{LevelHeuristicScorer, LevelHeuristicScoreBreakdown, SetupKind};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeSignal {
+    pub time: DateTime<Utc>,
+    pub time_ms: i64,
+    pub symbol_id: i64,
+    pub symbol: String,
+    pub tf_minutes: i16,
+    pub side: i8,
+    pub entry: f64,
+    pub stop_loss: f64,
+    pub tp1: f64,
+    pub tp2: f64,
+    pub tp3: f64,
+    pub leverage: i16,
+    pub final_score: f64,
+    pub breakdown_json: Value,
+}
+
+pub struct TradeSignalCalculator {
+    pub min_final_score: f64,
+    pub base_leverage: i16,
+    pub fallback_atr_pct: f64,
+    pub sl_atr_mult: f64,
+    pub tp1_atr_mult: f64,
+    pub tp2_atr_mult: f64,
+    pub tp3_atr_mult: f64,
+}
+
+impl Default for TradeSignalCalculator {
+    fn default() -> Self {
+        Self {
+            min_final_score: 0.55,
+            base_leverage: 5,
+            fallback_atr_pct: 0.008,
+            sl_atr_mult: 0.75,
+            tp1_atr_mult: 1.1,
+            tp2_atr_mult: 1.8,
+            tp3_atr_mult: 2.8,
+        }
+    }
+}
+
+impl TradeSignalCalculator {
+    pub fn new(min_final_score: f64) -> Self {
+        Self { min_final_score, ..Default::default() }
+    }
+
+    pub async fn build_trade_signal(
+        &self,
+        pool: &PgPool,
+        scorer: &LevelHeuristicScorer,
+        time: DateTime<Utc>,
+        time_ms: i64,
+        symbol_id: i64,
+        symbol: &Symbol,
+        tf_minutes: i16,
+        entry_price: f64,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<TradeSignal>> {
+        let side = infer_side_heuristic(predictors)
+            .or_else(|| infer_side_from_summary(raw_signals_summary))
+            .unwrap_or(0);
+
+        if side == 0 {
+            return Ok(None);
+        }
+
+        let breakdown_opt: Option<LevelHeuristicScoreBreakdown> = scorer
+            .score_signal_verbose(
+                symbol.0.as_str(),
+                tf_minutes,
+                time,
+                side as i16,
+                raw_signals_summary,
+                predictors,
+            )
+            .await?;
+
+        let breakdown = match breakdown_opt {
+            Some(b) => b,
+            None => return Ok(None),
+        };
+
+        if breakdown.final_score < self.min_final_score {
+            return Ok(None);
+        }
+
+        // Heuristic price target
+        let heuristic_price_target = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::PriceTarget && p.calc_source == CalcSource::Hard)
+            .map(|p| p.value);
+
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
+
+        let (stop_loss, tp1, tp2, tp3) = self.calculate_tp_sl(
+            entry_price,
+            side,
+            atr,
+            heuristic_price_target,
+            &breakdown,
+        );
+
+        let tp1_dist = (tp1 - entry_price).abs();
+        let sl_dist = (stop_loss - entry_price).abs();
+        let risk_reward = if sl_dist > 0.0 { tp1_dist / sl_dist } else { 0.0 };
+
+        if risk_reward < 1.5 {
+            return Ok(None);
+        }
+
+        let score_factor = (0.55 + 0.45 * breakdown.final_score).clamp(0.55, 1.0);
+        let lev = ((self.base_leverage as f64) * score_factor)
+            .round()
+            .clamp(1.0, self.base_leverage as f64) as i16;
+
+        let atr_pct = if entry_price > 0.0 { atr / entry_price } else { 0.0 };
+
+        let breakdown_json = json!({
+            "final": breakdown.final_score,
+            "heuristic_predictors_score": breakdown.heuristic_predictors_score,
+            "raw_signals_score": breakdown.raw_signals_score,
+            "indicators_score": breakdown.indicators_score,
+            "setup_kind": format!("{:?}", breakdown.setup_kind),
+            "setup_confidence": breakdown.setup_confidence,
+            "atr": atr,
+            "atr_pct": atr_pct,
+            "risk_reward": risk_reward,
+            "heuristic_price_target": heuristic_price_target,
+            "strategy_id": 5,
+            "strategy_name": "level_heuristic",
+        });
+
+        Ok(Some(TradeSignal {
+            time,
+            time_ms,
+            symbol_id,
+            symbol: symbol.0.clone(),
+            tf_minutes,
+            side,
+            entry: entry_price,
+            stop_loss,
+            tp1,
+            tp2,
+            tp3,
+            leverage: lev,
+            final_score: breakdown.final_score,
+            breakdown_json,
+        }))
+    }
+
+    fn calculate_tp_sl(
+        &self,
+        entry_price: f64,
+        side: i8,
+        atr: f64,
+        heuristic_price_target: Option<f64>,
+        _breakdown: &LevelHeuristicScoreBreakdown,
+    ) -> (f64, f64, f64, f64) {
+        let side_f = side as f64;
+
+        let target_tp1 = if let Some(target) = heuristic_price_target {
+            let predicted_move = (target - entry_price) / entry_price;
+            if predicted_move * side_f > 0.0 {
+                target
+            } else {
+                entry_price + side_f * atr * self.tp1_atr_mult
+            }
+        } else {
+            entry_price + side_f * atr * self.tp1_atr_mult
+        };
+
+        let min_tp1 = entry_price + side_f * entry_price * 0.015;
+        let tp1 = if side > 0 {
+            target_tp1.max(min_tp1)
+        } else {
+            target_tp1.min(min_tp1)
+        };
+
+        let tp1_dist = (tp1 - entry_price).abs();
+        let tp2 = entry_price + side_f * tp1_dist * 1.6;
+        let tp3 = entry_price + side_f * tp1_dist * 2.5;
+
+        let sl_atr = entry_price - side_f * atr * self.sl_atr_mult;
+        let sl_min = entry_price - side_f * entry_price * 0.01;
+        let sl_max = entry_price - side_f * entry_price * 0.03;
+
+        let mut stop_loss = if side > 0 {
+            sl_atr.min(sl_min)
+        } else {
+            sl_atr.max(sl_min)
+        };
+
+        if side > 0 {
+            stop_loss = stop_loss.max(sl_max);
+        } else {
+            stop_loss = stop_loss.min(sl_max);
+        }
+
+        let d_sl_min = entry_price * 0.01;
+        let d_tp1_min = entry_price * 0.015;
+
+        let enforce_min = |raw: f64, min_delta: f64, is_tp: bool| -> f64 {
+            let actual_delta = (raw - entry_price).abs();
+            if actual_delta >= min_delta {
+                raw
+            } else if is_tp {
+                entry_price + side_f * min_delta
+            } else {
+                entry_price - side_f * min_delta
+            }
+        };
+
+        stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+
+        let gap = entry_price * 0.002;
+        let tp2 = tp2.max(if side > 0 { tp1 + gap } else { tp1 - gap });
+        let tp3 = tp3.max(if side > 0 { tp2 + gap } else { tp2 - gap });
+
+        (stop_loss, tp1, tp2, tp3)
+    }
+}
+
+fn infer_side_heuristic(predictors: &[PredictionRow]) -> Option<i8> {
+    let heuristic_predictors: Vec<&PredictionRow> = predictors.iter()
+        .filter(|p| p.calc_source == CalcSource::Hard)
+        .collect();
+
+    if heuristic_predictors.is_empty() {
+        return None;
+    }
+
+    let mut long_score: f32 = 0.0;
+    let mut short_score: f32 = 0.0;
+
+    for p in &heuristic_predictors {
+        let sc = p.score_norm;
+        let sd = p.side.unwrap_or(0);
+        if sd == 0 { continue; }
+
+        if sd > 0 { long_score += sc; } else { short_score += sc; }
+    }
+
+    let total = long_score + short_score;
+    if total <= 0.0 { return None; }
+
+    let long_ratio = long_score / total;
+    if long_ratio >= 0.6 { Some(1) }
+    else if long_ratio <= 0.4 { Some(-1) }
+    else { None }
+}
+
+fn infer_side_from_summary(raw_signals_summary: &Value) -> Option<i8> {
+    raw_signals_summary.get("side").and_then(|v| v.as_i64()).map(|x| (x as i8).signum())
+}
+
+fn extract_atr_from_summary(raw_signals_summary: &Value) -> Option<f64> {
+    raw_signals_summary.get("atr").and_then(|v| v.as_f64())
+}
+
+async fn fetch_last_atr(pool: &PgPool, symbol_id: i64, tf_minutes: i16) -> Result<Option<f64>> {
+    let row = sqlx::query(
+        r#"SELECT atr FROM market.indicators_wide WHERE symbol_id = $1 AND tf_minutes = $2 AND atr IS NOT NULL ORDER BY time DESC LIMIT 1"#,
+    ).bind(symbol_id).bind(tf_minutes as i32).fetch_optional(pool).await?;
+    Ok(row.and_then(|r| r.try_get::<f64, _>(0).ok()))
+}
+
+
+
+# strategies/level_consensus_strategy/Cargo.toml
+
+[package]
+name = "level_consensus_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-postgres.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+config.workspace = true
+
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+
+[lib]
+path = "src/lib.rs"
+
+
+
+# strategies/level_consensus_strategy/src/lib.rs
+
+// strategies/level_consensus_strategy/src/lib.rs
+//
+// Level Consensus Strategy - копия текущей логики final_scorer / trade_signal_calculator
+
+pub mod scorer;
+pub mod trade_signal_calculator;
+
+pub use scorer::{LevelConsensusScorer, LevelConsensusScoreBreakdown, SetupKind};
+pub use trade_signal_calculator::{TradeSignal, TradeSignalCalculator};
+
+pub const STRATEGY_ID: i16 = 6;
+pub const STRATEGY_NAME: &str = "level_consensus";
+
+
+
+# strategies/level_consensus_strategy/src/scorer.rs
+
+// strategies/level_consensus_strategy/src/scorer.rs
+//
+// Level Consensus Strategy Scorer - копия FinalScorer из compute/scorer/final_score.rs
+// Использует уровни поддержки/сопротивления + консенсус предсказаний
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use predictors::types::{PredictionAspect, PredictionRow, CalcSource};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetupKind {
+    Bounce,
+    Breakout,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrategyWeights {
+    pub predictors_weight: f64,
+    pub raw_signals_weight: f64,
+    pub indicators_weight: f64,
+    pub market_weight: f64,
+}
+
+impl Default for StrategyWeights {
+    fn default() -> Self {
+        Self {
+            predictors_weight: 0.35,
+            raw_signals_weight: 0.30,
+            indicators_weight: 0.20,
+            market_weight: 0.15,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LevelConsensusScoreBreakdown {
+    pub final_score: f64,
+    pub base_score: f64,
+    pub predictors_score: f64,
+    pub predictors_ml_score: f64,
+    pub predictors_heur_score: f64,
+    pub raw_signals_score: f64,
+    pub indicators_score: f64,
+    pub market_score: f64,
+    pub coverage_score: f64,
+    pub consensus_score: f64,
+    pub setup_kind: SetupKind,
+    pub setup_confidence: f64,
+    pub bounce_prob: Option<f64>,
+    pub breakout_prob: Option<f64>,
+    pub level_distance_atr: Option<f64>,
+    pub level_strength: Option<f64>,
+    pub trend_align: f64,
+    pub volatility_ok: f64,
+    pub momentum_ok: f64,
+    pub debug: Value,
+}
+
+pub struct LevelConsensusScorer {
+    min_final_score: f64,
+    weights: StrategyWeights,
+    coverage_gamma: f64,
+    consensus_gamma: f64,
+    sr_align_boost: f64,
+    synergy_boost: f64,
+    trend_conflict_penalty: f64,
+    correction_penalty_weight: f64,
+    stoch_correction_long_min: f64,
+    stoch_correction_short_max: f64,
+    adx_filter_threshold: f64,
+}
+
+impl LevelConsensusScorer {
+    pub fn new(min_final_score: f64) -> Self {
+        Self {
+            min_final_score,
+            weights: StrategyWeights::default(),
+            coverage_gamma: 0.5,
+            consensus_gamma: 0.3,
+            sr_align_boost: 1.08,
+            synergy_boost: 1.12,
+            trend_conflict_penalty: 0.75,
+            correction_penalty_weight: 0.70,
+            stoch_correction_long_min: 78.0,
+            stoch_correction_short_max: 22.0,
+            adx_filter_threshold: 25.0,
+        }
+    }
+
+    pub async fn score_signal(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<f64>> {
+        Ok(self
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictors)
+            .await?
+            .map(|b| b.final_score))
+    }
+
+    pub async fn score_signal_verbose(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<LevelConsensusScoreBreakdown>> {
+        let side_i8 = side.signum() as i8;
+
+        // Predictors score
+        let pred_comp = self.calculate_predictors_component(predictors)?;
+        let predictors_score = pred_comp.total;
+        let predictors_ml_score = pred_comp.ml;
+        let predictors_heur_score = pred_comp.heur;
+
+        let (bounce_prob, breakout_prob) = self.extract_level_probs(predictors);
+
+        // Raw signals score
+        let raw_signals_score = self.calculate_raw_signals_score(raw_signals_summary);
+
+        // Indicators score
+        let indicators_score = self.calculate_indicator_score(raw_signals_summary, side_i8);
+
+        // Market score (neutral для simplicity)
+        let market_score = 0.5;
+
+        // Base score
+        let base_score =
+            predictors_score * self.weights.predictors_weight +
+            raw_signals_score * self.weights.raw_signals_weight +
+            indicators_score * self.weights.indicators_weight +
+            market_score * self.weights.market_weight;
+
+        // Coverage & consensus
+        let coverage_score = self.calculate_feature_coverage_score(predictors, raw_signals_summary);
+        let consensus_score = self.calculate_ml_heuristic_consensus(predictors_ml_score, predictors_heur_score);
+
+        // Infer setup
+        let (setup_kind, setup_confidence) = self.infer_setup(bounce_prob, breakout_prob);
+
+        // Level context
+        let level_distance_atr = self.extract_level_distance_atr(raw_signals_summary, side_i8);
+        let level_strength = self.extract_level_strength(raw_signals_summary, side_i8);
+
+        // Regime alignment
+        let trend_align = raw_signals_summary.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.5);
+        let volatility_regime = raw_signals_summary.get("volatility_regime").and_then(|v| v.as_f64()).unwrap_or(0.5);
+        let momentum_strength = raw_signals_summary.get("momentum_strength").and_then(|v| v.as_f64()).unwrap_or(0.5);
+
+        let volatility_ok = match setup_kind {
+            SetupKind::Bounce => (1.0 - volatility_regime).clamp(0.0, 1.0),
+            SetupKind::Breakout => (0.6 + 0.4 * volatility_regime).clamp(0.0, 1.0),
+        };
+
+        let momentum_ok = match setup_kind {
+            SetupKind::Bounce => (1.0 - (momentum_strength - 0.5).abs() * 2.0).clamp(0.0, 1.0),
+            SetupKind::Breakout => momentum_strength,
+        };
+
+        // ADX filter
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        if adx > 0.0 && adx < self.adx_filter_threshold {
+            return Ok(None);
+        }
+
+        // Level strategy adjustments
+        let mut level_adjusted_score = base_score;
+        let mut cumulative_boost = 1.0_f64;
+
+        let sr_present = raw_signals_summary.get("best_levels_score")
+            .and_then(|v| v.as_f64())
+            .map(|s| s > 0.3)
+            .unwrap_or(false);
+
+        if sr_present {
+            let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let trend_aligned = (trend_short > 0.0 && side_i8 > 0) || (trend_short < 0.0 && side_i8 < 0);
+
+            if trend_aligned {
+                cumulative_boost *= self.sr_align_boost;
+            }
+
+            let touches = raw_signals_summary.get("level_touches")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            if touches >= 3 {
+                cumulative_boost *= 1.25;
+            }
+        }
+
+        cumulative_boost = cumulative_boost.min(1.50);
+        level_adjusted_score *= cumulative_boost;
+
+        // Trend conflict
+        let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let trend_medium = raw_signals_summary.get("trend_medium").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let trend_conflict = (trend_short > 0.0 && trend_medium < 0.0) ||
+                            (trend_short < 0.0 && trend_medium > 0.0);
+
+        if trend_conflict {
+            level_adjusted_score *= self.trend_conflict_penalty;
+        }
+
+        // Correction penalty
+        let stoch_k = raw_signals_summary.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        
+        let is_risky_long = stoch_k >= self.stoch_correction_long_min || rsi > 70.0;
+        let is_risky_short = stoch_k <= self.stoch_correction_short_max || rsi < 30.0;
+
+        if (side_i8 > 0 && is_risky_long) || (side_i8 < 0 && is_risky_short) {
+            level_adjusted_score *= self.correction_penalty_weight;
+        }
+
+        let adjusted_base_score = if (level_adjusted_score - base_score).abs() > 0.01 {
+            level_adjusted_score
+        } else {
+            base_score
+        };
+
+        let setup_damp = 0.75 + 0.25 * setup_confidence;
+        let final_score = (adjusted_base_score
+            * coverage_score.powf(self.coverage_gamma)
+            * consensus_score.powf(self.consensus_gamma)
+            * setup_damp)
+            .clamp(0.0, 1.0);
+
+        let debug = json!({
+            "symbol": symbol,
+            "tf_minutes": tf_minutes,
+            "timestamp": timestamp.to_rfc3339(),
+            "side": side_i8,
+            "weights": self.weights,
+            "base_score": base_score,
+            "adjusted_base_score": adjusted_base_score,
+            "predictors_score": predictors_score,
+            "raw_signals_score": raw_signals_score,
+            "indicators_score": indicators_score,
+            "market_score": market_score,
+            "coverage_score": coverage_score,
+            "consensus_score": consensus_score,
+            "final_score": final_score,
+            "setup_kind": format!("{:?}", setup_kind),
+            "setup_confidence": setup_confidence,
+            "bounce_prob": bounce_prob,
+            "breakout_prob": breakout_prob,
+        });
+
+        if final_score >= self.min_final_score {
+            Ok(Some(LevelConsensusScoreBreakdown {
+                final_score,
+                base_score: adjusted_base_score,
+                predictors_score,
+                predictors_ml_score,
+                predictors_heur_score,
+                raw_signals_score,
+                indicators_score,
+                market_score,
+                coverage_score,
+                consensus_score,
+                setup_kind,
+                setup_confidence,
+                bounce_prob,
+                breakout_prob,
+                level_distance_atr,
+                level_strength,
+                trend_align,
+                volatility_ok,
+                momentum_ok,
+                debug,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn calculate_predictors_component(&self, predictors: &[PredictionRow]) -> Result<PredComponent> {
+        if predictors.is_empty() {
+            return Ok(PredComponent::zero());
+        }
+
+        let mut best_ml: std::collections::HashMap<i16, f64> = std::collections::HashMap::new();
+        let mut best_heur: std::collections::HashMap<i16, f64> = std::collections::HashMap::new();
+
+        for p in predictors {
+            let aspect = p.aspect.as_int();
+            let score = (p.score_norm as f64).clamp(0.0, 1.0);
+
+            match p.calc_source {
+                CalcSource::Ml => {
+                    best_ml.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
+                }
+                CalcSource::Hard => {
+                    best_heur.entry(aspect).and_modify(|x| *x = x.max(score)).or_insert(score);
+                }
+            }
+        }
+
+        let aspect_weight = |a: i16| -> f64 {
+            match a {
+                x if x == PredictionAspect::PriceTarget.as_int() => 1.00,
+                x if x == PredictionAspect::LevelBounce.as_int() => 0.85,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.85,
+                _ => 0.60,
+            }
+        };
+
+        let mut total_ws = 0.0;
+        let mut total_w = 0.0;
+        let mut ml_ws = 0.0;
+        let mut ml_w = 0.0;
+        let mut heur_ws = 0.0;
+        let mut heur_w = 0.0;
+
+        let mut aspects: std::collections::BTreeSet<i16> = std::collections::BTreeSet::new();
+        for k in best_ml.keys() { aspects.insert(*k); }
+        for k in best_heur.keys() { aspects.insert(*k); }
+
+        for a in aspects {
+            let w = aspect_weight(a);
+            let s_ml = best_ml.get(&a).copied().unwrap_or(0.0);
+            let s_heur = best_heur.get(&a).copied().unwrap_or(0.0);
+            let s_total = s_ml.max(s_heur);
+
+            total_ws += s_total * w;
+            total_w += w;
+
+            if s_ml > 0.0 { ml_ws += s_ml * w; ml_w += w; }
+            if s_heur > 0.0 { heur_ws += s_heur * w; heur_w += w; }
+        }
+
+        let total = if total_w > 0.0 { total_ws / total_w } else { 0.0 };
+        let ml = if ml_w > 0.0 { ml_ws / ml_w } else { 0.0 };
+        let heur = if heur_w > 0.0 { heur_ws / heur_w } else { 0.0 };
+
+        Ok(PredComponent { total, ml, heur })
+    }
+
+    fn calculate_raw_signals_score(&self, raw_signals_summary: &Value) -> f64 {
+        let best_raw = raw_signals_summary.get("best_raw_signal_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_levels = raw_signals_summary.get("best_levels_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_momentum = raw_signals_summary.get("best_momentum_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_volume = raw_signals_summary.get("best_volume_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        let m = best_raw.max(best_levels).max(best_momentum).max(best_volume);
+        let avg = (best_raw + best_levels + best_momentum + best_volume) / 4.0;
+        (0.75 * m + 0.25 * avg).clamp(0.0, 1.0)
+    }
+
+    fn calculate_indicator_score(&self, raw_signals_summary: &Value, side: i8) -> f64 {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let macd_hist = raw_signals_summary.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let stoch_k = raw_signals_summary.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
+
+        let rsi_score = if side > 0 {
+            if rsi > 50.0 && rsi < 70.0 { 1.0 } else if rsi >= 70.0 { 0.5 } else { 0.3 }
+        } else {
+            if rsi < 50.0 && rsi > 30.0 { 1.0 } else if rsi <= 30.0 { 0.5 } else { 0.3 }
+        };
+
+        let macd_score = if side > 0 {
+            if macd_hist > 0.0 { 1.0 } else { 0.3 }
+        } else {
+            if macd_hist < 0.0 { 1.0 } else { 0.3 }
+        };
+
+        let stoch_score = if side > 0 {
+            if stoch_k > 50.0 && stoch_k < 80.0 { 1.0 } else if stoch_k >= 80.0 { 0.3 } else { 0.5 }
+        } else {
+            if stoch_k < 50.0 && stoch_k > 20.0 { 1.0 } else if stoch_k <= 20.0 { 0.3 } else { 0.5 }
+        };
+
+        (rsi_score * 0.4_f64 + macd_score * 0.35_f64 + stoch_score * 0.25_f64).clamp(0.0_f64, 1.0_f64)
+    }
+
+    fn calculate_feature_coverage_score(&self, predictors: &[PredictionRow], raw_signals_summary: &Value) -> f64 {
+        let has_predictors = !predictors.is_empty();
+        let has_raw = raw_signals_summary.get("best_raw_signal_score").and_then(|v| v.as_f64()).unwrap_or(0.0) > 0.0;
+        
+        if has_predictors && has_raw { 1.0 } else if has_predictors || has_raw { 0.7 } else { 0.5 }
+    }
+
+    fn calculate_ml_heuristic_consensus(&self, ml_score: f64, heur_score: f64) -> f64 {
+        let avg = (ml_score + heur_score) / 2.0;
+        let disagreement = (ml_score - heur_score).abs();
+        (avg * (1.0 - disagreement * 0.2)).clamp(0.0, 1.0)
+    }
+
+    fn infer_setup(&self, bounce_prob: Option<f64>, breakout_prob: Option<f64>) -> (SetupKind, f64) {
+        match (bounce_prob, breakout_prob) {
+            (Some(b), Some(br)) => {
+                if b > br {
+                    (SetupKind::Bounce, b)
+                } else {
+                    (SetupKind::Breakout, br)
+                }
+            }
+            (Some(b), None) => (SetupKind::Bounce, b),
+            (None, Some(br)) => (SetupKind::Breakout, br),
+            (None, None) => (SetupKind::Bounce, 0.5),
+        }
+    }
+
+    fn extract_level_probs(&self, predictors: &[PredictionRow]) -> (Option<f64>, Option<f64>) {
+        let bounce = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::LevelBounce)
+            .map(|p| p.value);
+        let breakout = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::LevelBreakout)
+            .map(|p| p.value);
+        (bounce, breakout)
+    }
+
+    fn extract_level_distance_atr(&self, raw_signals_summary: &Value, _side: i8) -> Option<f64> {
+        raw_signals_summary.get("level_distance_atr").and_then(|v| v.as_f64())
+    }
+
+    fn extract_level_strength(&self, raw_signals_summary: &Value, _side: i8) -> Option<f64> {
+        raw_signals_summary.get("level_strength").and_then(|v| v.as_f64())
+    }
+}
+
+struct PredComponent {
+    total: f64,
+    ml: f64,
+    heur: f64,
+}
+
+impl PredComponent {
+    fn zero() -> Self {
+        Self { total: 0.0, ml: 0.0, heur: 0.0 }
+    }
+}
+
+
+
+# strategies/level_consensus_strategy/src/trade_signal_calculator.rs
+
+// strategies/level_consensus_strategy/src/trade_signal_calculator.rs
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::{PgPool, Row};
+
+use common::Symbol;
+use predictors::types::{PredictionRow, PredictionAspect};
+
+use crate::scorer::{LevelConsensusScorer, LevelConsensusScoreBreakdown, SetupKind};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeSignal {
+    pub time: DateTime<Utc>,
+    pub time_ms: i64,
+    pub symbol_id: i64,
+    pub symbol: String,
+    pub tf_minutes: i16,
+    pub side: i8,
+    pub entry: f64,
+    pub stop_loss: f64,
+    pub tp1: f64,
+    pub tp2: f64,
+    pub tp3: f64,
+    pub leverage: i16,
+    pub final_score: f64,
+    pub breakdown_json: Value,
+}
+
+pub struct TradeSignalCalculator {
+    pub min_final_score: f64,
+    pub base_leverage: i16,
+    pub fallback_atr_pct: f64,
+    
+    // Bounce parameters
+    pub sl_atr_mult_bounce: f64,
+    pub tp1_atr_mult_bounce: f64,
+    pub tp2_atr_mult_bounce: f64,
+    pub tp3_atr_mult_bounce: f64,
+    
+    // Breakout parameters
+    pub sl_atr_mult_breakout: f64,
+    pub tp1_atr_mult_breakout: f64,
+    pub tp2_atr_mult_breakout: f64,
+    pub tp3_atr_mult_breakout: f64,
+}
+
+impl Default for TradeSignalCalculator {
+    fn default() -> Self {
+        Self {
+            min_final_score: 0.55,
+            base_leverage: 5,
+            fallback_atr_pct: 0.008,
+            sl_atr_mult_bounce: 0.55,
+            tp1_atr_mult_bounce: 0.75,
+            tp2_atr_mult_bounce: 1.4,
+            tp3_atr_mult_bounce: 2.2,
+            sl_atr_mult_breakout: 0.75,
+            tp1_atr_mult_breakout: 1.1,
+            tp2_atr_mult_breakout: 1.8,
+            tp3_atr_mult_breakout: 2.8,
+        }
+    }
+}
+
+impl TradeSignalCalculator {
+    pub fn new(min_final_score: f64) -> Self {
+        Self { min_final_score, ..Default::default() }
+    }
+
+    fn level_aware_targets(
+        &self,
+        entry_price: f64,
+        side: i8,
+        atr: f64,
+        support_levels: &[f64],
+        resistance_levels: &[f64],
+        setup_kind: SetupKind,
+    ) -> (f64, f64, f64, f64) {
+        let side_f = side as f64;
+
+        let (sl_mult, tp1_mult, tp2_mult, tp3_mult) = match setup_kind {
+            SetupKind::Bounce => (
+                self.sl_atr_mult_bounce,
+                self.tp1_atr_mult_bounce,
+                self.tp2_atr_mult_bounce,
+                self.tp3_atr_mult_bounce,
+            ),
+            SetupKind::Breakout => (
+                self.sl_atr_mult_breakout,
+                self.tp1_atr_mult_breakout,
+                self.tp2_atr_mult_breakout,
+                self.tp3_atr_mult_breakout,
+            ),
+        };
+
+        let fb_sl = entry_price - side_f * sl_mult * atr;
+        let fb_tp1 = entry_price + side_f * tp1_mult * atr;
+        let fb_tp2 = entry_price + side_f * tp2_mult * atr;
+        let fb_tp3 = entry_price + side_f * tp3_mult * atr;
+
+        let min_tp1_atr_dist = 0.5 * atr;
+
+        if side > 0 {
+            let sl_buffer = match setup_kind {
+                SetupKind::Bounce => 0.3 * atr,
+                SetupKind::Breakout => 0.0,
+            };
+            let sl = support_levels.iter().rev()
+                .find(|&&p| p < entry_price)
+                .map(|&p| p - sl_buffer)
+                .unwrap_or(fb_sl);
+
+            let mut res_iter = resistance_levels.iter()
+                .filter(|&&p| p > entry_price && (p - entry_price) >= min_tp1_atr_dist);
+            let t1 = res_iter.next().copied().unwrap_or(fb_tp1);
+            let t2 = res_iter.next().copied().unwrap_or(fb_tp2);
+            let t3 = res_iter.next().copied().unwrap_or(fb_tp3);
+
+            (sl, t1, t2, t3)
+        } else {
+            let sl_buffer = match setup_kind {
+                SetupKind::Bounce => 0.3 * atr,
+                SetupKind::Breakout => 0.0,
+            };
+            let sl = resistance_levels.iter()
+                .find(|&&p| p > entry_price)
+                .map(|&p| p + sl_buffer)
+                .unwrap_or(fb_sl);
+
+            let mut sup_iter = support_levels.iter().rev()
+                .filter(|&&p| p < entry_price && (entry_price - p) >= min_tp1_atr_dist);
+            let t1 = sup_iter.next().copied().unwrap_or(fb_tp1);
+            let t2 = sup_iter.next().copied().unwrap_or(fb_tp2);
+            let t3 = sup_iter.next().copied().unwrap_or(fb_tp3);
+
+            (sl, t1, t2, t3)
+        }
+    }
+
+    pub async fn build_trade_signal(
+        &self,
+        pool: &PgPool,
+        scorer: &LevelConsensusScorer,
+        time: DateTime<Utc>,
+        time_ms: i64,
+        symbol_id: i64,
+        symbol: &Symbol,
+        tf_minutes: i16,
+        entry_price: f64,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<TradeSignal>> {
+        let side = infer_side(predictors)
+            .or_else(|| infer_side_from_summary(raw_signals_summary))
+            .unwrap_or(0);
+
+        if side == 0 {
+            return Ok(None);
+        }
+
+        let breakdown_opt: Option<LevelConsensusScoreBreakdown> = scorer
+            .score_signal_verbose(
+                symbol.0.as_str(),
+                tf_minutes,
+                time,
+                side as i16,
+                raw_signals_summary,
+                predictors,
+            )
+            .await?;
+
+        let breakdown = match breakdown_opt {
+            Some(b) => b,
+            None => return Ok(None),
+        };
+
+        if breakdown.final_score < self.min_final_score {
+            return Ok(None);
+        }
+
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
+
+        let (mut support_prices, mut resistance_prices) = extract_sr_levels(raw_signals_summary);
+        
+        for p in predictors {
+            if let Some(lp) = p.level_price {
+                if lp <= 0.0 { continue; }
+                match p.level_kind {
+                    Some(1) => support_prices.push(lp),
+                    Some(2) => resistance_prices.push(lp),
+                    _ => {}
+                }
+            }
+        }
+
+        support_prices.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        support_prices.dedup();
+        resistance_prices.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        resistance_prices.dedup();
+
+        let has_levels = !support_prices.is_empty() || !resistance_prices.is_empty();
+        let setup_kind = breakdown.setup_kind;
+
+        let (stop_loss, tp1, tp2, tp3) = if has_levels {
+            self.level_aware_targets(
+                entry_price,
+                side,
+                atr,
+                &support_prices,
+                &resistance_prices,
+                setup_kind,
+            )
+        } else {
+            let (sl_mult, tp1_mult, tp2_mult, tp3_mult) = match setup_kind {
+                SetupKind::Bounce => (
+                    self.sl_atr_mult_bounce,
+                    self.tp1_atr_mult_bounce,
+                    self.tp2_atr_mult_bounce,
+                    self.tp3_atr_mult_bounce,
+                ),
+                SetupKind::Breakout => (
+                    self.sl_atr_mult_breakout,
+                    self.tp1_atr_mult_breakout,
+                    self.tp2_atr_mult_breakout,
+                    self.tp3_atr_mult_breakout,
+                ),
+            };
+
+            let d_sl = sl_mult * atr;
+            let d_tp1 = tp1_mult * atr;
+            let d_tp2 = tp2_mult * atr;
+            let d_tp3 = tp3_mult * atr;
+
+            let side_f = side as f64;
+            let stop_loss = (entry_price - side_f * d_sl).max(0.0);
+            let tp1 = (entry_price + side_f * d_tp1).max(0.0);
+            let tp2 = (entry_price + side_f * d_tp2).max(0.0);
+            let tp3 = (entry_price + side_f * d_tp3).max(0.0);
+
+            (stop_loss, tp1, tp2, tp3)
+        };
+
+        let tp1_dist = (tp1 - entry_price).abs();
+        let sl_dist = (stop_loss - entry_price).abs();
+        let risk_reward = if sl_dist > 0.0 { tp1_dist / sl_dist } else { 0.0 };
+
+        if risk_reward < 1.5 {
+            return Ok(None);
+        }
+
+        let score_factor = (0.55 + 0.45 * breakdown.final_score).clamp(0.55, 1.0);
+        let lev = ((self.base_leverage as f64) * score_factor)
+            .round()
+            .clamp(1.0, self.base_leverage as f64) as i16;
+
+        let atr_pct = if entry_price > 0.0 { atr / entry_price } else { 0.0 };
+
+        let breakdown_json = json!({
+            "final": breakdown.final_score,
+            "base_score": breakdown.base_score,
+            "predictors_score": breakdown.predictors_score,
+            "raw_signals_score": breakdown.raw_signals_score,
+            "indicators_score": breakdown.indicators_score,
+            "coverage_score": breakdown.coverage_score,
+            "consensus_score": breakdown.consensus_score,
+            "setup_kind": format!("{:?}", breakdown.setup_kind),
+            "setup_confidence": breakdown.setup_confidence,
+            "atr": atr,
+            "atr_pct": atr_pct,
+            "risk_reward": risk_reward,
+            "level_aware": has_levels,
+            "support_levels_used": support_prices,
+            "resistance_levels_used": resistance_prices,
+            "strategy_id": 6,
+            "strategy_name": "level_consensus",
+        });
+
+        Ok(Some(TradeSignal {
+            time,
+            time_ms,
+            symbol_id,
+            symbol: symbol.0.clone(),
+            tf_minutes,
+            side,
+            entry: entry_price,
+            stop_loss,
+            tp1,
+            tp2,
+            tp3,
+            leverage: lev,
+            final_score: breakdown.final_score,
+            breakdown_json,
+        }))
+    }
+}
+
+fn infer_side(predictors: &[PredictionRow]) -> Option<i8> {
+    let mut long_score: f32 = 0.0;
+    let mut short_score: f32 = 0.0;
+    let mut vote_count: usize = 0;
+
+    for p in predictors {
+        let sc = p.score_norm;
+        let sd = p.side.unwrap_or(0);
+        if sd == 0 { continue; }
+
+        vote_count += 1;
+        if sd > 0 { long_score += sc; } else { short_score += sc; }
+    }
+
+    if vote_count < 2 { return None; }
+
+    let total = long_score + short_score;
+    if total <= 0.0 { return None; }
+
+    let long_ratio = long_score / total;
+    if long_ratio >= 0.6 { Some(1) }
+    else if long_ratio <= 0.4 { Some(-1) }
+    else { None }
+}
+
+fn infer_side_from_summary(raw_signals_summary: &Value) -> Option<i8> {
+    raw_signals_summary.get("side").and_then(|v| v.as_i64()).map(|x| (x as i8).signum())
+}
+
+fn extract_atr_from_summary(raw_signals_summary: &Value) -> Option<f64> {
+    raw_signals_summary.get("atr").and_then(|v| v.as_f64())
+}
+
+fn extract_sr_levels(raw_signals_summary: &Value) -> (Vec<f64>, Vec<f64>) {
+    let mut supports = Vec::new();
+    let mut resistances = Vec::new();
+    
+    if let Some(levels) = raw_signals_summary.get("sr_levels").and_then(|v| v.as_array()) {
+        for level in levels {
+            if let Some(obj) = level.as_object() {
+                if let Some(price) = obj.get("price").and_then(|v| v.as_f64()) {
+                    match obj.get("kind").and_then(|v| v.as_i64()) {
+                        Some(1) => supports.push(price),
+                        Some(2) => resistances.push(price),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    
+    (supports, resistances)
+}
+
+async fn fetch_last_atr(pool: &PgPool, symbol_id: i64, tf_minutes: i16) -> Result<Option<f64>> {
+    let row = sqlx::query(
+        r#"SELECT atr FROM market.indicators_wide WHERE symbol_id = $1 AND tf_minutes = $2 AND atr IS NOT NULL ORDER BY time DESC LIMIT 1"#,
+    ).bind(symbol_id).bind(tf_minutes as i32).fetch_optional(pool).await?;
+    Ok(row.and_then(|r| r.try_get::<f64, _>(0).ok()))
+}
+
+
+
+# strategies/indicator_heuristic_strategy/Cargo.toml
+
+[package]
+name = "indicator_heuristic_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-postgres.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+config.workspace = true
+
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+
+[lib]
+path = "src/lib.rs"
+
+
+
+# strategies/indicator_heuristic_strategy/src/lib.rs
+
+// strategies/indicator_heuristic_strategy/src/lib.rs
+
+pub mod scorer;
+pub mod trade_signal_calculator;
+
+pub use scorer::{IndicatorHeuristicScorer, IndicatorHeuristicScoreBreakdown, SetupKind, IndicatorWeights};
+pub use trade_signal_calculator::{TradeSignal, TradeSignalCalculator};
+
+pub const STRATEGY_ID: i16 = 2;
+pub const STRATEGY_NAME: &str = "indicator_heuristic";
+
+
+
+# strategies/indicator_heuristic_strategy/src/scorer.rs
+
+// strategies/indicator_heuristic_strategy/src/scorer.rs
+//
+// Indicator Heuristic Strategy Scorer
+//
+// Эта стратегия полагается исключительно на:
+// 1. Эвристические предсказания (PriceTarget от Hard/Heuristic)
+// 2. Индикаторы с равными весами (RSI, MACD, Stochastic, ADX, ATR, Volume, Trend)
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use predictors::types::{PredictionAspect, PredictionRow, CalcSource};
+
+/// Setup kind
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetupKind {
+    Momentum,
+    Reversal,
+}
+
+/// Final scorer configuration для Indicator Heuristic стратегии
+pub struct IndicatorHeuristicScorer {
+    min_final_score: f64,
+    indicator_weights: IndicatorWeights,
+    heuristic_prediction_weight: f64,
+    adx_filter_threshold: f64,
+    rsi_overbought: f64,
+    rsi_oversold: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorWeights {
+    pub rsi_weight: f64,
+    pub macd_weight: f64,
+    pub stoch_weight: f64,
+    pub adx_weight: f64,
+    pub atr_weight: f64,
+    pub volume_weight: f64,
+    pub trend_weight: f64,
+}
+
+impl Default for IndicatorWeights {
+    fn default() -> Self {
+        Self {
+            rsi_weight: 0.20,
+            macd_weight: 0.20,
+            stoch_weight: 0.15,
+            adx_weight: 0.15,
+            atr_weight: 0.10,
+            volume_weight: 0.10,
+            trend_weight: 0.10,
+        }
+    }
+}
+
+impl IndicatorWeights {
+    pub fn normalized(mut self) -> Self {
+        let sum = self.rsi_weight + self.macd_weight + self.stoch_weight 
+                + self.adx_weight + self.atr_weight + self.volume_weight + self.trend_weight;
+        if sum > 0.0 {
+            self.rsi_weight /= sum;
+            self.macd_weight /= sum;
+            self.stoch_weight /= sum;
+            self.adx_weight /= sum;
+            self.atr_weight /= sum;
+            self.volume_weight /= sum;
+            self.trend_weight /= sum;
+        }
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorHeuristicScoreBreakdown {
+    pub final_score: f64,
+    pub indicator_score: f64,
+    pub heuristic_prediction_score: f64,
+    
+    pub rsi_score: f64,
+    pub macd_score: f64,
+    pub stoch_score: f64,
+    pub adx_score: f64,
+    pub atr_score: f64,
+    pub volume_score: f64,
+    pub trend_score: f64,
+    
+    pub setup_kind: SetupKind,
+    pub setup_confidence: f64,
+    pub trend_align: f64,
+    pub momentum_ok: f64,
+    
+    pub debug: Value,
+}
+
+impl IndicatorHeuristicScorer {
+    pub fn new(min_final_score: f64) -> Self {
+        Self {
+            min_final_score,
+            indicator_weights: IndicatorWeights::default().normalized(),
+            heuristic_prediction_weight: 0.5,
+            adx_filter_threshold: 25.0,
+            rsi_overbought: 70.0,
+            rsi_oversold: 30.0,
+        }
+    }
+    
+    pub fn with_heuristic_weight(mut self, weight: f64) -> Self {
+        self.heuristic_prediction_weight = weight.clamp(0.0, 1.0);
+        self
+    }
+    
+    pub async fn score_signal(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<f64>> {
+        Ok(self
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictors)
+            .await?
+            .map(|b| b.final_score))
+    }
+    
+    pub async fn score_signal_verbose(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<IndicatorHeuristicScoreBreakdown>> {
+        let side_i8 = side.signum() as i8;
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 1. Heuristic Prediction Score - ТОЛЬКО эвристические предсказания
+        // ═══════════════════════════════════════════════════════════════
+        let heuristic_prediction_score = self.calculate_heuristic_prediction_score(predictors);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 2. Indicator Score
+        // ═══════════════════════════════════════════════════════════════
+        let (indicator_score, rsi_score, macd_score, stoch_score, adx_score, 
+             atr_score, volume_score, trend_score) = 
+            self.calculate_indicator_score(raw_signals_summary, side_i8);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 3. ADX Filter
+        // ═══════════════════════════════════════════════════════════════
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        if adx > 0.0 && adx < self.adx_filter_threshold {
+            return Ok(None);
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 4. Final Score
+        // ═══════════════════════════════════════════════════════════════
+        let base_score = heuristic_prediction_score * self.heuristic_prediction_weight 
+                       + indicator_score * (1.0 - self.heuristic_prediction_weight);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 5. Setup Inference
+        // ═══════════════════════════════════════════════════════════════
+        let (setup_kind, setup_confidence) = self.infer_setup(raw_signals_summary, side_i8);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 6. Regime alignment
+        // ═══════════════════════════════════════════════════════════════
+        let trend_align = raw_signals_summary.get("trend_strength")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5);
+        
+        let momentum_strength = raw_signals_summary.get("momentum_strength")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5);
+        
+        let momentum_ok = match setup_kind {
+            SetupKind::Momentum => momentum_strength,
+            SetupKind::Reversal => (1.0 - momentum_strength).clamp(0.0, 1.0),
+        };
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 7. Final calculation
+        // ═══════════════════════════════════════════════════════════════
+        let setup_damp = 0.8 + 0.2 * setup_confidence;
+        let final_score = (base_score * setup_damp).clamp(0.0, 1.0);
+        
+        let debug = json!({
+            "symbol": symbol,
+            "tf_minutes": tf_minutes,
+            "timestamp": timestamp.to_rfc3339(),
+            "side": side_i8,
+            "heuristic_prediction_weight": self.heuristic_prediction_weight,
+            "base_score": base_score,
+            "heuristic_prediction_score": heuristic_prediction_score,
+            "indicator_score": indicator_score,
+            "rsi_score": rsi_score,
+            "macd_score": macd_score,
+            "stoch_score": stoch_score,
+            "adx_score": adx_score,
+            "atr_score": atr_score,
+            "volume_score": volume_score,
+            "trend_score": trend_score,
+            "final_score": final_score,
+            "setup_kind": format!("{:?}", setup_kind),
+            "setup_confidence": setup_confidence,
+        });
+        
+        if final_score >= self.min_final_score {
+            Ok(Some(IndicatorHeuristicScoreBreakdown {
+                final_score,
+                indicator_score,
+                heuristic_prediction_score,
+                rsi_score,
+                macd_score,
+                stoch_score,
+                adx_score,
+                atr_score,
+                volume_score,
+                trend_score,
+                setup_kind,
+                setup_confidence,
+                trend_align,
+                momentum_ok,
+                debug,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    /// Calculate heuristic prediction score - uses ONLY heuristic predictions
+    fn calculate_heuristic_prediction_score(&self, predictors: &[PredictionRow]) -> f64 {
+        let heuristic_predictors: Vec<&PredictionRow> = predictors.iter()
+            .filter(|p| p.calc_source == CalcSource::Hard)
+            .collect();
+        
+        if heuristic_predictors.is_empty() {
+            return 0.0;
+        }
+        
+        let aspect_weight = |a: i16| -> f64 {
+            match a {
+                x if x == PredictionAspect::PriceTarget.as_int() => 1.0,
+                x if x == PredictionAspect::LevelBounce.as_int() => 0.7,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.7,
+                _ => 0.5,
+            }
+        };
+        
+        let mut total_ws = 0.0;
+        let mut total_w = 0.0;
+        
+        for p in &heuristic_predictors {
+            let aspect = p.aspect.as_int();
+            let score = (p.score_norm as f64).clamp(0.0, 1.0);
+            let w = aspect_weight(aspect);
+            
+            total_ws += score * w;
+            total_w += w;
+        }
+        
+        if total_w > 0.0 {
+            (total_ws / total_w).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+    
+    fn calculate_indicator_score(
+        &self,
+        raw_signals_summary: &Value,
+        side: i8,
+    ) -> (f64, f64, f64, f64, f64, f64, f64, f64) {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let macd_hist = raw_signals_summary.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let stoch_k = raw_signals_summary.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let stoch_d = raw_signals_summary.get("stoch_d").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let atr = raw_signals_summary.get("atr").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let close = raw_signals_summary.get("close").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let volume = raw_signals_summary.get("volume").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let volume_sma = raw_signals_summary.get("volume_sma").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_20 = raw_signals_summary.get("ema_20").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_50 = raw_signals_summary.get("ema_50").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        let rsi_score = if side > 0 {
+            if rsi >= self.rsi_oversold && rsi <= self.rsi_overbought {
+                ((rsi - 50.0) / 20.0).clamp(0.0, 1.0)
+            } else if rsi > self.rsi_overbought {
+                0.3
+            } else {
+                0.2
+            }
+        } else {
+            if rsi >= self.rsi_oversold && rsi <= self.rsi_overbought {
+                ((50.0 - rsi) / 20.0).clamp(0.0, 1.0)
+            } else if rsi < self.rsi_oversold {
+                0.3
+            } else {
+                0.2
+            }
+        };
+        
+        let macd_score = if side > 0 {
+            if macd_hist > 0.0 {
+                (macd_hist.abs() / 0.001).clamp(0.5, 1.0)
+            } else {
+                0.2
+            }
+        } else {
+            if macd_hist < 0.0 {
+                (macd_hist.abs() / 0.001).clamp(0.5, 1.0)
+            } else {
+                0.2
+            }
+        };
+        
+        let stoch_mid = (stoch_k + stoch_d) / 2.0;
+        let stoch_score = if side > 0 {
+            if stoch_mid >= 20.0 && stoch_mid <= 80.0 {
+                ((stoch_mid - 50.0) / 30.0).clamp(0.0, 1.0)
+            } else if stoch_mid > 80.0 {
+                0.3
+            } else {
+                0.2
+            }
+        } else {
+            if stoch_mid >= 20.0 && stoch_mid <= 80.0 {
+                ((50.0 - stoch_mid) / 30.0).clamp(0.0, 1.0)
+            } else if stoch_mid < 20.0 {
+                0.3
+            } else {
+                0.2
+            }
+        };
+        
+        let adx_score = (adx / 50.0).clamp(0.0, 1.0);
+        
+        let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
+        let atr_score = if atr_pct >= 0.005 && atr_pct <= 0.03 {
+            1.0
+        } else if atr_pct < 0.005 {
+            0.5
+        } else {
+            0.3
+        };
+        
+        let volume_ratio = if volume_sma > 0.0 { volume / volume_sma } else { 1.0 };
+        let volume_score = if volume_ratio >= 1.0 && volume_ratio <= 3.0 {
+            1.0
+        } else if volume_ratio > 3.0 {
+            0.7
+        } else {
+            0.5
+        };
+        
+        let trend_score = if ema_20 > 0.0 && ema_50 > 0.0 {
+            if side > 0 {
+                if ema_20 > ema_50 { 1.0 } else { 0.3 }
+            } else {
+                if ema_20 < ema_50 { 1.0 } else { 0.3 }
+            }
+        } else {
+            0.5
+        };
+        
+        let indicator_score = rsi_score * self.indicator_weights.rsi_weight
+            + macd_score * self.indicator_weights.macd_weight
+            + stoch_score * self.indicator_weights.stoch_weight
+            + adx_score * self.indicator_weights.adx_weight
+            + atr_score * self.indicator_weights.atr_weight
+            + volume_score * self.indicator_weights.volume_weight
+            + trend_score * self.indicator_weights.trend_weight;
+        
+        (indicator_score, rsi_score, macd_score, stoch_score, adx_score, 
+         atr_score, volume_score, trend_score)
+    }
+    
+    fn infer_setup(&self, raw_signals_summary: &Value, _side: i8) -> (SetupKind, f64) {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let _trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        let is_momentum = adx >= 25.0 && adx < 50.0;
+        let is_reversal = adx < 25.0;
+        
+        if is_momentum {
+            (SetupKind::Momentum, (adx / 50.0).clamp(0.5, 1.0))
+        } else if is_reversal {
+            (SetupKind::Reversal, 0.5)
+        } else {
+            (SetupKind::Momentum, 0.5)
+        }
+    }
+}
+
+
+
+# strategies/indicator_heuristic_strategy/src/trade_signal_calculator.rs
+
+// strategies/indicator_heuristic_strategy/src/trade_signal_calculator.rs
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::{PgPool, Row};
+
+use common::Symbol;
+use predictors::types::{PredictionRow, PredictionAspect, CalcSource};
+
+use crate::scorer::{IndicatorHeuristicScorer, IndicatorHeuristicScoreBreakdown, SetupKind};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeSignal {
+    pub time: DateTime<Utc>,
+    pub time_ms: i64,
+    pub symbol_id: i64,
+    pub symbol: String,
+    pub tf_minutes: i16,
+    pub side: i8,
+    pub entry: f64,
+    pub stop_loss: f64,
+    pub tp1: f64,
+    pub tp2: f64,
+    pub tp3: f64,
+    pub leverage: i16,
+    pub final_score: f64,
+    pub breakdown_json: Value,
+}
+
+pub struct TradeSignalCalculator {
+    pub min_final_score: f64,
+    pub base_leverage: i16,
+    pub fallback_atr_pct: f64,
+}
+
+impl Default for TradeSignalCalculator {
+    fn default() -> Self {
+        Self {
+            min_final_score: 0.55,
+            base_leverage: 5,
+            fallback_atr_pct: 0.008,
+        }
+    }
+}
+
+impl TradeSignalCalculator {
+    pub fn new(min_final_score: f64) -> Self {
+        Self { min_final_score, ..Default::default() }
+    }
+
+    fn calculate_tp_sl(
+        &self,
+        entry_price: f64,
+        side: i8,
+        atr: f64,
+        heuristic_price_target: Option<f64>,
+        min_tp1_pct: f64,
+        min_sl_pct: f64,
+        max_sl_pct: f64,
+    ) -> (f64, f64, f64, f64) {
+        let side_f = side as f64;
+        
+        let heuristic_tp1 = if let Some(target) = heuristic_price_target {
+            let predicted_move = (target - entry_price) / entry_price;
+            if predicted_move * side_f > 0.0 {
+                target
+            } else {
+                entry_price + side_f * atr * 1.0
+            }
+        } else {
+            entry_price + side_f * atr * 1.0
+        };
+        
+        let min_tp1 = entry_price + side_f * entry_price * min_tp1_pct;
+        
+        let tp1 = if side > 0 {
+            heuristic_tp1.max(min_tp1)
+        } else {
+            heuristic_tp1.min(min_tp1)
+        };
+        
+        let tp1_dist = (tp1 - entry_price).abs();
+        let tp2 = entry_price + side_f * tp1_dist * 1.6;
+        let tp3 = entry_price + side_f * tp1_dist * 2.5;
+        
+        let sl_atr = entry_price - side_f * atr * 0.75;
+        let sl_min = entry_price - side_f * entry_price * min_sl_pct;
+        let sl_max = entry_price - side_f * entry_price * max_sl_pct;
+        
+        let mut stop_loss = if side > 0 {
+            sl_atr.min(sl_min)
+        } else {
+            sl_atr.max(sl_min)
+        };
+        
+        if side > 0 {
+            stop_loss = stop_loss.max(sl_max);
+        } else {
+            stop_loss = stop_loss.min(sl_max);
+        }
+        
+        let d_sl_min = entry_price * min_sl_pct;
+        let d_tp1_min = entry_price * min_tp1_pct;
+        let d_tp2_min = entry_price * min_tp1_pct * 1.6;
+        let d_tp3_min = entry_price * min_tp1_pct * 2.5;
+        
+        let enforce_min = |raw: f64, min_delta: f64, is_tp: bool| -> f64 {
+            let actual_delta = (raw - entry_price).abs();
+            if actual_delta >= min_delta {
+                raw
+            } else if is_tp {
+                entry_price + side_f * min_delta
+            } else {
+                entry_price - side_f * min_delta
+            }
+        };
+        
+        stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+        let mut tp2 = enforce_min(tp2, d_tp2_min, true).max(0.0);
+        let mut tp3 = enforce_min(tp3, d_tp3_min, true).max(0.0);
+        
+        let gap = entry_price * 0.002;
+        if side > 0 {
+            if tp2 <= tp1 { tp2 = tp1 + gap; }
+            if tp3 <= tp2 { tp3 = tp2 + gap; }
+        } else {
+            if tp2 >= tp1 { tp2 = tp1 - gap; }
+            if tp3 >= tp2 { tp3 = tp2 - gap; }
+        }
+        
+        (stop_loss, tp1, tp2, tp3)
+    }
+
+    pub async fn build_trade_signal(
+        &self,
+        pool: &PgPool,
+        scorer: &IndicatorHeuristicScorer,
+        time: DateTime<Utc>,
+        time_ms: i64,
+        symbol_id: i64,
+        symbol: &Symbol,
+        tf_minutes: i16,
+        entry_price: f64,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<TradeSignal>> {
+        let side = infer_side_heuristic(predictors)
+            .or_else(|| infer_side_from_summary_fields(raw_signals_summary))
+            .unwrap_or(0);
+
+        if side == 0 {
+            return Ok(None);
+        }
+
+        let breakdown_opt: Option<IndicatorHeuristicScoreBreakdown> = scorer
+            .score_signal_verbose(
+                symbol.0.as_str(),
+                tf_minutes,
+                time,
+                side as i16,
+                raw_signals_summary,
+                predictors,
+            )
+            .await?;
+
+        let breakdown = match breakdown_opt {
+            Some(b) => b,
+            None => return Ok(None),
+        };
+
+        if breakdown.final_score < self.min_final_score {
+            return Ok(None);
+        }
+
+        let heuristic_price_target = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::PriceTarget && p.calc_source == CalcSource::Hard)
+            .map(|p| p.value);
+
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
+
+        let (stop_loss, tp1, tp2, tp3) = self.calculate_tp_sl(
+            entry_price,
+            side,
+            atr,
+            heuristic_price_target,
+            0.015,
+            0.01,
+            0.03,
+        );
+
+        let tp1_dist = (tp1 - entry_price).abs();
+        let sl_dist = (stop_loss - entry_price).abs();
+        let risk_reward = if sl_dist > 0.0 { tp1_dist / sl_dist } else { 0.0 };
+
+        if risk_reward < 1.5 {
+            return Ok(None);
+        }
+
+        let score_factor = (0.55 + 0.45 * breakdown.final_score).clamp(0.55, 1.0);
+        let lev = ((self.base_leverage as f64) * score_factor)
+            .round()
+            .clamp(1.0, self.base_leverage as f64) as i16;
+
+        let atr_pct = if entry_price > 0.0 { atr / entry_price } else { 0.0 };
+
+        let breakdown_json = json!({
+            "final": breakdown.final_score,
+            "heuristic_prediction_score": breakdown.heuristic_prediction_score,
+            "indicator_score": breakdown.indicator_score,
+            "rsi_score": breakdown.rsi_score,
+            "macd_score": breakdown.macd_score,
+            "stoch_score": breakdown.stoch_score,
+            "adx_score": breakdown.adx_score,
+            "atr_score": breakdown.atr_score,
+            "volume_score": breakdown.volume_score,
+            "trend_score": breakdown.trend_score,
+            "setup_kind": format!("{:?}", breakdown.setup_kind),
+            "setup_confidence": breakdown.setup_confidence,
+            "atr": atr,
+            "atr_pct": atr_pct,
+            "risk_reward": risk_reward,
+            "heuristic_price_target": heuristic_price_target,
+            "strategy_id": 2,
+            "strategy_name": "indicator_heuristic",
+        });
+
+        Ok(Some(TradeSignal {
+            time,
+            time_ms,
+            symbol_id,
+            symbol: symbol.0.clone(),
+            tf_minutes,
+            side,
+            entry: entry_price,
+            stop_loss,
+            tp1,
+            tp2,
+            tp3,
+            leverage: lev,
+            final_score: breakdown.final_score,
+            breakdown_json,
+        }))
+    }
+}
+
+fn infer_side_heuristic(predictors: &[PredictionRow]) -> Option<i8> {
+    let heuristic_predictors: Vec<&PredictionRow> = predictors.iter()
+        .filter(|p| p.calc_source == CalcSource::Hard)
+        .collect();
+    
+    if heuristic_predictors.is_empty() {
+        return None;
+    }
+    
+    let mut long_score: f32 = 0.0;
+    let mut short_score: f32 = 0.0;
+    
+    for p in &heuristic_predictors {
+        let sc = p.score_norm;
+        let sd = p.side.unwrap_or(0);
+        if sd == 0 { continue; }
+
+        if sd > 0 {
+            long_score += sc;
+        } else {
+            short_score += sc;
+        }
+    }
+    
+    let total = long_score + short_score;
+    if total <= 0.0 {
+        return None;
+    }
+    
+    let long_ratio = long_score / total;
+    
+    if long_ratio >= 0.6 {
+        Some(1)
+    } else if long_ratio <= 0.4 {
+        Some(-1)
+    } else {
+        None
+    }
+}
+
+fn infer_side_from_summary_fields(raw_signals_summary: &Value) -> Option<i8> {
+    raw_signals_summary
+        .get("side")
+        .and_then(|v| v.as_i64())
+        .map(|x| (x as i8).signum())
+}
+
+fn extract_atr_from_summary(raw_signals_summary: &Value) -> Option<f64> {
+    raw_signals_summary.get("atr").and_then(|v| v.as_f64())
+}
+
+async fn fetch_last_atr(pool: &PgPool, symbol_id: i64, tf_minutes: i16) -> Result<Option<f64>> {
+    let row = sqlx::query(
+        r#"
+        SELECT atr
+        FROM market.indicators_wide
+        WHERE symbol_id = $1 AND tf_minutes = $2 AND atr IS NOT NULL
+        ORDER BY time DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(symbol_id)
+    .bind(tf_minutes as i32)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.and_then(|r| r.try_get::<f64, _>(0).ok()))
+}
+
+
+
+# strategies/level_ml_strategy/Cargo.toml
+
+[package]
+name = "level_ml_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-postgres.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+config.workspace = true
+
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+
+[lib]
+path = "src/lib.rs"
+
+
+
+# strategies/level_ml_strategy/src/lib.rs
+
+// strategies/level_ml_strategy/src/lib.rs
+
+pub mod scorer;
+pub mod trade_signal_calculator;
+
+pub use scorer::{LevelMlScorer, LevelMlScoreBreakdown, SetupKind};
+pub use trade_signal_calculator::{TradeSignal, TradeSignalCalculator};
+
+pub const STRATEGY_ID: i16 = 4;
+pub const STRATEGY_NAME: &str = "level_ml";
+
+
+
+# strategies/level_ml_strategy/src/scorer.rs
+
+// strategies/level_ml_strategy/src/scorer.rs
+// Level ML Strategy - использует ТОЛЬКО ML предсказания с уровнями
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use predictors::types::{PredictionAspect, PredictionRow, CalcSource};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetupKind {
+    Bounce,
+    Breakout,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LevelMlScoreBreakdown {
+    pub final_score: f64,
+    pub base_score: f64,
+    pub ml_predictors_score: f64,
+    pub raw_signals_score: f64,
+    pub indicators_score: f64,
+    pub setup_kind: SetupKind,
+    pub setup_confidence: f64,
+    pub bounce_prob: Option<f64>,
+    pub breakout_prob: Option<f64>,
+    pub trend_align: f64,
+    pub debug: Value,
+}
+
+pub struct LevelMlScorer {
+    min_final_score: f64,
+    adx_filter_threshold: f64,
+}
+
+impl LevelMlScorer {
+    pub fn new(min_final_score: f64) -> Self {
+        Self {
+            min_final_score,
+            adx_filter_threshold: 25.0,
+        }
+    }
+
+    pub async fn score_signal(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<f64>> {
+        Ok(self
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictors)
+            .await?
+            .map(|b| b.final_score))
+    }
+
+    pub async fn score_signal_verbose(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<LevelMlScoreBreakdown>> {
+        let side_i8 = side.signum() as i8;
+
+        // ML Predictors score - ТОЛЬКО ML
+        let ml_predictors_score = self.calculate_ml_predictors_score(predictors);
+
+        // Raw signals score
+        let raw_signals_score = self.calculate_raw_signals_score(raw_signals_summary);
+
+        // Indicators score
+        let indicators_score = self.calculate_indicator_score(raw_signals_summary, side_i8);
+
+        // Base score: 50% ML predictors, 30% raw signals, 20% indicators
+        let base_score = ml_predictors_score * 0.50 + raw_signals_score * 0.30 + indicators_score * 0.20;
+
+        // Extract level probs from ML predictors
+        let (bounce_prob, breakout_prob) = self.extract_ml_level_probs(predictors);
+
+        // Infer setup
+        let (setup_kind, setup_confidence) = self.infer_setup(bounce_prob, breakout_prob);
+
+        // Regime alignment
+        let trend_align = raw_signals_summary.get("trend_strength").and_then(|v| v.as_f64()).unwrap_or(0.5);
+
+        // ADX filter
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        if adx > 0.0 && adx < self.adx_filter_threshold {
+            return Ok(None);
+        }
+
+        // Level boost
+        let sr_present = raw_signals_summary.get("best_levels_score")
+            .and_then(|v| v.as_f64())
+            .map(|s| s > 0.3)
+            .unwrap_or(false);
+
+        let mut level_adjusted_score = base_score;
+        if sr_present {
+            let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let trend_aligned = (trend_short > 0.0 && side_i8 > 0) || (trend_short < 0.0 && side_i8 < 0);
+            if trend_aligned {
+                level_adjusted_score *= 1.08;
+            }
+        }
+
+        level_adjusted_score = level_adjusted_score.min(base_score * 1.3);
+
+        let setup_damp = 0.8 + 0.2 * setup_confidence;
+        let final_score = (level_adjusted_score * setup_damp).clamp(0.0, 1.0);
+
+        let debug = json!({
+            "symbol": symbol,
+            "tf_minutes": tf_minutes,
+            "timestamp": timestamp.to_rfc3339(),
+            "side": side_i8,
+            "base_score": base_score,
+            "ml_predictors_score": ml_predictors_score,
+            "raw_signals_score": raw_signals_score,
+            "indicators_score": indicators_score,
+            "final_score": final_score,
+            "setup_kind": format!("{:?}", setup_kind),
+            "setup_confidence": setup_confidence,
+            "bounce_prob": bounce_prob,
+            "breakout_prob": breakout_prob,
+        });
+
+        if final_score >= self.min_final_score {
+            Ok(Some(LevelMlScoreBreakdown {
+                final_score,
+                base_score: level_adjusted_score,
+                ml_predictors_score: ml_predictors_score,
+                raw_signals_score,
+                indicators_score,
+                setup_kind,
+                setup_confidence,
+                bounce_prob,
+                breakout_prob,
+                trend_align,
+                debug,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn calculate_ml_predictors_score(&self, predictors: &[PredictionRow]) -> f64 {
+        let ml_predictors: Vec<&PredictionRow> = predictors.iter()
+            .filter(|p| p.calc_source == CalcSource::Ml)
+            .collect();
+
+        if ml_predictors.is_empty() {
+            return 0.0;
+        }
+
+        let aspect_weight = |a: i16| -> f64 {
+            match a {
+                x if x == PredictionAspect::PriceTarget.as_int() => 1.0,
+                x if x == PredictionAspect::LevelBounce.as_int() => 0.85,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.85,
+                _ => 0.6,
+            }
+        };
+
+        let mut total_ws = 0.0;
+        let mut total_w = 0.0;
+
+        for p in &ml_predictors {
+            let aspect = p.aspect.as_int();
+            let score = (p.score_norm as f64).clamp(0.0, 1.0);
+            let w = aspect_weight(aspect);
+            total_ws += score * w;
+            total_w += w;
+        }
+
+        if total_w > 0.0 {
+            (total_ws / total_w).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+
+    fn calculate_raw_signals_score(&self, raw_signals_summary: &Value) -> f64 {
+        let best_raw = raw_signals_summary.get("best_raw_signal_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_levels = raw_signals_summary.get("best_levels_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_momentum = raw_signals_summary.get("best_momentum_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let best_volume = raw_signals_summary.get("best_volume_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        let m = best_raw.max(best_levels).max(best_momentum).max(best_volume);
+        let avg = (best_raw + best_levels + best_momentum + best_volume) / 4.0;
+        (0.75 * m + 0.25 * avg).clamp(0.0, 1.0)
+    }
+
+    fn calculate_indicator_score(&self, raw_signals_summary: &Value, side: i8) -> f64 {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let macd_hist = raw_signals_summary.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        let rsi_score = if side > 0 {
+            if rsi > 50.0 && rsi < 70.0 { 1.0 } else { 0.5 }
+        } else {
+            if rsi < 50.0 && rsi > 30.0 { 1.0 } else { 0.5 }
+        };
+
+        let macd_score = if side > 0 {
+            if macd_hist > 0.0 { 1.0 } else { 0.3 }
+        } else {
+            if macd_hist < 0.0 { 1.0 } else { 0.3 }
+        };
+
+        (rsi_score * 0.6_f64 + macd_score * 0.4_f64).clamp(0.0_f64, 1.0_f64)
+    }
+
+    fn extract_ml_level_probs(&self, predictors: &[PredictionRow]) -> (Option<f64>, Option<f64>) {
+        let bounce = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::LevelBounce && p.calc_source == CalcSource::Ml)
+            .map(|p| p.value);
+        let breakout = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::LevelBreakout && p.calc_source == CalcSource::Ml)
+            .map(|p| p.value);
+        (bounce, breakout)
+    }
+
+    fn infer_setup(&self, bounce_prob: Option<f64>, breakout_prob: Option<f64>) -> (SetupKind, f64) {
+        match (bounce_prob, breakout_prob) {
+            (Some(b), Some(br)) => {
+                if b > br { (SetupKind::Bounce, b) } else { (SetupKind::Breakout, br) }
+            }
+            (Some(b), None) => (SetupKind::Bounce, b),
+            (None, Some(br)) => (SetupKind::Breakout, br),
+            (None, None) => (SetupKind::Bounce, 0.5),
+        }
+    }
+}
+
+
+
+# strategies/level_ml_strategy/src/trade_signal_calculator.rs
+
+// strategies/level_ml_strategy/src/trade_signal_calculator.rs
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::{PgPool, Row};
+
+use common::Symbol;
+use predictors::types::{PredictionRow, PredictionAspect, CalcSource};
+
+use crate::scorer::{LevelMlScorer, LevelMlScoreBreakdown, SetupKind};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeSignal {
+    pub time: DateTime<Utc>,
+    pub time_ms: i64,
+    pub symbol_id: i64,
+    pub symbol: String,
+    pub tf_minutes: i16,
+    pub side: i8,
+    pub entry: f64,
+    pub stop_loss: f64,
+    pub tp1: f64,
+    pub tp2: f64,
+    pub tp3: f64,
+    pub leverage: i16,
+    pub final_score: f64,
+    pub breakdown_json: Value,
+}
+
+pub struct TradeSignalCalculator {
+    pub min_final_score: f64,
+    pub base_leverage: i16,
+    pub fallback_atr_pct: f64,
+    pub sl_atr_mult: f64,
+    pub tp1_atr_mult: f64,
+    pub tp2_atr_mult: f64,
+    pub tp3_atr_mult: f64,
+}
+
+impl Default for TradeSignalCalculator {
+    fn default() -> Self {
+        Self {
+            min_final_score: 0.55,
+            base_leverage: 5,
+            fallback_atr_pct: 0.008,
+            sl_atr_mult: 0.75,
+            tp1_atr_mult: 1.1,
+            tp2_atr_mult: 1.8,
+            tp3_atr_mult: 2.8,
+        }
+    }
+}
+
+impl TradeSignalCalculator {
+    pub fn new(min_final_score: f64) -> Self {
+        Self { min_final_score, ..Default::default() }
+    }
+
+    pub async fn build_trade_signal(
+        &self,
+        pool: &PgPool,
+        scorer: &LevelMlScorer,
+        time: DateTime<Utc>,
+        time_ms: i64,
+        symbol_id: i64,
+        symbol: &Symbol,
+        tf_minutes: i16,
+        entry_price: f64,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<TradeSignal>> {
+        let side = infer_side_ml(predictors)
+            .or_else(|| infer_side_from_summary(raw_signals_summary))
+            .unwrap_or(0);
+
+        if side == 0 {
+            return Ok(None);
+        }
+
+        let breakdown_opt: Option<LevelMlScoreBreakdown> = scorer
+            .score_signal_verbose(
+                symbol.0.as_str(),
+                tf_minutes,
+                time,
+                side as i16,
+                raw_signals_summary,
+                predictors,
+            )
+            .await?;
+
+        let breakdown = match breakdown_opt {
+            Some(b) => b,
+            None => return Ok(None),
+        };
+
+        if breakdown.final_score < self.min_final_score {
+            return Ok(None);
+        }
+
+        // ML price target
+        let ml_price_target = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::PriceTarget && p.calc_source == CalcSource::Ml)
+            .map(|p| p.value);
+
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
+
+        // TP/SL calculation
+        let (stop_loss, tp1, tp2, tp3) = self.calculate_tp_sl(
+            entry_price,
+            side,
+            atr,
+            ml_price_target,
+            &breakdown,
+        );
+
+        let tp1_dist = (tp1 - entry_price).abs();
+        let sl_dist = (stop_loss - entry_price).abs();
+        let risk_reward = if sl_dist > 0.0 { tp1_dist / sl_dist } else { 0.0 };
+
+        if risk_reward < 1.5 {
+            return Ok(None);
+        }
+
+        let score_factor = (0.55 + 0.45 * breakdown.final_score).clamp(0.55, 1.0);
+        let lev = ((self.base_leverage as f64) * score_factor)
+            .round()
+            .clamp(1.0, self.base_leverage as f64) as i16;
+
+        let atr_pct = if entry_price > 0.0 { atr / entry_price } else { 0.0 };
+
+        let breakdown_json = json!({
+            "final": breakdown.final_score,
+            "ml_predictors_score": breakdown.ml_predictors_score,
+            "raw_signals_score": breakdown.raw_signals_score,
+            "indicators_score": breakdown.indicators_score,
+            "setup_kind": format!("{:?}", breakdown.setup_kind),
+            "setup_confidence": breakdown.setup_confidence,
+            "atr": atr,
+            "atr_pct": atr_pct,
+            "risk_reward": risk_reward,
+            "ml_price_target": ml_price_target,
+            "strategy_id": 4,
+            "strategy_name": "level_ml",
+        });
+
+        Ok(Some(TradeSignal {
+            time,
+            time_ms,
+            symbol_id,
+            symbol: symbol.0.clone(),
+            tf_minutes,
+            side,
+            entry: entry_price,
+            stop_loss,
+            tp1,
+            tp2,
+            tp3,
+            leverage: lev,
+            final_score: breakdown.final_score,
+            breakdown_json,
+        }))
+    }
+
+    fn calculate_tp_sl(
+        &self,
+        entry_price: f64,
+        side: i8,
+        atr: f64,
+        ml_price_target: Option<f64>,
+        breakdown: &LevelMlScoreBreakdown,
+    ) -> (f64, f64, f64, f64) {
+        let side_f = side as f64;
+
+        // Use ML price target if available
+        let target_tp1 = if let Some(target) = ml_price_target {
+            let predicted_move = (target - entry_price) / entry_price;
+            if predicted_move * side_f > 0.0 {
+                target
+            } else {
+                entry_price + side_f * atr * self.tp1_atr_mult
+            }
+        } else {
+            entry_price + side_f * atr * self.tp1_atr_mult
+        };
+
+        let min_tp1 = entry_price + side_f * entry_price * 0.015;
+        let tp1 = if side > 0 {
+            target_tp1.max(min_tp1)
+        } else {
+            target_tp1.min(min_tp1)
+        };
+
+        let tp1_dist = (tp1 - entry_price).abs();
+        let tp2 = entry_price + side_f * tp1_dist * 1.6;
+        let tp3 = entry_price + side_f * tp1_dist * 2.5;
+
+        let sl_atr = entry_price - side_f * atr * self.sl_atr_mult;
+        let sl_min = entry_price - side_f * entry_price * 0.01;
+        let sl_max = entry_price - side_f * entry_price * 0.03;
+
+        let mut stop_loss = if side > 0 {
+            sl_atr.min(sl_min)
+        } else {
+            sl_atr.max(sl_min)
+        };
+
+        if side > 0 {
+            stop_loss = stop_loss.max(sl_max);
+        } else {
+            stop_loss = stop_loss.min(sl_max);
+        }
+
+        // Enforce minimums
+        let d_sl_min = entry_price * 0.01;
+        let d_tp1_min = entry_price * 0.015;
+
+        let enforce_min = |raw: f64, min_delta: f64, is_tp: bool| -> f64 {
+            let actual_delta = (raw - entry_price).abs();
+            if actual_delta >= min_delta {
+                raw
+            } else if is_tp {
+                entry_price + side_f * min_delta
+            } else {
+                entry_price - side_f * min_delta
+            }
+        };
+
+        stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+
+        let gap = entry_price * 0.002;
+        let tp2 = tp2.max(if side > 0 { tp1 + gap } else { tp1 - gap });
+        let tp3 = tp3.max(if side > 0 { tp2 + gap } else { tp2 - gap });
+
+        (stop_loss, tp1, tp2, tp3)
+    }
+}
+
+fn infer_side_ml(predictors: &[PredictionRow]) -> Option<i8> {
+    let ml_predictors: Vec<&PredictionRow> = predictors.iter()
+        .filter(|p| p.calc_source == CalcSource::Ml)
+        .collect();
+
+    if ml_predictors.is_empty() {
+        return None;
+    }
+
+    let mut long_score: f32 = 0.0;
+    let mut short_score: f32 = 0.0;
+
+    for p in &ml_predictors {
+        let sc = p.score_norm;
+        let sd = p.side.unwrap_or(0);
+        if sd == 0 { continue; }
+
+        if sd > 0 { long_score += sc; } else { short_score += sc; }
+    }
+
+    let total = long_score + short_score;
+    if total <= 0.0 { return None; }
+
+    let long_ratio = long_score / total;
+    if long_ratio >= 0.6 { Some(1) }
+    else if long_ratio <= 0.4 { Some(-1) }
+    else { None }
+}
+
+fn infer_side_from_summary(raw_signals_summary: &Value) -> Option<i8> {
+    raw_signals_summary.get("side").and_then(|v| v.as_i64()).map(|x| (x as i8).signum())
+}
+
+fn extract_atr_from_summary(raw_signals_summary: &Value) -> Option<f64> {
+    raw_signals_summary.get("atr").and_then(|v| v.as_f64())
+}
+
+async fn fetch_last_atr(pool: &PgPool, symbol_id: i64, tf_minutes: i16) -> Result<Option<f64>> {
+    let row = sqlx::query(
+        r#"SELECT atr FROM market.indicators_wide WHERE symbol_id = $1 AND tf_minutes = $2 AND atr IS NOT NULL ORDER BY time DESC LIMIT 1"#,
+    ).bind(symbol_id).bind(tf_minutes as i32).fetch_optional(pool).await?;
+    Ok(row.and_then(|r| r.try_get::<f64, _>(0).ok()))
+}
+
+
+
+# strategies/indicator_consensus_strategy/Cargo.toml
+
+[package]
+name = "indicator_consensus_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-postgres.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+config.workspace = true
+
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+
+[lib]
+path = "src/lib.rs"
+
+
+
+# strategies/indicator_consensus_strategy/src/lib.rs
+
+// strategies/indicator_consensus_strategy/src/lib.rs
+//
+// Indicator Consensus Strategy - использует консенсус между ML и heuristic
+
+pub mod scorer;
+pub mod trade_signal_calculator;
+
+pub use scorer::{IndicatorConsensusScorer, IndicatorConsensusScoreBreakdown, SetupKind};
+pub use trade_signal_calculator::{TradeSignal, TradeSignalCalculator};
+
+pub const STRATEGY_ID: i16 = 3;
+pub const STRATEGY_NAME: &str = "indicator_consensus";
+
+
+
+# strategies/indicator_consensus_strategy/src/scorer.rs
+
+// strategies/indicator_consensus_strategy/src/scorer.rs
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use predictors::types::{PredictionAspect, PredictionRow, CalcSource};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetupKind {
+    Momentum,
+    Reversal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorWeights {
+    pub rsi_weight: f64,
+    pub macd_weight: f64,
+    pub stoch_weight: f64,
+    pub adx_weight: f64,
+    pub atr_weight: f64,
+    pub volume_weight: f64,
+    pub trend_weight: f64,
+}
+
+impl Default for IndicatorWeights {
+    fn default() -> Self {
+        Self {
+            rsi_weight: 0.20,
+            macd_weight: 0.20,
+            stoch_weight: 0.15,
+            adx_weight: 0.15,
+            atr_weight: 0.10,
+            volume_weight: 0.10,
+            trend_weight: 0.10,
+        }
+    }
+}
+
+impl IndicatorWeights {
+    pub fn normalized(mut self) -> Self {
+        let sum = self.rsi_weight + self.macd_weight + self.stoch_weight 
+                + self.adx_weight + self.atr_weight + self.volume_weight + self.trend_weight;
+        if sum > 0.0 {
+            self.rsi_weight /= sum;
+            self.macd_weight /= sum;
+            self.stoch_weight /= sum;
+            self.adx_weight /= sum;
+            self.atr_weight /= sum;
+            self.volume_weight /= sum;
+            self.trend_weight /= sum;
+        }
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorConsensusScoreBreakdown {
+    pub final_score: f64,
+    pub indicator_score: f64,
+    pub consensus_prediction_score: f64,
+    pub ml_score: f64,
+    pub heuristic_score: f64,
+    pub consensus_agreement: f64,
+    
+    pub rsi_score: f64,
+    pub macd_score: f64,
+    pub stoch_score: f64,
+    pub adx_score: f64,
+    pub atr_score: f64,
+    pub volume_score: f64,
+    pub trend_score: f64,
+    
+    pub setup_kind: SetupKind,
+    pub setup_confidence: f64,
+    pub trend_align: f64,
+    pub momentum_ok: f64,
+    
+    pub debug: Value,
+}
+
+pub struct IndicatorConsensusScorer {
+    min_final_score: f64,
+    indicator_weights: IndicatorWeights,
+    consensus_prediction_weight: f64,
+    adx_filter_threshold: f64,
+    rsi_overbought: f64,
+    rsi_oversold: f64,
+}
+
+impl IndicatorConsensusScorer {
+    pub fn new(min_final_score: f64) -> Self {
+        Self {
+            min_final_score,
+            indicator_weights: IndicatorWeights::default().normalized(),
+            consensus_prediction_weight: 0.5,
+            adx_filter_threshold: 25.0,
+            rsi_overbought: 70.0,
+            rsi_oversold: 30.0,
+        }
+    }
+    
+    pub async fn score_signal(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<f64>> {
+        Ok(self
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictors)
+            .await?
+            .map(|b| b.final_score))
+    }
+    
+    pub async fn score_signal_verbose(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<IndicatorConsensusScoreBreakdown>> {
+        let side_i8 = side.signum() as i8;
+        
+        // Consensus prediction score
+        let (consensus_score, ml_score, heuristic_score, agreement) = 
+            self.calculate_consensus_prediction_score(predictors);
+        
+        // Indicator score
+        let (indicator_score, rsi_score, macd_score, stoch_score, adx_score, 
+             atr_score, volume_score, trend_score) = 
+            self.calculate_indicator_score(raw_signals_summary, side_i8);
+        
+        // ADX filter
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        if adx > 0.0 && adx < self.adx_filter_threshold {
+            return Ok(None);
+        }
+        
+        // Final score
+        let base_score = consensus_score * self.consensus_prediction_weight 
+                       + indicator_score * (1.0 - self.consensus_prediction_weight);
+        
+        // Setup inference
+        let (setup_kind, setup_confidence) = self.infer_setup(raw_signals_summary, side_i8);
+        
+        // Regime alignment
+        let trend_align = raw_signals_summary.get("trend_strength")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5);
+        
+        let momentum_strength = raw_signals_summary.get("momentum_strength")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5);
+        
+        let momentum_ok = match setup_kind {
+            SetupKind::Momentum => momentum_strength,
+            SetupKind::Reversal => (1.0 - momentum_strength).clamp(0.0, 1.0),
+        };
+        
+        // Agreement boost - если ML и heuristic согласны, увеличиваем score
+        let agreement_boost = 0.9 + 0.1 * agreement;
+        let setup_damp = 0.8 + 0.2 * setup_confidence;
+        let final_score = (base_score * agreement_boost * setup_damp).clamp(0.0, 1.0);
+        
+        let debug = json!({
+            "symbol": symbol,
+            "tf_minutes": tf_minutes,
+            "timestamp": timestamp.to_rfc3339(),
+            "side": side_i8,
+            "consensus_prediction_weight": self.consensus_prediction_weight,
+            "base_score": base_score,
+            "consensus_score": consensus_score,
+            "ml_score": ml_score,
+            "heuristic_score": heuristic_score,
+            "agreement": agreement,
+            "indicator_score": indicator_score,
+            "rsi_score": rsi_score,
+            "macd_score": macd_score,
+            "stoch_score": stoch_score,
+            "adx_score": adx_score,
+            "atr_score": atr_score,
+            "volume_score": volume_score,
+            "trend_score": trend_score,
+            "final_score": final_score,
+            "setup_kind": format!("{:?}", setup_kind),
+            "setup_confidence": setup_confidence,
+        });
+        
+        if final_score >= self.min_final_score {
+            Ok(Some(IndicatorConsensusScoreBreakdown {
+                final_score,
+                indicator_score,
+                consensus_prediction_score: consensus_score,
+                ml_score,
+                heuristic_score,
+                consensus_agreement: agreement,
+                rsi_score,
+                macd_score,
+                stoch_score,
+                adx_score,
+                atr_score,
+                volume_score,
+                trend_score,
+                setup_kind,
+                setup_confidence,
+                trend_align,
+                momentum_ok,
+                debug,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    fn calculate_consensus_prediction_score(&self, predictors: &[PredictionRow]) -> (f64, f64, f64, f64) {
+        let ml_predictors: Vec<&PredictionRow> = predictors.iter()
+            .filter(|p| p.calc_source == CalcSource::Ml)
+            .collect();
+        let heuristic_predictors: Vec<&PredictionRow> = predictors.iter()
+            .filter(|p| p.calc_source == CalcSource::Hard)
+            .collect();
+        
+        let ml_score = self.calculate_aspect_score(&ml_predictors);
+        let heuristic_score = self.calculate_aspect_score(&heuristic_predictors);
+        
+        // Consensus = average с penalty за disagreement
+        let disagreement = (ml_score - heuristic_score).abs();
+        let consensus_raw = (ml_score + heuristic_score) / 2.0;
+        let consensus = consensus_raw * (1.0 - disagreement * 0.3);
+        
+        // Agreement = 1.0 - disagreement
+        let agreement = (1.0 - disagreement).clamp(0.0, 1.0);
+        
+        (consensus.clamp(0.0, 1.0), ml_score, heuristic_score, agreement)
+    }
+    
+    fn calculate_aspect_score(&self, predictors: &[&PredictionRow]) -> f64 {
+        if predictors.is_empty() {
+            return 0.0;
+        }
+        
+        let aspect_weight = |a: i16| -> f64 {
+            match a {
+                x if x == PredictionAspect::PriceTarget.as_int() => 1.0,
+                x if x == PredictionAspect::LevelBounce.as_int() => 0.7,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.7,
+                _ => 0.5,
+            }
+        };
+        
+        let mut total_ws = 0.0;
+        let mut total_w = 0.0;
+        
+        for p in predictors {
+            let aspect = p.aspect.as_int();
+            let score = (p.score_norm as f64).clamp(0.0, 1.0);
+            let w = aspect_weight(aspect);
+            
+            total_ws += score * w;
+            total_w += w;
+        }
+        
+        if total_w > 0.0 {
+            (total_ws / total_w).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+    
+    fn calculate_indicator_score(
+        &self,
+        raw_signals_summary: &Value,
+        side: i8,
+    ) -> (f64, f64, f64, f64, f64, f64, f64, f64) {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let macd_hist = raw_signals_summary.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let stoch_k = raw_signals_summary.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let stoch_d = raw_signals_summary.get("stoch_d").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let atr = raw_signals_summary.get("atr").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let close = raw_signals_summary.get("close").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let volume = raw_signals_summary.get("volume").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let volume_sma = raw_signals_summary.get("volume_sma").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let ema_20 = raw_signals_summary.get("ema_20").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_50 = raw_signals_summary.get("ema_50").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        let rsi_score = if side > 0 {
+            if rsi >= self.rsi_oversold && rsi <= self.rsi_overbought {
+                ((rsi - 50.0) / 20.0).clamp(0.0, 1.0)
+            } else if rsi > self.rsi_overbought { 0.3 } else { 0.2 }
+        } else {
+            if rsi >= self.rsi_oversold && rsi <= self.rsi_overbought {
+                ((50.0 - rsi) / 20.0).clamp(0.0, 1.0)
+            } else if rsi < self.rsi_oversold { 0.3 } else { 0.2 }
+        };
+        
+        let macd_score = if side > 0 {
+            if macd_hist > 0.0 { (macd_hist.abs() / 0.001).clamp(0.5, 1.0) } else { 0.2 }
+        } else {
+            if macd_hist < 0.0 { (macd_hist.abs() / 0.001).clamp(0.5, 1.0) } else { 0.2 }
+        };
+        
+        let stoch_mid = (stoch_k + stoch_d) / 2.0;
+        let stoch_score = if side > 0 {
+            if stoch_mid >= 20.0 && stoch_mid <= 80.0 {
+                ((stoch_mid - 50.0) / 30.0).clamp(0.0, 1.0)
+            } else if stoch_mid > 80.0 { 0.3 } else { 0.2 }
+        } else {
+            if stoch_mid >= 20.0 && stoch_mid <= 80.0 {
+                ((50.0 - stoch_mid) / 30.0).clamp(0.0, 1.0)
+            } else if stoch_mid < 20.0 { 0.3 } else { 0.2 }
+        };
+        
+        let adx_score = (adx / 50.0).clamp(0.0, 1.0);
+        
+        let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
+        let atr_score = if atr_pct >= 0.005 && atr_pct <= 0.03 { 1.0 } 
+                        else if atr_pct < 0.005 { 0.5 } else { 0.3 };
+        
+        let volume_ratio = if volume_sma > 0.0 { volume / volume_sma } else { 1.0 };
+        let volume_score = if volume_ratio >= 1.0 && volume_ratio <= 3.0 { 1.0 } 
+                           else if volume_ratio > 3.0 { 0.7 } else { 0.5 };
+        
+        let trend_score = if ema_20 > 0.0 && ema_50 > 0.0 {
+            if side > 0 { if ema_20 > ema_50 { 1.0 } else { 0.3 } }
+            else { if ema_20 < ema_50 { 1.0 } else { 0.3 } }
+        } else { 0.5 };
+        
+        let indicator_score = rsi_score * self.indicator_weights.rsi_weight
+            + macd_score * self.indicator_weights.macd_weight
+            + stoch_score * self.indicator_weights.stoch_weight
+            + adx_score * self.indicator_weights.adx_weight
+            + atr_score * self.indicator_weights.atr_weight
+            + volume_score * self.indicator_weights.volume_weight
+            + trend_score * self.indicator_weights.trend_weight;
+        
+        (indicator_score, rsi_score, macd_score, stoch_score, adx_score, 
+         atr_score, volume_score, trend_score)
+    }
+    
+    fn infer_setup(&self, raw_signals_summary: &Value, side: i8) -> (SetupKind, f64) {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        let is_momentum = adx >= 25.0 
+            && ((side > 0 && rsi > 50.0 && rsi < 70.0) 
+                || (side < 0 && rsi < 50.0 && rsi > 30.0));
+        
+        let is_reversal = ((side > 0 && rsi < 35.0) || (side < 0 && rsi > 65.0))
+            && adx < 30.0;
+        
+        if is_momentum {
+            (SetupKind::Momentum, (adx / 50.0).clamp(0.5, 1.0))
+        } else if is_reversal {
+            let rsi_extreme = if side > 0 { (35.0 - rsi) / 35.0 } else { (rsi - 65.0) / 35.0 };
+            (SetupKind::Reversal, rsi_extreme.clamp(0.5, 1.0))
+        } else {
+            (SetupKind::Momentum, 0.5)
+        }
+    }
+}
+
+
+
+# strategies/indicator_consensus_strategy/src/trade_signal_calculator.rs
+
+// strategies/indicator_consensus_strategy/src/trade_signal_calculator.rs
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::{PgPool, Row};
+
+use common::Symbol;
+use predictors::types::{PredictionRow, PredictionAspect, CalcSource};
+
+use crate::scorer::{IndicatorConsensusScorer, IndicatorConsensusScoreBreakdown};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeSignal {
+    pub time: DateTime<Utc>,
+    pub time_ms: i64,
+    pub symbol_id: i64,
+    pub symbol: String,
+    pub tf_minutes: i16,
+    pub side: i8,
+    pub entry: f64,
+    pub stop_loss: f64,
+    pub tp1: f64,
+    pub tp2: f64,
+    pub tp3: f64,
+    pub leverage: i16,
+    pub final_score: f64,
+    pub breakdown_json: Value,
+}
+
+pub struct TradeSignalCalculator {
+    pub min_final_score: f64,
+    pub base_leverage: i16,
+    pub fallback_atr_pct: f64,
+}
+
+impl Default for TradeSignalCalculator {
+    fn default() -> Self {
+        Self {
+            min_final_score: 0.55,
+            base_leverage: 5,
+            fallback_atr_pct: 0.008,
+        }
+    }
+}
+
+impl TradeSignalCalculator {
+    pub fn new(min_final_score: f64) -> Self {
+        Self { min_final_score, ..Default::default() }
+    }
+
+    fn calculate_tp_sl(
+        &self,
+        entry_price: f64,
+        side: i8,
+        atr: f64,
+        consensus_price_target: Option<f64>,
+        min_tp1_pct: f64,
+        min_sl_pct: f64,
+        max_sl_pct: f64,
+    ) -> (f64, f64, f64, f64) {
+        let side_f = side as f64;
+        
+        // Consensus TP = average of ML and heuristic if both exist
+        let consensus_tp1 = if let Some(target) = consensus_price_target {
+            target
+        } else {
+            entry_price + side_f * atr * 1.0
+        };
+        
+        let min_tp1 = entry_price + side_f * entry_price * min_tp1_pct;
+        
+        let tp1 = if side > 0 {
+            consensus_tp1.max(min_tp1)
+        } else {
+            consensus_tp1.min(min_tp1)
+        };
+        
+        let tp1_dist = (tp1 - entry_price).abs();
+        let tp2 = entry_price + side_f * tp1_dist * 1.6;
+        let tp3 = entry_price + side_f * tp1_dist * 2.5;
+        
+        let sl_atr = entry_price - side_f * atr * 0.75;
+        let sl_min = entry_price - side_f * entry_price * min_sl_pct;
+        let sl_max = entry_price - side_f * entry_price * max_sl_pct;
+        
+        let mut stop_loss = if side > 0 {
+            sl_atr.min(sl_min)
+        } else {
+            sl_atr.max(sl_min)
+        };
+        
+        if side > 0 {
+            stop_loss = stop_loss.max(sl_max);
+        } else {
+            stop_loss = stop_loss.min(sl_max);
+        }
+        
+        let d_sl_min = entry_price * min_sl_pct;
+        let d_tp1_min = entry_price * min_tp1_pct;
+        let d_tp2_min = entry_price * min_tp1_pct * 1.6;
+        let d_tp3_min = entry_price * min_tp1_pct * 2.5;
+        
+        let enforce_min = |raw: f64, min_delta: f64, is_tp: bool| -> f64 {
+            let actual_delta = (raw - entry_price).abs();
+            if actual_delta >= min_delta {
+                raw
+            } else if is_tp {
+                entry_price + side_f * min_delta
+            } else {
+                entry_price - side_f * min_delta
+            }
+        };
+        
+        stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+        let mut tp2 = enforce_min(tp2, d_tp2_min, true).max(0.0);
+        let mut tp3 = enforce_min(tp3, d_tp3_min, true).max(0.0);
+        
+        let gap = entry_price * 0.002;
+        if side > 0 {
+            if tp2 <= tp1 { tp2 = tp1 + gap; }
+            if tp3 <= tp2 { tp3 = tp2 + gap; }
+        } else {
+            if tp2 >= tp1 { tp2 = tp1 - gap; }
+            if tp3 >= tp2 { tp3 = tp2 - gap; }
+        }
+        
+        (stop_loss, tp1, tp2, tp3)
+    }
+
+    pub async fn build_trade_signal(
+        &self,
+        pool: &PgPool,
+        scorer: &IndicatorConsensusScorer,
+        time: DateTime<Utc>,
+        time_ms: i64,
+        symbol_id: i64,
+        symbol: &Symbol,
+        tf_minutes: i16,
+        entry_price: f64,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<TradeSignal>> {
+        let side = infer_side_consensus(predictors)
+            .or_else(|| infer_side_from_summary_fields(raw_signals_summary))
+            .unwrap_or(0);
+
+        if side == 0 {
+            return Ok(None);
+        }
+
+        let breakdown_opt: Option<IndicatorConsensusScoreBreakdown> = scorer
+            .score_signal_verbose(
+                symbol.0.as_str(),
+                tf_minutes,
+                time,
+                side as i16,
+                raw_signals_summary,
+                predictors,
+            )
+            .await?;
+
+        let breakdown = match breakdown_opt {
+            Some(b) => b,
+            None => return Ok(None),
+        };
+
+        if breakdown.final_score < self.min_final_score {
+            return Ok(None);
+        }
+
+        // Consensus price target = average of ML and heuristic
+        let ml_target = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::PriceTarget && p.calc_source == CalcSource::Ml)
+            .map(|p| p.value);
+        let heuristic_target = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::PriceTarget && p.calc_source == CalcSource::Hard)
+            .map(|p| p.value);
+        
+        let consensus_price_target = match (ml_target, heuristic_target) {
+            (Some(ml), Some(hc)) => Some((ml + hc) / 2.0),
+            (Some(ml), None) => Some(ml),
+            (None, Some(hc)) => Some(hc),
+            (None, None) => None,
+        };
+
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
+
+        let (stop_loss, tp1, tp2, tp3) = self.calculate_tp_sl(
+            entry_price,
+            side,
+            atr,
+            consensus_price_target,
+            0.015,
+            0.01,
+            0.03,
+        );
+
+        let tp1_dist = (tp1 - entry_price).abs();
+        let sl_dist = (stop_loss - entry_price).abs();
+        let risk_reward = if sl_dist > 0.0 { tp1_dist / sl_dist } else { 0.0 };
+
+        if risk_reward < 1.5 {
+            return Ok(None);
+        }
+
+        let score_factor = (0.55 + 0.45 * breakdown.final_score).clamp(0.55, 1.0);
+        let lev = ((self.base_leverage as f64) * score_factor)
+            .round()
+            .clamp(1.0, self.base_leverage as f64) as i16;
+
+        let atr_pct = if entry_price > 0.0 { atr / entry_price } else { 0.0 };
+
+        let breakdown_json = json!({
+            "final": breakdown.final_score,
+            "consensus_prediction_score": breakdown.consensus_prediction_score,
+            "ml_score": breakdown.ml_score,
+            "heuristic_score": breakdown.heuristic_score,
+            "consensus_agreement": breakdown.consensus_agreement,
+            "indicator_score": breakdown.indicator_score,
+            "rsi_score": breakdown.rsi_score,
+            "macd_score": breakdown.macd_score,
+            "stoch_score": breakdown.stoch_score,
+            "adx_score": breakdown.adx_score,
+            "atr_score": breakdown.atr_score,
+            "volume_score": breakdown.volume_score,
+            "trend_score": breakdown.trend_score,
+            "setup_kind": format!("{:?}", breakdown.setup_kind),
+            "setup_confidence": breakdown.setup_confidence,
+            "atr": atr,
+            "atr_pct": atr_pct,
+            "risk_reward": risk_reward,
+            "consensus_price_target": consensus_price_target,
+            "strategy_id": 3,
+            "strategy_name": "indicator_consensus",
+        });
+
+        Ok(Some(TradeSignal {
+            time,
+            time_ms,
+            symbol_id,
+            symbol: symbol.0.clone(),
+            tf_minutes,
+            side,
+            entry: entry_price,
+            stop_loss,
+            tp1,
+            tp2,
+            tp3,
+            leverage: lev,
+            final_score: breakdown.final_score,
+            breakdown_json,
+        }))
+    }
+}
+
+fn infer_side_consensus(predictors: &[PredictionRow]) -> Option<i8> {
+    let mut long_ml: f32 = 0.0;
+    let mut short_ml: f32 = 0.0;
+    let mut long_hc: f32 = 0.0;
+    let mut short_hc: f32 = 0.0;
+    
+    for p in predictors {
+        let sc = p.score_norm;
+        let sd = p.side.unwrap_or(0);
+        if sd == 0 { continue; }
+
+        match p.calc_source {
+            CalcSource::Ml => {
+                if sd > 0 { long_ml += sc; } else { short_ml += sc; }
+            }
+            CalcSource::Hard => {
+                if sd > 0 { long_hc += sc; } else { short_hc += sc; }
+            }
+        }
+    }
+    
+    // Consensus: both ML and heuristic must agree
+    let ml_side = if long_ml > short_ml { 1 } else if short_ml > long_ml { -1 } else { 0 };
+    let hc_side = if long_hc > short_hc { 1 } else if short_hc > long_hc { -1 } else { 0 };
+    
+    // Return side only if both agree
+    if ml_side == hc_side && ml_side != 0 {
+        Some(ml_side)
+    } else if ml_side != 0 {
+        Some(ml_side)
+    } else if hc_side != 0 {
+        Some(hc_side)
+    } else {
+        None
+    }
+}
+
+fn infer_side_from_summary_fields(raw_signals_summary: &Value) -> Option<i8> {
+    raw_signals_summary.get("side").and_then(|v| v.as_i64()).map(|x| (x as i8).signum())
+}
+
+fn extract_atr_from_summary(raw_signals_summary: &Value) -> Option<f64> {
+    raw_signals_summary.get("atr").and_then(|v| v.as_f64())
+}
+
+async fn fetch_last_atr(pool: &PgPool, symbol_id: i64, tf_minutes: i16) -> Result<Option<f64>> {
+    let row = sqlx::query(
+        r#"SELECT atr FROM market.indicators_wide WHERE symbol_id = $1 AND tf_minutes = $2 AND atr IS NOT NULL ORDER BY time DESC LIMIT 1"#,
+    ).bind(symbol_id).bind(tf_minutes as i32).fetch_optional(pool).await?;
+    Ok(row.and_then(|r| r.try_get::<f64, _>(0).ok()))
+}
+
+
+
+# strategies/indicator_ml_strategy/Cargo.toml
+
+[package]
+name = "indicator_ml_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-postgres.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+config.workspace = true
+
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+
+[lib]
+path = "src/lib.rs"
+
+
+
+# strategies/indicator_ml_strategy/src/lib.rs
+
+// strategies/indicator_ml_strategy/src/lib.rs
+
+pub mod scorer;
+pub mod trade_signal_calculator;
+
+pub use scorer::{IndicatorMlScorer, IndicatorMlScoreBreakdown, SetupKind, IndicatorWeights};
+pub use trade_signal_calculator::{TradeSignal, TradeSignalCalculator, TradeSide};
+
+/// Strategy ID для indicator_ml_strategy
+pub const STRATEGY_ID: i16 = 1;
+
+/// Strategy name
+pub const STRATEGY_NAME: &str = "indicator_ml";
+
+
+
+# strategies/indicator_ml_strategy/src/scorer.rs
+
+// strategies/indicator_ml_strategy/src/scorer.rs
+//
+// Indicator ML Strategy Scorer
+//
+// Эта стратегия полагается исключительно на:
+// 1. ML предсказания (PriceTarget от ML)
+// 2. Индикаторы с равными весами (RSI, MACD, Stochastic, ADX, ATR, Volume, Trend)
+//
+// Веса индикаторов:
+// - RSI: 0.20
+// - MACD: 0.20
+// - Stochastic: 0.15
+// - ADX: 0.15
+// - ATR (volatility): 0.10
+// - Volume: 0.10
+// - Trend (EMA): 0.10
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use predictors::types::{PredictionAspect, PredictionRow, CalcSource};
+
+/// Setup kind: для indicator стратегий используем только направление тренда
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetupKind {
+    Momentum,    // Сильный тренд
+    Reversal,    // Разворот
+}
+
+/// Final scorer configuration для Indicator ML стратегии
+pub struct IndicatorMlScorer {
+    min_final_score: f64,
+    
+    /// Веса индикаторов (должны суммироваться в 1.0)
+    indicator_weights: IndicatorWeights,
+    
+    /// Вес ML предсказания
+    ml_prediction_weight: f64,
+    
+    /// Порог ADX для фильтрации слабых трендов
+    adx_filter_threshold: f64,
+    
+    /// Порог RSI для overbought/oversold
+    rsi_overbought: f64,
+    rsi_oversold: f64,
+}
+
+/// Веса для индикаторов
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorWeights {
+    pub rsi_weight: f64,        // 0.20
+    pub macd_weight: f64,       // 0.20
+    pub stoch_weight: f64,      // 0.15
+    pub adx_weight: f64,        // 0.15
+    pub atr_weight: f64,        // 0.10
+    pub volume_weight: f64,     // 0.10
+    pub trend_weight: f64,      // 0.10
+}
+
+impl Default for IndicatorWeights {
+    fn default() -> Self {
+        Self {
+            rsi_weight: 0.20,
+            macd_weight: 0.20,
+            stoch_weight: 0.15,
+            adx_weight: 0.15,
+            atr_weight: 0.10,
+            volume_weight: 0.10,
+            trend_weight: 0.10,
+        }
+    }
+}
+
+impl IndicatorWeights {
+    pub fn normalized(mut self) -> Self {
+        let sum = self.rsi_weight + self.macd_weight + self.stoch_weight 
+                + self.adx_weight + self.atr_weight + self.volume_weight + self.trend_weight;
+        if sum > 0.0 {
+            self.rsi_weight /= sum;
+            self.macd_weight /= sum;
+            self.stoch_weight /= sum;
+            self.adx_weight /= sum;
+            self.atr_weight /= sum;
+            self.volume_weight /= sum;
+            self.trend_weight /= sum;
+        }
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorMlScoreBreakdown {
+    pub final_score: f64,
+    pub indicator_score: f64,
+    pub ml_prediction_score: f64,
+    
+    // Детали по индикаторам
+    pub rsi_score: f64,
+    pub macd_score: f64,
+    pub stoch_score: f64,
+    pub adx_score: f64,
+    pub atr_score: f64,
+    pub volume_score: f64,
+    pub trend_score: f64,
+    
+    // Setup inference
+    pub setup_kind: SetupKind,
+    pub setup_confidence: f64,
+    
+    // Direction alignment
+    pub trend_align: f64,
+    pub momentum_ok: f64,
+    
+    pub debug: Value,
+}
+
+impl IndicatorMlScorer {
+    pub fn new(min_final_score: f64) -> Self {
+        Self {
+            min_final_score,
+            indicator_weights: IndicatorWeights::default().normalized(),
+            ml_prediction_weight: 0.5, // 50% ML prediction, 50% indicators
+            adx_filter_threshold: 25.0,
+            rsi_overbought: 70.0,
+            rsi_oversold: 30.0,
+        }
+    }
+    
+    pub fn with_ml_weight(mut self, ml_weight: f64) -> Self {
+        self.ml_prediction_weight = ml_weight.clamp(0.0, 1.0);
+        self
+    }
+    
+    /// Returns only final number (compat)
+    pub async fn score_signal(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<f64>> {
+        Ok(self
+            .score_signal_verbose(symbol, tf_minutes, timestamp, side, raw_signals_summary, predictors)
+            .await?
+            .map(|b| b.final_score))
+    }
+    
+    /// Verbose score with breakdown
+    pub async fn score_signal_verbose(
+        &self,
+        symbol: &str,
+        tf_minutes: i16,
+        timestamp: DateTime<Utc>,
+        side: i16,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<IndicatorMlScoreBreakdown>> {
+        let side_i8 = side.signum() as i8;
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 1. ML Prediction Score - используем ТОЛЬКО ML предсказания
+        // ═══════════════════════════════════════════════════════════════
+        let ml_prediction_score = self.calculate_ml_prediction_score(predictors);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 2. Indicator Score - все индикаторы с равными весами
+        // ═══════════════════════════════════════════════════════════════
+        let (indicator_score, rsi_score, macd_score, stoch_score, adx_score, 
+             atr_score, volume_score, trend_score) = 
+            self.calculate_indicator_score(raw_signals_summary, side_i8);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 3. ADX Filter - слабые тренды фильтруем
+        // ═══════════════════════════════════════════════════════════════
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        if adx > 0.0 && adx < self.adx_filter_threshold {
+            return Ok(None);
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 4. Final Score - комбинация ML + Indicators
+        // ═══════════════════════════════════════════════════════════════
+        let base_score = ml_prediction_score * self.ml_prediction_weight 
+                       + indicator_score * (1.0 - self.ml_prediction_weight);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 5. Setup Inference - Momentum vs Reversal
+        // ═══════════════════════════════════════════════════════════════
+        let (setup_kind, setup_confidence) = self.infer_setup(raw_signals_summary, side_i8);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 6. Regime alignment
+        // ═══════════════════════════════════════════════════════════════
+        let trend_align = raw_signals_summary.get("trend_strength")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5);
+        
+        let momentum_strength = raw_signals_summary.get("momentum_strength")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5);
+        
+        let momentum_ok = match setup_kind {
+            SetupKind::Momentum => momentum_strength,
+            SetupKind::Reversal => (1.0 - momentum_strength).clamp(0.0, 1.0),
+        };
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 7. Final calculation with dampening
+        // ═══════════════════════════════════════════════════════════════
+        let setup_damp = 0.8 + 0.2 * setup_confidence;
+        let final_score = (base_score * setup_damp).clamp(0.0, 1.0);
+        
+        let debug = json!({
+            "symbol": symbol,
+            "tf_minutes": tf_minutes,
+            "timestamp": timestamp.to_rfc3339(),
+            "side": side_i8,
+            "ml_prediction_weight": self.ml_prediction_weight,
+            "base_score": base_score,
+            "ml_prediction_score": ml_prediction_score,
+            "indicator_score": indicator_score,
+            "rsi_score": rsi_score,
+            "macd_score": macd_score,
+            "stoch_score": stoch_score,
+            "adx_score": adx_score,
+            "atr_score": atr_score,
+            "volume_score": volume_score,
+            "trend_score": trend_score,
+            "final_score": final_score,
+            "setup_kind": format!("{:?}", setup_kind),
+            "setup_confidence": setup_confidence,
+            "adx": adx,
+            "adx_filter_passed": adx == 0.0 || adx >= self.adx_filter_threshold,
+        });
+        
+        if final_score >= self.min_final_score {
+            Ok(Some(IndicatorMlScoreBreakdown {
+                final_score,
+                indicator_score,
+                ml_prediction_score,
+                rsi_score,
+                macd_score,
+                stoch_score,
+                adx_score,
+                atr_score,
+                volume_score,
+                trend_score,
+                setup_kind,
+                setup_confidence,
+                trend_align,
+                momentum_ok,
+                debug,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    /// Calculate ML prediction score - uses ONLY ML predictions
+    fn calculate_ml_prediction_score(&self, predictors: &[PredictionRow]) -> f64 {
+        // Фильтруем только ML предсказания
+        let ml_predictors: Vec<&PredictionRow> = predictors.iter()
+            .filter(|p| p.calc_source == CalcSource::Ml)
+            .collect();
+        
+        if ml_predictors.is_empty() {
+            return 0.0;
+        }
+        
+        // Aspect weights: price target is king
+        let aspect_weight = |a: i16| -> f64 {
+            match a {
+                x if x == PredictionAspect::PriceTarget.as_int() => 1.0,
+                x if x == PredictionAspect::LevelBounce.as_int() => 0.7,
+                x if x == PredictionAspect::LevelBreakout.as_int() => 0.7,
+                _ => 0.5,
+            }
+        };
+        
+        let mut total_ws = 0.0;
+        let mut total_w = 0.0;
+        
+        for p in &ml_predictors {
+            let aspect = p.aspect.as_int();
+            let score = (p.score_norm as f64).clamp(0.0, 1.0);
+            let w = aspect_weight(aspect);
+            
+            total_ws += score * w;
+            total_w += w;
+        }
+        
+        if total_w > 0.0 {
+            (total_ws / total_w).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+    
+    /// Calculate indicator score with equal weights
+    fn calculate_indicator_score(
+        &self,
+        raw_signals_summary: &Value,
+        side: i8,
+    ) -> (f64, f64, f64, f64, f64, f64, f64, f64) {
+        // Extract indicator values
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let macd_hist = raw_signals_summary.get("macd_hist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let stoch_k = raw_signals_summary.get("stoch_k").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let stoch_d = raw_signals_summary.get("stoch_d").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let atr = raw_signals_summary.get("atr").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let close = raw_signals_summary.get("close").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let volume = raw_signals_summary.get("volume").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let volume_sma = raw_signals_summary.get("volume_sma").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_20 = raw_signals_summary.get("ema_20").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let ema_50 = raw_signals_summary.get("ema_50").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        // RSI Score - normalized to 0-1
+        // RSI > 50 is bullish, < 50 is bearish
+        let rsi_score = if side > 0 {
+            // Long: prefer RSI > 50 but not overbought
+            if rsi >= self.rsi_oversold && rsi <= self.rsi_overbought {
+                ((rsi - 50.0) / 20.0).clamp(0.0, 1.0)
+            } else if rsi > self.rsi_overbought {
+                0.3 // Overbought penalty
+            } else {
+                0.2 // Oversold penalty
+            }
+        } else {
+            // Short: prefer RSI < 50 but not oversold
+            if rsi >= self.rsi_oversold && rsi <= self.rsi_overbought {
+                ((50.0 - rsi) / 20.0).clamp(0.0, 1.0)
+            } else if rsi < self.rsi_oversold {
+                0.3 // Oversold penalty
+            } else {
+                0.2 // Overbought penalty
+            }
+        };
+        
+        // MACD Score - histogram direction
+        let macd_score = if side > 0 {
+            if macd_hist > 0.0 {
+                (macd_hist.abs() / 0.001).clamp(0.5, 1.0)
+            } else {
+                0.2
+            }
+        } else {
+            if macd_hist < 0.0 {
+                (macd_hist.abs() / 0.001).clamp(0.5, 1.0)
+            } else {
+                0.2
+            }
+        };
+        
+        // Stochastic Score
+        let stoch_mid = (stoch_k + stoch_d) / 2.0;
+        let stoch_score = if side > 0 {
+            if stoch_mid >= 20.0 && stoch_mid <= 80.0 {
+                ((stoch_mid - 50.0) / 30.0).clamp(0.0, 1.0)
+            } else if stoch_mid > 80.0 {
+                0.3
+            } else {
+                0.2
+            }
+        } else {
+            if stoch_mid >= 20.0 && stoch_mid <= 80.0 {
+                ((50.0 - stoch_mid) / 30.0).clamp(0.0, 1.0)
+            } else if stoch_mid < 20.0 {
+                0.3
+            } else {
+                0.2
+            }
+        };
+        
+        // ADX Score - trend strength
+        let adx_score = (adx / 50.0).clamp(0.0, 1.0);
+        
+        // ATR Score - volatility (prefer moderate)
+        let atr_pct = if close > 0.0 { atr / close } else { 0.0 };
+        let atr_score = if atr_pct >= 0.005 && atr_pct <= 0.03 {
+            1.0
+        } else if atr_pct < 0.005 {
+            0.5
+        } else {
+            0.3
+        };
+        
+        // Volume Score
+        let volume_ratio = if volume_sma > 0.0 { volume / volume_sma } else { 1.0 };
+        let volume_score = if volume_ratio >= 1.0 && volume_ratio <= 3.0 {
+            1.0
+        } else if volume_ratio > 3.0 {
+            0.7 // Too high might be exhaustion
+        } else {
+            0.5
+        };
+        
+        // Trend Score - EMA alignment
+        let trend_score = if ema_20 > 0.0 && ema_50 > 0.0 {
+            if side > 0 {
+                if ema_20 > ema_50 { 1.0 } else { 0.3 }
+            } else {
+                if ema_20 < ema_50 { 1.0 } else { 0.3 }
+            }
+        } else {
+            0.5
+        };
+        
+        // Weighted average
+        let indicator_score = rsi_score * self.indicator_weights.rsi_weight
+            + macd_score * self.indicator_weights.macd_weight
+            + stoch_score * self.indicator_weights.stoch_weight
+            + adx_score * self.indicator_weights.adx_weight
+            + atr_score * self.indicator_weights.atr_weight
+            + volume_score * self.indicator_weights.volume_weight
+            + trend_score * self.indicator_weights.trend_weight;
+        
+        (indicator_score, rsi_score, macd_score, stoch_score, adx_score, 
+         atr_score, volume_score, trend_score)
+    }
+    
+    /// Infer setup kind: Momentum vs Reversal
+    fn infer_setup(&self, raw_signals_summary: &Value, _side: i8) -> (SetupKind, f64) {
+        let rsi = raw_signals_summary.get("rsi").and_then(|v| v.as_f64()).unwrap_or(50.0);
+        let adx = raw_signals_summary.get("adx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let _trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        // Momentum: strong trend (ADX > 25) + RSI in trend zone
+        let is_momentum = adx >= 25.0
+            && ((adx > 0.0 && adx < 50.0));
+
+        // Reversal: RSI at extremes + weak trend
+        let is_reversal = adx < 25.0;
+
+        if is_momentum {
+            (SetupKind::Momentum, (adx / 50.0).clamp(0.5, 1.0))
+        } else if is_reversal {
+            (SetupKind::Reversal, 0.5)
+        } else {
+            (SetupKind::Momentum, 0.5)
+        }
+    }
+}
+
+
+
+# strategies/indicator_ml_strategy/src/trade_signal_calculator.rs
+
+// strategies/indicator_ml_strategy/src/trade_signal_calculator.rs
+//
+// Trade Signal Calculator для Indicator ML Strategy
+//
+// TP/SL расчет:
+// - Для ML: берем цену из ML предсказания (price10_target)
+// - Для консенсуса: считаем через ATR
+// - Следим чтобы TP не сильно отклонялся от предсказаний
+
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::{PgPool, Row};
+
+use common::Symbol;
+use predictors::types::{PredictionRow, PredictionAspect, CalcSource};
+
+use crate::scorer::{IndicatorMlScorer, IndicatorMlScoreBreakdown, SetupKind};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TP/SL параметры для Indicator ML стратегии
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Copy)]
+struct TfTargets {
+    min_tp1_pct: f64,
+    min_tp2_pct: f64,
+    min_tp3_pct: f64,
+    min_sl_pct:  f64,
+    max_sl_pct:  f64,
+    min_rr: f64,
+    
+    /// Максимальное отклонение TP от предсказания (в %)
+    max_pred_deviation_pct: f64,
+}
+
+fn load_signal_params_config() -> config::Config {
+    config::Config::builder()
+        .add_source(config::File::with_name("config/signal_params").required(false))
+        .build()
+        .unwrap_or_else(|_| config::Config::default())
+}
+
+fn get_tf_from_config(tf_minutes: i16, key: &str, default: f64) -> f64 {
+    let tf_section = match tf_minutes {
+        1 => "timeframe_1m",
+        5 => "timeframe_5m",
+        15 => "timeframe_15m",
+        60 => "timeframe_1h",
+        240 => "timeframe_4h",
+        1440 => "timeframe_1d",
+        _ => "timeframe_1h",
+    };
+
+    load_signal_params_config()
+        .get::<f64>(&format!("{}.{}", tf_section, key))
+        .unwrap_or(default)
+}
+
+fn tf_targets(tf_minutes: i16) -> TfTargets {
+    let mut t = TfTargets {
+        min_tp1_pct: get_tf_from_config(tf_minutes, "tp1_pct", 1.5) / 100.0,
+        min_tp2_pct: get_tf_from_config(tf_minutes, "tp2_pct", 2.8) / 100.0,
+        min_tp3_pct: get_tf_from_config(tf_minutes, "tp3_pct", 4.0) / 100.0,
+        min_sl_pct:  get_tf_from_config(tf_minutes, "sl_min_pct", 1.0) / 100.0,
+        max_sl_pct:  get_tf_from_config(tf_minutes, "sl_pct", 3.0) / 100.0,
+        min_rr:      1.5,
+        max_pred_deviation_pct: get_tf_from_config(tf_minutes, "max_pred_deviation_pct", 15.0) / 100.0,
+    };
+
+    // enforce monotonic targets
+    if t.min_tp2_pct <= t.min_tp1_pct { t.min_tp2_pct = t.min_tp1_pct * 1.6; }
+    if t.min_tp3_pct <= t.min_tp2_pct { t.min_tp3_pct = t.min_tp2_pct * 1.45; }
+
+    t
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TradeSide {
+    Long,
+    Short,
+}
+
+impl TradeSide {
+    pub fn as_i8(&self) -> i8 {
+        match self {
+            TradeSide::Long => 1,
+            TradeSide::Short => -1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeSignal {
+    pub time: DateTime<Utc>,
+    pub time_ms: i64,
+
+    pub symbol_id: i64,
+    pub symbol: String,
+    pub tf_minutes: i16,
+
+    pub side: i8,
+
+    pub entry: f64,
+    pub stop_loss: f64,
+    pub tp1: f64,
+    pub tp2: f64,
+    pub tp3: f64,
+
+    pub leverage: i16,
+
+    pub final_score: f64,
+    pub breakdown_json: Value,
+}
+
+pub struct TradeSignalCalculator {
+    pub min_final_score: f64,
+    pub base_leverage: i16,
+    pub fallback_atr_pct: f64,
+}
+
+impl Default for TradeSignalCalculator {
+    fn default() -> Self {
+        Self {
+            min_final_score: 0.55,
+            base_leverage: 5,
+            fallback_atr_pct: 0.008,
+        }
+    }
+}
+
+impl TradeSignalCalculator {
+    pub fn new(min_final_score: f64) -> Self {
+        Self { min_final_score, ..Default::default() }
+    }
+
+    /// TP/SL calculation для Indicator ML стратегии
+    /// - Берем price10_target из ML предсказания как базу для TP
+    /// - SL считаем через ATR
+    /// - Проверяем чтобы TP не отклонялся сильно от предсказания
+    fn calculate_tp_sl(
+        &self,
+        entry_price: f64,
+        side: i8,
+        atr: f64,
+        ml_price_target: Option<f64>,
+        targets: &TfTargets,
+    ) -> (f64, f64, f64, f64) {
+        let side_f = side as f64;
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 1. Определяем базовый TP из ML предсказания
+        // ═══════════════════════════════════════════════════════════════
+        let ml_tp1 = if let Some(target) = ml_price_target {
+            let predicted_move = (target - entry_price) / entry_price;
+            
+            // Проверяем направление
+            if predicted_move * side_f > 0.0 {
+                // ML согласен с направлением
+                target
+            } else {
+                // ML против направления - используем ATR fallback
+                entry_price + side_f * atr * 1.0
+            }
+        } else {
+            // Нет ML предсказания - используем ATR
+            entry_price + side_f * atr * 1.0
+        };
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 2. Проверяем отклонение от минимальных требований
+        // ═══════════════════════════════════════════════════════════════
+        let min_tp1 = entry_price + side_f * entry_price * targets.min_tp1_pct;
+        
+        let tp1 = if side > 0 {
+            ml_tp1.max(min_tp1)
+        } else {
+            ml_tp1.min(min_tp1)
+        };
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 3. TP2 и TP3 как расширения TP1
+        // ═══════════════════════════════════════════════════════════════
+        let tp1_dist = (tp1 - entry_price).abs();
+        let tp2 = entry_price + side_f * tp1_dist * 1.6;
+        let tp3 = entry_price + side_f * tp1_dist * 2.5;
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 4. SL через ATR с защитой от слишком большого
+        // ═══════════════════════════════════════════════════════════════
+        let sl_atr = entry_price - side_f * atr * 0.75;
+        let sl_min = entry_price - side_f * entry_price * targets.min_sl_pct;
+        let sl_max = entry_price - side_f * entry_price * targets.max_sl_pct;
+        
+        let mut stop_loss = if side > 0 {
+            sl_atr.min(sl_min)
+        } else {
+            sl_atr.max(sl_min)
+        };
+        
+        // Cap SL
+        if side > 0 {
+            stop_loss = stop_loss.max(sl_max);
+        } else {
+            stop_loss = stop_loss.min(sl_max);
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // 5. Enforce minimum distances
+        // ═══════════════════════════════════════════════════════════════
+        let d_sl_min = entry_price * targets.min_sl_pct;
+        let d_tp1_min = entry_price * targets.min_tp1_pct;
+        let d_tp2_min = entry_price * targets.min_tp2_pct;
+        let d_tp3_min = entry_price * targets.min_tp3_pct;
+        
+        let enforce_min = |raw: f64, min_delta: f64, is_tp: bool| -> f64 {
+            let actual_delta = (raw - entry_price).abs();
+            if actual_delta >= min_delta {
+                raw
+            } else if is_tp {
+                entry_price + side_f * min_delta
+            } else {
+                entry_price - side_f * min_delta
+            }
+        };
+        
+        stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
+        let mut tp2 = enforce_min(tp2, d_tp2_min, true).max(0.0);
+        let mut tp3 = enforce_min(tp3, d_tp3_min, true).max(0.0);
+        
+        // Monotonic ordering
+        let gap = entry_price * 0.002;
+        if side > 0 {
+            if tp2 <= tp1 { tp2 = tp1 + gap; }
+            if tp3 <= tp2 { tp3 = tp2 + gap; }
+        } else {
+            if tp2 >= tp1 { tp2 = tp1 - gap; }
+            if tp3 >= tp2 { tp3 = tp2 - gap; }
+        }
+        
+        (stop_loss, tp1, tp2, tp3)
+    }
+
+    pub async fn build_trade_signal(
+        &self,
+        pool: &PgPool,
+        scorer: &IndicatorMlScorer,
+
+        time: DateTime<Utc>,
+        time_ms: i64,
+        symbol_id: i64,
+        symbol: &Symbol,
+        tf_minutes: i16,
+
+        entry_price: f64,
+        raw_signals_summary: &Value,
+        predictors: &[PredictionRow],
+    ) -> Result<Option<TradeSignal>> {
+        let side = infer_side_ml(predictors)
+            .or_else(|| infer_side_from_summary_fields(raw_signals_summary))
+            .unwrap_or(0);
+
+        if side == 0 {
+            return Ok(None);
+        }
+
+        // Scoring
+        let breakdown_opt: Option<IndicatorMlScoreBreakdown> = scorer
+            .score_signal_verbose(
+                symbol.0.as_str(),
+                tf_minutes,
+                time,
+                side as i16,
+                raw_signals_summary,
+                predictors,
+            )
+            .await?;
+
+        let breakdown = match breakdown_opt {
+            Some(b) => b,
+            None => return Ok(None),
+        };
+
+        if breakdown.final_score < self.min_final_score {
+            return Ok(None);
+        }
+
+        let targets = tf_targets(tf_minutes);
+
+        // ═══════════════════════════════════════════════════════════════
+        // Extract ML price target
+        // ═══════════════════════════════════════════════════════════════
+        let ml_price_target = predictors.iter()
+            .find(|p| p.aspect == PredictionAspect::PriceTarget && p.calc_source == CalcSource::Ml)
+            .map(|p| p.value);
+
+        // ATR
+        let atr = match extract_atr_from_summary(raw_signals_summary) {
+            Some(v) => v,
+            None => match fetch_last_atr(pool, symbol_id, tf_minutes).await {
+                Ok(Some(v)) => v,
+                _ => entry_price * self.fallback_atr_pct,
+            },
+        };
+
+        // TP/SL calculation
+        let (stop_loss, tp1, tp2, tp3) = self.calculate_tp_sl(
+            entry_price,
+            side,
+            atr,
+            ml_price_target,
+            &targets,
+        );
+
+        // ═══════════════════════════════════════════════════════════════
+        // Risk:Reward check
+        // ═══════════════════════════════════════════════════════════════
+        let tp1_dist = (tp1 - entry_price).abs();
+        let sl_dist = (stop_loss - entry_price).abs();
+        let risk_reward = if sl_dist > 0.0 { tp1_dist / sl_dist } else { 0.0 };
+
+        if risk_reward < targets.min_rr {
+            return Ok(None);
+        }
+
+        // Leverage
+        let score_factor = (0.55 + 0.45 * breakdown.final_score).clamp(0.55, 1.0);
+        let lev = ((self.base_leverage as f64) * score_factor)
+            .round()
+            .clamp(1.0, self.base_leverage as f64) as i16;
+
+        let atr_pct = if entry_price > 0.0 { atr / entry_price } else { 0.0 };
+
+        let breakdown_json = json!({
+            "final": breakdown.final_score,
+            "base_score": breakdown.indicator_score,
+            "ml_prediction_score": breakdown.ml_prediction_score,
+            "rsi_score": breakdown.rsi_score,
+            "macd_score": breakdown.macd_score,
+            "stoch_score": breakdown.stoch_score,
+            "adx_score": breakdown.adx_score,
+            "atr_score": breakdown.atr_score,
+            "volume_score": breakdown.volume_score,
+            "trend_score": breakdown.trend_score,
+            "setup_kind": format!("{:?}", breakdown.setup_kind),
+            "setup_confidence": breakdown.setup_confidence,
+            "atr": atr,
+            "atr_pct": atr_pct,
+            "risk_reward": risk_reward,
+            "ml_price_target": ml_price_target,
+            "strategy_id": 1,
+            "strategy_name": "indicator_ml",
+        });
+
+        Ok(Some(TradeSignal {
+            time,
+            time_ms,
+            symbol_id,
+            symbol: symbol.0.clone(),
+            tf_minutes,
+            side,
+            entry: entry_price,
+            stop_loss,
+            tp1,
+            tp2,
+            tp3,
+            leverage: lev,
+            final_score: breakdown.final_score,
+            breakdown_json,
+        }))
+    }
+}
+
+fn infer_side_ml(predictors: &[PredictionRow]) -> Option<i8> {
+    // Используем ТОЛЬКО ML предсказания для определения направления
+    let ml_predictors: Vec<&PredictionRow> = predictors.iter()
+        .filter(|p| p.calc_source == CalcSource::Ml)
+        .collect();
+    
+    if ml_predictors.is_empty() {
+        return None;
+    }
+    
+    let mut long_score: f32 = 0.0;
+    let mut short_score: f32 = 0.0;
+    
+    for p in &ml_predictors {
+        let sc = p.score_norm;
+        let sd = p.side.unwrap_or(0);
+        if sd == 0 { continue; }
+
+        if sd > 0 {
+            long_score += sc;
+        } else {
+            short_score += sc;
+        }
+    }
+    
+    let total = long_score + short_score;
+    if total <= 0.0 {
+        return None;
+    }
+    
+    let long_ratio = long_score / total;
+    
+    if long_ratio >= 0.6 {
+        Some(1)
+    } else if long_ratio <= 0.4 {
+        Some(-1)
+    } else {
+        None
+    }
+}
+
+fn infer_side_from_summary_fields(raw_signals_summary: &Value) -> Option<i8> {
+    raw_signals_summary
+        .get("side")
+        .and_then(|v| v.as_i64())
+        .map(|x| (x as i8).signum())
+}
+
+fn extract_atr_from_summary(raw_signals_summary: &Value) -> Option<f64> {
+    raw_signals_summary.get("atr").and_then(|v| v.as_f64())
+}
+
+async fn fetch_last_atr(
+    pool: &PgPool,
+    symbol_id: i64,
+    tf_minutes: i16,
+) -> Result<Option<f64>> {
+    let row = sqlx::query(
+        r#"
+        SELECT atr
+        FROM market.indicators_wide
+        WHERE symbol_id = $1 AND tf_minutes = $2 AND atr IS NOT NULL
+        ORDER BY time DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(symbol_id)
+    .bind(tf_minutes as i32)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.and_then(|r| r.try_get::<f64, _>(0).ok()))
+}
 
 
 
@@ -8230,15 +12913,33 @@ else
   warn "Database schema missing. Running initialization..."
   # Build tool if needed (using release profile for speed usually)
   cargo build -p database --bin svc_db_init
-  
+
   # Run it
   "$ROOT_DIR/target/debug/svc_db_init" 2>&1 | tee -a "logs/db_init.out"
-  
+
   if check_db_initialized; then
       ok "Database initialized successfully."
   else
       die "Database initialization failed."
   fi
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Apply strategy support migration (090_strategy_support.sql)
+# ═══════════════════════════════════════════════════════════════════════════
+
+log "Applying strategy support migration..."
+
+STRATEGY_MIGRATION="$ROOT_DIR/database/ddl/090_strategy_support.sql"
+
+if [[ -f "$STRATEGY_MIGRATION" ]]; then
+  PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -d timescaledb_binance \
+    -v ON_ERROR_STOP=1 \
+    -f "$STRATEGY_MIGRATION" 2>&1 | tee -a "logs/db_init.out"
+  
+  ok "Strategy support migration applied successfully."
+else
+  warn "Strategy migration file not found: $STRATEGY_MIGRATION"
 fi
 
 
@@ -10216,6 +14917,8 @@ pub enum PersistRecord {
         bounce_score: Option<f32>,
         breakout_prob: Option<f32>,
         breakout_score: Option<f32>,
+        strategy_id: i16,
+        strategy_name: String,
     },
 }
 
@@ -11421,6 +16124,7 @@ fn trade_signals_sql_realtime() -> &'static str {
      price10_target, price10_score,
      bounce_prob, bounce_score,
      breakout_prob, breakout_score,
+     strategy_id, strategy_name,
      created_at)
     SELECT * FROM UNNEST(
         $1::bigint[],
@@ -11444,7 +16148,9 @@ fn trade_signals_sql_realtime() -> &'static str {
         $19::real[],
         $20::real[],
         $21::real[],
-        $22::timestamptz[]
+        $22::smallint[],
+        $23::text[],
+        $24::timestamptz[]
     )
     ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
         symbol = EXCLUDED.symbol,
@@ -11463,7 +16169,9 @@ fn trade_signals_sql_realtime() -> &'static str {
         bounce_prob = EXCLUDED.bounce_prob,
         bounce_score = EXCLUDED.bounce_score,
         breakout_prob = EXCLUDED.breakout_prob,
-        breakout_score = EXCLUDED.breakout_score
+        breakout_score = EXCLUDED.breakout_score,
+        strategy_id = EXCLUDED.strategy_id,
+        strategy_name = EXCLUDED.strategy_name
     "#
 }
 
@@ -12942,6 +17650,137 @@ CREATE INDEX IF NOT EXISTS ix_predictors_level_hash
 -- Index for predictor-based queries
 CREATE INDEX IF NOT EXISTS ix_predictors_predictor_time
   ON trade.predictors(predictor_id, time DESC);
+
+
+# database/ddl/090_strategy_support.sql
+
+-- 090_strategy_support.sql
+-- Добавляет поддержку 6 стратегий и обновляет таблицу predictors
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. Обновление таблицы final_signals - добавление колонок стратегии
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Добавляем колонку strategy_id (1-6 для 6 стратегий)
+ALTER TABLE trade.final_signals 
+ADD COLUMN IF NOT EXISTS strategy_id SMALLINT NOT NULL DEFAULT 6;
+
+-- Добавляем колонку strategy_name
+ALTER TABLE trade.final_signals 
+ADD COLUMN IF NOT EXISTS strategy_name TEXT NOT NULL DEFAULT 'level_consensus';
+
+-- Добавляем индекс для фильтрации по стратегиям
+CREATE INDEX IF NOT EXISTS ix_final_signals_strategy 
+ON trade.final_signals(strategy_id, time DESC);
+
+CREATE INDEX IF NOT EXISTS ix_final_signals_strategy_name 
+ON trade.final_signals(strategy_name, time DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. Обновление таблицы predictors - поддержка ML + heuristic отдельно
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Таблица predictors уже имеет правильную структуру:
+-- - aspect: 1=price_target, 2=level_bounce, 3=level_breakout
+-- - calc_source: 1=hard (heuristic), 2=ml
+-- 
+-- Теперь для каждого aspect будет:
+-- - PriceTarget: 2 строки (ML + heuristic) + 1 consensus = 3 строки
+-- - LevelBounce: 2 строки (ML + heuristic)
+-- - LevelBreakout: 2 строки (ML + heuristic)
+-- Итого: 7 строк на пару/таймфрейм
+--
+-- Consensus рассчитывается отдельно и сохраняется как дополнительная строка
+-- с calc_source = 3 (consensus) - нужно добавить поддержку
+
+-- Добавляем новое значение для calc_source = 3 (consensus)
+-- Примечание: это логическое изменение, не требует изменения схемы
+-- CalcSource::Consensus будет иметь as_int() = 3
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. Таблица для хранения результатов backtest по стратегиям
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS trade.backtest_results_by_strategy (
+    id              BIGSERIAL,
+    signal_time     TIMESTAMPTZ NOT NULL,
+    signal_time_ms  BIGINT NOT NULL,
+    symbol          TEXT NOT NULL,
+    symbol_id       BIGINT NOT NULL,
+    tf_minutes      SMALLINT NOT NULL,
+    strategy_id     SMALLINT NOT NULL,
+    strategy_name   TEXT NOT NULL,
+    side            SMALLINT NOT NULL,
+    final_score     REAL NOT NULL,
+    entry_price     REAL NOT NULL,
+    sl_price        REAL NOT NULL,
+    tp1_price       REAL NOT NULL,
+    tp2_price       REAL,
+    tp3_price       REAL,
+    outcome         TEXT NOT NULL,
+    pnl_pct         DOUBLE PRECISION NOT NULL,
+    exit_price      DOUBLE PRECISION,
+    bars_to_outcome INT NOT NULL,
+    max_favorable   DOUBLE PRECISION NOT NULL,
+    max_adverse     DOUBLE PRECISION NOT NULL,
+    tp1_hit         BOOLEAN NOT NULL DEFAULT false,
+    tp2_hit         BOOLEAN NOT NULL DEFAULT false,
+    tp3_hit         BOOLEAN NOT NULL DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (symbol_id, tf_minutes, signal_time, strategy_id)
+);
+
+SELECT create_hypertable('trade.backtest_results_by_strategy', 'signal_time', if_not_exists => TRUE, chunk_time_interval => INTERVAL '30 days');
+
+CREATE INDEX IF NOT EXISTS ix_backtest_strategy_symbol_time 
+ON trade.backtest_results_by_strategy(strategy_id, symbol, signal_time DESC);
+
+CREATE INDEX IF NOT EXISTS ix_backtest_strategy_outcome 
+ON trade.backtest_results_by_strategy(strategy_id, outcome, final_score DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 4. Справочник стратегий
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS trade.strategy_registry (
+    strategy_id     SMALLINT PRIMARY KEY,
+    strategy_name   TEXT NOT NULL UNIQUE,
+    description     TEXT,
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Вставляем 6 стратегий
+INSERT INTO trade.strategy_registry (strategy_id, strategy_name, description) VALUES
+    (1, 'indicator_ml', 'Индикаторы + ML предсказания, равные веса индикаторов'),
+    (2, 'indicator_heuristic', 'Индикаторы + эвристические расчеты, равные веса индикаторов'),
+    (3, 'indicator_consensus', 'Индикаторы + консенсус предсказаний'),
+    (4, 'level_ml', 'Уровни + ML предсказания, текущая логика TP/SL'),
+    (5, 'level_heuristic', 'Уровни + эвристические предсказания, текущая логика TP/SL'),
+    (6, 'level_consensus', 'Уровни + консенсус (текущая default стратегия)')
+ON CONFLICT (strategy_id) DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 5. Обновление таблицы backtest_results - добавление strategy_id
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE trade.backtest_results 
+ADD COLUMN IF NOT EXISTS strategy_id SMALLINT NOT NULL DEFAULT 6;
+
+ALTER TABLE trade.backtest_results 
+ADD COLUMN IF NOT EXISTS strategy_name TEXT NOT NULL DEFAULT 'level_consensus';
+
+-- Индекс для группировки по стратегиям
+CREATE INDEX IF NOT EXISTS ix_backtest_results_strategy 
+ON trade.backtest_results(strategy_id, signal_time DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. Comment для документации
+-- ═══════════════════════════════════════════════════════════════════════════
+
+COMMENT ON COLUMN trade.final_signals.strategy_id IS '1=indicator_ml, 2=indicator_heuristic, 3=indicator_consensus, 4=level_ml, 5=level_heuristic, 6=level_consensus';
+COMMENT ON COLUMN trade.backtest_results.strategy_id IS '1=indicator_ml, 2=indicator_heuristic, 3=indicator_consensus, 4=level_ml, 5=level_heuristic, 6=level_consensus';
+
 
 
 # config/binance.toml
@@ -17559,9 +22398,523 @@ dashmap = "5.5"
 cudarc = { version = "0.11.2", optional = true, features = ["f16", "cuda-12050"] }
 config = "0.15"
 
+# Strategy libraries
+indicator_ml_strategy = { path = "../strategies/indicator_ml_strategy" }
+indicator_heuristic_strategy = { path = "../strategies/indicator_heuristic_strategy" }
+indicator_consensus_strategy = { path = "../strategies/indicator_consensus_strategy" }
+level_ml_strategy = { path = "../strategies/level_ml_strategy" }
+level_heuristic_strategy = { path = "../strategies/level_heuristic_strategy" }
+level_consensus_strategy = { path = "../strategies/level_consensus_strategy" }
+
 [features]
 default = []
 cuda = ["dep:cuda", "dep:cudarc", "predictors/cuda"]
+
+
+
+# compute/trade_signals/multi_strategy_processor.rs
+
+// compute/scoring/multi_strategy_processor.rs
+//
+// MultiStrategyTradeSignalStage — генерирует сигналы для ВСЕХ 6 стратегий одновременно
+//
+// Для каждого input создаёт 6 сигналов:
+// 1. indicator_ml_strategy
+// 2. indicator_heuristic_strategy
+// 3. indicator_consensus_strategy
+// 4. level_ml_strategy
+// 5. level_heuristic_strategy
+// 6. level_consensus_strategy
+
+use anyhow::Result;
+use serde_json::{json, Value};
+use sqlx::PgPool;
+use tokio::sync::mpsc;
+use common::Symbol;
+
+use crate::predictors::types::{PredictionAspect, CalcSource};
+pub use crate::predictors::pipeline::TradeSignalInput;
+
+// Import all 6 strategies
+use indicator_ml_strategy::{IndicatorMlScorer, TradeSignalCalculator as IndicatorMlCalculator};
+use indicator_heuristic_strategy::{IndicatorHeuristicScorer, TradeSignalCalculator as IndicatorHeuristicCalculator};
+use indicator_consensus_strategy::{IndicatorConsensusScorer, TradeSignalCalculator as IndicatorConsensusCalculator};
+use level_ml_strategy::{LevelMlScorer, TradeSignalCalculator as LevelMlCalculator};
+use level_heuristic_strategy::{LevelHeuristicScorer, TradeSignalCalculator as LevelHeuristicCalculator};
+use level_consensus_strategy::{LevelConsensusScorer, TradeSignalCalculator as LevelConsensusCalculator};
+
+use super::market_params_calculator::MarketParamsCalculator;
+
+/// Multi-strategy pipeline stage that produces trade signals for ALL 6 strategies
+pub struct MultiStrategyTradeSignalStage {
+    db_pool: PgPool,
+    market_params_calc: MarketParamsCalculator,
+    
+    // Scorers for each strategy
+    indicator_ml_scorer: IndicatorMlScorer,
+    indicator_heuristic_scorer: IndicatorHeuristicScorer,
+    indicator_consensus_scorer: IndicatorConsensusScorer,
+    level_ml_scorer: LevelMlScorer,
+    level_heuristic_scorer: LevelHeuristicScorer,
+    level_consensus_scorer: LevelConsensusScorer,
+    
+    // Calculators for each strategy
+    indicator_ml_calc: IndicatorMlCalculator,
+    indicator_heuristic_calc: IndicatorHeuristicCalculator,
+    indicator_consensus_calc: IndicatorConsensusCalculator,
+    level_ml_calc: LevelMlCalculator,
+    level_heuristic_calc: LevelHeuristicCalculator,
+    level_consensus_calc: LevelConsensusCalculator,
+    
+    bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
+    prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
+}
+
+impl MultiStrategyTradeSignalStage {
+    pub fn new(
+        db_pool: PgPool,
+        market_params_calc: MarketParamsCalculator,
+        bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
+        prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
+        min_score: f64,
+    ) -> Self {
+        tracing::info!("Initializing MultiStrategyTradeSignalStage with min_score: {}", min_score);
+
+        Self {
+            db_pool,
+            market_params_calc,
+            
+            // Initialize all 6 scorers
+            indicator_ml_scorer: IndicatorMlScorer::new(min_score),
+            indicator_heuristic_scorer: IndicatorHeuristicScorer::new(min_score),
+            indicator_consensus_scorer: IndicatorConsensusScorer::new(min_score),
+            level_ml_scorer: LevelMlScorer::new(min_score),
+            level_heuristic_scorer: LevelHeuristicScorer::new(min_score),
+            level_consensus_scorer: LevelConsensusScorer::new(min_score),
+            
+            // Initialize all 6 calculators
+            indicator_ml_calc: IndicatorMlCalculator::new(min_score),
+            indicator_heuristic_calc: IndicatorHeuristicCalculator::new(min_score),
+            indicator_consensus_calc: IndicatorConsensusCalculator::new(min_score),
+            level_ml_calc: LevelMlCalculator::new(min_score),
+            level_heuristic_calc: LevelHeuristicCalculator::new(min_score),
+            level_consensus_calc: LevelConsensusCalculator::new(min_score),
+            
+            bulk_sender,
+            prediction_rx,
+        }
+    }
+
+    /// Main loop: receive prediction inputs, score with ALL 6 strategies, and produce trade signals
+    pub async fn run(mut self) -> Result<()> {
+        tracing::info!(target: "multi_strategy_stage", "MultiStrategyTradeSignalStage started");
+        let mut signals_produced: u64 = 0;
+        let mut inputs_processed: u64 = 0;
+
+        while let Some(input) = self.prediction_rx.recv().await {
+            inputs_processed += 1;
+
+            if let Err(e) = self.process_input(input).await {
+                tracing::error!(
+                    target: "multi_strategy_stage",
+                    "Error processing multi-strategy signal input: {}", e
+                );
+            }
+
+            if inputs_processed % 1000 == 0 {
+                tracing::info!(
+                    target: "multi_strategy_stage",
+                    "MultiStrategyTradeSignalStage: processed {} inputs, produced {} signals",
+                    inputs_processed, signals_produced
+                );
+            }
+        }
+
+        tracing::info!(
+            target: "multi_strategy_stage",
+            "MultiStrategyTradeSignalStage shutting down: processed {} inputs, produced {} signals",
+            inputs_processed, signals_produced
+        );
+
+        Ok(())
+    }
+
+    async fn process_input(&self, input: TradeSignalInput) -> Result<()> {
+        if input.predictions.is_empty() {
+            return Ok(());
+        }
+
+        // 1. Compute BTC market params
+        let market_params = self
+            .market_params_calc
+            .get_or_compute(&self.db_pool, input.timestamp)
+            .await?;
+
+        let symbol = Symbol::from(input.symbol.clone());
+        let mut signals_count = 0;
+
+        // ═══════════════════════════════════════════════════════════════
+        // Strategy 1: Indicator ML
+        // ═══════════════════════════════════════════════════════════════
+        if let Ok(Some(signal)) = self.indicator_ml_calc.build_trade_signal(
+            &self.db_pool,
+            &self.indicator_ml_scorer,
+            input.timestamp,
+            input.time_ms,
+            input.symbol_id,
+            &symbol,
+            input.tf_minutes,
+            input.close_price,
+            &input.raw_signals_summary,
+            &input.predictions,
+        ).await {
+            self.persist_signal(signal.into(), &input).await?;
+            signals_count += 1;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Strategy 2: Indicator Heuristic
+        // ═══════════════════════════════════════════════════════════════
+        if let Ok(Some(signal)) = self.indicator_heuristic_calc.build_trade_signal(
+            &self.db_pool,
+            &self.indicator_heuristic_scorer,
+            input.timestamp,
+            input.time_ms,
+            input.symbol_id,
+            &symbol,
+            input.tf_minutes,
+            input.close_price,
+            &input.raw_signals_summary,
+            &input.predictions,
+        ).await {
+            self.persist_signal(signal.into(), &input).await?;
+            signals_count += 1;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Strategy 3: Indicator Consensus
+        // ═══════════════════════════════════════════════════════════════
+        if let Ok(Some(signal)) = self.indicator_consensus_calc.build_trade_signal(
+            &self.db_pool,
+            &self.indicator_consensus_scorer,
+            input.timestamp,
+            input.time_ms,
+            input.symbol_id,
+            &symbol,
+            input.tf_minutes,
+            input.close_price,
+            &input.raw_signals_summary,
+            &input.predictions,
+        ).await {
+            self.persist_signal(signal.into(), &input).await?;
+            signals_count += 1;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Strategy 4: Level ML
+        // ═══════════════════════════════════════════════════════════════
+        if let Ok(Some(signal)) = self.level_ml_calc.build_trade_signal(
+            &self.db_pool,
+            &self.level_ml_scorer,
+            input.timestamp,
+            input.time_ms,
+            input.symbol_id,
+            &symbol,
+            input.tf_minutes,
+            input.close_price,
+            &input.raw_signals_summary,
+            &input.predictions,
+        ).await {
+            self.persist_signal(signal.into(), &input).await?;
+            signals_count += 1;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Strategy 5: Level Heuristic
+        // ═══════════════════════════════════════════════════════════════
+        if let Ok(Some(signal)) = self.level_heuristic_calc.build_trade_signal(
+            &self.db_pool,
+            &self.level_heuristic_scorer,
+            input.timestamp,
+            input.time_ms,
+            input.symbol_id,
+            &symbol,
+            input.tf_minutes,
+            input.close_price,
+            &input.raw_signals_summary,
+            &input.predictions,
+        ).await {
+            self.persist_signal(signal.into(), &input).await?;
+            signals_count += 1;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Strategy 6: Level Consensus (original)
+        // ═══════════════════════════════════════════════════════════════
+        if let Ok(Some(signal)) = self.level_consensus_calc.build_trade_signal(
+            &self.db_pool,
+            &self.level_consensus_scorer,
+            input.timestamp,
+            input.time_ms,
+            input.symbol_id,
+            &symbol,
+            input.tf_minutes,
+            input.close_price,
+            &input.raw_signals_summary,
+            &input.predictions,
+        ).await {
+            self.persist_signal(signal.into(), &input).await?;
+            signals_count += 1;
+        }
+
+        if signals_count > 0 {
+            tracing::debug!(
+                target: "multi_strategy_stage",
+                "Generated {} signals for {} tf={}",
+                signals_count, input.symbol, input.tf_minutes
+            );
+        }
+
+        Ok(())
+    }
+
+    async fn persist_signal(
+        &self,
+        signal: StrategyTradeSignal,
+        input: &TradeSignalInput,
+    ) -> Result<()> {
+        // Extract prediction aspect scores for the DB columns
+        let mut price10_target: Option<f64> = None;
+        let mut price10_score: Option<f32> = None;
+        let mut bounce_prob: Option<f32> = None;
+        let mut bounce_score: Option<f32> = None;
+        let mut breakout_prob: Option<f32> = None;
+        let mut breakout_score: Option<f32> = None;
+        let mut ml_score: Option<f32> = None;
+        let mut heur_score: Option<f32> = None;
+
+        for p in &input.predictions {
+            match p.aspect {
+                PredictionAspect::PriceTarget => {
+                    match p.calc_source {
+                        CalcSource::Ml => {
+                            price10_target = Some(p.value);
+                            price10_score = Some(p.score_norm);
+                            ml_score = Some(p.score_norm);
+                        }
+                        CalcSource::Hard => {
+                            if price10_target.is_none() {
+                                price10_target = Some(p.value);
+                                price10_score = Some(p.score_norm);
+                            }
+                            heur_score = Some(p.score_norm);
+                        }
+                    }
+                }
+                PredictionAspect::LevelBounce => {
+                    bounce_prob = Some(p.value as f32);
+                    bounce_score = Some(p.score_norm);
+                }
+                PredictionAspect::LevelBreakout => {
+                    breakout_prob = Some(p.value as f32);
+                    breakout_score = Some(p.score_norm);
+                }
+            }
+        }
+
+        let record = database_lib::PersistRecord::TradeSignal {
+            symbol: Symbol::from(signal.symbol.clone()),
+            timeframe: signal.tf_minutes,
+            time_ms: signal.time_ms,
+            side: signal.side as i16,
+            final_score: signal.final_score as f32,
+            ml_score,
+            heur_score,
+            entry_price: Some(signal.entry as f32),
+            sl_price: Some(signal.stop_loss as f32),
+            tp1_price: Some(signal.tp1 as f32),
+            tp2_price: Some(signal.tp2 as f32),
+            tp3_price: Some(signal.tp3 as f32),
+            reason: Some(signal.breakdown_json),
+            price10_target,
+            price10_score,
+            bounce_prob,
+            bounce_score,
+            breakout_prob,
+            breakout_score,
+        };
+
+        if let Err(e) = self.bulk_sender.send(record).await {
+            tracing::error!(
+                target: "multi_strategy_stage",
+                "Failed to send TradeSignal to BulkPersistor: {}", e
+            );
+            return Ok(());
+        }
+
+        Ok(())
+    }
+}
+
+// Common trade signal structure that all strategies produce
+#[derive(Debug, Clone)]
+pub struct StrategyTradeSignal {
+    pub time: chrono::DateTime<chrono::Utc>,
+    pub time_ms: i64,
+    pub symbol_id: i64,
+    pub symbol: String,
+    pub tf_minutes: i16,
+    pub side: i8,
+    pub entry: f64,
+    pub stop_loss: f64,
+    pub tp1: f64,
+    pub tp2: f64,
+    pub tp3: f64,
+    pub leverage: i16,
+    pub final_score: f64,
+    pub breakdown_json: Value,
+    pub strategy_id: i16,
+    pub strategy_name: String,
+}
+
+// Implement From for each strategy's TradeSignal
+impl From<indicator_ml_strategy::TradeSignal> for StrategyTradeSignal {
+    fn from(s: indicator_ml_strategy::TradeSignal) -> Self {
+        StrategyTradeSignal {
+            time: s.time,
+            time_ms: s.time_ms,
+            symbol_id: s.symbol_id,
+            symbol: s.symbol,
+            tf_minutes: s.tf_minutes,
+            side: s.side,
+            entry: s.entry,
+            stop_loss: s.stop_loss,
+            tp1: s.tp1,
+            tp2: s.tp2,
+            tp3: s.tp3,
+            leverage: s.leverage,
+            final_score: s.final_score,
+            breakdown_json: s.breakdown_json,
+            strategy_id: indicator_ml_strategy::STRATEGY_ID,
+            strategy_name: indicator_ml_strategy::STRATEGY_NAME.to_string(),
+        }
+    }
+}
+
+impl From<indicator_heuristic_strategy::TradeSignal> for StrategyTradeSignal {
+    fn from(s: indicator_heuristic_strategy::TradeSignal) -> Self {
+        StrategyTradeSignal {
+            time: s.time,
+            time_ms: s.time_ms,
+            symbol_id: s.symbol_id,
+            symbol: s.symbol,
+            tf_minutes: s.tf_minutes,
+            side: s.side,
+            entry: s.entry,
+            stop_loss: s.stop_loss,
+            tp1: s.tp1,
+            tp2: s.tp2,
+            tp3: s.tp3,
+            leverage: s.leverage,
+            final_score: s.final_score,
+            breakdown_json: s.breakdown_json,
+            strategy_id: indicator_heuristic_strategy::STRATEGY_ID,
+            strategy_name: indicator_heuristic_strategy::STRATEGY_NAME.to_string(),
+        }
+    }
+}
+
+impl From<indicator_consensus_strategy::TradeSignal> for StrategyTradeSignal {
+    fn from(s: indicator_consensus_strategy::TradeSignal) -> Self {
+        StrategyTradeSignal {
+            time: s.time,
+            time_ms: s.time_ms,
+            symbol_id: s.symbol_id,
+            symbol: s.symbol,
+            tf_minutes: s.tf_minutes,
+            side: s.side,
+            entry: s.entry,
+            stop_loss: s.stop_loss,
+            tp1: s.tp1,
+            tp2: s.tp2,
+            tp3: s.tp3,
+            leverage: s.leverage,
+            final_score: s.final_score,
+            breakdown_json: s.breakdown_json,
+            strategy_id: indicator_consensus_strategy::STRATEGY_ID,
+            strategy_name: indicator_consensus_strategy::STRATEGY_NAME.to_string(),
+        }
+    }
+}
+
+impl From<level_ml_strategy::TradeSignal> for StrategyTradeSignal {
+    fn from(s: level_ml_strategy::TradeSignal) -> Self {
+        StrategyTradeSignal {
+            time: s.time,
+            time_ms: s.time_ms,
+            symbol_id: s.symbol_id,
+            symbol: s.symbol,
+            tf_minutes: s.tf_minutes,
+            side: s.side,
+            entry: s.entry,
+            stop_loss: s.stop_loss,
+            tp1: s.tp1,
+            tp2: s.tp2,
+            tp3: s.tp3,
+            leverage: s.leverage,
+            final_score: s.final_score,
+            breakdown_json: s.breakdown_json,
+            strategy_id: level_ml_strategy::STRATEGY_ID,
+            strategy_name: level_ml_strategy::STRATEGY_NAME.to_string(),
+        }
+    }
+}
+
+impl From<level_heuristic_strategy::TradeSignal> for StrategyTradeSignal {
+    fn from(s: level_heuristic_strategy::TradeSignal) -> Self {
+        StrategyTradeSignal {
+            time: s.time,
+            time_ms: s.time_ms,
+            symbol_id: s.symbol_id,
+            symbol: s.symbol,
+            tf_minutes: s.tf_minutes,
+            side: s.side,
+            entry: s.entry,
+            stop_loss: s.stop_loss,
+            tp1: s.tp1,
+            tp2: s.tp2,
+            tp3: s.tp3,
+            leverage: s.leverage,
+            final_score: s.final_score,
+            breakdown_json: s.breakdown_json,
+            strategy_id: level_heuristic_strategy::STRATEGY_ID,
+            strategy_name: level_heuristic_strategy::STRATEGY_NAME.to_string(),
+        }
+    }
+}
+
+impl From<level_consensus_strategy::TradeSignal> for StrategyTradeSignal {
+    fn from(s: level_consensus_strategy::TradeSignal) -> Self {
+        StrategyTradeSignal {
+            time: s.time,
+            time_ms: s.time_ms,
+            symbol_id: s.symbol_id,
+            symbol: s.symbol,
+            tf_minutes: s.tf_minutes,
+            side: s.side,
+            entry: s.entry,
+            stop_loss: s.stop_loss,
+            tp1: s.tp1,
+            tp2: s.tp2,
+            tp3: s.tp3,
+            leverage: s.leverage,
+            final_score: s.final_score,
+            breakdown_json: s.breakdown_json,
+            strategy_id: level_consensus_strategy::STRATEGY_ID,
+            strategy_name: level_consensus_strategy::STRATEGY_NAME.to_string(),
+        }
+    }
+}
 
 
 
@@ -35139,6 +40492,9 @@ pub mod trade_signal_calculator;
 #[path = "../../trade_signals/trade_signal_processor.rs"]
 pub mod trade_signal_processor;
 
+#[path = "../../trade_signals/multi_strategy_processor.rs"]
+pub mod multi_strategy_processor;
+
 
 
 # compute/src/bin/compute_history.rs
@@ -35154,7 +40510,7 @@ use std::time::Duration;
 use raw_signals::thresholds::SignalConfig;
 use compute_lib::predictors::config::PredictorsConfig;
 use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
-use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::scoring::multi_strategy_processor::{MultiStrategyTradeSignalStage, TradeSignalInput};
 use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
 
 #[tokio::main]
@@ -35265,12 +40621,12 @@ async fn main() -> Result<()> {
     predictors_pipeline.set_input_receiver(feature_rx);
     predictors_pipeline.set_bulk_sender(bulk_sender.clone());
 
-    // --- TradeSignalStage setup ---
+    // --- MultiStrategyTradeSignalStage setup ---
     let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
     predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
 
     let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
-    let trade_signal_stage = TradeSignalStage::new(
+    let trade_signal_stage = MultiStrategyTradeSignalStage::new(
         db_pool.clone(),
         market_params_calc,
         bulk_sender.clone(),
@@ -35280,7 +40636,7 @@ async fn main() -> Result<()> {
 
     tokio::spawn(async move {
         if let Err(e) = trade_signal_stage.run().await {
-            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+            tracing::error!(target: "multi_strategy_stage", "MultiStrategyTradeSignalStage error: {}", e);
         }
     });
 
@@ -35611,7 +40967,7 @@ use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBacken
 use raw_signals::thresholds::SignalConfig;
 use compute_lib::predictors::config::PredictorsConfig;
 use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
-use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::scoring::multi_strategy_processor::{MultiStrategyTradeSignalStage, TradeSignalInput};
 use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
 
 #[tokio::main]
@@ -35708,22 +41064,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Without this, the pipeline falls back to individual upsert_predictors() calls
     predictors_pipeline.set_bulk_sender(bulk_sender.clone());
 
-    // --- TradeSignalStage setup ---
+    // --- MultiStrategyTradeSignalStage setup ---
     let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
     predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
 
     let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
-    let trade_signal_stage = TradeSignalStage::new(
+    let trade_signal_stage = MultiStrategyTradeSignalStage::new(
         db_pool.clone(),
         market_params_calc,
         bulk_sender.clone(),
         trade_signal_rx,
-        pred_config.min_final_score, // Pass min_final_score from config
+        pred_config.min_final_score,
     );
 
     tokio::spawn(async move {
         if let Err(e) = trade_signal_stage.run().await {
-            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+            tracing::error!(target: "multi_strategy_stage", "MultiStrategyTradeSignalStage error: {}", e);
         }
     });
 
