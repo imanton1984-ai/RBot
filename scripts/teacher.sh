@@ -41,7 +41,7 @@ set -euo pipefail
 #   3. For entry policy: Run backtester first: ./scripts/backtester.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VENV_DIR="${ROOT_DIR}/.venv_trainer"
+VENV_DIR="${ROOT_DIR}/trainer/.venv"
 MODELS_DIR="${ROOT_DIR}/models"
 
 # Parse arguments
