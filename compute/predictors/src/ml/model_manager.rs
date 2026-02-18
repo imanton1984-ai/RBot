@@ -55,13 +55,33 @@ impl ModelManager {
         for &tf in timeframes {
             let key = format!("{}_tf{}", model_type, tf);
             let path = model_template.replace("{tf}", &tf.to_string());
-            let schema_path = path.replace(".ubj", ".json"); // schema рядом
-
+            
+            // Try both .json and .schema.json for schema file
+            let schema_path = path.replace(".ubj", ".json");
+            let schema_path_alt = path.replace(".ubj", ".schema.json");
+            
             if std::path::Path::new(&schema_path).exists() {
-                let schema = FeatureSchema::from_json_file(&schema_path)?;
-                self.schemas.insert(key.clone(), schema);
+                match FeatureSchema::from_json_file(&schema_path) {
+                    Ok(schema) => {
+                        self.schemas.insert(key.clone(), schema);
+                        debug!("Loaded schema from: {}", schema_path);
+                    }
+                    Err(e) => {
+                        warn!("Failed to load schema from {}: {}", schema_path, e);
+                    }
+                }
+            } else if std::path::Path::new(&schema_path_alt).exists() {
+                match FeatureSchema::from_json_file(&schema_path_alt) {
+                    Ok(schema) => {
+                        self.schemas.insert(key.clone(), schema);
+                        debug!("Loaded schema from: {}", schema_path_alt);
+                    }
+                    Err(e) => {
+                        warn!("Failed to load schema from {}: {}", schema_path_alt, e);
+                    }
+                }
             } else {
-                warn!("Schema not found: {}", schema_path);
+                warn!("Schema not found for {} (tried: {}, {})", key, schema_path, schema_path_alt);
             }
 
             if std::path::Path::new(&path).exists() {

@@ -24,6 +24,7 @@ mod evaluator;
 mod types;
 mod entry_policy_labeler;
 mod entry_agent_evaluator;
+mod entry_agent_real_evaluator;
 
 use anyhow::Result;
 use dotenvy::dotenv;
@@ -32,6 +33,7 @@ use std::collections::HashMap;
 
 use evaluator::SignalEvaluator;
 use types::*;
+use entry_policy_labeler::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -878,77 +880,148 @@ async fn fetch_candles_with_atr(
 
 /// Run comparison between Baseline and Entry Agent evaluation
 async fn run_entry_agent_comparison(
-    _pool: &PgPool,
+    pool: &PgPool,
     baseline_results: &[BacktestResult],
-    _timeout_bars: usize,
+    timeout_bars: usize,
 ) -> Result<()> {
-    // Calculate baseline stats
-    let total_signals = baseline_results.len();
-    let entered_trades = baseline_results.iter()
-        .filter(|r| !matches!(r.outcome, Outcome::Expired { .. }))
-        .count();
-    let win_count = baseline_results.iter()
-        .filter(|r| matches!(r.outcome, Outcome::Win { .. }))
-        .count();
-    let baseline_win_rate = if entered_trades > 0 {
-        win_count as f64 / entered_trades as f64 * 100.0
-    } else {
-        0.0
-    };
-    let baseline_avg_pnl = baseline_results.iter()
-        .map(|r| r.pnl_pct)
-        .sum::<f64>() / total_signals as f64 * 100.0;
-
-    // Mock Entry Agent stats (based on expert labeling)
-    // In production, these would come from actual model inference
-    // For now, estimate based on dataset statistics:
-    // - Entry Agent enters on ~19% of bars (optimal entry)
-    // - Cancels ~3% of setups
-    // - Expected improvement: 10-20% reduction in SL hits, 5-10% increase in TP hits
+    use entry_agent_real_evaluator::{RealEntryAgentEvaluator, EntryAgentComparison};
     
-    let estimated_entered = (entered_trades as f64 * 0.85) as usize; // 15% fewer trades (waits/cancels)
-    let estimated_wins = (win_count as f64 * 1.08) as usize; // 8% more wins (better timing)
-    let agent_win_rate = if estimated_entered > 0 {
-        estimated_wins as f64 / estimated_entered as f64 * 100.0
-    } else {
-        0.0
-    };
-    let agent_avg_pnl = baseline_avg_pnl * 1.15; // 15% better PnL
-
     println!("\n");
     println!("╔═══════════════════════════════════════════════════════════╗");
-    println!("║     ENTRY AGENT COMPARISON: Baseline vs EntryAgent        ║");
+    println!("║        ENTRY AGENT: Loading Models...                     ║");
     println!("╚═══════════════════════════════════════════════════════════╝");
     println!("\n");
-
-    println!("┌─────────────────────────────────────────────────────────────┐");
-    println!("│ Metric              │ Baseline  │ EntryAgent │ Improvement │");
-    println!("├─────────────────────┼───────────┼────────────┼─────────────┤");
-    println!("│ Total Signals       │ {:>9} │ {:>10} │   {:>6}   │", total_signals, total_signals, "0");
-    println!("│ Entered Trades      │ {:>9} │ {:>10} │  {:>6}%  │", 
-        entered_trades, estimated_entered, 
-        ((entered_trades - estimated_entered) as f64 / entered_trades as f64 * 100.0) as i32);
-    println!("│ Win Rate            │ {:>7.1}% │ {:>9.1}% │ {:>+6.1}%  │", 
-        baseline_win_rate, agent_win_rate, agent_win_rate - baseline_win_rate);
-    println!("│ Avg PnL             │ {:>8.4}% │ {:>9.4}% │ {:>+7.4}% │", 
-        baseline_avg_pnl, agent_avg_pnl, agent_avg_pnl - baseline_avg_pnl);
-    println!("└─────────────────────────────────────────────────────────────┘");
-
-    println!("\n");
-    println!("Note: Entry Agent stats are estimated from expert labeling.");
-    println!("      Full model-based evaluation requires:");
-    println!("        1. Load entry_enter/entry_cancel models");
-    println!("        2. Extract features per bar");
-    println!("        3. Run agent.decide() on each bar");
+    
+    // Create real evaluator with model loading
+    // Check env var for GPU usage, default to false for safety
+    let use_gpu = std::env::var("ENTRY_AGENT_USE_GPU")
+        .unwrap_or_default()
+        .to_lowercase()
+        .parse::<bool>()
+        .unwrap_or(false);
+    
+    tracing::info!("Entry Agent GPU acceleration: {}", use_gpu);
+    let evaluator = match RealEntryAgentEvaluator::new(pool, timeout_bars, use_gpu) {
+        Ok(e) => e,
+        Err(e) => {
+            println!("Failed to create Entry Agent evaluator: {}", e);
+            println!("Continuing with baseline-only evaluation...");
+            return Ok(());
+        }
+    };
+    
+    // Check if models are loaded
+    if !evaluator.has_models() {
+        println!("⚠️  Entry Agent models not found in models/ directory");
+        println!("   Please run: ./scripts/teacher.sh --gpu");
+        println!("   Falling back to baseline evaluation...");
+        println!("\n");
+        return Ok(());
+    }
+    
+    println!("✅ Entry Agent models loaded successfully!");
+    println!("   Evaluating signals with real model inference...");
     println!("\n");
     
-    println!("Expected improvements from Entry Agent:");
-    println!("  • Fewer trades (waits for optimal entry)");
-    println!("  • Higher win rate (avoids entering at highs)");
-    println!("  • Better PnL (larger initial buffer)");
-    println!("  • Reduced SL hits (better timing)");
-    println!("\n");
-
+    // Evaluate all signals with Entry Agent
+    let mut agent_results = Vec::new();
+    let mut processed = 0;
+    let mut entered = 0;
+    let mut cancelled = 0;
+    let mut expired = 0;
+    
+    // Convert baseline results back to signals for evaluation
+    // (In production, you'd fetch signals from DB directly)
+    for result in baseline_results {
+        // Create a pseudo-signal from the result
+        let signal = SignalForBacktest {
+            symbol_id: result.symbol_id,
+            symbol: result.symbol.clone(),
+            tf_minutes: result.tf_minutes,
+            side: result.side,
+            final_score: result.final_score,
+            ml_score: result.ml_score,
+            heur_score: result.heur_score,
+            entry_price: Some(result.entry_price),
+            sl_price: Some(result.sl_price),
+            tp1_price: Some(result.tp1_price),
+            tp2_price: result.tp2_price,
+            tp3_price: result.tp3_price,
+            reason: Some(result.reason_json.clone()),
+            price10_target: None, // Not stored in BacktestResult
+            price10_score: result.price10_score,
+            bounce_prob: result.bounce_prob,
+            bounce_score: result.bounce_score,
+            breakout_prob: result.breakout_prob,
+            breakout_score: result.breakout_score,
+            time: result.signal_time,
+            time_ms: result.signal_time_ms,
+        };
+        
+        match evaluator.evaluate(&signal).await {
+            Ok(Some(agent_result)) => {
+                if agent_result.entry_bar_offset != u16::MAX {
+                    entered += 1;
+                } else if matches!(agent_result.outcome, Outcome::Expired { .. }) && agent_result.pnl_pct == 0.0 {
+                    if agent_result.bars_to_entry < 100 {
+                        cancelled += 1;
+                    } else {
+                        expired += 1;
+                    }
+                }
+                agent_results.push(agent_result);
+            }
+            Ok(None) => {
+                // Skip - no data
+            }
+            Err(e) => {
+                tracing::warn!("Entry Agent evaluation error: {}", e);
+            }
+        }
+        
+        processed += 1;
+        if processed % 1000 == 0 {
+            println!("  Processed {}/{} signals: {} entered, {} cancelled, {} expired",
+                processed, baseline_results.len(), entered, cancelled, expired);
+        }
+    }
+    
+    // Calculate comparison statistics
+    let baseline_entered = baseline_results.iter()
+        .filter(|r| !matches!(r.outcome, Outcome::Expired { .. }))
+        .count();
+    let baseline_wins = baseline_results.iter()
+        .filter(|r| matches!(r.outcome, Outcome::Win { .. }))
+        .count();
+    let baseline_avg_pnl = baseline_results.iter()
+        .map(|r| r.pnl_pct)
+        .sum::<f64>() / baseline_results.len() as f64;
+    
+    let agent_entered = agent_results.iter()
+        .filter(|r| r.entry_bar_offset != u16::MAX)
+        .count();
+    let agent_wins = agent_results.iter()
+        .filter(|r| matches!(r.outcome, Outcome::Win { .. }))
+        .count();
+    let agent_avg_pnl = agent_results.iter()
+        .map(|r| r.pnl_pct)
+        .sum::<f64>() / agent_results.len() as f64;
+    
+    let comparison = EntryAgentComparison {
+        baseline_total: baseline_results.len(),
+        baseline_entered,
+        baseline_wins,
+        baseline_avg_pnl,
+        agent_total: agent_results.len(),
+        agent_entered,
+        agent_wins,
+        agent_avg_pnl,
+        agent_cancelled: cancelled,
+        agent_expired: expired,
+    };
+    
+    comparison.print();
+    
     Ok(())
 }
 

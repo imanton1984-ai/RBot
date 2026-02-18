@@ -52,12 +52,12 @@
   ],
   "n_features": 46,
   "metrics": {
-    "auc": 0.9359447004608294,
-    "precision": 0.0625,
-    "recall": 0.24
+    "auc": 0.9279223204282336,
+    "precision": 0.04716981132075472,
+    "recall": 0.1724137931034483
   },
-  "best_iteration": 497,
-  "n_trees": 498,
+  "best_iteration": 498,
+  "n_trees": 499,
   "note": "Entry Agent decision model. Output is probability [0,1]. Use with companion model for ENTER/CANCEL/WAIT decision.",
   "decision_logic": {
     "ENTER": "prob_enter >= 0.5 AND (prob_enter - prob_cancel) >= 0.1",

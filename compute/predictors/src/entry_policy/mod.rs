@@ -19,5 +19,5 @@
 pub mod agent;
 pub mod dataset;
 
-pub use agent::{EntryAgent, EntryDecision};
+pub use agent::{EntryAgent, EntryAgentConfig, EntryDecision};
 pub use dataset::EntryPolicyConfig;
