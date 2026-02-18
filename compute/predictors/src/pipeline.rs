@@ -105,7 +105,7 @@ impl PredictorsPipeline {
         if let Err(e) = ml_manager.load_models_for_timeframes("price", &config.model_path_price, &timeframes, config.use_gpu_history) {
             tracing::error!("Failed to load price models for timeframes: {}", e);
         }
-        if let Err(e) = ml_manager.load_models_for_timeframes("level", &config.model_path_levels, &timeframes, config.use_gpu_history) {
+        if let Err(e) = ml_manager.load_models_for_timeframes("levels", &config.model_path_levels, &timeframes, config.use_gpu_history) {
             tracing::error!("Failed to load level models for timeframes: {}", e);
         }
 

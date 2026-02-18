@@ -285,43 +285,41 @@ impl FinalScorer {
         let mut synergy_boost_applied = 1.0;
         let mut trend_conflict_applied = 1.0;
         let mut correction_penalty_applied = 1.0;
+        let mut cumulative_boost = 1.0_f64;  // Track total boost to cap it
         
         // 1. SR alignment boost (if SR signal aligns with trend)
-        // From Python: weights[sr_mask_aligned] *= SR_ALIGN_BOOST
         let sr_present = raw_signals_summary.get("best_levels_score")
             .and_then(|v| v.as_f64())
             .map(|s| s > 0.3)
             .unwrap_or(false);
         
         if sr_present {
-            // Check if trend aligns with trade direction
             let trend_short = raw_signals_summary.get("trend_short").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let trend_aligned = (trend_short > 0.0 && side_i8 > 0) || (trend_short < 0.0 && side_i8 < 0);
             
             if trend_aligned {
                 sr_boost_applied = self.sr_align_boost;
-                level_adjusted_score *= sr_boost_applied;
+                cumulative_boost *= sr_boost_applied;
             }
             
-            // 2. HTF confirmation boost (from Python level_strategy)
+            // 2. HTF confirmation boost
             let htf_conf = raw_signals_summary.get("htf_confirmed")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
             if htf_conf {
-                level_adjusted_score *= self.htf_conf_boost;
+                cumulative_boost *= self.htf_conf_boost;
             }
             
-            // 3. Touches/retouches boost (multiple retests = stronger level)
+            // 3. Touches/retouches boost
             let touches = raw_signals_summary.get("level_touches")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
             if touches >= 3 {
-                level_adjusted_score *= self.touches_boost;
+                cumulative_boost *= self.touches_boost;
             }
         }
         
-        // 4. Synergy boost: SR + (volume | alligator | pred) on same side
-        // From Python: if has_sr and same_side_mask.any(): total *= SYNERGY_BOOST
+        // 4. Synergy boost
         let volume_present = raw_signals_summary.get("best_volume_score")
             .and_then(|v| v.as_f64())
             .map(|s| s > 0.3)
@@ -333,7 +331,6 @@ impl FinalScorer {
         });
         
         if sr_present && (volume_present || has_alligator_pred) {
-            // Check if volume/alligator/pred is on same side as trade
             let volume_side = raw_signals_summary.get("volume_side")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
@@ -341,9 +338,17 @@ impl FinalScorer {
             
             if same_side {
                 synergy_boost_applied = self.synergy_boost;
-                level_adjusted_score *= synergy_boost_applied;
+                cumulative_boost *= synergy_boost_applied;
             }
         }
+        
+        // ═══════════════════════════════════════════════════════════
+        // CAP cumulative boosts to max +50% to prevent extreme score inflation.
+        // Previously: sr(1.08) × synergy(1.12) × htf(1.30) × touches(1.25) = 1.96x!
+        // Cap at 1.50x allows 0.75+ scores but prevents 0.50 base → 0.98 final.
+        // ═══════════════════════════════════════════════════════════
+        cumulative_boost = cumulative_boost.min(1.50);
+        level_adjusted_score *= cumulative_boost;
         
         // 5. Trend conflict handling (from Python: TREND_CONFLICT_MODE = "downgrade")
         // From Python: if trend_conflict: weights *= TREND_CONFLICT_PENALTY

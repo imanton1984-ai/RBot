@@ -104,5 +104,10 @@ pub struct BacktestResult {
     pub max_favorable: f64,
     pub max_adverse: f64,
 
+    /// Which TP levels were reached during the trade (partial close tracking)
+    pub tp1_hit: bool,
+    pub tp2_hit: bool,
+    pub tp3_hit: bool,
+
     pub reason_json: serde_json::Value,
 }

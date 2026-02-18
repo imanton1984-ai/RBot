@@ -1,7 +1,7 @@
 {
   "model_type": "xgboost_binary_classifier",
   "objective": "binary:logistic",
-  "target": "signal reaches TP1",
+  "target": "signal reaches TP1 (partial close: 50% at TP1, 30% at TP2, 20% at TP3)",
   "feature_names": [
     "tf_minutes",
     "side",
@@ -11,7 +11,10 @@
     "entry_price",
     "sl_pct",
     "tp1_pct",
+    "tp2_pct",
+    "tp3_pct",
     "risk_reward",
+    "risk_reward_tp2",
     "predictors_score",
     "raw_signals_score",
     "indicators_score",
@@ -36,13 +39,19 @@
     "ml_heur_gap",
     "score_per_risk"
   ],
-  "n_features": 32,
+  "n_features": 35,
   "metrics": {
-    "auc": 0.6018008474576271,
-    "precision": 0.4976958525345622,
-    "recall": 0.9152542372881356
+    "auc": 0.6039263307022871,
+    "precision": 0.5023255813953489,
+    "recall": 0.8852459016393442
   },
-  "best_iteration": 8,
-  "n_trees": 9,
-  "note": "Output is win probability [0,1]. Convert to quality_multiplier: 0.5 + prob"
+  "best_iteration": 7,
+  "n_trees": 8,
+  "note": "Output is win probability [0,1]. Convert to quality_multiplier: 0.5 + prob. PnL uses partial close strategy with trailing SL.",
+  "partial_close_config": {
+    "tp1_close_pct": 0.5,
+    "tp2_close_pct": 0.3,
+    "tp3_close_pct": 0.2,
+    "trailing_sl_buffer": 0.001
+  }
 }

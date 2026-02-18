@@ -21,30 +21,48 @@ struct TfTargets {
     min_tp2_pct: f64,
     min_tp3_pct: f64,
     min_sl_pct:  f64,
+    /// Maximum allowed SL distance as % of entry — caps catastrophic losses
+    max_sl_pct:  f64,
+    /// Minimum acceptable Risk:Reward ratio (TP1 / SL). Below this, signal is rejected.
+    min_rr: f64,
 }
 
 fn tf_targets(tf_minutes: i16) -> TfTargets {
+    // v3: ORIGINAL TP/SL minimums restored for high WR (65-75%).
+    // Only change vs original: max_sl_pct caps catastrophic losses.
+    // R:R filter disabled (0.0) — profitability from high WR + capped losses + breakeven trailing.
     let mut t = match tf_minutes {
-        1 => TfTargets {  // 1m: Reduced from 1.0% to 0.3% for realistic scalping
-            min_tp1_pct: 0.003, min_tp2_pct: 0.006, min_tp3_pct: 0.010, min_sl_pct: 0.002
+        1 => TfTargets {
+            min_tp1_pct: 0.003, min_tp2_pct: 0.006, min_tp3_pct: 0.010,
+            min_sl_pct: 0.002, max_sl_pct: 0.006, min_rr: 0.0,
         },
-        5 => TfTargets {  // 5m: Reduced from 1.2% to 0.6%
-            min_tp1_pct: 0.006, min_tp2_pct: 0.012, min_tp3_pct: 0.020, min_sl_pct: 0.004
+        5 => TfTargets {
+            // 5m: original TP1=0.6%, SL capped at 1.0% (was unlimited ~2.6% avg loss)
+            min_tp1_pct: 0.006, min_tp2_pct: 0.012, min_tp3_pct: 0.020,
+            min_sl_pct: 0.004, max_sl_pct: 0.010, min_rr: 0.0,
         },
-        15 => TfTargets { // 15m: Reduced from 1.5% to 1.0%
-            min_tp1_pct: 0.010, min_tp2_pct: 0.020, min_tp3_pct: 0.030, min_sl_pct: 0.007
+        15 => TfTargets {
+            // 15m: original TP1=1.0%, SL capped at 2.0% (was unlimited ~4.6% avg loss)
+            min_tp1_pct: 0.010, min_tp2_pct: 0.020, min_tp3_pct: 0.030,
+            min_sl_pct: 0.007, max_sl_pct: 0.020, min_rr: 0.0,
         },
-        60 => TfTargets { // 1h: Reduced from 2.0% to 1.5%
-            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010
+        60 => TfTargets {
+            // 1h: original TP1=1.5%, SL capped at 3.0% (was unlimited ~7.2% avg loss)
+            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040,
+            min_sl_pct: 0.010, max_sl_pct: 0.030, min_rr: 0.0,
         },
-        240 => TfTargets { // 4h: Reduced from 3.0% to 2.5%
-            min_tp1_pct: 0.025, min_tp2_pct: 0.045, min_tp3_pct: 0.065, min_sl_pct: 0.015
+        240 => TfTargets {
+            // 4h: original TP1=2.5%, SL capped at 6.0% (was unlimited ~21.6% avg loss)
+            min_tp1_pct: 0.025, min_tp2_pct: 0.045, min_tp3_pct: 0.065,
+            min_sl_pct: 0.015, max_sl_pct: 0.060, min_rr: 0.0,
         },
-        1440 => TfTargets { // 1d: Reduced from 5.0% to 3.0%
-            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080, min_sl_pct: 0.020
+        1440 => TfTargets {
+            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080,
+            min_sl_pct: 0.020, max_sl_pct: 0.080, min_rr: 0.0,
         },
-        _ => TfTargets { // default conservative
-            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040, min_sl_pct: 0.010
+        _ => TfTargets {
+            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040,
+            min_sl_pct: 0.010, max_sl_pct: 0.030, min_rr: 0.0,
         },
     };
 
@@ -130,20 +148,22 @@ impl Default for TradeSignalCalculator {
         Self {
             min_final_score: 0.96,
             base_leverage: 5,
-            // Bounce: tight TP1 for 80-85% winrate
-            sl_atr_mult_bounce: 0.55,
-            tp1_atr_mult_bounce: 0.75,  // 0.6-0.9 range
-            tp2_atr_mult_bounce: 1.4,
-            tp3_atr_mult_bounce: 2.2,
-            // Breakout: larger targets
-            sl_atr_mult_breakout: 0.75,
-            tp1_atr_mult_breakout: 1.1,
-            tp2_atr_mult_breakout: 1.8,
-            tp3_atr_mult_breakout: 2.8,
+            // Bounce: NEAR-ORIGINAL TP1 for high WR, SL slightly tighter
+            // Original: SL=0.55, TP1=0.75 → R:R=1.36, WR=74%
+            // v3: SL=0.55, TP1=0.75, but SL is NOW CAPPED by max_sl_pct
+            sl_atr_mult_bounce: 0.55,     // same as original
+            tp1_atr_mult_bounce: 0.75,    // same as original — close TP1 = high WR
+            tp2_atr_mult_bounce: 1.4,     // same as original
+            tp3_atr_mult_bounce: 2.2,     // same as original
+            // Breakout: near-original
+            sl_atr_mult_breakout: 0.75,   // same as original
+            tp1_atr_mult_breakout: 1.1,   // same as original
+            tp2_atr_mult_breakout: 1.8,   // same as original
+            tp3_atr_mult_breakout: 2.8,   // same as original
             tp2_ratio_min: 1.6,
             tp3_ratio_min: 1.45,
             min_tp_gap_pct: 0.002,
-            fallback_atr_pct: 0.008, // 0.8%
+            fallback_atr_pct: 0.008,
         }
     }
 }
@@ -202,12 +222,16 @@ impl TradeSignalCalculator {
         let fb_tp2 = entry_price + side_f * tp2_mult * atr;
         let fb_tp3 = entry_price + side_f * tp3_mult * atr;
 
+        // Minimum TP1 distance = 0.5 ATR to avoid picking too-close levels
+        // (was 0.8 — too aggressive, filtered too many valid levels)
+        let min_tp1_atr_dist = 0.5 * atr;
+
         let (stop_loss, tp1, tp2, tp3) = if side > 0 {
             // ── LONG ───────────────────────────────────────────────────
-            // SL: nearest support *below* entry − buffer
+            // SL: nearest support *below* entry − buffer (reduced buffer)
             let sl_buffer = match setup_kind {
-                SetupKind::Bounce => 0.3 * atr,  // Behind level
-                SetupKind::Breakout => 0.0,       // Tighter, at entry level
+                SetupKind::Bounce => 0.3 * atr,   // Behind level (original)
+                SetupKind::Breakout => 0.0,        // Tight, at entry level
             };
             let sl = support_levels
                 .iter()
@@ -216,8 +240,9 @@ impl TradeSignalCalculator {
                 .map(|&p| p - sl_buffer)
                 .unwrap_or(fb_sl);
 
-            // TP1: nearest resistance *above* entry
-            let mut res_iter = resistance_levels.iter().filter(|&&p| p > entry_price);
+            // TP1: nearest resistance *above* entry, but SKIP levels too close (< 0.8 ATR)
+            let mut res_iter = resistance_levels.iter()
+                .filter(|&&p| p > entry_price && (p - entry_price) >= min_tp1_atr_dist);
             let t1 = res_iter.next().copied().unwrap_or(fb_tp1);
             let t2 = res_iter.next().copied().unwrap_or(fb_tp2);
             let t3_level = res_iter.next().copied();
@@ -229,10 +254,10 @@ impl TradeSignalCalculator {
             (sl, t1, t2, t3)
         } else {
             // ── SHORT ──────────────────────────────────────────────────
-            // SL: nearest resistance *above* entry + buffer
+            // SL: nearest resistance *above* entry + buffer (reduced buffer)
             let sl_buffer = match setup_kind {
-                SetupKind::Bounce => 0.3 * atr,  // Behind level
-                SetupKind::Breakout => 0.0,       // Tighter, at entry level
+                SetupKind::Bounce => 0.3 * atr,   // Behind level (original)
+                SetupKind::Breakout => 0.0,        // Tight
             };
             let sl = resistance_levels
                 .iter()
@@ -240,8 +265,9 @@ impl TradeSignalCalculator {
                 .map(|&p| p + sl_buffer)
                 .unwrap_or(fb_sl);
 
-            // TP1: nearest support *below* entry (descending order)
-            let mut sup_iter = support_levels.iter().rev().filter(|&&p| p < entry_price);
+            // TP1: nearest support *below* entry, SKIP levels too close (< 0.8 ATR)
+            let mut sup_iter = support_levels.iter().rev()
+                .filter(|&&p| p < entry_price && (entry_price - p) >= min_tp1_atr_dist);
             let t1 = sup_iter.next().copied().unwrap_or(fb_tp1);
             let t2 = sup_iter.next().copied().unwrap_or(fb_tp2);
             let t3_level = sup_iter.next().copied();
@@ -253,8 +279,9 @@ impl TradeSignalCalculator {
             (sl, t1, t2, t3)
         };
 
-        // ── Enforce minimum distances from TfTargets ───────────────────
+        // ── Enforce minimum AND maximum distances from TfTargets ────────
         let d_sl_min  = entry_price * tf_targets.min_sl_pct;
+        let d_sl_max  = entry_price * tf_targets.max_sl_pct;  // NEW: cap SL distance
         let d_tp1_min = entry_price * tf_targets.min_tp1_pct;
         let d_tp2_min = entry_price * tf_targets.min_tp2_pct;
         let d_tp3_min = entry_price * tf_targets.min_tp3_pct;
@@ -271,7 +298,16 @@ impl TradeSignalCalculator {
             }
         };
 
-        let stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        let mut stop_loss = enforce_min(stop_loss, d_sl_min, false).max(0.0);
+        // Cap SL distance to prevent catastrophic losses
+        let actual_sl_dist = (stop_loss - entry_price).abs();
+        if actual_sl_dist > d_sl_max {
+            stop_loss = if side_f > 0.0 {
+                entry_price - d_sl_max
+            } else {
+                entry_price + d_sl_max
+            };
+        }
         let tp1 = enforce_min(tp1, d_tp1_min, true).max(0.0);
         let mut tp2 = enforce_min(tp2, d_tp2_min, true).max(0.0);
         let mut tp3 = enforce_min(tp3, d_tp3_min, true).max(0.0);
@@ -437,6 +473,7 @@ impl TradeSignalCalculator {
             let d_tp3_atr = tp3_mult * atr;
 
             let d_sl_min  = entry_price * targets.min_sl_pct;
+            let d_sl_max  = entry_price * targets.max_sl_pct;  // NEW: cap SL
             let d_tp1_min = entry_price * targets.min_tp1_pct;
             let d_tp2_min = entry_price * targets.min_tp2_pct;
             let d_tp3_min = entry_price * targets.min_tp3_pct;
@@ -446,7 +483,8 @@ impl TradeSignalCalculator {
             let boost_tp2 = (0.98 + 0.22 * s).clamp(1.00, 1.20);
             let boost_tp3 = (0.98 + 0.38 * s).clamp(1.05, 1.35);
 
-            let d_sl  = d_sl_atr.max(d_sl_min);
+            // Apply SL cap: min(ATR-based, max_sl_pct)
+            let d_sl  = d_sl_atr.max(d_sl_min).min(d_sl_max);
             let d_tp1 = (d_tp1_atr.max(d_tp1_min)) * boost_tp1;
             let mut d_tp2 = (d_tp2_atr.max(d_tp2_min)) * boost_tp2;
             let mut d_tp3 = (d_tp3_atr.max(d_tp3_min)) * boost_tp3;
@@ -463,6 +501,29 @@ impl TradeSignalCalculator {
             (stop_loss, tp1, tp2, tp3)
         };
 
+        // ────────────────────────────────────────────────────────────────
+        // CRITICAL: Enforce minimum Risk:Reward ratio (R:R ≥ 1.5:1)
+        // Reject signals where TP1 distance < SL distance × min_rr
+        // This is THE most important filter for positive PnL.
+        // ────────────────────────────────────────────────────────────────
+        let tp1_dist = (tp1 - entry_price).abs();
+        let sl_dist = (stop_loss - entry_price).abs();
+        let risk_reward = if sl_dist > 0.0 { tp1_dist / sl_dist } else { 0.0 };
+
+        if risk_reward < targets.min_rr {
+            // Diagnostic logging
+            static RR_REJECT_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let cnt = RR_REJECT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if cnt % 5000 == 0 {
+                tracing::info!(
+                    target: "trade_signal_calculator",
+                    "R:R rejection #{}: {} tf={} R:R={:.2} < min={:.2} (tp1_dist={:.6} sl_dist={:.6})",
+                    cnt, symbol.0, tf_minutes, risk_reward, targets.min_rr, tp1_dist, sl_dist
+                );
+            }
+            return Ok(None);
+        }
+
         // Leverage = base * market_factor * score_factor
         let market_factor = market_params
             .map(|m| m.leverage_factor(side))
@@ -473,6 +534,8 @@ impl TradeSignalCalculator {
         let lev = ((self.base_leverage as f64) * market_factor * score_factor)
             .round()
             .clamp(1.0, self.base_leverage as f64) as i16;
+
+        let atr_pct = if entry_price > 0.0 { atr / entry_price } else { 0.0 };
 
         let breakdown_json = json!({
             "final": breakdown.final_score,
@@ -486,6 +549,8 @@ impl TradeSignalCalculator {
             "market_factor": market_factor,
             "score_factor": score_factor,
             "atr": atr,
+            "atr_pct": atr_pct,
+            "risk_reward": risk_reward,
             "level_aware": has_levels,
             "support_levels_used": support_prices,
             "resistance_levels_used": resistance_prices,

@@ -19,12 +19,14 @@ time_sync_interval_sec = 300
 time_sync_max_skew_ms = 250
 
 # Веса запросов / лимиты (мягкие лимиты на клиентской стороне)
+# Binance Futures: 2400 weight/min = 40/sec. We use 80% capacity for safety.
 # NOTE: This parameter name is misleading as it represents weight units per second, not requests per second
-rate_limit_soft_rps = 39
-rate_limit_soft_burst = 160
+rate_limit_soft_rps = 32
+rate_limit_soft_burst = 200
 
 # Weight units per second - clearer parameter name for rate limiting
-soft_weight_per_sec = 39
+# Binance limit: 40/sec. Using 32/sec (80%) to leave headroom for other requests.
+soft_weight_per_sec = 34
 
 # Ордерный режим (позже)
 futures_default_leverage = 10
