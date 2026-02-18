@@ -34,7 +34,7 @@ impl ModelManager {
 
     pub fn load_models_for_timeframes(
         &mut self,
-        model_type: &str,                // "price" | "levels"
+        model_type: &str,                // "price" | "levels" | "entry_enter" | "entry_cancel"
         model_template: &str,            // "models/price_v1_tf{tf}.ubj"
         timeframes: &[i32],
         enable_gpu: bool,
@@ -44,6 +44,8 @@ impl ModelManager {
         let kind = match model_type {
             "price" => ModelKind::Regressor1,
             "levels" => ModelKind::BinaryProb2,
+            "entry_enter" => ModelKind::Regressor1,      // Binary logistic: probability of ENTER
+            "entry_cancel" => ModelKind::Regressor1,     // Binary logistic: probability of CANCEL
             other => {
                 warn!("Unknown model_type '{}', defaulting to Regressor1", other);
                 ModelKind::Regressor1

@@ -118,6 +118,12 @@ def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Risk-adjusted score
     df["score_per_risk"] = df["final_score"] / (df["sl_pct"] + 1e-8)
+    
+    # Handle quality_grade (string column) - encode as numeric
+    if "quality_grade" in df.columns:
+        # Map grades to numeric: A=4, B=3, C=2, D=1, ?=0
+        grade_map = {'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, '?': 0.0}
+        df["quality_grade"] = df["quality_grade"].map(grade_map).fillna(0.0)
 
     return df
 
@@ -165,7 +171,8 @@ def train_model(df: pd.DataFrame, use_gpu: bool = False) -> tuple:
         "colsample_bytree": 0.8,
         "min_child_weight": 5,
         "scale_pos_weight": scale_pos_weight,
-        "tree_method": "gpu_hist" if use_gpu else "hist",
+        "tree_method": "hist",  # Use 'hist' for both CPU/GPU in XGBoost 3.x
+        "device": "cuda" if use_gpu else "cpu",  # New parameter in XGBoost 3.x
         "verbosity": 1,
     }
 

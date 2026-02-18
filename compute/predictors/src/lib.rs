@@ -15,3 +15,4 @@ pub mod feature_schema;
 pub mod pipeline;
 pub mod consensus;
 pub mod signal_quality;  // Signal Quality meta-scorer (heuristic + ML)
+pub mod entry_policy;    // Entry Agent for online entry timing (ENTER/WAIT/CANCEL)

@@ -6,6 +6,7 @@ use sqlx::FromRow;
 
 /// Signal loaded from trade.final_signals for backtesting
 #[derive(Debug, Clone, FromRow)]
+#[allow(dead_code)]
 pub struct SignalForBacktest {
     pub symbol_id: i64,
     pub symbol: String,
@@ -32,6 +33,7 @@ pub struct SignalForBacktest {
 
 /// Candle row fetched for outcome evaluation
 #[derive(Debug, Clone, FromRow)]
+#[allow(dead_code)]
 pub struct CandleRow {
     pub time: DateTime<Utc>,
     pub open: f64,

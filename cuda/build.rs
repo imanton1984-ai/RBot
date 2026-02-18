@@ -5,7 +5,8 @@ fn main() {
     println!("cargo:rerun-if-changed=kernels/indicators.cu");
     println!("cargo:rerun-if-changed=kernels/predictors.cu");
     println!("cargo:rerun-if-changed=kernels/raw_signals.cu");
-    println!("cargo:rerun-if-changed=kernels/features.cu");  // Added new features file
+    println!("cargo:rerun-if-changed=kernels/features.cu");
+    println!("cargo:rerun-if-changed=kernels/entry_model.cu");  // Entry policy labeling
 
     // Проверяем наличие nvcc
     if Command::new("nvcc").arg("--version").output().is_err() {
@@ -77,5 +78,21 @@ fn main() {
 
     if !status_features.success() {
         panic!("NVCC compilation failed for features.cu");
+    }
+
+    // Компилируем entry_model.cu -> entry_model.ptx
+    let status_entry = Command::new("nvcc")
+        .args(&[
+            "-ptx",
+            "-o", &format!("{}/entry_model.ptx", out_dir),
+            "kernels/entry_model.cu",
+            "--gpu-architecture=compute_75",
+            // No --use_fast_math for precision in PnL calculations
+        ])
+        .status()
+        .expect("Failed to execute nvcc for entry_model.cu");
+
+    if !status_entry.success() {
+        panic!("NVCC compilation failed for entry_model.cu");
     }
 }
