@@ -1,5 +1,5 @@
 // calculates final signal based on all previous steps - indicators, raw_signals, ml predictors, heruistic predictors, market_parameter (volatility, trend)
-//signal must contain Symbol (traiding pair) time created, timeframe (1m, 5m, 15m, 1h, 4h, 1d), stop_loss, take_profits_1,2,3, side (short/long), combined final score, scores from prevous steps like raw_score, ind_score, ml_score, heruistic_score, 
+//signal must contain Symbol (traiding pair) time created, timeframe (1m, 5m, 15m, 1h, 4h, 1d), stop_loss, take_profits_1,2,3, side (short/long), combined final score, scores from prevous steps like raw_score, ind_score, ml_score, heruistic_score,
 
 // compute/scoring/trade_signal_calculator.rs
 
@@ -15,6 +15,11 @@ use crate::predictors::types::{PredictionRow, PredictionAspect};
 use super::final_score::{FinalScorer, FinalScoreBreakdown, SetupKind};
 use super::market_params_calculator::MarketParams;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GLOBAL TP/SL PARAMETERS - loaded from config/signal_params.toml
+// ═══════════════════════════════════════════════════════════════════════════
+// Edit config/signal_params.toml to calibrate TP/SL values
+
 #[derive(Debug, Clone, Copy)]
 struct TfTargets {
     min_tp1_pct: f64,
@@ -27,43 +32,39 @@ struct TfTargets {
     min_rr: f64,
 }
 
+fn load_signal_params_config() -> config::Config {
+    config::Config::builder()
+        .add_source(config::File::with_name("config/signal_params").required(false))
+        .build()
+        .unwrap_or_else(|_| config::Config::default())
+}
+
+fn get_tf_from_config(tf_minutes: i16, key: &str, default: f64) -> f64 {
+    let tf_section = match tf_minutes {
+        1 => "timeframe_1m",
+        5 => "timeframe_5m",
+        15 => "timeframe_15m",
+        60 => "timeframe_1h",
+        240 => "timeframe_4h",
+        1440 => "timeframe_1d",
+        _ => "timeframe_1h",
+    };
+    
+    load_signal_params_config()
+        .get::<f64>(&format!("{}.{}", tf_section, key))
+        .unwrap_or(default)
+}
+
 fn tf_targets(tf_minutes: i16) -> TfTargets {
-    // v3: ORIGINAL TP/SL minimums restored for high WR (65-75%).
-    // Only change vs original: max_sl_pct caps catastrophic losses.
-    // R:R filter disabled (0.0) — profitability from high WR + capped losses + breakeven trailing.
-    let mut t = match tf_minutes {
-        1 => TfTargets {
-            min_tp1_pct: 0.003, min_tp2_pct: 0.006, min_tp3_pct: 0.010,
-            min_sl_pct: 0.002, max_sl_pct: 0.006, min_rr: 0.0,
-        },
-        5 => TfTargets {
-            // 5m: original TP1=0.6%, SL capped at 1.0% (was unlimited ~2.6% avg loss)
-            min_tp1_pct: 0.006, min_tp2_pct: 0.012, min_tp3_pct: 0.020,
-            min_sl_pct: 0.004, max_sl_pct: 0.010, min_rr: 0.0,
-        },
-        15 => TfTargets {
-            // 15m: original TP1=1.0%, SL capped at 2.0% (was unlimited ~4.6% avg loss)
-            min_tp1_pct: 0.010, min_tp2_pct: 0.020, min_tp3_pct: 0.030,
-            min_sl_pct: 0.007, max_sl_pct: 0.020, min_rr: 0.0,
-        },
-        60 => TfTargets {
-            // 1h: original TP1=1.5%, SL capped at 3.0% (was unlimited ~7.2% avg loss)
-            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040,
-            min_sl_pct: 0.010, max_sl_pct: 0.030, min_rr: 0.0,
-        },
-        240 => TfTargets {
-            // 4h: original TP1=2.5%, SL capped at 6.0% (was unlimited ~21.6% avg loss)
-            min_tp1_pct: 0.025, min_tp2_pct: 0.045, min_tp3_pct: 0.065,
-            min_sl_pct: 0.015, max_sl_pct: 0.060, min_rr: 0.0,
-        },
-        1440 => TfTargets {
-            min_tp1_pct: 0.030, min_tp2_pct: 0.055, min_tp3_pct: 0.080,
-            min_sl_pct: 0.020, max_sl_pct: 0.080, min_rr: 0.0,
-        },
-        _ => TfTargets {
-            min_tp1_pct: 0.015, min_tp2_pct: 0.028, min_tp3_pct: 0.040,
-            min_sl_pct: 0.010, max_sl_pct: 0.030, min_rr: 0.0,
-        },
+    // Loads TP/SL values from config/signal_params.toml
+    // Values in TOML are in percent (0.3 = 0.3%), converted to decimal here
+    let mut t = TfTargets {
+        min_tp1_pct: get_tf_from_config(tf_minutes, "tp1_pct", 1.5) / 100.0,
+        min_tp2_pct: get_tf_from_config(tf_minutes, "tp2_pct", 2.8) / 100.0,
+        min_tp3_pct: get_tf_from_config(tf_minutes, "tp3_pct", 4.0) / 100.0,
+        min_sl_pct:  get_tf_from_config(tf_minutes, "sl_min_pct", 1.0) / 100.0,
+        max_sl_pct:  get_tf_from_config(tf_minutes, "sl_pct", 3.0) / 100.0,
+        min_rr:      0.0,
     };
 
     // enforce monotonic targets (strict)
@@ -143,27 +144,41 @@ pub struct TradeSignalCalculator {
     pub fallback_atr_pct: f64,
 }
 
+// Helper to load ATR parameters from config
+fn get_atr_param(section: &str, key: &str, default: f64) -> f64 {
+    load_signal_params_config()
+        .get::<f64>(&format!("{}.{}", section, key))
+        .unwrap_or(default)
+}
+
+fn get_other_param(key: &str, default: f64) -> f64 {
+    load_signal_params_config()
+        .get::<f64>(&format!("other.{}", key))
+        .unwrap_or(default)
+}
+
 impl Default for TradeSignalCalculator {
     fn default() -> Self {
+        // Loads ATR parameters from config/signal_params.toml
+        // Defaults used if file not found or key missing
         Self {
             min_final_score: 0.96,
             base_leverage: 5,
-            // Bounce: NEAR-ORIGINAL TP1 for high WR, SL slightly tighter
-            // Original: SL=0.55, TP1=0.75 → R:R=1.36, WR=74%
-            // v3: SL=0.55, TP1=0.75, but SL is NOW CAPPED by max_sl_pct
-            sl_atr_mult_bounce: 0.55,     // same as original
-            tp1_atr_mult_bounce: 0.75,    // same as original — close TP1 = high WR
-            tp2_atr_mult_bounce: 1.4,     // same as original
-            tp3_atr_mult_bounce: 2.2,     // same as original
-            // Breakout: near-original
-            sl_atr_mult_breakout: 0.75,   // same as original
-            tp1_atr_mult_breakout: 1.1,   // same as original
-            tp2_atr_mult_breakout: 1.8,   // same as original
-            tp3_atr_mult_breakout: 2.8,   // same as original
-            tp2_ratio_min: 1.6,
-            tp3_ratio_min: 1.45,
-            min_tp_gap_pct: 0.002,
-            fallback_atr_pct: 0.008,
+            // Bounce parameters from [atr_bounce] section
+            sl_atr_mult_bounce:  get_atr_param("atr_bounce", "sl_mult", 0.55),
+            tp1_atr_mult_bounce: get_atr_param("atr_bounce", "tp1_mult", 0.75),
+            tp2_atr_mult_bounce: get_atr_param("atr_bounce", "tp2_mult", 1.4),
+            tp3_atr_mult_bounce: get_atr_param("atr_bounce", "tp3_mult", 2.2),
+            // Breakout parameters from [atr_breakout] section
+            sl_atr_mult_breakout:  get_atr_param("atr_breakout", "sl_mult", 0.75),
+            tp1_atr_mult_breakout: get_atr_param("atr_breakout", "tp1_mult", 1.1),
+            tp2_atr_mult_breakout: get_atr_param("atr_breakout", "tp2_mult", 1.8),
+            tp3_atr_mult_breakout: get_atr_param("atr_breakout", "tp3_mult", 2.8),
+            // Other parameters from [other] section
+            tp2_ratio_min:    get_other_param("tp2_ratio_min", 1.6),
+            tp3_ratio_min:    get_other_param("tp3_ratio_min", 1.45),
+            min_tp_gap_pct:   get_other_param("min_tp_gap_pct", 0.002),
+            fallback_atr_pct: get_other_param("fallback_atr_pct", 0.008),
         }
     }
 }
