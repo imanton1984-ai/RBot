@@ -1,0 +1,459 @@
+[1m===========================================[0m
+[1m[36mSTART (GPU MODE)[0m
+[1m===========================================[0m
+[1m[01:20:41][0m ROOT:     [1m/home/anton/Desktop/Rust_trader[0m
+[1m[01:20:41][0m LOG :     [1m/home/anton/Desktop/Rust_trader/logs/start_20260220_012041.log[0m
+[1m[01:20:41][0m STRATEGY: [1msuper_entry[0m
+[1m[01:20:41][0m SUPER ENTRY: [32mENABLED[0m
+[2m===========================================[0m
+[1m[36mGPU SYSTEM CHECK[0m
+[2m===========================================[0m
+[2m[01:20:41][0m [32m✅[0m Using CUDA from: /usr/local/cuda-13.1
+[2m[01:20:41][0m NVCC Version: Cuda compilation tools, release 13.1, V13.1.115
+[2m[01:20:41][0m nvidia-smi available: NVIDIA GeForce RTX 3080 Ti
+[2m[01:20:41][0m [32m✅[0m Found libcudnn.so.9
+[2m[01:20:41][0m Detected CUDA: 13.1.115 (Req: >= 12.9 for latest XGBoost)
+[2m[01:20:41][0m [32m✅[0m GPU system check completed successfully.
+[2m===========================================[0m
+[1m[36mGPU SYSTEM CHECK[0m
+[2m===========================================[0m
+[2m[01:20:41][0m [32m✅[0m Using CUDA from: /usr/local/cuda-13.1
+[2m[01:20:41][0m NVCC Version: Cuda compilation tools, release 13.1, V13.1.115
+[2m[01:20:41][0m nvidia-smi available: NVIDIA GeForce RTX 3080 Ti
+[2m[01:20:41][0m [32m✅[0m Found libcudnn.so.9
+[2m[01:20:41][0m Detected CUDA: 13.1.115 (Req: >= 12.9 for latest XGBoost)
+[2m[01:20:41][0m [32m✅[0m GPU system check completed successfully.
+[2m===========================================[0m
+[1m[36mINSTALL GPU DEPS (XGBoost)[0m
+[2m===========================================[0m
+[2m[01:20:41][0m XGBoost not found. Building with CUDA support...
+[xgb] root=/home/anton/Desktop/Rust_trader
+[xgb] installing deps (ubuntu/debian expected)...
+Get:1 file:/var/cuda-repo-ubuntu2404-13-1-local  InRelease [1,572 B]
+Get:1 file:/var/cuda-repo-ubuntu2404-13-1-local  InRelease [1,572 B]
+Hit:2 http://ru.archive.ubuntu.com/ubuntu noble InRelease
+Get:3 http://ru.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Hit:4 http://ru.archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:5 http://security.ubuntu.com/ubuntu noble-security InRelease
+Get:6 https://dl.google.com/linux/chrome/deb stable InRelease [1,825 B]
+Hit:7 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64  InRelease
+Hit:8 https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/noble pgadmin4 InRelease
+Get:9 http://ru.archive.ubuntu.com/ubuntu noble-updates/main i386 Packages [586 kB]
+Hit:10 https://download.docker.com/linux/ubuntu noble InRelease
+Get:11 http://ru.archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1,771 kB]
+Get:12 http://ru.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [1,557 kB]
+Get:13 http://ru.archive.ubuntu.com/ubuntu noble-updates/universe i386 Packages [1,033 kB]
+Get:14 http://ru.archive.ubuntu.com/ubuntu noble-updates/universe amd64 c-n-f Metadata [32.6 kB]
+Hit:15 https://apt.postgresql.org/pub/repos/apt noble-pgdg InRelease
+Hit:16 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  InRelease
+Get:17 https://dl.google.com/linux/chrome/deb stable/main amd64 Packages [1,214 B]
+Hit:18 https://packagecloud.io/timescale/timescaledb/ubuntu noble InRelease
+Fetched 5,108 kB in 1s (3,464 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+git is already the newest version (1:2.43.0-1ubuntu7.3).
+cmake is already the newest version (3.28.3-1build7).
+ninja-build is already the newest version (1.11.1-2).
+build-essential is already the newest version (12.10ubuntu1).
+libomp-dev is already the newest version (1:18.0-59~exp2).
+0 upgraded, 0 newly installed, 0 to remove and 49 not upgraded.
+HEAD is now at 799126051 Bump version to 3.2.0. (#12004)
+CMake Warning:
+  Ignoring extra path from command line:
+
+   ".."
+
+
+CMake Error: The source directory "/home/anton/Desktop/Rust_trader/third_party/xgboost" does not appear to contain CMakeLists.txt.
+Specify --help for usage, or press the help button on the CMake GUI.
+[2m[01:20:51][0m Loading env: [1m/home/anton/Desktop/Rust_trader/.env[0m
+[2m===========================================[0m
+[1m[36mINFRASTRUCTURE[0m
+[2m===========================================[0m
+[2m[01:20:51][0m Starting Docker Compose...
+ Container redpanda Running 
+ Container timescaledb Running 
+ Container redpanda_console Running 
+ Container redpanda Waiting 
+ Container redpanda Healthy 
+[2m[01:20:52][0m Waiting for TCP [1m127.0.0.1:5433[0m (timeout 45s)...
+[2m[01:20:52][0m [32m✅[0m TCP ready: 127.0.0.1:5433
+[2m[01:20:52][0m Waiting for TCP [1m127.0.0.1:19092[0m (timeout 45s)...
+[2m[01:20:52][0m [32m✅[0m TCP ready: 127.0.0.1:19092
+[2m===========================================[0m
+[1m[36mKAFKA TOPICS[0m
+[2m===========================================[0m
+TOPIC          STATUS
+candles.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC           STATUS
+candles.update  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC             STATUS
+indicators.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC    STATUS
+ws_feed  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC        STATUS
+signals.raw  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC          STATUS
+signals.final  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC              STATUS
+features.snapshot  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC       STATUS
+orders.cmd  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC          STATUS
+orders.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC             STATUS
+positions.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+[2m[01:20:52][0m [32m✅[0m Kafka topics ready.
+[2m===========================================[0m
+[1m[36mDATABASE INITIALIZATION[0m
+[2m===========================================[0m
+[2m[01:20:52][0m [33m⚠️[0m Database schema missing. Running initialization...
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.44
+   Compiling unicode-ident v1.0.23
+   Compiling libc v0.2.181
+   Compiling serde_core v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling serde v1.0.228
+   Compiling shlex v1.3.0
+   Compiling find-msvc-tools v0.1.9
+   Compiling stable_deref_trait v1.2.1
+   Compiling once_cell v1.21.3
+   Compiling typenum v1.19.0
+   Compiling version_check v0.9.5
+   Compiling pin-project-lite v0.2.16
+   Compiling memchr v2.8.0
+   Compiling signal-hook v0.3.18
+   Compiling parking_lot_core v0.9.12
+   Compiling zerocopy v0.8.39
+   Compiling pkg-config v0.3.32
+   Compiling futures-core v0.3.31
+   Compiling writeable v0.6.2
+   Compiling litemap v0.8.1
+   Compiling cc v1.2.55
+   Compiling scopeguard v1.2.0
+   Compiling generic-array v0.14.7
+   Compiling crunchy v0.2.4
+   Compiling zmij v1.0.21
+   Compiling tiny-keccak v2.0.2
+   Compiling icu_normalizer_data v2.1.1
+   Compiling subtle v2.6.1
+   Compiling futures-sink v0.3.31
+   Compiling lock_api v0.4.14
+   Compiling equivalent v1.0.2
+   Compiling icu_properties_data v2.1.2
+   Compiling autocfg v1.5.0
+   Compiling ring v0.17.14
+   Compiling futures-io v0.3.31
+   Compiling crossbeam-utils v0.8.21
+   Compiling hashbrown v0.16.1
+   Compiling foldhash v0.1.5
+   Compiling num-traits v0.2.19
+   Compiling futures-channel v0.3.31
+   Compiling slab v0.4.12
+   Compiling zeroize v1.8.2
+   Compiling allocator-api2 v0.2.21
+   Compiling futures-task v0.3.31
+   Compiling getrandom v0.2.17
+   Compiling errno v0.3.14
+   Compiling os_pipe v1.2.3
+   Compiling winnow v0.7.14
+   Compiling serde_json v1.0.149
+   Compiling pin-utils v0.1.0
+   Compiling log v0.4.29
+   Compiling signal-hook-registry v1.4.8
+   Compiling rustls-pki-types v1.14.0
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling hashbrown v0.15.5
+   Compiling mio v1.1.1
+   Compiling indexmap v2.13.0
+   Compiling socket2 v0.6.2
+   Compiling tracing-core v0.1.36
+   Compiling toml_parser v1.0.8+spec-1.1.0
+   Compiling digest v0.10.7
+   Compiling itoa v1.0.17
+   Compiling bytes v1.11.1
+   Compiling typeid v1.0.3
+   Compiling vcpkg v0.2.15
+   Compiling getrandom v0.3.4
+   Compiling syn v2.0.115
+   Compiling ucd-trie v0.1.7
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling sigchld v0.2.4
+   Compiling ppv-lite86 v0.2.21
+   Compiling const-random-macro v0.1.16
+   Compiling openssl-sys v0.9.111
+   Compiling hashlink v0.10.0
+   Compiling untrusted v0.9.0
+   Compiling rustversion v1.0.22
+   Compiling shared_child v1.1.1
+   Compiling toml_edit v0.23.10+spec-1.0.0
+   Compiling pest v2.8.6
+   Compiling const-random v0.1.18
+   Compiling bitflags v2.10.0
+   Compiling tinyvec_macros v0.1.1
+   Compiling iana-time-zone v0.1.65
+   Compiling utf8_iter v1.0.4
+   Compiling duct v0.13.7
+   Compiling percent-encoding v2.3.2
+   Compiling thiserror v2.0.18
+   Compiling erased-serde v0.4.9
+   Compiling rustls v0.23.36
+   Compiling rand_core v0.9.5
+   Compiling concurrent-queue v2.5.0
+   Compiling proc-macro-crate v3.4.0
+   Compiling dlv-list v0.5.2
+   Compiling tinyvec v1.10.0
+   Compiling webpki-roots v1.0.6
+   Compiling rand_core v0.6.4
+   Compiling form_urlencoded v1.2.2
+   Compiling rdkafka-sys v4.10.0+2.12.1
+   Compiling cpufeatures v0.2.17
+   Compiling crc-catalog v2.4.0
+   Compiling sasl2-sys v0.1.22+2.1.28
+   Compiling pest_meta v2.8.6
+   Compiling hashbrown v0.14.5
+   Compiling serde_derive v1.0.228
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling futures-macro v0.3.31
+   Compiling tokio-macros v2.6.0
+   Compiling tracing-attributes v0.1.31
+   Compiling num_enum_derive v0.7.5
+   Compiling thiserror-impl v2.0.18
+   Compiling pest_generator v2.8.6
+   Compiling parking v2.2.1
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.1
+   Compiling event-listener v5.4.1
+   Compiling pest_derive v2.8.6
+   Compiling ordered-multimap v0.7.3
+   Compiling rand_chacha v0.3.1
+   Compiling sha2 v0.10.9
+   Compiling crc v3.4.0
+   Compiling futures-util v0.3.31
+   Compiling webpki-roots v0.26.11
+   Compiling unicode-normalization v0.1.25
+   Compiling rand_chacha v0.9.0
+   Compiling num_enum v0.7.5
+   Compiling crossbeam-queue v0.3.12
+   Compiling hmac v0.12.1
+   Compiling serde_spanned v1.0.4
+   Compiling encoding_rs v0.8.35
+   Compiling rustls-webpki v0.103.9
+   Compiling arraydeque v0.5.1
+   Compiling regex-syntax v0.8.9
+   Compiling uuid v1.20.0
+   Compiling tracing v0.1.44
+   Compiling unicode-properties v0.1.4
+   Compiling unicode-bidi v0.3.18
+   Compiling zerofrom v0.1.6
+   Compiling unicode-segmentation v1.12.0
+   Compiling anyhow v1.0.101
+   Compiling base64 v0.22.1
+   Compiling toml v0.9.12+spec-1.1.0
+   Compiling hkdf v0.12.4
+   Compiling yoke v0.8.1
+   Compiling futures-executor v0.3.31
+   Compiling serde-untagged v0.1.9
+   Compiling convert_case v0.6.0
+   Compiling stringprep v0.1.5
+   Compiling yaml-rust2 v0.10.4
+   Compiling rand v0.9.2
+   Compiling rand v0.8.5
+   Compiling regex-automata v0.4.14
+   Compiling zerovec v0.11.5
+   Compiling zerotrie v0.2.3
+   Compiling rust-ini v0.21.3
+   Compiling async-trait v0.1.89
+   Compiling atoi v2.0.0
+   Compiling md-5 v0.10.6
+   Compiling whoami v1.6.1
+   Compiling lazy_static v1.5.0
+   Compiling byteorder v1.5.0
+   Compiling pathdiff v0.2.3
+   Compiling hex v0.4.3
+   Compiling home v0.5.12
+   Compiling dotenvy v0.15.7
+   Compiling twox-hash v2.1.2
+   Compiling tinystr v0.8.2
+   Compiling potential_utf v0.1.4
+   Compiling sharded-slab v0.1.7
+   Compiling futures v0.3.31
+   Compiling tracing-log v0.2.0
+   Compiling thread_local v1.1.9
+   Compiling nu-ansi-term v0.50.3
+   Compiling icu_collections v2.1.1
+   Compiling icu_locale_core v2.1.1
+   Compiling matchers v0.2.0
+   Compiling icu_provider v2.1.1
+   Compiling smallvec v1.15.1
+   Compiling chrono v0.4.43
+   Compiling either v1.15.0
+   Compiling ron v0.12.0
+   Compiling json5 v0.4.1
+   Compiling bincode v1.3.3
+   Compiling tracing-subscriber v0.3.22
+   Compiling icu_properties v2.1.2
+   Compiling icu_normalizer v2.1.1
+   Compiling parking_lot v0.12.5
+   Compiling config v0.15.19
+   Compiling tokio v1.49.0
+   Compiling futures-intrusive v0.5.0
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling tokio-stream v0.1.18
+   Compiling sqlx-core v0.8.6
+   Compiling sqlx-postgres v0.8.6
+   Compiling sqlx v0.8.6
+   Compiling rdkafka v0.39.0
+   Compiling common v0.1.0 (/home/anton/Desktop/Rust_trader/common)
+   Compiling database v0.1.0 (/home/anton/Desktop/Rust_trader/database)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.25s
+[2m[01:21:09][0m [32m✅[0m Database initialized successfully.
+[2m===========================================[0m
+[1m[36mBUILD (GPU MODE)[0m
+[2m===========================================[0m
+[2m[01:21:09][0m Building with features: cuda
+[1m[92m   Compiling[0m zerocopy v0.8.39
+[1m[92m   Compiling[0m libm v0.2.16
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m zerocopy-derive v0.8.39
+[1m[92m   Compiling[0m cudarc v0.11.9
+[1m[92m   Compiling[0m libloading v0.8.9
+[1m[92m   Compiling[0m predictors v0.1.0 (/home/anton/Desktop/Rust_trader/compute/predictors)
+[1m[92m   Compiling[0m cuda v0.1.0 (/home/anton/Desktop/Rust_trader/cuda)
+[1m[96m    Building[0m [=====================>   ] 461/510: zerocopy-derive, libloading, num-traits(build.rs), zerocopy(build.rs), cudarc(build.rs), libm(build.rs), predictors(build.rs), cuda(build.rs)                      [1m[96m    Building[0m [=====================>   ] 462/510: zerocopy-derive, libloading, zerocopy(build.rs), cudarc(build.rs), num-traits(build), libm(build.rs), predictors(build.rs), cuda(build.rs)                         [1m[96m    Building[0m [=====================>   ] 463/510: zerocopy-derive, zerocopy(build.rs), cudarc(build.rs), num-traits(build), libm(build.rs), predictors(build.rs), cuda(build.rs)                                     [1m[96m    Building[0m [=====================>   ] 464/510: predictors(build), zerocopy-derive, zerocopy(build.rs), cudarc(build.rs), num-traits(build), libm(build.rs), cuda(build.rs)                                        [1m[96m    Building[0m [=====================>   ] 465/510: predictors(build), zerocopy-derive, zerocopy(build.rs), num-traits(build), libm(build.rs), cudarc(build), cuda(build.rs)                                           [1m[96m    Building[0m [=====================>   ] 466/510: zerocopy-derive, zerocopy(build.rs), num-traits(build), libm(build.rs), cudarc(build), cuda(build.rs)                                                              [1m[96m    Building[0m [=====================>   ] 467/510: zerocopy-derive, zerocopy(build.rs), num-traits(build), libm(build.rs), cuda(build.rs)                                                                             [1m[96m    Building[0m [=====================>   ] 468/510: zerocopy-derive, libm(build), zerocopy(build.rs), num-traits(build), cuda(build.rs)                                                                                [1m[96m    Building[0m [=====================>   ] 469/510: zerocopy-derive, zerocopy(build.rs), libm, num-traits(build), cuda(build.rs)                                                                                       [1m[96m    Building[0m [======================>  ] 470/510: zerocopy-derive, libm, num-traits(build), zerocopy(build), cuda(build.rs)                                                                                          [1m[96m    Building[0m [======================>  ] 471/510: zerocopy-derive, libm, zerocopy(build), cuda(build.rs)                                                                                                             [1m[96m    Building[0m [======================>  ] 472/510: zerocopy-derive, libm, zerocopy(build), cuda(build)                                                                                                                [1m[96m    Building[0m [======================>  ] 473/510: zerocopy-derive, libm, cuda(build)                                                                                                                                 [1m[96m    Building[0m [======================>  ] 473/510: zerocopy-derive, libm, num-traits, cuda(build)                                                                                                                     [1m[96m    Building[0m [======================>  ] 474/510: zerocopy-derive, num-traits, cuda(build)                                                                                                                           [K[1m[92m   Compiling[0m chrono v0.4.43
+[1m[92m   Compiling[0m atoi v2.0.0
+[1m[92m   Compiling[0m num-complex v0.4.6
+[1m[92m   Compiling[0m num-integer v0.1.46
+[1m[96m    Building[0m [======================>  ] 474/510: num-integer, zerocopy-derive, chrono, atoi, num-complex, num-traits, cuda(build)                                                                                   [1m[96m    Building[0m [======================>  ] 475/510: num-integer, zerocopy-derive, chrono, atoi, num-complex, cuda(build)                                                                                               [1m[96m    Building[0m [======================>  ] 476/510: num-integer, zerocopy-derive, chrono, num-complex, cuda(build)                                                                                                     [1m[96m    Building[0m [======================>  ] 477/510: zerocopy-derive, chrono, num-complex, cuda(build)                                                                                                                  [K[1m[92m   Compiling[0m ndarray v0.16.1
+[1m[96m    Building[0m [======================>  ] 477/510: zerocopy-derive, chrono, ndarray, num-complex, cuda(build)                                                                                                         [1m[96m    Building[0m [======================>  ] 478/510: zerocopy-derive, chrono, ndarray, cuda(build)                                                                                                                      [K[1m[92m   Compiling[0m sqlx-core v0.8.6
+[1m[96m    Building[0m [======================>  ] 478/510: zerocopy-derive, sqlx-core, chrono, ndarray, cuda(build)                                                                                                           [1m[96m    Building[0m [======================>  ] 479/510: zerocopy-derive, sqlx-core, ndarray, cuda(build)                                                                                                                   [1m[96m    Building[0m [======================>  ] 480/510: sqlx-core, ndarray, zerocopy, cuda(build)                                                                                                                          [1m[96m    Building[0m [======================>  ] 481/510: sqlx-core, zerocopy, cuda(build)                                                                                                                                   [1m[96m    Building[0m [======================>  ] 482/510: zerocopy, cuda(build)                                                                                                                                              [K[1m[92m   Compiling[0m ppv-lite86 v0.2.21
+[1m[96m    Building[0m [======================>  ] 482/510: zerocopy, cuda(build), ppv-lite86                                                                                                                                  [1m[96m    Building[0m [======================>  ] 483/510: cuda(build), ppv-lite86                                                                                                                                            [K[1m[92m   Compiling[0m rand_chacha v0.9.0
+[1m[92m   Compiling[0m rand_chacha v0.3.1
+[1m[96m    Building[0m [======================>  ] 483/510: rand_chacha, cuda(build), ppv-lite86, rand_chacha                                                                                                                  [1m[96m    Building[0m [======================>  ] 484/510: rand_chacha, cuda(build), rand_chacha                                                                                                                              [K[1m[92m   Compiling[0m rand v0.9.2
+[1m[96m    Building[0m [======================>  ] 484/510: rand, rand_chacha, cuda(build), rand_chacha                                                                                                                        [1m[96m    Building[0m [======================>  ] 485/510: rand, rand_chacha, cuda(build)                                                                                                                                     [K[1m[92m   Compiling[0m rand v0.8.5
+[1m[96m    Building[0m [======================>  ] 485/510: rand, rand_chacha, cuda(build), rand                                                                                                                               [1m[96m    Building[0m [======================>  ] 486/510: rand, cuda(build), rand                                                                                                                                            [K[1m[92m   Compiling[0m twox-hash v2.1.2
+[1m[92m   Compiling[0m rand_distr v0.5.1
+[1m[92m   Compiling[0m postgres-protocol v0.6.10
+[1m[92m   Compiling[0m tungstenite v0.28.0
+[1m[96m    Building[0m [======================>  ] 486/510: rand_distr, rand, tungstenite, postgres-protocol, cuda(build), rand, twox-hash                                                                                     [1m[96m    Building[0m [======================>  ] 487/510: rand_distr, tungstenite, postgres-protocol, cuda(build), rand, twox-hash                                                                                           [K[1m[92m   Compiling[0m sqlx-postgres v0.8.6
+[1m[96m    Building[0m [======================>  ] 487/510: rand_distr, sqlx-postgres, tungstenite, postgres-protocol, cuda(build), rand, twox-hash                                                                            [1m[96m    Building[0m [======================>  ] 488/510: rand_distr, sqlx-postgres, tungstenite, postgres-protocol, cuda(build), twox-hash                                                                                  [K[1m[92m   Compiling[0m common v0.1.0 (/home/anton/Desktop/Rust_trader/common)
+[1m[96m    Building[0m [======================>  ] 488/510: rand_distr, sqlx-postgres, common, tungstenite, postgres-protocol, cuda(build), twox-hash                                                                          [K[1m[92m   Compiling[0m half v2.7.1
+[1m[96m    Building[0m [======================>  ] 488/510: rand_distr, sqlx-postgres, common, tungstenite, half, postgres-protocol, cuda(build), twox-hash                                                                    [K[1m[92m   Compiling[0m postgres-types v0.2.12
+[1m[96m    Building[0m [======================>  ] 488/510: rand_distr, sqlx-postgres, common, tungstenite, half, postgres-protocol, postgres-types, cuda(build), twox-hash                                                    [1m[96m    Building[0m [======================>  ] 489/510: rand_distr, sqlx-postgres, common, tungstenite, half, postgres-protocol, postgres-types, cuda(build)                                                               [1m[96m    Building[0m [=======================> ] 490/510: sqlx-postgres, common, tungstenite, half, postgres-protocol, postgres-types, cuda(build)                                                                           [1m[96m    Building[0m [=======================> ] 491/510: sqlx-postgres, common, tungstenite, half, postgres-types, cuda(build)                                                                                              [K[1m[92m   Compiling[0m tokio-tungstenite v0.28.0
+[1m[96m    Building[0m [=======================> ] 491/510: sqlx-postgres, tokio-tungstenite, common, tungstenite, half, postgres-types, cuda(build)                                                                           [1m[96m    Building[0m [=======================> ] 492/510: sqlx-postgres, tokio-tungstenite, common, half, postgres-types, cuda(build)                                                                                        [1m[96m    Building[0m [=======================> ] 492/510: cudarc, sqlx-postgres, tokio-tungstenite, common, half, postgres-types, cuda(build)                                                                                [K[1m[92m   Compiling[0m tokio-postgres v0.7.16
+[1m[96m    Building[0m [=======================> ] 492/510: cudarc, sqlx-postgres, tokio-tungstenite, common, tokio-postgres, half, postgres-types, cuda(build)                                                                [1m[96m    Building[0m [=======================> ] 493/510: cudarc, sqlx-postgres, tokio-tungstenite, common, tokio-postgres, half, cuda(build)                                                                                [1m[96m    Building[0m [=======================> ] 494/510: cudarc, sqlx-postgres, tokio-tungstenite, common, tokio-postgres, cuda(build)                                                                                      [1m[96m    Building[0m [=======================> ] 495/510: cudarc, sqlx-postgres, common, tokio-postgres, cuda(build)                                                                                                         [K[1m[92m   Compiling[0m compute_indicators v0.1.0 (/home/anton/Desktop/Rust_trader/compute/indicators)
+[1m[92m   Compiling[0m raw_signals v0.1.0 (/home/anton/Desktop/Rust_trader/compute/raw_signals)
+[1m[96m    Building[0m [=======================> ] 495/510: cudarc, sqlx-postgres, compute_indicators, raw_signals, common, tokio-postgres, cuda(build)                                                                        [1m[96m    Building[0m [=======================> ] 496/510: cudarc, sqlx-postgres, compute_indicators, raw_signals, tokio-postgres, cuda(build)                                                                                [K[1m[92m   Compiling[0m sqlx v0.8.6
+[1m[96m    Building[0m [=======================> ] 496/510: cudarc, sqlx-postgres, sqlx, compute_indicators, raw_signals, tokio-postgres, cuda(build)                                                                          [1m[96m    Building[0m [=======================> ] 497/510: cudarc, sqlx, compute_indicators, raw_signals, tokio-postgres, cuda(build)                                                                                         [1m[96m    Building[0m [=======================> ] 498/510: cudarc, sqlx, raw_signals, tokio-postgres, cuda(build)                                                                                                             [1m[96m    Building[0m [=======================> ] 499/510: cudarc, sqlx, tokio-postgres, cuda(build)                                                                                                                          [K[1m[92m   Compiling[0m database v0.1.0 (/home/anton/Desktop/Rust_trader/database)
+[1m[96m    Building[0m [=======================> ] 499/510: cudarc, database, sqlx, tokio-postgres, cuda(build)                                                                                                                [1m[96m    Building[0m [=======================> ] 500/510: cudarc, database, tokio-postgres, cuda(build)                                                                                                                      [K[1m[92m   Compiling[0m connections v0.1.0 (/home/anton/Desktop/Rust_trader/connections)
+[1m[96m    Building[0m [=======================> ] 500/510: cudarc, database, connections, tokio-postgres, cuda(build)                                                                                                         [1m[96m    Building[0m [=======================> ] 501/510: cudarc, database, connections, cuda(build)                                                                                                                         [1m[96m    Building[0m [=======================> ] 502/510: cudarc, connections, cuda(build)                                                                                                                                   [1m[96m    Building[0m [=======================> ] 503/510: cudarc, cuda(build)                                                                                                                                                [1m[96m    Building[0m [=======================> ] 503/510: cudarc, predictors, cuda(build)                                                                                                                                    [1m[96m    Building[0m [=======================> ] 504/510: predictors, cuda(build)                                                                                                                                            [K[1m[92m   Compiling[0m ml_entry_strategy v0.1.0 (/home/anton/Desktop/Rust_trader/strategies/ml_entry_strategy)
+[1m[96m    Building[0m [=======================> ] 504/510: predictors, ml_entry_strategy, cuda(build)                                                                                                                         [1m[96m    Building[0m [=======================> ] 505/510: ml_entry_strategy, cuda(build)                                                                                                                                     [1m[96m    Building[0m [=======================> ] 506/510: ml_entry_strategy, cuda                                                                                                                                            [1m[96m    Building[0m [=======================> ] 507/510: cuda                                                                                                                                                               [K[1m[92m   Compiling[0m compute v0.1.0 (/home/anton/Desktop/Rust_trader/compute)
+[1m[96m    Building[0m [=======================> ] 507/510: compute, cuda                                                                                                                                                      [1m[96m    Building[0m [=======================> ] 508/510: compute                                                                                                                                                            [1m[96m    Building[0m [=======================> ] 509/510: compute_history(bin)                                                                                                                                               [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 13.12s
+[1m[92m   Compiling[0m compute v0.1.0 (/home/anton/Desktop/Rust_trader/compute)
+[1m[96m    Building[0m [=======================> ] 509/510: compute_realtime(bin)                                                                                                                                              [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 7.78s
+[1m[92m   Compiling[0m futures-util v0.3.31
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m bitflags v2.10.0
+[1m[92m   Compiling[0m rdkafka-sys v4.10.0+2.12.1
+[1m[96m    Building[0m [=====================>   ] 263/289: num-traits(build), futures-util, bitflags, rdkafka-sys(build.rs)                                                                                                   [1m[96m    Building[0m [=====================>   ] 264/289: futures-util, num-traits, bitflags, rdkafka-sys(build.rs)                                                                                                          [1m[96m    Building[0m [=====================>   ] 265/289: futures-util, num-traits, rdkafka-sys(build.rs)                                                                                                                    [1m[96m    Building[0m [======================>  ] 266/289: futures-util, num-traits, rdkafka-sys(build)                                                                                                                       [K[1m[92m   Compiling[0m chrono v0.4.43
+[1m[92m   Compiling[0m atoi v2.0.0
+[1m[96m    Building[0m [======================>  ] 266/289: chrono, atoi, futures-util, num-traits, rdkafka-sys(build)                                                                                                         [1m[96m    Building[0m [======================>  ] 267/289: chrono, atoi, futures-util, rdkafka-sys(build)                                                                                                                     [1m[96m    Building[0m [======================>  ] 268/289: chrono, futures-util, rdkafka-sys(build)                                                                                                                           [K[1m[92m   Compiling[0m hyper-util v0.1.20
+[1m[92m   Compiling[0m tower v0.5.3
+[1m[92m   Compiling[0m futures-executor v0.3.31
+[1m[92m   Compiling[0m tokio-tungstenite v0.28.0
+[1m[96m    Building[0m [======================>  ] 268/289: chrono, futures-executor, futures-util, tower, tokio-tungstenite, rdkafka-sys(build), hyper-util                                                                   [1m[96m    Building[0m [======================>  ] 269/289: chrono, futures-executor, tower, tokio-tungstenite, rdkafka-sys(build), hyper-util                                                                                 [K[1m[92m   Compiling[0m sqlx-core v0.8.6
+[1m[92m   Compiling[0m postgres-types v0.2.12
+[1m[96m    Building[0m [======================>  ] 269/289: chrono, futures-executor, tower, tokio-tungstenite, sqlx-core, rdkafka-sys(build), hyper-util, postgres-types                                                      [1m[96m    Building[0m [======================>  ] 270/289: futures-executor, tower, tokio-tungstenite, sqlx-core, rdkafka-sys(build), hyper-util, postgres-types                                                              [1m[96m    Building[0m [======================>  ] 271/289: futures-executor, tower, sqlx-core, rdkafka-sys(build), hyper-util, postgres-types                                                                                 [K[1m[92m   Compiling[0m futures v0.3.31
+[1m[96m    Building[0m [======================>  ] 271/289: futures-executor, tower, sqlx-core, rdkafka-sys(build), hyper-util, futures, postgres-types                                                                        [1m[96m    Building[0m [======================>  ] 272/289: tower, sqlx-core, rdkafka-sys(build), hyper-util, futures, postgres-types                                                                                          [K[1m[92m   Compiling[0m tower-http v0.6.8
+[1m[96m    Building[0m [======================>  ] 272/289: tower, sqlx-core, rdkafka-sys(build), hyper-util, futures, tower-http, postgres-types                                                                              [1m[96m    Building[0m [======================>  ] 273/289: sqlx-core, rdkafka-sys(build), hyper-util, futures, tower-http, postgres-types                                                                                     [K[1m[92m   Compiling[0m tokio-postgres v0.7.16
+[1m[96m    Building[0m [======================>  ] 273/289: sqlx-core, rdkafka-sys(build), hyper-util, tokio-postgres, futures, tower-http, postgres-types                                                                     [1m[96m    Building[0m [======================>  ] 274/289: sqlx-core, rdkafka-sys(build), hyper-util, tokio-postgres, futures, tower-http                                                                                     [K[1m[92m   Compiling[0m hyper-rustls v0.27.7
+[1m[92m   Compiling[0m axum v0.8.8
+[1m[96m    Building[0m [======================>  ] 274/289: axum, hyper-rustls, sqlx-core, rdkafka-sys(build), hyper-util, tokio-postgres, futures, tower-http                                                                 [1m[96m    Building[0m [======================>  ] 275/289: axum, hyper-rustls, sqlx-core, rdkafka-sys(build), tokio-postgres, futures, tower-http                                                                             [1m[96m    Building[0m [======================>  ] 276/289: axum, hyper-rustls, sqlx-core, rdkafka-sys(build), tokio-postgres, tower-http                                                                                      [1m[96m    Building[0m [======================>  ] 277/289: axum, hyper-rustls, sqlx-core, rdkafka-sys(build), tokio-postgres                                                                                                  [K[1m[92m   Compiling[0m reqwest v0.13.2
+[1m[96m    Building[0m [======================>  ] 277/289: axum, reqwest, hyper-rustls, sqlx-core, rdkafka-sys(build), tokio-postgres                                                                                         [1m[96m    Building[0m [=======================> ] 278/289: axum, reqwest, sqlx-core, rdkafka-sys(build), tokio-postgres                                                                                                       [K[1m[92m   Compiling[0m sqlx-postgres v0.8.6
+[1m[96m    Building[0m [=======================> ] 278/289: sqlx-postgres, axum, reqwest, sqlx-core, rdkafka-sys(build), tokio-postgres                                                                                        [1m[96m    Building[0m [=======================> ] 279/289: sqlx-postgres, axum, reqwest, rdkafka-sys(build), tokio-postgres                                                                                                   [1m[96m    Building[0m [=======================> ] 280/289: sqlx-postgres, axum, reqwest, rdkafka-sys(build)                                                                                                                   [1m[96m    Building[0m [=======================> ] 281/289: sqlx-postgres, reqwest, rdkafka-sys(build)                                                                                                                         [1m[96m    Building[0m [=======================> ] 282/289: sqlx-postgres, rdkafka-sys(build)                                                                                                                                  [K[1m[92m   Compiling[0m sqlx v0.8.6
+[1m[96m    Building[0m [=======================> ] 282/289: sqlx-postgres, rdkafka-sys(build), sqlx                                                                                                                            [1m[96m    Building[0m [=======================> ] 283/289: rdkafka-sys(build), sqlx                                                                                                                                           [1m[96m    Building[0m [=======================> ] 284/289: rdkafka-sys(build)                                                                                                                                                 [1m[96m    Building[0m [=======================> ] 285/289: rdkafka-sys                                                                                                                                                        [K[1m[92m   Compiling[0m rdkafka v0.39.0
+[1m[96m    Building[0m [=======================> ] 285/289: rdkafka-sys, rdkafka                                                                                                                                               [1m[96m    Building[0m [=======================> ] 286/289: rdkafka                                                                                                                                                            [K[1m[92m   Compiling[0m connections v0.1.0 (/home/anton/Desktop/Rust_trader/connections)
+[1m[96m    Building[0m [=======================> ] 286/289: connections, rdkafka                                                                                                                                               [1m[96m    Building[0m [=======================> ] 287/289: connections                                                                                                                                                        [1m[96m    Building[0m [=======================> ] 288/289: connections(bin)                                                                                                                                                   [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 19.01s
+[1m[92m   Compiling[0m getrandom v0.2.17
+[1m[92m   Compiling[0m chrono v0.4.43
+[1m[92m   Compiling[0m uuid v1.20.0
+[1m[92m   Compiling[0m tower-http v0.6.8
+[1m[92m   Compiling[0m rdkafka v0.39.0
+[1m[96m    Building[0m [======================>  ] 319/340: chrono, uuid, rdkafka, tower-http, getrandom                                                                                                                       [K[1m[92m   Compiling[0m const-random-macro v0.1.16
+[1m[96m    Building[0m [======================>  ] 320/340: chrono, uuid, rdkafka, const-random-macro, tower-http                                                                                                              [K[1m[92m   Compiling[0m reqwest v0.13.2
+[1m[96m    Building[0m [======================>  ] 320/340: chrono, uuid, rdkafka, const-random-macro, tower-http, reqwest                                                                                                     [1m[96m    Building[0m [======================>  ] 321/340: chrono, uuid, rdkafka, const-random-macro, reqwest                                                                                                                 [1m[96m    Building[0m [======================>  ] 322/340: chrono, rdkafka, const-random-macro, reqwest                                                                                                                       [K[1m[92m   Compiling[0m sqlx-core v0.8.6
+[1m[92m   Compiling[0m postgres-types v0.2.12
+[1m[96m    Building[0m [======================>  ] 322/340: chrono, postgres-types, rdkafka, const-random-macro, sqlx-core, reqwest                                                                                            [1m[96m    Building[0m [======================>  ] 323/340: postgres-types, rdkafka, const-random-macro, sqlx-core, reqwest                                                                                                    [K[1m[92m   Compiling[0m const-random v0.1.18
+[1m[96m    Building[0m [======================>  ] 324/340: const-random, postgres-types, rdkafka, sqlx-core, reqwest                                                                                                          [1m[96m    Building[0m [======================>  ] 325/340: const-random, postgres-types, sqlx-core, reqwest                                                                                                                   [1m[96m    Building[0m [======================>  ] 326/340: const-random, postgres-types, sqlx-core                                                                                                                            [K[1m[92m   Compiling[0m tokio-postgres v0.7.16
+[1m[96m    Building[0m [======================>  ] 326/340: const-random, postgres-types, sqlx-core, tokio-postgres                                                                                                            [1m[96m    Building[0m [=======================> ] 327/340: const-random, sqlx-core, tokio-postgres                                                                                                                            [K[1m[92m   Compiling[0m dlv-list v0.5.2
+[1m[96m    Building[0m [=======================> ] 327/340: dlv-list, const-random, sqlx-core, tokio-postgres                                                                                                                  [1m[96m    Building[0m [=======================> ] 328/340: dlv-list, sqlx-core, tokio-postgres                                                                                                                                [K[1m[92m   Compiling[0m sqlx-postgres v0.8.6
+[1m[96m    Building[0m [=======================> ] 328/340: dlv-list, sqlx-postgres, sqlx-core, tokio-postgres                                                                                                                 [1m[96m    Building[0m [=======================> ] 329/340: dlv-list, sqlx-postgres, tokio-postgres                                                                                                                            [K[1m[92m   Compiling[0m ordered-multimap v0.7.3
+[1m[96m    Building[0m [=======================> ] 329/340: dlv-list, sqlx-postgres, ordered-multimap, tokio-postgres                                                                                                          [1m[96m    Building[0m [=======================> ] 330/340: sqlx-postgres, ordered-multimap, tokio-postgres                                                                                                                    [1m[96m    Building[0m [=======================> ] 331/340: sqlx-postgres, ordered-multimap                                                                                                                                    [K[1m[92m   Compiling[0m rust-ini v0.21.3
+[1m[96m    Building[0m [=======================> ] 331/340: sqlx-postgres, ordered-multimap, rust-ini                                                                                                                          [1m[96m    Building[0m [=======================> ] 332/340: sqlx-postgres, rust-ini                                                                                                                                            [K[1m[92m   Compiling[0m config v0.15.19
+[1m[96m    Building[0m [=======================> ] 332/340: sqlx-postgres, config, rust-ini                                                                                                                                    [1m[96m    Building[0m [=======================> ] 333/340: sqlx-postgres, config                                                                                                                                              [K[1m[92m   Compiling[0m sqlx v0.8.6
+[1m[96m    Building[0m [=======================> ] 333/340: sqlx-postgres, config, sqlx                                                                                                                                        [1m[96m    Building[0m [=======================> ] 334/340: config, sqlx                                                                                                                                                       [K[1m[92m   Compiling[0m common v0.1.0 (/home/anton/Desktop/Rust_trader/common)
+[1m[96m    Building[0m [=======================> ] 334/340: config, common, sqlx                                                                                                                                               [K[1m[92m   Compiling[0m connections v0.1.0 (/home/anton/Desktop/Rust_trader/connections)
+[1m[96m    Building[0m [=======================> ] 334/340: config, common, connections, sqlx                                                                                                                                  [1m[96m    Building[0m [=======================> ] 335/340: common, connections, sqlx                                                                                                                                          [1m[96m    Building[0m [=======================> ] 336/340: common, connections                                                                                                                                                [1m[96m    Building[0m [=======================> ] 337/340: common                                                                                                                                                             [K[1m[92m   Compiling[0m ingestor v0.1.0 (/home/anton/Desktop/Rust_trader/ingestor)
+[1m[96m    Building[0m [=======================> ] 337/340: common, ingestor                                                                                                                                                   [1m[96m    Building[0m [=======================> ] 338/340: ingestor                                                                                                                                                           [1m[96m    Building[0m [=======================> ] 339/340: ingestor(bin)                                                                                                                                                      [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 10.67s
+[2m[01:22:00][0m [32m✅[0m GPU Build finished.
+[2m===========================================[0m
+[1m[36mSTARTING SERVICES[0m
+[2m===========================================[0m
+[2m[01:22:00][0m Starting connections...
+[2m[01:22:00][0m   bin: /home/anton/Desktop/Rust_trader/target/release/connections
+[2m[01:22:00][0m   log: /home/anton/Desktop/Rust_trader/logs/connections.out
+[2m[01:22:00][0m [32m✅[0m Started connections (pid 2820904)
+[2m[01:22:00][0m Starting ingestor...
+[2m[01:22:00][0m   bin: /home/anton/Desktop/Rust_trader/target/release/ingestor
+[2m[01:22:00][0m   log: /home/anton/Desktop/Rust_trader/logs/ingestor.out
+[2m[01:22:00][0m [32m✅[0m Started ingestor (pid 2820925)
+[2m[01:22:00][0m Starting compute_history service...
+[2m[01:22:00][0m Starting compute_history...
+[2m[01:22:00][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_history
+[2m[01:22:00][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_history.out
+[2m[01:22:00][0m [32m✅[0m Started compute_history (pid 2820955)
+[2m[01:22:00][0m Starting compute_realtime service...
+[2m[01:22:00][0m Starting compute_realtime...
+[2m[01:22:00][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_realtime
+[2m[01:22:00][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_realtime.out
+[2m[01:22:00][0m [32m✅[0m Started compute_realtime (pid 2820980)
+[2m===========================================[0m
+[1m[36mSTART GRAFANA HEALTHCHECK[0m
+[2m===========================================[0m
+[2m[01:22:00][0m Starting Grafana for healthcheck monitoring...
+[2m[01:22:00][0m [32m✅[0m Grafana started. Access at http://localhost:3001 (admin/admin)
+[2m[01:22:00][0m Active strategy: super_entry
+[2m===========================================[0m
+[1m[36mSUPER ENTRY STRATEGY[0m
+[2m===========================================[0m
+[2m[01:22:00][0m Super Entry strategy active
+[2m[01:22:00][0m   History backfill: integrated into compute_history (batch mode)
+[2m[01:22:00][0m   Realtime signals: integrated into compute_realtime (super_entry_stage)
+[2m[01:22:00][0m   Predictors/trade_signals pipeline: SKIPPED
+[2m===========================================[0m
+[1m[36mALL SERVICES STARTED[0m
+[2m===========================================[0m
+[2m[01:22:00][0m [32m✅[0m START DONE @ Fri 20 Feb 2026 01:22:00 AM MSK
+[2m[01:22:00][0m Services started successfully
+[2m[01:22:00][0m PIDs in : /home/anton/Desktop/Rust_trader/run
+[2m[01:22:00][0m Logs in : /home/anton/Desktop/Rust_trader/logs
+[1m===========================================[0m
+[1m[36mSUPER ENTRY STRATEGY[0m
+[1m===========================================[0m
+[1m[01:22:00][0m Super Entry strategy is ENABLED
+[1m[01:22:00][0m   History backfill: integrated into compute_history (batch mode after indicators)
+[1m[01:22:00][0m   Realtime signals: integrated into compute_realtime (super_entry_stage)
+[1m[01:22:00][0m   NOTE: For backtesting, run separately: ./scripts/super_entry_backtester.sh
+[1m[01:22:00][0m [32m✅[0m Super Entry integrated into compute pipeline
+
+[1;32mGPU BOT STARTED SUCCESSFULLY[0m
+Active strategy: super_entry
+Super Entry: [1;32mENABLED[0m

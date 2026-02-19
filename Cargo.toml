@@ -11,6 +11,7 @@ members = [
   "orderflow",        # <-- модуль order flow метрик
   "backtester",       # <-- бэктестер для оценки сигналов
   "strategies/ml_entry_strategy", # <-- ML Entry Strategy (Super Entry)
+  "strategies/level_strategy",    # <-- Level Strategy (базовая стратегия)
 ]
 resolver = "2"
 

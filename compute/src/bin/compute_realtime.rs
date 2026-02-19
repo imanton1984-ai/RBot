@@ -6,13 +6,35 @@ use sqlx::PgPool;
 use compute_lib::{ComputeJob, JobScheduler, ComputeBackendManager, ComputeBackendType, CandleWindowFetcher, ComputeConfig, IndicatorPersistor, RawSignalPersistor, RawSignalProcessor, ResultProcessor};
 use raw_signals::thresholds::SignalConfig;
 use compute_lib::predictors::config::PredictorsConfig;
-use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot};
-use compute_lib::scoring::trade_signal_processor::{TradeSignalStage, TradeSignalInput};
+use compute_lib::predictors::pipeline::{PredictorsPipeline, FeatureSnapshot, TradeSignalInput};
+use compute_lib::scoring::trade_signal_processor::TradeSignalStage;
 use compute_lib::scoring::market_params_calculator::MarketParamsCalculator;
+
+/// Determine which strategy is active
+fn get_active_strategy() -> String {
+    std::env::var("ACTIVE_STRATEGY")
+        .unwrap_or_else(|_| "level".to_string())
+}
+
+/// Check if we should run predictors pipeline (only for level strategy)
+fn should_run_predictors() -> bool {
+    let strategy = get_active_strategy();
+    strategy == "level" || strategy == "default"
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+
+    let active_strategy = get_active_strategy();
+    tracing::info!("compute_realtime: ACTIVE_STRATEGY = {}", active_strategy);
+
+    let run_predictors = should_run_predictors();
+    if run_predictors {
+        tracing::info!("compute_realtime: Running predictors + trade_signals pipeline (level strategy)");
+    } else {
+        tracing::info!("compute_realtime: Skipping predictors pipeline (strategy: {})", active_strategy);
+    }
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
@@ -63,72 +85,82 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
-    // Predictors Pipeline
-    let message_bus = MessageBus::new_from_env()?;
-    let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
-
-    // min_final_score: configurable via env var for tuning.
-    // V9: Default raised 0.55 → 0.60 to filter weak signals with marginal WR.
-    let min_final_score: f64 = std::env::var("MIN_FINAL_SCORE")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0.60);
-
-    tracing::info!("Using min_final_score = {}", min_final_score);
-
-    let pred_config = PredictorsConfig {
-        enabled: true,
-        horizon_bars: 10,
-        min_store_score: 0.50,
-        min_final_score,
-        prefer_ml: true,
-        max_levels_per_side: 2,
-        use_cuda: cfg!(feature = "cuda"), // Can use GPU for inference even in RT
-        use_gpu_history: false,
-        use_gpu_realtime: false, // Usually CPU is faster for single inferences
-        model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
-        model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
-        ml_batch_size: 64,
-    };
-
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
 
-    let mut predictors_pipeline = PredictorsPipeline::new(
-        pred_config.clone(), // Clone to avoid moving the original
-        db_pool.clone(),
-        message_bus,
-        shutdown_rx.resubscribe(), // Create a new subscription for the pipeline
-    );
-    predictors_pipeline.set_input_receiver(feature_rx);
-    // Connect bulk_sender to predictors pipeline for batched DB writes
-    // Without this, the pipeline falls back to individual upsert_predictors() calls
-    predictors_pipeline.set_bulk_sender(bulk_sender.clone());
+    if run_predictors {
+        // Level strategy: use predictors pipeline
+        let message_bus = MessageBus::new_from_env()?;
+        let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
 
-    // --- TradeSignalStage setup ---
-    let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
-    predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
+        let min_final_score: f64 = std::env::var("MIN_FINAL_SCORE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.60);
 
-    let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
-    let trade_signal_stage = TradeSignalStage::new(
-        db_pool.clone(),
-        market_params_calc,
-        bulk_sender.clone(),
-        trade_signal_rx,
-        pred_config.min_final_score, // Pass min_final_score from config
-    );
+        tracing::info!("Using min_final_score = {}", min_final_score);
 
-    tokio::spawn(async move {
-        if let Err(e) = trade_signal_stage.run().await {
-            tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+        let pred_config = PredictorsConfig {
+            enabled: true,
+            horizon_bars: 10,
+            min_store_score: 0.50,
+            min_final_score,
+            prefer_ml: true,
+            max_levels_per_side: 2,
+            use_cuda: cfg!(feature = "cuda"),
+            use_gpu_history: false,
+            use_gpu_realtime: false,
+            model_path_price: "models/price_v1_tf{tf}.ubj".to_string(),
+            model_path_levels: "models/levels_v1_tf{tf}.ubj".to_string(),
+            ml_batch_size: 64,
+        };
+
+        let mut predictors_pipeline = PredictorsPipeline::new(
+            pred_config.clone(),
+            db_pool.clone(),
+            message_bus,
+            shutdown_rx.resubscribe(),
+        );
+        predictors_pipeline.set_input_receiver(feature_rx);
+        predictors_pipeline.set_bulk_sender(bulk_sender.clone());
+
+        // --- TradeSignalStage setup ---
+        let (trade_signal_tx, trade_signal_rx) = tokio::sync::mpsc::unbounded_channel::<TradeSignalInput>();
+        predictors_pipeline.set_trade_signal_sender(trade_signal_tx);
+
+        let market_params_calc = MarketParamsCalculator::new(common::Symbol::from("BTCUSDT"));
+        let trade_signal_stage = TradeSignalStage::new(
+            db_pool.clone(),
+            market_params_calc,
+            bulk_sender.clone(),
+            trade_signal_rx,
+            pred_config.min_final_score,
+        );
+
+        tokio::spawn(async move {
+            if let Err(e) = trade_signal_stage.run().await {
+                tracing::error!(target: "trade_signal_stage", "TradeSignalStage error: {}", e);
+            }
+        });
+
+        // Spawn Predictors Pipeline
+        tokio::spawn(async move {
+            if let Err(e) = predictors_pipeline.run().await {
+                tracing::error!(target: "compute_predictors", "Predictors pipeline error: {}", e);
+            }
+        });
+    } else {
+        // Super Entry strategy: use Super Entry stage for realtime signals
+        tracing::info!("compute_realtime: Setting up Super Entry stage for realtime signals");
+        if let Some(_handle) = compute_lib::super_entry_stage::setup_super_entry_stage(
+            &db_pool,
+            feature_rx,
+            config.use_cuda,
+        ).await {
+            tracing::info!("compute_realtime: ✅ Super Entry realtime stage spawned");
+        } else {
+            tracing::warn!("compute_realtime: Super Entry stage not available — signals will not be generated in realtime");
         }
-    });
-
-    // Spawn Predictors Pipeline
-    tokio::spawn(async move {
-        if let Err(e) = predictors_pipeline.run().await {
-            tracing::error!(target: "compute_predictors", "Predictors pipeline error: {}", e);
-        }
-    });
+    }
 
     // Spawn Result Processor (Connecting the dots!)
     let result_processor = ResultProcessor::new(

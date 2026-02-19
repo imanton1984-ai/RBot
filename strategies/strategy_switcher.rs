@@ -29,11 +29,11 @@ use serde::{Deserialize, Serialize};
 /// Идентификатор стратегии
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum StrategyId {
-    /// Основная стратегия (entry_policy + signal_quality + predictors)
-    Default,
+    /// Базовая стратегия (level_strategy: predictors + trade_signals)
+    Level,
     /// Super Entry Strategy (ML-модель поиска супер-входов)
     SuperEntry,
-    /// Комбинированный режим: Default + SuperEntry фильтр
+    /// Комбинированный режим: Level + SuperEntry фильтр
     Combined,
 }
 
@@ -41,7 +41,7 @@ impl StrategyId {
     /// Из строки
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
-            "default" | "main" | "base" => Some(Self::Default),
+            "level" | "default" | "main" | "base" => Some(Self::Level),
             "super_entry" | "super-entry" | "superentry" => Some(Self::SuperEntry),
             "combined" | "both" | "all" => Some(Self::Combined),
             _ => None,
@@ -51,7 +51,7 @@ impl StrategyId {
     /// В строку
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Default => "default",
+            Self::Level => "level",
             Self::SuperEntry => "super_entry",
             Self::Combined => "combined",
         }
@@ -60,9 +60,9 @@ impl StrategyId {
     /// Описание для UI
     pub fn description(&self) -> &'static str {
         match self {
-            Self::Default => "Основная стратегия (Entry Policy + Signal Quality + Predictors)",
+            Self::Level => "Level Strategy: ML predictors + trade signals (базовая стратегия)",
             Self::SuperEntry => "Super Entry: ML-модель поиска точек с сильным движением",
-            Self::Combined => "Комбинированный: Default + Super Entry фильтр качества",
+            Self::Combined => "Комбинированный: Level + Super Entry фильтр качества",
         }
     }
 }
@@ -97,7 +97,7 @@ pub struct StrategyConfig {
 impl Default for StrategyConfig {
     fn default() -> Self {
         Self {
-            id: StrategyId::Default,
+            id: StrategyId::Level,
             enabled: true,
             priority: 0,
             weight: 1.0,
@@ -168,7 +168,7 @@ impl StrategySwitcher {
     /// Создать новый переключатель с дефолтными стратегиями
     pub fn new() -> Self {
         let mut strategies = HashMap::new();
-        strategies.insert(StrategyId::Default, StrategyConfig::default());
+        strategies.insert(StrategyId::Level, StrategyConfig::default());
         strategies.insert(StrategyId::SuperEntry, StrategyConfig::super_entry_default());
         strategies.insert(StrategyId::Combined, StrategyConfig::combined_default());
 
@@ -331,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_strategy_id_from_str() {
-        assert_eq!(StrategyId::from_str("default"), Some(StrategyId::Default));
+        assert_eq!(StrategyId::from_str("level"), Some(StrategyId::Level));
+        assert_eq!(StrategyId::from_str("default"), Some(StrategyId::Level));
         assert_eq!(StrategyId::from_str("super_entry"), Some(StrategyId::SuperEntry));
         assert_eq!(StrategyId::from_str("super-entry"), Some(StrategyId::SuperEntry));
         assert_eq!(StrategyId::from_str("combined"), Some(StrategyId::Combined));
@@ -341,7 +342,7 @@ mod tests {
     #[test]
     fn test_switcher_default() {
         let switcher = StrategySwitcher::new();
-        assert!(switcher.is_active(StrategyId::Default));
+        assert!(switcher.is_active(StrategyId::Level));
         assert!(!switcher.is_active(StrategyId::SuperEntry));
     }
 
@@ -361,7 +362,7 @@ mod tests {
         let switcher = StrategySwitcher::new();
 
         switcher.switch_to(StrategyId::SuperEntry);
-        assert!(!switcher.is_active(StrategyId::Default));
+        assert!(!switcher.is_active(StrategyId::Level));
         assert!(switcher.is_active(StrategyId::SuperEntry));
         assert!(!switcher.is_active(StrategyId::Combined));
     }
@@ -373,7 +374,7 @@ mod tests {
 
         let active = switcher.active_strategies();
         assert_eq!(active.len(), 2);
-        assert_eq!(active[0].id, StrategyId::Default); // priority 0
+        assert_eq!(active[0].id, StrategyId::Level); // priority 0
         assert_eq!(active[1].id, StrategyId::SuperEntry); // priority 1
     }
 

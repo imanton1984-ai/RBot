@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use tracing::{info, warn, error};
 
 use ml_entry_strategy::config::SuperEntryConfig;
-use ml_entry_strategy::dataset::{fetch_candles_with_indicators, fetch_active_symbols};
+use ml_entry_strategy::dataset::fetch_active_symbols;
 use ml_entry_strategy::db_writer::{insert_signals_batch, ensure_table_exists, count_signals};
 use ml_entry_strategy::pipeline::SuperEntryPipeline;
 use ml_entry_strategy::signal_generator::SuperEntrySignal;
@@ -115,15 +115,22 @@ async fn main() -> Result<()> {
         println!("\n=== [STAGE 3/4] HISTORY BACKFILL ===");
         info!(target: "super_entry", "Starting backfill ({})",
             if force_backfill { "forced" } else { "DB empty" });
+        info!(target: "super_entry", "Backfill config: warmup_bars={}, lookahead={}, symbols={}",
+            config.warmup_bars, config.lookahead_bars, symbols.len());
 
         let t0 = Instant::now();
         let mut total_signals = 0usize;
+        let mut total_candles_processed = 0usize;
+        let mut total_symbols_processed = 0usize;
 
         for &tf in SuperEntryConfig::timeframes() {
             let tf_t0 = Instant::now();
             let mut tf_signals: Vec<SuperEntrySignal> = Vec::new();
             let mut tf_candles = 0usize;
             let mut tf_symbols_ok = 0usize;
+            let mut tf_symbols_empty = 0usize;
+
+            info!(target: "super_entry", "Processing TF {}m for {} symbols...", tf, symbols.len());
 
             // Concurrent fetch in batches of 20 symbols
             for chunk in symbols.chunks(20) {
@@ -139,26 +146,59 @@ async fn main() -> Result<()> {
                 }
 
                 for handle in handles {
-                    if let Ok(Ok(candles)) = handle.await {
-                        if candles.len() < config.warmup_bars + 1 { continue; }
-                        tf_symbols_ok += 1;
-                        let results = match pipeline.process_candles(&candles, tf, use_gpu) {
-                            Ok(r) => r,
-                            Err(_) => continue,
-                        };
-                        tf_candles += results.len();
-                        for r in results {
-                            if let Some(s) = r.signal { tf_signals.push(s); }
+                    match handle.await {
+                        Ok(Ok(candles)) => {
+                            if candles.len() < config.warmup_bars + 1 {
+                                tf_symbols_empty += 1;
+                                info!(target: "super_entry",
+                                    "  {} {}m: insufficient candles ({} < warmup+1={}), skipping",
+                                    candles.first().map(|c| &c.symbol).unwrap_or(&"unknown".to_string()),
+                                    tf, candles.len(), config.warmup_bars + 1);
+                                continue;
+                            }
+                            tf_symbols_ok += 1;
+                            
+                            // Check for NULL/default indicators
+                            let null_rsi_count = candles.iter().filter(|c| c.rsi == 50.0).count();
+                            let _null_macd_count = candles.iter().filter(|c| c.macd == 0.0).count();
+                            if null_rsi_count > candles.len() / 2 {
+                                warn!(target: "super_entry",
+                                    "  {} {}m: {} / {} candles have default RSI=50 (indicators may not be computed)",
+                                    candles[0].symbol, tf, null_rsi_count, candles.len());
+                            }
+                            
+                            let results = match pipeline.process_candles(&candles, tf, use_gpu) {
+                                Ok(r) => r,
+                                Err(e) => {
+                                    warn!(target: "super_entry",
+                                        "  {} {}m: process_candles failed: {}",
+                                        candles[0].symbol, tf, e);
+                                    continue;
+                                }
+                            };
+                            tf_candles += results.len();
+                            for r in results {
+                                if let Some(s) = r.signal { tf_signals.push(s); }
+                            }
+                        }
+                        Ok(Err(e)) => {
+                            warn!(target: "super_entry", "  Fetch failed: {}", e);
+                        }
+                        Err(e) => {
+                            warn!(target: "super_entry", "  Task join failed: {:?}", e);
                         }
                     }
                 }
             }
+            
+            total_symbols_processed += tf_symbols_ok;
+            total_candles_processed += tf_candles;
 
             if !tf_signals.is_empty() {
                 let count = tf_signals.len();
                 match insert_signals_batch(&pool, &tf_signals).await {
                     Ok(n) => {
-                        info!(target: "super_entry", 
+                        info!(target: "super_entry",
                             "  TF {:>5}m: {} symbols → {} candles → {} signals → {} written ({}ms)",
                             tf, tf_symbols_ok, tf_candles, count, n, tf_t0.elapsed().as_millis());
                         total_signals += count;
@@ -166,14 +206,14 @@ async fn main() -> Result<()> {
                     Err(e) => error!(target: "super_entry", "  TF {}m INSERT failed: {}", tf, e),
                 }
             } else {
-                info!(target: "super_entry", "  TF {:>5}m: {} symbols → 0 signals ({}ms)",
-                    tf, tf_symbols_ok, tf_t0.elapsed().as_millis());
+                info!(target: "super_entry", "  TF {:>5}m: {} symbols ({} empty) → {} candles → 0 signals ({}ms)",
+                    tf, tf_symbols_ok, tf_symbols_empty, tf_candles, tf_t0.elapsed().as_millis());
             }
         }
 
         let final_count = count_signals(&pool).await.unwrap_or(0);
-        info!(target: "super_entry", "✅ Backfill complete: {} signals in {:.1}s. DB total: {}",
-            total_signals, t0.elapsed().as_secs_f64(), final_count);
+        info!(target: "super_entry", "✅ Backfill complete: {} signals from {} symbols / {} candles in {:.1}s. DB total: {}",
+            total_signals, total_symbols_processed, total_candles_processed, t0.elapsed().as_secs_f64(), final_count);
     } else {
         println!("\n=== [STAGE 3/4] BACKFILL SKIPPED ===");
         info!(target: "super_entry", "Skip: {} signals exist. SUPER_ENTRY_FORCE_BACKFILL=true to force.", initial_count);

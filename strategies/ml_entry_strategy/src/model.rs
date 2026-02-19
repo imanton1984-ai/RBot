@@ -51,11 +51,13 @@ impl SuperEntryModelManager {
     /// Models are loaded one-by-one directly via Booster::load(),
     /// bypassing ModelManager's schema parsing which can crash on
     /// large XGBoost JSON model dumps.
-    pub fn new(config: SuperEntryConfig, _use_gpu: bool) -> Result<Self> {
+    pub fn new(config: SuperEntryConfig, use_gpu: bool) -> Result<Self> {
         let mut models = HashMap::new();
         let timeframes = SuperEntryConfig::timeframes();
 
-        info!("Loading super_entry models (direct Booster load)...");
+        // Select device: GPU for batch inference (history), CPU for single inference (realtime)
+        let device = if use_gpu { Device::Cuda } else { Device::Cpu };
+        info!("Loading super_entry models (device={:?})...", device);
 
         for &tf in timeframes {
             let super_path = config.model_path(tf);
@@ -67,27 +69,47 @@ impl SuperEntryModelManager {
                 continue;
             }
 
-            let super_model = match Booster::load(&super_path, Device::Cpu) {
+            let super_model = match Booster::load(&super_path, device) {
                 Ok(b) => {
-                    info!("✅ Loaded super_entry TF {}m: {}", tf, super_path);
+                    info!("✅ Loaded super_entry TF {}m: {} (device={:?})", tf, super_path, device);
                     b
                 }
                 Err(e) => {
-                    warn!("❌ Failed to load {}: {}", super_path, e);
-                    continue;
+                    // Fallback to CPU if GPU load fails
+                    if use_gpu {
+                        warn!("GPU load failed for {}, falling back to CPU: {}", super_path, e);
+                        match Booster::load(&super_path, Device::Cpu) {
+                            Ok(b) => {
+                                info!("✅ Loaded super_entry TF {}m: {} (CPU fallback)", tf, super_path);
+                                b
+                            }
+                            Err(e2) => {
+                                warn!("❌ Failed to load {} on CPU too: {}", super_path, e2);
+                                continue;
+                            }
+                        }
+                    } else {
+                        warn!("❌ Failed to load {}: {}", super_path, e);
+                        continue;
+                    }
                 }
             };
 
             // Load P(direction) model — optional
             let dir_model = if std::path::Path::new(&dir_path).exists() {
-                match Booster::load(&dir_path, Device::Cpu) {
+                match Booster::load(&dir_path, device) {
                     Ok(b) => {
-                        info!("✅ Loaded super_dir TF {}m: {}", tf, dir_path);
+                        info!("✅ Loaded super_dir TF {}m: {} (device={:?})", tf, dir_path, device);
                         Some(b)
                     }
                     Err(e) => {
-                        warn!("⚠️  Failed to load dir model {}: {}, using neutral direction", dir_path, e);
-                        None
+                        // Fallback to CPU
+                        if use_gpu {
+                            Booster::load(&dir_path, Device::Cpu).ok()
+                        } else {
+                            warn!("⚠️  Failed to load dir model {}: {}, using neutral direction", dir_path, e);
+                            None
+                        }
                     }
                 }
             } else {

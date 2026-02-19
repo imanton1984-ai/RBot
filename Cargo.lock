@@ -316,6 +316,7 @@ dependencies = [
  "database",
  "dotenvy",
  "futures-util",
+ "ml_entry_strategy",
  "ndarray",
  "predictors",
  "raw_signals",
@@ -1374,6 +1375,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 dependencies = [
  "spin",
+]
+
+[[package]]
+name = "level_strategy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "common",
+ "compute_indicators",
+ "csv",
+ "database",
+ "dotenvy",
+ "predictors",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

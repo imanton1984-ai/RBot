@@ -78,9 +78,15 @@ impl ResultProcessor {
     pub async fn run(self, mut rx: mpsc::UnboundedReceiver<Arc<FeatureWindow>>) {
         tracing::info!("Result processor started");
         
+        let mut total_indicators_persisted: u64 = 0;
+        let mut total_raw_signals_persisted: u64 = 0;
+        let mut total_batches_processed: u64 = 0;
+
         while let Some(feature_window) = rx.recv().await {
             let n = feature_window.batch.timestamps.len();
             if n == 0 { continue; }
+            
+            total_batches_processed += 1;
 
             println!(
                 "Processing feature batch for {} on {}, bars={}, cols={}, realtime: {}",
@@ -88,6 +94,15 @@ impl ResultProcessor {
                 feature_window.timeframe,
                 n,
                 feature_window.batch.columns.len(),
+                feature_window.is_realtime
+            );
+            
+            tracing::debug!(
+                target: "compute_history",
+                "Batch: {} {} bars={} realtime={}",
+                feature_window.symbol,
+                feature_window.timeframe,
+                n,
                 feature_window.is_realtime
             );
 
@@ -185,6 +200,7 @@ impl ResultProcessor {
                     n - 1,
                     start_idx
                 );
+                total_indicators_persisted += records.len() as u64;
                 selected_indicator_persistor.queue_records(records).await;
             }
 
@@ -217,6 +233,7 @@ impl ResultProcessor {
                     feature_window.timeframe,
                     all_raw_signals_count
                 );
+                total_raw_signals_persisted += signals_to_persist.len() as u64;
                 selected_raw_signal_persistor.queue_records(signals_to_persist).await;
             }
 
@@ -291,10 +308,20 @@ impl ResultProcessor {
                 };
 
                 if let Err(e) = self.feature_tx.send(snapshot) {
-                    tracing::error!("Failed to send feature snapshot: {}", e);
+                    // Channel closed is expected in super_entry mode (receiver dropped intentionally).
+                    // Silently skip sending snapshots — they're not needed for super_entry backfill.
+                    tracing::debug!("Feature snapshot channel closed (expected in super_entry mode): {}", e);
                     break;
                 }
             }
         }
+        
+        // Final summary
+        tracing::info!(
+            "Result processor complete: {} batches, {} indicators, {} raw signals",
+            total_batches_processed,
+            total_indicators_persisted,
+            total_raw_signals_persisted
+        );
     }
 }

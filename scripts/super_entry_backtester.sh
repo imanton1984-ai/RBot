@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Super Entry Strategy — Full Pipeline Script
+# Super Entry Strategy — Backtester Script
 #
-# This script manages the complete Super Entry lifecycle:
+# This script manages the Super Entry BACKTESTING lifecycle:
 #   1. Build dataset from DB (Rust)
 #   2. Train XGBoost models (Python)
 #   3. Run backtest (Rust)
 #
+# NOTE: This is for BACKTESTING ONLY.
+#       For production signal generation, use: ./scripts/super_entry_pipeline.sh
+#
 # USAGE:
-#   ./scripts/super_entry.sh              # Full pipeline: dataset → train → backtest
-#   ./scripts/super_entry.sh --dataset    # Only build dataset
-#   ./scripts/super_entry.sh --train      # Only train models
-#   ./scripts/super_entry.sh --backtest   # Only run backtest
-#   ./scripts/super_entry.sh --gpu        # Use GPU for training + inference
+#   ./scripts/super_entry_backtester.sh           # Full pipeline: dataset → train → backtest
+#   ./scripts/super_entry_backtester.sh --dataset # Only build dataset
+#   ./scripts/super_entry_backtester.sh --train   # Only train models
+#   ./scripts/super_entry_backtester.sh --backtest# Only run backtest
+#   ./scripts/super_entry_backtester.sh --gpu     # Use GPU for training + inference
 #
 # PREREQUISITES:
 #   1. Database must have market.candles_* and market.indicators_wide data

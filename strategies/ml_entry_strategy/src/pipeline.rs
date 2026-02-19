@@ -102,15 +102,62 @@ impl SuperEntryPipeline {
         let process_start = warmup;
         let batch_size = n - process_start;
 
-        // Build feature matrix for batch inference
+        // Build feature matrix for batch inference — zero-copy: write f32 directly
+        // Avoids intermediate Vec<f64> allocation per candle
         let ncol = crate::config::total_feature_count();
         let mut features_flat: Vec<f32> = Vec::with_capacity(batch_size * ncol);
 
         for i in process_start..n {
-            let feat = candles[i].full_features();
-            for &v in &feat {
-                features_flat.push(v as f32);
-            }
+            // Write indicator features directly as f32 (no intermediate Vec<f64>)
+            let c = &candles[i];
+            // Raw indicators (23 features) — matches INDICATOR_FEATURES order
+            features_flat.push(c.rsi as f32);
+            features_flat.push(c.cci as f32);
+            features_flat.push(c.stoch_k as f32);
+            features_flat.push(c.stoch_d as f32);
+            features_flat.push(c.williams as f32);
+            features_flat.push(c.macd as f32);
+            features_flat.push(c.macd_signal as f32);
+            features_flat.push(c.macd_hist as f32);
+            features_flat.push(c.adx as f32);
+            features_flat.push(c.sma as f32);
+            features_flat.push(c.ema_20 as f32);
+            features_flat.push(c.ema_50 as f32);
+            features_flat.push(c.ema_200 as f32);
+            features_flat.push(c.bb_upper as f32);
+            features_flat.push(c.bb_mid as f32);
+            features_flat.push(c.bb_lower as f32);
+            features_flat.push(c.atr as f32);
+            features_flat.push(c.obv as f32);
+            features_flat.push(c.vwap as f32);
+            features_flat.push(c.volume_spike as f32);
+            features_flat.push(c.trend as f32);
+            features_flat.push(c.trend_short as f32);
+            features_flat.push(c.poc as f32);
+
+            // Derived features (15 features) — computed inline, no allocation
+            let close = c.close;
+            let safe_div = |a: f64, b: f64| -> f32 {
+                if b.abs() > 1e-12 { (a / b) as f32 } else { 0.0f32 }
+            };
+            features_flat.push((c.rsi / 100.0) as f32);                    // rsi_norm
+            features_flat.push((c.cci / 200.0) as f32);                    // cci_norm
+            features_flat.push((c.stoch_k / 100.0) as f32);                // stoch_norm
+            features_flat.push(((c.williams + 100.0) / 100.0) as f32);     // williams_norm
+            let bb_range = c.bb_upper - c.bb_lower;
+            features_flat.push(if bb_range.abs() > 1e-12 {                 // bb_position
+                ((close - c.bb_lower) / bb_range) as f32
+            } else { 0.5f32 });
+            features_flat.push(safe_div(bb_range, close) * 100.0);         // bb_width_pct
+            features_flat.push(safe_div(c.atr, close) * 100.0);            // atr_pct
+            features_flat.push(safe_div(close - c.sma, close) * 100.0);    // price_vs_sma
+            features_flat.push(safe_div(close - c.ema_20, close) * 100.0); // price_vs_ema20
+            features_flat.push(safe_div(close - c.ema_50, close) * 100.0); // price_vs_ema50
+            features_flat.push(safe_div(close - c.ema_200, close) * 100.0);// price_vs_ema200
+            features_flat.push(safe_div(close - c.vwap, close) * 100.0);   // price_vs_vwap
+            features_flat.push(safe_div(c.macd_hist, close) * 1000.0);     // macd_norm
+            features_flat.push(0.0f32);                                     // obv_change_pct (N/A)
+            features_flat.push(if c.volume_spike > 2.0 { 1.0f32 } else { 0.0f32 }); // volume_spike_flag
         }
 
         // Batch inference

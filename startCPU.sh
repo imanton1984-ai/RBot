@@ -39,6 +39,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --super-entry)
             RUN_SUPER_ENTRY=true
+            STRATEGY="super_entry"  # Override strategy to super_entry
             shift
             ;;
         *)
@@ -77,12 +78,14 @@ fi
 # 6. Run Services
 ./scripts/run.sh "release" "cpu"
 
-# 7. Super Entry Strategy (if enabled)
+# 7. Super Entry Strategy info
 if [ "$RUN_SUPER_ENTRY" = true ]; then
     section "SUPER ENTRY STRATEGY"
-    log "Running Super Entry pipeline (dataset → train → backtest)..."
-    ./scripts/super_entry.sh 2>&1 | tee -a "$START_LOG"
-    ok "Super Entry Strategy complete"
+    log "Super Entry strategy is ENABLED"
+    log "  History backfill: integrated into compute_history (batch mode after indicators)"
+    log "  Realtime signals: integrated into compute_realtime (super_entry_stage)"
+    log "  NOTE: For backtesting, run separately: ./scripts/super_entry_backtester.sh"
+    ok "Super Entry integrated into compute pipeline"
 fi
 
 echo -e "\n\033[1;32mCPU BOT STARTED SUCCESSFULLY\033[0m"

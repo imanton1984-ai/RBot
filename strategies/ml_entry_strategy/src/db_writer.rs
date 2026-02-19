@@ -23,7 +23,8 @@ pub async fn insert_signals_batch(pool: &PgPool, signals: &[SuperEntrySignal]) -
 
     let mut inserted = 0;
 
-    for chunk in signals.chunks(500) {
+    // Use larger chunks for bulk inserts (UNNEST supports thousands of rows per RTT)
+    for chunk in signals.chunks(2000) {
         let mut time_v: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
         let mut time_ms_v: Vec<i64> = Vec::with_capacity(chunk.len());
         let mut symbol_v: Vec<String> = Vec::with_capacity(chunk.len());

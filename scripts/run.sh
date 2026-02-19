@@ -36,7 +36,7 @@ TARGET_DIR="$ROOT_DIR/target/$BUILD_PROFILE"
 
 # Env vars for services
 export MIN_PAIRS="${MIN_PAIRS:-300}"
-export RUST_LOG="${RUST_LOG:-warn,compute_history=warn,trade_signal_stage=info,ingestor=info,connections=info}"
+export RUST_LOG="${RUST_LOG:-warn,compute_history=warn,trade_signal_stage=info,ingestor=info,connections=info,super_entry=info,super_entry_stage=info,ml_entry_strategy=info}"
 
 # Start Helper
 start_svc() {
@@ -102,23 +102,37 @@ if [ -d "$ROOT_DIR/healthcheck/grafana" ]; then
     ok "Grafana started. Access at http://localhost:3001 (admin/admin)"
 fi
 
-# 8. Super Entry Service (if enabled via flag or env)
-if [ "${SUPER_ENTRY_ENABLED:-false}" = "true" ]; then
-    section "SUPER ENTRY SERVICE"
-    log "Super Entry strategy is ENABLED"
-    
-    # Build super entry service if not yet built
-    if [ ! -x "$TARGET_DIR/super_entry_service" ]; then
-        log "Building super_entry_service..."
-        cargo build --release -p ml_entry_strategy --bin super_entry_service 2>&1 | tail -3
-    fi
-    
-    if [ -x "$TARGET_DIR/super_entry_service" ]; then
-        start_svc "super_entry_service" "super_entry_service"
-    else
-        log "WARNING: super_entry_service binary not found at $TARGET_DIR/super_entry_service"
-        log "Build it: cargo build --release -p ml_entry_strategy --bin super_entry_service"
-    fi
+# 6. Strategy-specific Services
+# Determine which strategy to run
+ACTIVE_STRATEGY="${ACTIVE_STRATEGY:-default}"
+export ACTIVE_STRATEGY  # Export for child processes (compute_history, compute_realtime)
+
+log "Active strategy: ${ACTIVE_STRATEGY}"
+
+if [ "$ACTIVE_STRATEGY" = "super_entry" ] || [ "${SUPER_ENTRY_ENABLED:-false}" = "true" ]; then
+    # ═══════════════════════════════════════════
+    # SUPER ENTRY STRATEGY MODE
+    # History backfill: handled by compute_history (runs batch backfill after indicators)
+    # Realtime signals: handled by compute_realtime (integrated super_entry_stage)
+    # No separate super_entry_service needed!
+    # ═══════════════════════════════════════════
+    section "SUPER ENTRY STRATEGY"
+    log "Super Entry strategy active"
+    log "  History backfill: integrated into compute_history (batch mode)"
+    log "  Realtime signals: integrated into compute_realtime (super_entry_stage)"
+    log "  Predictors/trade_signals pipeline: SKIPPED"
+
+else
+    # ═══════════════════════════════════════════
+    # DEFAULT (LEVEL) STRATEGY MODE
+    # Runs full pipeline: predictors → trade_signals
+    # ═══════════════════════════════════════════
+    section "LEVEL STRATEGY SERVICES"
+    log "Starting default strategy (predictors + trade signals)"
+
+    # The predictors and trade signals are computed within compute_history/compute_realtime
+    # They use the same compute services but process data differently
+    log "Predictors and trade signals will be computed by compute_history/compute_realtime"
 fi
 
 section "ALL SERVICES STARTED"

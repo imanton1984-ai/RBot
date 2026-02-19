@@ -1,0 +1,35 @@
+[package]
+name = "level_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "level_strategy_service"
+path = "src/bin/service.rs"
+
+[[bin]]
+name = "level_strategy_backtest"
+path = "src/bin/backtest.rs"
+
+[dependencies]
+# Workspace deps
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+dotenvy = { workspace = true }
+
+# Local crates
+common = { path = "../../common" }
+database = { path = "../../database" }
+predictors = { path = "../../compute/predictors" }
+compute_indicators = { path = "../../compute/indicators" }
+
+# Extra
+csv = "1.3"
