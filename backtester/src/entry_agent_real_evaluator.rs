@@ -112,12 +112,13 @@ impl RealEntryAgentEvaluator {
             tracing::warn!("Failed to load entry_cancel models: {}", e);
         }
         
-        // Configure entry agent
+        // Configure entry agent — V3: максимально строгие пороги
+        // Синхронизированы с EntryAgentConfig::default()
         let config = EntryAgentConfig {
-            enter_threshold: 0.55,
-            cancel_threshold: 0.50,
-            min_margin: 0.15,
-            default_window_bars: 10,
+            enter_threshold: 0.65,   // was 0.55→0.60 → ONLY high confidence entries
+            cancel_threshold: 0.42,  // was 0.50→0.45 → cancel more aggressively
+            min_margin: 0.25,        // was 0.15→0.20 → require 25%+ gap
+            default_window_bars: 6,  // was 10→8 → decide quickly
         };
         
         let agent = EntryAgent::new(config);

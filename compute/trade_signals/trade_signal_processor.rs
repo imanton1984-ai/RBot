@@ -103,7 +103,7 @@ impl TradeSignalStage {
                 enter_threshold: 0.55,
                 cancel_threshold: 0.50,
                 min_margin: 0.15,
-                default_window_bars: 10,
+                default_window_bars: 6,
             };
             (Some(EntryAgent::new(config)), Some(mm))
         } else {

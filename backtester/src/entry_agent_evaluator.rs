@@ -43,9 +43,10 @@ impl Default for EntryAgentEvalConfig {
     fn default() -> Self {
         Self {
             use_entry_agent: false, // Default to baseline behavior
-            enter_threshold: 0.55,
-            cancel_threshold: 0.50,
-            min_margin: 0.15,
+            // V3: Синхронизировано с EntryAgentConfig::default()
+            enter_threshold: 0.65,   // was 0.55→0.60
+            cancel_threshold: 0.42,  // was 0.50→0.45
+            min_margin: 0.25,        // was 0.15→0.20
             use_mock_decisions: true, // Mock for now, real models later
         }
     }

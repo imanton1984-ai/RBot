@@ -81,10 +81,16 @@ pub struct EntryAgentConfig {
 impl Default for EntryAgentConfig {
     fn default() -> Self {
         Self {
-            enter_threshold: 0.5,
-            cancel_threshold: 0.5,
-            min_margin: 0.1,
-            default_window_bars: 10,
+            // V3: Максимально строгие пороги — реже входить, но точнее
+            // Цель: отсечь ~40-50% слабых входов, оставить только высокую уверенность
+            //
+            // enter_threshold: 0.50 → 0.65 (только при ВЫСОКОЙ уверенности модели)
+            // cancel_threshold: 0.50 → 0.42 (cancel ещё агрессивнее — отсекаем больше)
+            // min_margin: 0.10 → 0.25 (разрыв между enter и cancel минимум 25%)
+            enter_threshold: 0.65,
+            cancel_threshold: 0.42,
+            min_margin: 0.25,
+            default_window_bars: 6,
         }
     }
 }
@@ -211,26 +217,30 @@ impl EntryAgent {
     }
 
     /// Get window size for a given timeframe (matches backtester labeling)
+    ///
+    /// V2: Уменьшены окна для 5m/15m чтобы входить раньше и не ждать слишком долго.
+    /// Проблема: при window=10 на 5m агент ждёт до 50 мин, входит поздно и ловит стоп.
+    /// Решение: 5m → 6 баров (30 мин), 15m → 5 баров (75 мин) — enter early or cancel.
     pub fn get_window_bars_for_tf(tf_minutes: i32) -> usize {
         match tf_minutes {
-            1 => 12,   // 12 minutes of opportunities
-            5 => 10,   // 50 minutes
-            15 => 8,   // 2 hours
-            60 => 6,   // 6 hours
-            240 => 4,  // 16 hours
-            _ => 10,   // default
+            1 => 5,    // 5 minutes (was 12→8 — максимально ранний вход или cancel)
+            5 => 4,    // 20 minutes (was 10→6 — вход в первые 4 бара или cancel)
+            15 => 3,   // 45 minutes (was 8→5 — 3 бара макс, не ждём дольше)
+            60 => 4,   // 4 hours (was 6→5)
+            240 => 3,  // 12 hours (was 4)
+            _ => 4,    // default
         }
     }
 
     /// Get max hold bars for a given timeframe
     pub fn get_max_hold_bars_for_tf(tf_minutes: i32) -> usize {
         match tf_minutes {
-            1 => 12,
-            5 => 12,
-            15 => 10,
-            60 => 8,
+            1 => 10,
+            5 => 10,
+            15 => 8,
+            60 => 7,
             240 => 6,
-            _ => 10,
+            _ => 8,
         }
     }
 }
@@ -272,21 +282,21 @@ mod tests {
     fn test_decision_margin_check() {
         let agent = EntryAgent::with_defaults();
 
-        // Enter above threshold but margin too small → WAIT
-        let decision = agent.make_decision(0.55, 0.50);
+        // Enter above threshold but margin too small → WAIT (0.70 - 0.50 = 0.20 < 0.25)
+        let decision = agent.make_decision(0.70, 0.50);
         assert!(decision.is_wait());
 
-        // Enter above threshold with good margin → ENTER
-        let decision = agent.make_decision(0.70, 0.50);
+        // Enter above threshold with good margin → ENTER (0.80 - 0.50 = 0.30 >= 0.25)
+        let decision = agent.make_decision(0.80, 0.50);
         assert!(decision.is_enter());
     }
 
     #[test]
     fn test_window_bars_by_tf() {
-        assert_eq!(EntryAgent::get_window_bars_for_tf(1), 12);
-        assert_eq!(EntryAgent::get_window_bars_for_tf(5), 10);
-        assert_eq!(EntryAgent::get_window_bars_for_tf(15), 8);
-        assert_eq!(EntryAgent::get_window_bars_for_tf(60), 6);
-        assert_eq!(EntryAgent::get_window_bars_for_tf(240), 4);
+        assert_eq!(EntryAgent::get_window_bars_for_tf(1), 5);
+        assert_eq!(EntryAgent::get_window_bars_for_tf(5), 4);
+        assert_eq!(EntryAgent::get_window_bars_for_tf(15), 3);
+        assert_eq!(EntryAgent::get_window_bars_for_tf(60), 4);
+        assert_eq!(EntryAgent::get_window_bars_for_tf(240), 3);
     }
 }

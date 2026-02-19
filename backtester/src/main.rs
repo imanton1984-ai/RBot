@@ -46,8 +46,11 @@ async fn main() -> Result<()> {
     let pool = PgPool::connect(&db_url).await?;
 
     // Config from env vars
+    // V9: Default min_score raised from 0.55 → 0.60 to filter weak signals.
+    // Score bucket analysis showed 0.55-0.60 has marginal WR (~61% on 5m),
+    // while 0.60+ has significantly better WR (~64-71%).
     let min_score: f64 = std::env::var("BACKTEST_MIN_SCORE")
-        .ok().and_then(|v| v.parse().ok()).unwrap_or(0.55);
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(0.60);
 
     let max_signals: i64 = std::env::var("BACKTEST_MAX_SIGNALS")
         .ok().and_then(|v| v.parse().ok()).unwrap_or(500_000);

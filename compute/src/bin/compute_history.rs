@@ -86,11 +86,11 @@ async fn main() -> Result<()> {
     let (_shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<bool>(1);
     
     // min_final_score: configurable via env var.
-    // Default 0.55 is achievable with heuristic-only predictors.
+    // V9: Default raised 0.55 → 0.60 to filter weak signals with marginal WR.
     let min_final_score: f64 = std::env::var("MIN_FINAL_SCORE")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(0.55);
+        .unwrap_or(0.60);
 
     tracing::info!("Using min_final_score = {}", min_final_score);
 
