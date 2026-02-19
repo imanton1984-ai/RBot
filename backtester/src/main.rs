@@ -140,8 +140,11 @@ async fn main() -> Result<()> {
     export_entry_policy_dataset(&pool, &results, &entry_csv).await?;
     tracing::info!("Exported Entry Policy dataset to {}", entry_csv);
 
-    // Run Entry Agent comparison (if enabled via env var)
-    if std::env::var("BACKTEST_COMPARE_ENTRY_AGENT").unwrap_or_default() == "true" {
+    // Run Entry Agent comparison (enabled by default, disable with BACKTEST_COMPARE_ENTRY_AGENT=false)
+    let run_agent = std::env::var("BACKTEST_COMPARE_ENTRY_AGENT")
+        .map(|v| v != "false" && v != "0")
+        .unwrap_or(true);
+    if run_agent {
         tracing::info!("Running Entry Agent comparison evaluation...");
         run_entry_agent_comparison(&pool, &results, timeout_bars).await?;
     }
@@ -887,12 +890,11 @@ async fn run_entry_agent_comparison(
     use entry_agent_real_evaluator::{RealEntryAgentEvaluator, EntryAgentComparison};
     
     println!("\n");
-    println!("╔═══════════════════════════════════════════════════════════╗");
-    println!("║        ENTRY AGENT: Loading Models...                     ║");
-    println!("╚═══════════════════════════════════════════════════════════╝");
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║        ENTRY AGENT: Loading Models...                       ║");
+    println!("╚══════════════════════════════════════════════════════════════╝");
     println!("\n");
     
-    // Create real evaluator with model loading
     // Check env var for GPU usage, default to false for safety
     let use_gpu = std::env::var("ENTRY_AGENT_USE_GPU")
         .unwrap_or_default()
@@ -910,30 +912,25 @@ async fn run_entry_agent_comparison(
         }
     };
     
-    // Check if models are loaded
-    if !evaluator.has_models() {
-        println!("⚠️  Entry Agent models not found in models/ directory");
-        println!("   Please run: ./scripts/teacher.sh --gpu");
-        println!("   Falling back to baseline evaluation...");
-        println!("\n");
-        return Ok(());
+    // Report model/fallback status
+    if evaluator.has_models() {
+        println!("✅ Entry Agent models loaded successfully!");
+        println!("   Evaluating signals with real model inference...\n");
+    } else if evaluator.is_using_expert_fallback() {
+        println!("⚠️  Entry Agent models not found — using expert labeling fallback");
+        println!("   This simulates the OPTIMAL entry timing (upper bound for agent).");
+        println!("   To train real models, run: python scripts/train_entry_policy.py\n");
     }
     
-    println!("✅ Entry Agent models loaded successfully!");
-    println!("   Evaluating signals with real model inference...");
-    println!("\n");
-    
     // Evaluate all signals with Entry Agent
-    let mut agent_results = Vec::new();
-    let mut processed = 0;
-    let mut entered = 0;
-    let mut cancelled = 0;
-    let mut expired = 0;
+    let mut agent_results = Vec::with_capacity(baseline_results.len());
+    let mut processed = 0usize;
+    let mut entered = 0usize;
+    let mut cancelled = 0usize;
+    let mut expired = 0usize;
     
-    // Convert baseline results back to signals for evaluation
-    // (In production, you'd fetch signals from DB directly)
     for result in baseline_results {
-        // Create a pseudo-signal from the result
+        // Reconstruct SignalForBacktest from BacktestResult
         let signal = SignalForBacktest {
             symbol_id: result.symbol_id,
             symbol: result.symbol.clone(),
@@ -948,7 +945,7 @@ async fn run_entry_agent_comparison(
             tp2_price: result.tp2_price,
             tp3_price: result.tp3_price,
             reason: Some(result.reason_json.clone()),
-            price10_target: None, // Not stored in BacktestResult
+            price10_target: None,
             price10_score: result.price10_score,
             bounce_prob: result.bounce_prob,
             bounce_score: result.bounce_score,
@@ -960,20 +957,16 @@ async fn run_entry_agent_comparison(
         
         match evaluator.evaluate(&signal).await {
             Ok(Some(agent_result)) => {
-                if agent_result.entry_bar_offset != u16::MAX {
+                if agent_result.was_entered() {
                     entered += 1;
-                } else if matches!(agent_result.outcome, Outcome::Expired { .. }) && agent_result.pnl_pct == 0.0 {
-                    if agent_result.bars_to_entry < 100 {
-                        cancelled += 1;
-                    } else {
-                        expired += 1;
-                    }
+                } else if agent_result.was_cancelled() {
+                    cancelled += 1;
+                } else {
+                    expired += 1;
                 }
                 agent_results.push(agent_result);
             }
-            Ok(None) => {
-                // Skip - no data
-            }
+            Ok(None) => {}
             Err(e) => {
                 tracing::warn!("Entry Agent evaluation error: {}", e);
             }
@@ -986,40 +979,10 @@ async fn run_entry_agent_comparison(
         }
     }
     
-    // Calculate comparison statistics
-    let baseline_entered = baseline_results.iter()
-        .filter(|r| !matches!(r.outcome, Outcome::Expired { .. }))
-        .count();
-    let baseline_wins = baseline_results.iter()
-        .filter(|r| matches!(r.outcome, Outcome::Win { .. }))
-        .count();
-    let baseline_avg_pnl = baseline_results.iter()
-        .map(|r| r.pnl_pct)
-        .sum::<f64>() / baseline_results.len() as f64;
+    println!("\n  Entry Agent evaluation complete: {} results\n", agent_results.len());
     
-    let agent_entered = agent_results.iter()
-        .filter(|r| r.entry_bar_offset != u16::MAX)
-        .count();
-    let agent_wins = agent_results.iter()
-        .filter(|r| matches!(r.outcome, Outcome::Win { .. }))
-        .count();
-    let agent_avg_pnl = agent_results.iter()
-        .map(|r| r.pnl_pct)
-        .sum::<f64>() / agent_results.len() as f64;
-    
-    let comparison = EntryAgentComparison {
-        baseline_total: baseline_results.len(),
-        baseline_entered,
-        baseline_wins,
-        baseline_avg_pnl,
-        agent_total: agent_results.len(),
-        agent_entered,
-        agent_wins,
-        agent_avg_pnl,
-        agent_cancelled: cancelled,
-        agent_expired: expired,
-    };
-    
+    // Build full comparison with per-TF breakdown
+    let comparison = EntryAgentComparison::from_results(baseline_results, &agent_results);
     comparison.print();
     
     Ok(())

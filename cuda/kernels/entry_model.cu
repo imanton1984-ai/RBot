@@ -20,16 +20,18 @@
 // This is useful when you have millions of signals to label.
 
 #include <cuda_runtime.h>
+#include <stdint.h>
 
 /// Small buffer for breakeven trailing SL (0.1% inside profit)
 #define BREAKEVEN_BUFFER 0.001
 
 /// Position close fractions for partial take-profit
-#define TP1_CLOSE_PCT 0.50
-#define TP2_CLOSE_PCT 0.30
-#define TP3_CLOSE_PCT 0.20
+/// NOTE: Must match evaluator.rs constants!
+#define TP1_CLOSE_PCT 0.70
+#define TP2_CLOSE_PCT 0.20
+#define TP3_CLOSE_PCT 0.10
 
-/// OHLCV bar with ATR
+/// OHLCV bar with ATR (SoA on host, packed struct on device)
 typedef struct {
     double open;
     double high;
@@ -98,30 +100,30 @@ __device__ double simulate_pnl_pct(
             return pnl * 100.0;
         }
 
-        // Check TP1 hit (partial close 50%)
+        // Check TP1 hit (partial close 70%)
         int tp1_hit_now = (side > 0) ? (bar_high >= tp1_price) : (bar_low <= tp1_price);
         if (tp1_hit_now && !tp1_hit && position > 0.0) {
             double price_diff = tp1_price - entry_price;
-            pnl += cfg.tp1_close_pct * price_diff / entry_price * ((double)side);
-            position -= cfg.tp1_close_pct;
+            pnl += TP1_CLOSE_PCT * price_diff / entry_price * ((double)side);
+            position -= TP1_CLOSE_PCT;
             tp1_hit = 1;
         }
 
-        // Check TP2 hit (partial close 30%)
+        // Check TP2 hit (partial close 20%)
         int tp2_hit_now = (side > 0) ? (bar_high >= tp2_price) : (bar_low <= tp2_price);
         if (tp2_hit_now && !tp2_hit && position > 0.0) {
             double price_diff = tp2_price - entry_price;
-            pnl += cfg.tp2_close_pct * price_diff / entry_price * ((double)side);
-            position -= cfg.tp2_close_pct;
+            pnl += TP2_CLOSE_PCT * price_diff / entry_price * ((double)side);
+            position -= TP2_CLOSE_PCT;
             tp2_hit = 1;
         }
 
-        // Check TP3 hit (close remaining 20%)
+        // Check TP3 hit (close remaining ~10%)
         int tp3_hit_now = (side > 0) ? (bar_high >= tp3_price) : (bar_low <= tp3_price);
         if (tp3_hit_now && !tp3_hit && position > 0.0) {
             double price_diff = tp3_price - entry_price;
-            pnl += cfg.tp3_close_pct * price_diff / entry_price * ((double)side);
-            position -= cfg.tp3_close_pct;
+            pnl += position * price_diff / entry_price * ((double)side);
+            position = 0.0;
             tp3_hit = 1;
             return pnl * 100.0;
         }
@@ -139,6 +141,7 @@ __device__ double simulate_pnl_pct(
 extern "C" __global__ void find_best_entry_kernel(
     const OhlcBar* series,        // [n_bars] OHLCV series with ATR
     int n_bars,
+    int n_setups,                 // Total number of setups (for bounds check)
     const int* setup_t0,          // [n_setups] Start bar index for each setup
     const int8_t* setup_side,     // [n_setups] Side (+1 long, -1 short)
     SimCfg cfg,
@@ -146,7 +149,7 @@ extern "C" __global__ void find_best_entry_kernel(
     double* out_best_pnl          // [n_setups] Best PnL achieved
 ) {
     int s = blockIdx.x * blockDim.x + threadIdx.x;
-    // if (s >= n_setups) return; // handled by grid size
+    if (s >= n_setups) return;    // Bounds check: critical for correctness
 
     int t0 = setup_t0[s];
     int8_t side = setup_side[s];
@@ -182,6 +185,7 @@ extern "C" __global__ void find_best_entry_kernel(
 extern "C" __global__ void find_best_entry_batch_kernel(
     const OhlcBar* series,        // [n_bars] OHLCV series with ATR
     int n_bars,
+    int n_setups,                 // Total number of setups (for bounds check)
     const int* setup_t0,          // [n_setups] Start bar index for each setup
     const int8_t* setup_side,     // [n_setups] Side (+1 long, -1 short)
     const int* setup_window,      // [n_setups] Window size per setup (varies by TF)
@@ -192,6 +196,7 @@ extern "C" __global__ void find_best_entry_batch_kernel(
     double* out_best_pnl          // [n_setups] Best PnL achieved
 ) {
     int s = blockIdx.x * blockDim.x + threadIdx.x;
+    if (s >= n_setups) return;    // Bounds check
 
     int t0 = setup_t0[s];
     int8_t side = setup_side[s];

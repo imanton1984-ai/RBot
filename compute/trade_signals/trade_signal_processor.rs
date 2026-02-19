@@ -10,6 +10,7 @@
 // 2. Computes BTC MarketParams (with caching via MarketParamsCalculator)
 // 3. Runs TradeSignalCalculator (which internally uses FinalScorer)
 // 4. If score >= 0.96 and signal produced → sends PersistRecord::TradeSignal to BulkPersistor
+// 5. Entry Agent annotates signal with entry_decision (ENTER/WAIT/CANCEL) for execution layer
 
 use anyhow::Result;
 use serde_json::{json, Value};
@@ -18,6 +19,8 @@ use tokio::sync::mpsc;
 use common::Symbol;
 
 use crate::predictors::types::{PredictionAspect, CalcSource};
+use crate::predictors::entry_policy::{EntryAgent, EntryAgentConfig, EntryDecision};
+use crate::predictors::ml::model_manager::ModelManager;
 use crate::predictors::signal_quality::heuristic_scorer::HeuristicQualityScorer;
 use crate::predictors::signal_quality::types::SignalFeatures;
 pub use crate::predictors::pipeline::TradeSignalInput;
@@ -33,6 +36,9 @@ pub struct TradeSignalStage {
     final_scorer: FinalScorer,
     trade_calc: TradeSignalCalculator,
     quality_scorer: HeuristicQualityScorer,
+    entry_agent: Option<EntryAgent>,
+    entry_model_manager: Option<ModelManager>,
+    use_entry_agent_gpu: bool,
     bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
     prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
 }
@@ -43,10 +49,18 @@ impl TradeSignalStage {
         market_params_calc: MarketParamsCalculator,
         bulk_sender: mpsc::Sender<database_lib::PersistRecord>,
         prediction_rx: mpsc::UnboundedReceiver<TradeSignalInput>,
-        min_score: f64,  // Accept min_score as parameter
+        min_score: f64,
     ) -> Self {
-        // Log for debugging
         tracing::info!("Initializing TradeSignalStage with min_score: {}", min_score);
+        
+        // Try to load Entry Agent models
+        let use_gpu = std::env::var("ENTRY_AGENT_USE_GPU")
+            .unwrap_or_default()
+            .to_lowercase()
+            .parse::<bool>()
+            .unwrap_or(false);
+        
+        let (entry_agent, entry_mm) = Self::try_load_entry_agent(use_gpu);
         
         Self {
             db_pool,
@@ -54,8 +68,47 @@ impl TradeSignalStage {
             final_scorer: FinalScorer::new(min_score),
             trade_calc: TradeSignalCalculator::new(min_score),
             quality_scorer: HeuristicQualityScorer::new(),
+            entry_agent,
+            entry_model_manager: entry_mm,
+            use_entry_agent_gpu: use_gpu,
             bulk_sender,
             prediction_rx,
+        }
+    }
+    
+    /// Attempt to load Entry Agent models. Returns (agent, model_manager) if successful.
+    fn try_load_entry_agent(use_gpu: bool) -> (Option<EntryAgent>, Option<ModelManager>) {
+        let models_dir = std::env::var("MODELS_DIR").unwrap_or_else(|_| {
+            if std::path::Path::new("models").exists() {
+                "models".to_string()
+            } else if std::path::Path::new("../models").exists() {
+                "../models".to_string()
+            } else {
+                "/home/anton/Desktop/Rust_trader/models".to_string()
+            }
+        });
+        
+        let mut mm = ModelManager::new(use_gpu);
+        let timeframes = vec![1, 5, 15, 60, 240];
+        
+        let enter_template = format!("{}/entry_enter_v1_tf{{tf}}.ubj", models_dir);
+        let cancel_template = format!("{}/entry_cancel_v1_tf{{tf}}.ubj", models_dir);
+        
+        let enter_ok = mm.load_models_for_timeframes("entry_enter", &enter_template, &timeframes, use_gpu).is_ok();
+        let cancel_ok = mm.load_models_for_timeframes("entry_cancel", &cancel_template, &timeframes, use_gpu).is_ok();
+        
+        if enter_ok && cancel_ok && mm.has_model("entry_enter_tf1") && mm.has_model("entry_cancel_tf1") {
+            tracing::info!(target: "trade_signal_stage", "Entry Agent models loaded — will annotate signals with entry timing");
+            let config = EntryAgentConfig {
+                enter_threshold: 0.55,
+                cancel_threshold: 0.50,
+                min_margin: 0.15,
+                default_window_bars: 10,
+            };
+            (Some(EntryAgent::new(config)), Some(mm))
+        } else {
+            tracing::info!(target: "trade_signal_stage", "Entry Agent models not found — signals will use immediate entry");
+            (None, None)
         }
     }
 
@@ -140,12 +193,9 @@ impl TradeSignalStage {
             )
             .await?;
 
-        // 3. If signal was produced, apply quality scoring and persist
+        // 3. If signal was produced, apply quality scoring + entry agent + persist
         if let Some(mut signal) = signal_opt {
-            // Apply Signal Quality Scorer — computes quality metrics for analysis.
-            // NOTE: combined_quality is NOT yet a calibrated win probability
-            // (requires trained ML model on backtest outcomes).
-            // For now: keep original final_score, store quality metrics separately for analysis.
+            // Apply Signal Quality Scorer
             let features = SignalFeatures::from_reason_json(
                 &signal.breakdown_json,
                 &signal.symbol,
@@ -156,18 +206,14 @@ impl TradeSignalStage {
                 signal.tp1,
                 signal.tp2,
                 signal.tp3,
-                None, // ml_score extracted separately
-                None, // heur_score extracted separately
+                None,
+                None,
                 None, None, None, None, None, None,
             );
 
             let quality = self.quality_scorer.score(&features);
             let original_score = signal.final_score;
             let win_prob = quality.breakdown.combined_quality.clamp(0.0, 0.99);
-
-            // DO NOT overwrite final_score - keep original (set by FinalScorer)
-            // DO NOT filter by win_prob < 0.80 - heuristic is not calibrated yet
-            // Store quality metrics in breakdown for later backtest analysis
 
             // Add quality info to breakdown
             if let Value::Object(ref mut obj) = signal.breakdown_json {
@@ -179,6 +225,45 @@ impl TradeSignalStage {
                 obj.insert("heuristic_quality".to_string(), json!(quality.breakdown.heuristic_quality));
                 obj.insert("ml_quality".to_string(), json!(quality.breakdown.ml_quality));
             }
+
+            // ── Entry Agent: annotate signal with entry timing decision ──
+            // Runs on the CURRENT bar features; execution layer uses this to decide entry timing.
+            let entry_decision_str = if let (Some(agent), Some(mm)) = (&self.entry_agent, &self.entry_model_manager) {
+                let entry_features = build_entry_agent_features(&signal, &input);
+                match agent.decide(
+                    mm,
+                    signal.tf_minutes as i32,
+                    entry_features,
+                    0,  // elapsed = 0 (first bar)
+                    EntryAgent::get_window_bars_for_tf(signal.tf_minutes as i32) as u16,
+                    self.use_entry_agent_gpu,
+                ) {
+                    Ok(decision) => {
+                        let (decision_str, confidence) = match &decision {
+                            EntryDecision::Enter { confidence } => ("ENTER", *confidence),
+                            EntryDecision::Wait { confidence } => ("WAIT", *confidence),
+                            EntryDecision::Cancel { confidence } => ("CANCEL", *confidence),
+                        };
+                        
+                        if let Value::Object(ref mut obj) = signal.breakdown_json {
+                            obj.insert("entry_decision".to_string(), json!(decision_str));
+                            obj.insert("entry_confidence".to_string(), json!(confidence));
+                            obj.insert("entry_window_bars".to_string(),
+                                json!(EntryAgent::get_window_bars_for_tf(signal.tf_minutes as i32)));
+                        }
+                        
+                        decision_str.to_string()
+                    }
+                    Err(e) => {
+                        tracing::debug!(target: "trade_signal_stage",
+                            "Entry Agent error for {} tf={}: {} — defaulting to ENTER",
+                            signal.symbol, signal.tf_minutes, e);
+                        "ENTER".to_string()
+                    }
+                }
+            } else {
+                "ENTER".to_string()
+            };
 
             let record = trade_signal_to_persist_record(&signal, &input);
 
@@ -194,16 +279,131 @@ impl TradeSignalStage {
 
             tracing::warn!(
                 target: "trade_signal_stage",
-                "Trade signal produced: {} {} tf={} side={} score={:.4} win_prob={:.4} (quality={:.2} grade={}) entry={:.6} sl={:.6} tp1={:.6}",
+                "Trade signal: {} {} tf={} side={} score={:.4} quality={:.2} entry_decision={} entry={:.6} sl={:.6} tp1={:.6}",
                 signal.symbol, signal.time, signal.tf_minutes,
-                signal.side, signal.final_score, win_prob,
-                quality.breakdown.combined_quality, quality.grade.as_str(),
+                signal.side, signal.final_score,
+                quality.breakdown.combined_quality, entry_decision_str,
                 signal.entry, signal.stop_loss, signal.tp1
             );
         }
 
         Ok(())
     }
+}
+
+/// Build feature vector for Entry Agent from signal + prediction context.
+fn build_entry_agent_features(signal: &TradeSignal, input: &TradeSignalInput) -> Vec<f32> {
+    let reason = &signal.breakdown_json;
+    let get = |k: &str| reason.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let debug_get = |k: &str| {
+        reason.get("debug").and_then(|d| d.get(k)).and_then(|v| v.as_f64())
+            .or_else(|| reason.get(k).and_then(|v| v.as_f64()))
+            .unwrap_or(0.0)
+    };
+    
+    let ep = signal.entry;
+    let sl_pct = if ep > 0.0 { (signal.stop_loss - ep).abs() / ep } else { 0.0 };
+    let tp1_pct = if ep > 0.0 { (signal.tp1 - ep).abs() / ep } else { 0.0 };
+    let tp2_pct = if ep > 0.0 { (signal.tp2 - ep).abs() / ep } else { 0.0 };
+    let tp3_pct = if ep > 0.0 { (signal.tp3 - ep).abs() / ep } else { 0.0 };
+    let rr = if sl_pct > 0.0 { tp1_pct / sl_pct } else { 0.0 };
+    let rr2 = if sl_pct > 0.0 { tp2_pct / sl_pct } else { 0.0 };
+    
+    let level_aware = reason.get("level_aware").and_then(|v| v.as_bool()).unwrap_or(false);
+    let quality_mult = get("quality_multiplier");
+    let quality_grade_val = match reason.get("quality_grade").and_then(|v| v.as_str()).unwrap_or("?") {
+        "A" => 4.0, "B" => 3.0, "C" => 2.0, "D" => 1.0, _ => 0.0,
+    };
+    let original_score = get("original_score");
+    
+    let pred = debug_get("predictors_score");
+    let raw = debug_get("raw_signals_score");
+    let ind = debug_get("indicators_score");
+    let mkt = debug_get("market_score");
+    let pred_vs_raw = if raw > 0.0001 { pred / raw } else { 0.0 };
+    let pred_vs_ind = if ind > 0.0001 { pred / ind } else { 0.0 };
+    let scores = [pred, raw, ind, mkt];
+    let mean_s = scores.iter().sum::<f64>() / 4.0;
+    let var_s = scores.iter().map(|x| (x - mean_s).powi(2)).sum::<f64>() / 4.0;
+    let component_std = var_s.sqrt();
+    let component_min = scores.iter().cloned().fold(f64::INFINITY, f64::min);
+    
+    let mut ml_s = 0.0f64;
+    let mut heur_s = 0.0f64;
+    for p in &input.predictions {
+        if p.aspect == PredictionAspect::PriceTarget {
+            match p.calc_source {
+                CalcSource::Ml => { ml_s = p.score_norm as f64; }
+                CalcSource::Hard => { heur_s = p.score_norm as f64; }
+            }
+        }
+    }
+    let ml_heur_gap = (ml_s - heur_s).abs();
+    let score_per_risk = if sl_pct > 0.0 { signal.final_score / sl_pct } else { 0.0 };
+    
+    let bounce_prob = input.predictions.iter()
+        .find(|p| p.aspect == PredictionAspect::LevelBounce)
+        .map(|p| p.value as f32).unwrap_or(0.0);
+    let bounce_score = input.predictions.iter()
+        .find(|p| p.aspect == PredictionAspect::LevelBounce)
+        .map(|p| p.score_norm).unwrap_or(0.0);
+    let breakout_prob = input.predictions.iter()
+        .find(|p| p.aspect == PredictionAspect::LevelBreakout)
+        .map(|p| p.value as f32).unwrap_or(0.0);
+    let breakout_score = input.predictions.iter()
+        .find(|p| p.aspect == PredictionAspect::LevelBreakout)
+        .map(|p| p.score_norm).unwrap_or(0.0);
+    let price10_score = input.predictions.iter()
+        .find(|p| p.aspect == PredictionAspect::PriceTarget)
+        .map(|p| p.score_norm).unwrap_or(0.0);
+    
+    let atr_pct = get("atr_pct");
+    let market_factor = get("market_factor");
+    let score_factor = get("score_factor");
+    
+    vec![
+        signal.tf_minutes as f32,
+        signal.side as f32,
+        signal.final_score as f32,
+        ml_s as f32,
+        heur_s as f32,
+        ep as f32,
+        sl_pct as f32,
+        tp1_pct as f32,
+        tp2_pct as f32,
+        tp3_pct as f32,
+        rr as f32,
+        rr2 as f32,
+        pred as f32,
+        raw as f32,
+        ind as f32,
+        mkt as f32,
+        debug_get("coverage_score") as f32,
+        debug_get("consensus_score") as f32,
+        price10_score,
+        bounce_prob,
+        bounce_score,
+        breakout_prob,
+        breakout_score,
+        debug_get("trend_strength") as f32,
+        debug_get("momentum_strength") as f32,
+        debug_get("volatility_regime") as f32,
+        debug_get("volume_spike_score") as f32,
+        if level_aware { 1.0 } else { 0.0 },
+        get("market_quality_score") as f32,
+        quality_mult as f32,
+        quality_grade_val as f32,
+        original_score as f32,
+        pred_vs_raw as f32,
+        pred_vs_ind as f32,
+        component_std as f32,
+        component_min as f32,
+        ml_heur_gap as f32,
+        score_per_risk as f32,
+        atr_pct as f32,
+        market_factor as f32,
+        score_factor as f32,
+    ]
 }
 
 /// Build a minimal raw_signals_summary from FeatureView indicators.

@@ -69,8 +69,9 @@ def export_xgb(model, model_name: str, schema: dict):
     model_path = os.path.join(MODELS_DIR, model_name)
     schema_path = os.path.join(MODELS_DIR, model_name.replace(".ubj", ".json"))
 
-    # save model
-    model.save_model(model_path)
+    # Use the underlying Booster for saving (avoids sklearn wrapper issues in XGBoost 3.x)
+    booster = model.get_booster()
+    booster.save_model(model_path)
 
     # save schema/meta
     with open(schema_path, "w", encoding="utf-8") as f:
@@ -97,17 +98,15 @@ def train_price_model(df: pd.DataFrame):
         print(f"  Not enough rows: {len(X)}")
         return None
 
-    # Check if CUDA is available for XGBoost
+    # Detect CUDA availability
+    use_gpu = False
     try:
-        # Test if GPU is available for XGBoost
-        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, 
-                  xgb.DMatrix(np.random.random((10, 10)), label=np.random.random(10)), 
-                  num_boost_round=1)
-        tree_method = "hist"
-        device = "cuda"
-    except:
-        tree_method = "hist"  # hist is generally the best method for CPU as well
-        device = "cpu"
+        test_dmat = xgb.DMatrix(np.random.random((10, 5)), label=np.random.random(10))
+        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, test_dmat, num_boost_round=1)
+        use_gpu = True
+        print("  GPU: CUDA detected, using GPU training")
+    except Exception:
+        print("  GPU: Not available, using CPU training")
 
     model = xgb.XGBRegressor(
         n_estimators=200,
@@ -115,8 +114,8 @@ def train_price_model(df: pd.DataFrame):
         learning_rate=0.05,
         objective="reg:squarederror",
         n_jobs=-1,
-        tree_method=tree_method,
-        device=device  # New parameter instead of predictor
+        tree_method="hist",
+        device="cuda" if use_gpu else "cpu",
     )
 
     # CV (optional)
@@ -152,17 +151,14 @@ def train_level_model(df: pd.DataFrame):
         print(f"  Not enough rows: {len(X)}")
         return None
 
-    # Check if CUDA is available for XGBoost
+    # Detect CUDA availability
+    use_gpu = False
     try:
-        # Test if GPU is available for XGBoost
-        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, 
-                  xgb.DMatrix(np.random.random((10, 10)), label=np.random.random(10)), 
-                  num_boost_round=1)
-        tree_method = "hist"
-        device = "cuda"
-    except:
-        tree_method = "hist"  # hist is generally the best method for CPU as well
-        device = "cpu"
+        test_dmat = xgb.DMatrix(np.random.random((10, 5)), label=np.random.random(10))
+        xgb.train({'tree_method': 'hist', 'device': 'cuda'}, test_dmat, num_boost_round=1)
+        use_gpu = True
+    except Exception:
+        pass
 
     model = xgb.XGBClassifier(
         n_estimators=300,
@@ -170,8 +166,8 @@ def train_level_model(df: pd.DataFrame):
         learning_rate=0.05,
         n_jobs=-1,
         eval_metric="logloss",
-        tree_method=tree_method,
-        device=device  # New parameter instead of predictor
+        tree_method="hist",
+        device="cuda" if use_gpu else "cpu",
     )
     model.fit(X, y)
     print(f"  train acc: {model.score(X, y):.4f}")
