@@ -147,6 +147,15 @@ while read -r pid cmd; do
   fi
 done < <(ps -eo pid=,cmd= | grep -F "$ROOT_DIR" | grep -v grep || true)
 
+# Stop any super_entry strategy processes (dataset builder, backtester)
+echo "--- Stopping super_entry strategy processes ---"
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  echo "TERM super_entry: pid=$pid cmd=$cmd"
+  kill -TERM "$pid" 2>/dev/null || true
+done < <(pgrep -f "super_entry" -l || true)
+
 # старые артефакты (если были)
 rm -f /tmp/health_monitor_running 2>/dev/null || true
 

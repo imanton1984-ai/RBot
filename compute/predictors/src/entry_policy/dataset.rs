@@ -42,30 +42,35 @@ pub struct EntryPolicyConfig {
 impl Default for EntryPolicyConfig {
     fn default() -> Self {
         Self {
+            // V4: Unified with EntryAgent for consistent training/inference
+            // Goal: Early entry, catch full move, fewer but higher quality trades
             window_bars: 4,
             max_hold_bars: 14,
-            sl_atr_mult: 0.9,
-            rr1: 1.0,
+            sl_atr_mult: 0.85,  // Reduced from 0.9 for tighter stops
+            rr1: 0.8,           // Faster TP1 hit (was 1.0)
             rr2: 1.5,
-            rr3: 2.0,
-            tp1_close_pct: 0.70,
-            tp2_close_pct: 0.20,
-            tp3_close_pct: 0.10,
+            rr3: 2.5,           // Extended TP3 for full move capture (was 2.0)
+            tp1_close_pct: 0.50,  // Close less at TP1 (was 0.70)
+            tp2_close_pct: 0.30,  // More at TP2 (was 0.20)
+            tp3_close_pct: 0.20,  // More at TP3 (was 0.10)
             min_setup_score: 0.55,
         }
     }
 }
 
 impl EntryPolicyConfig {
-    /// Create config for a specific timeframe (matches backtester defaults)
+    /// Create config for a specific timeframe (matches EntryAgent::get_window_bars_for_tf)
+    /// V5: UNIFIED with EntryAgent — training/inference must match exactly!
+    ///
+    /// V5: DRACONIAN filtering based on V4.1 backtest failure
     pub fn for_timeframe(tf_minutes: i32) -> Self {
         let (window_bars, max_hold_bars) = match tf_minutes {
-            1 => (4, 12),
-            5 => (3, 12),
-            15 => (2, 12),
-            60 => (2, 10),
-            240 => (2, 6),
-            _ => (4, 8),
+            1 => (4, 12),   // V5: 4 min window, 12 min hold (fast scalping)
+            5 => (4, 14),   // V5: 20 min window, 70 min hold (balanced)
+            15 => (5, 14),  // V5: 75 min window, 210 min hold (confirmation + TP3)
+            60 => (6, 12),  // V5: 6 hour window, 12 hour hold (proven working)
+            240 => (4, 12), // V5: 16 hour window, 48 hour hold (patience + TP3)
+            _ => (4, 12),
         };
 
         Self {
@@ -253,13 +258,26 @@ mod tests {
 
     #[test]
     fn test_config_for_timeframe() {
+        // V5: Unified values matching EntryAgent::get_window_bars_for_tf
         let cfg_1m = EntryPolicyConfig::for_timeframe(1);
-        assert_eq!(cfg_1m.window_bars, 12);
+        assert_eq!(cfg_1m.window_bars, 4);
         assert_eq!(cfg_1m.max_hold_bars, 12);
 
+        let cfg_5m = EntryPolicyConfig::for_timeframe(5);
+        assert_eq!(cfg_5m.window_bars, 4);
+        assert_eq!(cfg_5m.max_hold_bars, 14);
+
+        let cfg_15m = EntryPolicyConfig::for_timeframe(15);
+        assert_eq!(cfg_15m.window_bars, 5);  // V5: increased
+        assert_eq!(cfg_15m.max_hold_bars, 14);  // V5: increased
+
+        let cfg_1h = EntryPolicyConfig::for_timeframe(60);
+        assert_eq!(cfg_1h.window_bars, 6);
+        assert_eq!(cfg_1h.max_hold_bars, 12);
+
         let cfg_4h = EntryPolicyConfig::for_timeframe(240);
-        assert_eq!(cfg_4h.window_bars, 4);
-        assert_eq!(cfg_4h.max_hold_bars, 6);
+        assert_eq!(cfg_4h.window_bars, 4);  // V5: increased
+        assert_eq!(cfg_4h.max_hold_bars, 12);  // V5: increased
     }
 
     #[test]

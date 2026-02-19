@@ -33,6 +33,7 @@ use std::collections::HashMap;
 
 use evaluator::SignalEvaluator;
 use types::*;
+#[allow(unused_imports)]
 use entry_policy_labeler::*;
 
 #[tokio::main]
@@ -623,16 +624,17 @@ async fn export_entry_policy_dataset(
     let mut cancel_examples = 0;
 
     // Configuration for simulation (must match your trading logic!)
+    // V4: Unified with EntryPolicyConfig and EntryAgent
     let sim_cfg = SimCfg {
         window_bars: 4,       // Default, will be overridden per TF
-        max_hold_bars: 14,     // Match backtester timeout
-        sl_atr_mult: 0.9,
-        rr1: 1.0,
+        max_hold_bars: 14,    // Match backtester timeout
+        sl_atr_mult: 0.85,    // V4: Reduced from 0.9
+        rr1: 0.8,             // V4: Faster TP1
         rr2: 1.5,
-        rr3: 2.0,
-        tp1_close_pct: 0.70,
-        tp2_close_pct: 0.20,
-        tp3_close_pct: 0.10,
+        rr3: 2.5,             // V4: Extended TP3
+        tp1_close_pct: 0.50,  // V4: Less at TP1
+        tp2_close_pct: 0.30,  // V4: More at TP2
+        tp3_close_pct: 0.20,  // V4: More at TP3
     };
 
     // Fetch ATR series for each result and generate examples

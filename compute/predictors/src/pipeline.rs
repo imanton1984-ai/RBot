@@ -954,8 +954,8 @@ fn build_raw_signals_summary(
     //
     // impulse_phase: 0.0=EARLY, 0.33=MID, 0.66=LATE, 1.0=EXHAUSTION
     let stoch_k = indicators.stoch_k as f64;
-    let cci = indicators.cci as f64;
-    
+    let _cci = indicators.cci as f64;  // Reserved for future use in phase classification
+
     let impulse_phase: f64 = if dominant_side > 0 {
         // LONG: measure how far into the bullish move we are
         if rsi < 55.0 && macd_hist > 0.0 && stoch_k < 60.0 {

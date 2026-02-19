@@ -81,15 +81,14 @@ pub struct EntryAgentConfig {
 impl Default for EntryAgentConfig {
     fn default() -> Self {
         Self {
-            // V3: Максимально строгие пороги — реже входить, но точнее
-            // Цель: отсечь ~40-50% слабых входов, оставить только высокую уверенность
+            // V5: DRACONIAN thresholds based on V4.1 backtest failure analysis
+            // Problem: V4.1 filtered too little (97% entry on 4h!) → massive losses
+            // Solution: Much higher base thresholds + dynamic RR/quality adjustments
             //
-            // enter_threshold: 0.50 → 0.65 (только при ВЫСОКОЙ уверенности модели)
-            // cancel_threshold: 0.50 → 0.42 (cancel ещё агрессивнее — отсекаем больше)
-            // min_margin: 0.10 → 0.25 (разрыв между enter и cancel минимум 25%)
-            enter_threshold: 0.65,
-            cancel_threshold: 0.42,
-            min_margin: 0.25,
+            // Base thresholds (overridden per TF via get_*_for_tf methods):
+            enter_threshold: 0.65,   // Base (TF-specific: 0.55-0.75)
+            cancel_threshold: 0.45,  // Aggressive cancel
+            min_margin: 0.20,        // Require clear signal
             default_window_bars: 4,
         }
     }
@@ -216,31 +215,151 @@ impl EntryAgent {
         &self.config
     }
 
-    /// Get window size for a given timeframe (matches backtester labeling)
+    /// Get window size for a given timeframe (matches EntryPolicyConfig::for_timeframe)
     ///
-    /// V2: Уменьшены окна для 5m/15m чтобы входить раньше и не ждать слишком долго.
-    /// Проблема: при window=10 на 5m агент ждёт до 50 мин, входит поздно и ловит стоп.
-    /// Решение: 5m → 6 баров (30 мин), 15m → 5 баров (75 мин) — enter early or cancel.
+    /// V5: Optimized based on V4.1 backtest failure analysis
+    /// 
+    /// Key insight: V4.1 allowed 97% entry on 4h → catastrophic losses
+    /// Solution: Longer windows for confirmation on high TFs
     pub fn get_window_bars_for_tf(tf_minutes: i32) -> usize {
         match tf_minutes {
-            1 => 4,    // 5 minutes (was 12→8 — максимально ранний вход или cancel)
-            5 => 3,    // 20 minutes (was 10→6 — вход в первые 4 бара или cancel)
-            15 => 3,   // 45 minutes (was 8→5 — 3 бара макс, не ждём дольше)
-            60 => 4,   // 4 hours (was 6→5)
-            240 => 3,  // 12 hours (was 4)
+            1 => 4,    // 4 min (scalping, quick decision)
+            5 => 4,    // 20 min (early entry)
+            15 => 5,   // V5: 75 min (was 4) — more time for confirmation
+            60 => 6,   // 6 hours (confirmation needed)
+            240 => 4,  // V5: 16 hours (was 3) — more patience on 4h
             _ => 4,    // default
         }
     }
 
-    /// Get max hold bars for a given timeframe
+    /// Get max hold bars for a given timeframe (matches EntryPolicyConfig::for_timeframe)
+    ///
+    /// V5: Extended for TP3 capture on high TFs
     pub fn get_max_hold_bars_for_tf(tf_minutes: i32) -> usize {
         match tf_minutes {
-            1 => 12,
-            5 => 12,
-            15 => 10,
-            60 => 10,
-            240 => 6,
-            _ => 8,
+            1 => 12,   // V5: 12 min (was 14) — cut losses faster
+            5 => 14,   // V5: 70 min (was 16) — balance
+            15 => 14,  // V5: 210 min (was 12) — catch TP3
+            60 => 12,  // V5: 12 hours (was 10) — more time
+            240 => 12, // V5: 48 hours (was 10) — catch full moves
+            _ => 12,   // default
+        }
+    }
+
+    /// Get timeframe-specific enter threshold
+    /// V5: DRACONIAN filtering based on V4.1 backtest disaster
+    /// 
+    /// V4.1 Problem: 4h entered 97% of signals → -0.11% PnL
+    /// V5 Solution: Much higher thresholds, especially on 4h/15m
+    pub fn get_enter_threshold_for_tf(tf_minutes: i32) -> f32 {
+        match tf_minutes {
+            1 => 0.52,   // V5: Reduced from 0.56 — 1m needs early entry
+            5 => 0.58,   // V5: Increased from 0.57 — more selective
+            15 => 0.68,  // V5: DRACONIAN! Was 0.55 → filter 60%+ signals
+            60 => 0.70,  // V5: Increased from 0.68 — proven working
+            240 => 0.78, // V5: EXTREME! Was 0.65 → filter 70%+ signals
+            _ => 0.62,
+        }
+    }
+
+    /// Get timeframe-specific cancel threshold
+    /// V5: More aggressive cancel on problematic TFs
+    pub fn get_cancel_threshold_for_tf(tf_minutes: i32) -> f32 {
+        match tf_minutes {
+            1 => 0.32,   // V5: Reduced from 0.38 — cancel weak scalps fast
+            5 => 0.36,   // V5: Reduced from 0.40 — earlier cancel
+            15 => 0.44,  // V5: Increased from 0.40 — hold quality setups
+            60 => 0.48,  // V5: Increased from 0.46 — proven working
+            240 => 0.52, // V5: Increased from 0.45 — cancel weak 4h
+            _ => 0.42,
+        }
+    }
+
+    /// Get timeframe-specific min margin
+    /// V5: Require clear signal, especially on high TFs
+    pub fn get_min_margin_for_tf(tf_minutes: i32) -> f32 {
+        match tf_minutes {
+            1 => 0.10,   // V5: Reduced from 0.15 — accept smaller margin for scalps
+            5 => 0.12,   // V5: Reduced from 0.16 — earlier entry
+            15 => 0.20,  // V5: Increased from 0.16 — require clarity
+            60 => 0.24,  // V5: Unchanged — proven working
+            240 => 0.30, // V5: Increased from 0.25 — extreme clarity needed
+            _ => 0.18,
+        }
+    }
+
+    /// Get timeframe-specific sl_atr_mult
+    /// V5: Tighter on low TFs, wider on high TFs
+    pub fn get_sl_atr_mult_for_tf(tf_minutes: i32) -> f64 {
+        match tf_minutes {
+            1 => 0.65,   // V5: Reduced from 0.70 — very tight for scalps
+            5 => 0.70,   // V5: Reduced from 0.75 — tighter
+            15 => 0.80,  // V5: Unchanged — working
+            60 => 0.90,  // V5: Unchanged — working
+            240 => 1.00, // V5: Increased from 0.95 — wider for volatile 4h
+            _ => 0.80,
+        }
+    }
+
+    /// V5: DYNAMIC threshold adjustment based on risk_reward
+    /// Call this to get final threshold after RR adjustment
+    ///
+    /// Training insight: risk_reward = 42.5% gain (MOST IMPORTANT!)
+    pub fn adjust_threshold_for_rr(base_threshold: f32, risk_reward: f64) -> f32 {
+        let adjustment = if risk_reward >= 3.0 {
+            -0.12  // Excellent RR → much earlier entry
+        } else if risk_reward >= 2.0 {
+            -0.08  // Good RR → earlier entry
+        } else if risk_reward >= 1.5 {
+            -0.04  // Decent RR → slightly earlier
+        } else if risk_reward < 0.8 {
+            0.10  // Terrible RR → reject
+        } else if risk_reward < 1.0 {
+            0.05  // Poor RR → more selective
+        } else {
+            0.0
+        };
+        (base_threshold + adjustment).clamp(0.35, 0.85)
+    }
+
+    /// V5: DYNAMIC threshold adjustment based on quality_grade
+    /// Call this to get final threshold after quality adjustment
+    ///
+    /// Training insight: quality_grade = 13-32% gain on 15m/4h
+    pub fn adjust_threshold_for_quality(base_threshold: f32, quality_grade: f64) -> f32 {
+        let adjustment = if quality_grade >= 9.0 {
+            -0.10  // Excellent quality → earlier entry
+        } else if quality_grade >= 7.0 {
+            -0.05  // Good quality → slightly earlier
+        } else if quality_grade <= 3.0 {
+            0.08  // Terrible quality → reject
+        } else if quality_grade <= 5.0 {
+            0.04  // Poor quality → more selective
+        } else {
+            0.0
+        };
+        (base_threshold + adjustment).clamp(0.35, 0.85)
+    }
+
+    /// V5: Combined dynamic adjustment (RR + quality)
+    pub fn get_dynamic_enter_threshold(tf_minutes: i32, risk_reward: f64, quality_grade: f64) -> f32 {
+        let base = Self::get_enter_threshold_for_tf(tf_minutes);
+        let rr_adjusted = Self::adjust_threshold_for_rr(base, risk_reward);
+        Self::adjust_threshold_for_quality(rr_adjusted, quality_grade)
+    }
+
+    /// V5: Dynamic cancel threshold adjustment based on price movement
+    /// Training insight: price10_score critical for 1h/4h cancel decisions
+    pub fn adjust_cancel_threshold_for_price(
+        base_threshold: f32,
+        tf_minutes: i32,
+        price10_score: f32,
+    ) -> f32 {
+        if tf_minutes >= 60 && price10_score < 0.25 {
+            // No price movement on high TF → cancel aggressively
+            (base_threshold - 0.10).clamp(0.25, 0.70)
+        } else {
+            base_threshold
         }
     }
 }
@@ -293,10 +412,68 @@ mod tests {
 
     #[test]
     fn test_window_bars_by_tf() {
-        assert_eq!(EntryAgent::get_window_bars_for_tf(1), 5);
+        // V5: Optimized values
+        assert_eq!(EntryAgent::get_window_bars_for_tf(1), 4);
         assert_eq!(EntryAgent::get_window_bars_for_tf(5), 4);
-        assert_eq!(EntryAgent::get_window_bars_for_tf(15), 3);
-        assert_eq!(EntryAgent::get_window_bars_for_tf(60), 4);
-        assert_eq!(EntryAgent::get_window_bars_for_tf(240), 3);
+        assert_eq!(EntryAgent::get_window_bars_for_tf(15), 5);  // V5: increased
+        assert_eq!(EntryAgent::get_window_bars_for_tf(60), 6);
+        assert_eq!(EntryAgent::get_window_bars_for_tf(240), 4);  // V5: increased
+    }
+
+    #[test]
+    fn test_max_hold_bars_by_tf() {
+        // V5: Extended for TP3
+        assert_eq!(EntryAgent::get_max_hold_bars_for_tf(1), 12);
+        assert_eq!(EntryAgent::get_max_hold_bars_for_tf(5), 14);
+        assert_eq!(EntryAgent::get_max_hold_bars_for_tf(15), 14);  // V5: increased
+        assert_eq!(EntryAgent::get_max_hold_bars_for_tf(60), 12);
+        assert_eq!(EntryAgent::get_max_hold_bars_for_tf(240), 12);  // V5: increased
+    }
+
+    #[test]
+    fn test_thresholds_by_tf() {
+        // V5: DRACONIAN thresholds
+        assert_eq!(EntryAgent::get_enter_threshold_for_tf(1), 0.52);
+        assert_eq!(EntryAgent::get_enter_threshold_for_tf(5), 0.58);
+        assert_eq!(EntryAgent::get_enter_threshold_for_tf(15), 0.68);  // V5: much higher
+        assert_eq!(EntryAgent::get_enter_threshold_for_tf(60), 0.70);
+        assert_eq!(EntryAgent::get_enter_threshold_for_tf(240), 0.78);  // V5: extreme
+
+        assert_eq!(EntryAgent::get_cancel_threshold_for_tf(1), 0.32);
+        assert_eq!(EntryAgent::get_cancel_threshold_for_tf(5), 0.36);
+        assert_eq!(EntryAgent::get_cancel_threshold_for_tf(15), 0.44);
+        assert_eq!(EntryAgent::get_cancel_threshold_for_tf(60), 0.48);
+        assert_eq!(EntryAgent::get_cancel_threshold_for_tf(240), 0.52);  // V5: higher
+
+        assert_eq!(EntryAgent::get_min_margin_for_tf(1), 0.10);
+        assert_eq!(EntryAgent::get_min_margin_for_tf(5), 0.12);
+        assert_eq!(EntryAgent::get_min_margin_for_tf(15), 0.20);
+        assert_eq!(EntryAgent::get_min_margin_for_tf(60), 0.24);
+        assert_eq!(EntryAgent::get_min_margin_for_tf(240), 0.30);  // V5: extreme
+    }
+
+    #[test]
+    fn test_dynamic_threshold_adjustments() {
+        // Test RR adjustment
+        let adjusted = EntryAgent::adjust_threshold_for_rr(0.65, 3.5);
+        assert!((adjusted - 0.53).abs() < 0.01);  // 0.65 - 0.12
+
+        let adjusted = EntryAgent::adjust_threshold_for_rr(0.65, 0.5);
+        assert!((adjusted - 0.75).abs() < 0.01);  // 0.65 + 0.10
+
+        // Test quality adjustment
+        let adjusted = EntryAgent::adjust_threshold_for_quality(0.65, 9.5);
+        assert!((adjusted - 0.55).abs() < 0.01);  // 0.65 - 0.10
+
+        let adjusted = EntryAgent::adjust_threshold_for_quality(0.65, 2.0);
+        assert!((adjusted - 0.73).abs() < 0.01);  // 0.65 + 0.08
+
+        // Test combined
+        let dynamic = EntryAgent::get_dynamic_enter_threshold(240, 2.5, 8.0);
+        assert!(dynamic < 0.78);  // Should be lower than base 0.78
+
+        // Test price adjustment
+        let adjusted = EntryAgent::adjust_cancel_threshold_for_price(0.50, 60, 0.15);
+        assert!((adjusted - 0.40).abs() < 0.01);  // 0.50 - 0.10
     }
 }

@@ -18,6 +18,7 @@ use crate::entry_policy_labeler::*;
 
 /// Entry Agent decision (simplified for backtesting)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum EntryAgentDecision {
     Enter,
     Wait,
@@ -26,6 +27,7 @@ pub enum EntryAgentDecision {
 
 /// Configuration for Entry Agent evaluation
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct EntryAgentEvalConfig {
     /// Use Entry Agent instead of immediate entry
     pub use_entry_agent: bool,
@@ -43,22 +45,25 @@ impl Default for EntryAgentEvalConfig {
     fn default() -> Self {
         Self {
             use_entry_agent: false, // Default to baseline behavior
-            // V3: Синхронизировано с EntryAgentConfig::default()
-            enter_threshold: 0.65,   // was 0.55→0.60
-            cancel_threshold: 0.42,  // was 0.50→0.45
-            min_margin: 0.25,        // was 0.15→0.20
+            // V5: DRACONIAN thresholds (use timeframe-specific via EntryAgent methods)
+            // Based on V4.1 backtest disaster analysis
+            enter_threshold: 0.65,   // V5: Higher base (TF-specific: 0.52-0.78)
+            cancel_threshold: 0.45,  // V5: More aggressive
+            min_margin: 0.20,        // V5: Require clarity
             use_mock_decisions: true, // Mock for now, real models later
         }
     }
 }
 
 /// Evaluator that uses Entry Agent for entry timing
+#[allow(dead_code)]
 pub struct EntryAgentEvaluator {
     pool: PgPool,
     config: EntryAgentEvalConfig,
     timeout_bars: usize,
 }
 
+#[allow(dead_code)]
 impl EntryAgentEvaluator {
     pub fn new(pool: PgPool, timeout_bars: usize, config: EntryAgentEvalConfig) -> Self {
         Self {
@@ -71,12 +76,12 @@ impl EntryAgentEvaluator {
     /// Evaluate a signal using Entry Agent logic
     pub async fn evaluate(&self, signal: &SignalForBacktest) -> Result<Option<BacktestResult>> {
         let entry_price = signal.entry_price.unwrap_or(0.0) as f64;
-        let sl_price = signal.sl_price.unwrap_or(0.0) as f64;
+        let _sl_price = signal.sl_price.unwrap_or(0.0) as f64;  // Reserved for future validation
         let tp1_price = signal.tp1_price.unwrap_or(0.0) as f64;
-        let tp2_price = signal.tp2_price.map(|v| v as f64);
-        let tp3_price = signal.tp3_price.map(|v| v as f64);
+        let _tp2_price = signal.tp2_price.map(|v| v as f64);  // Reserved for future use
+        let _tp3_price = signal.tp3_price.map(|v| v as f64);  // Reserved for future use
 
-        if entry_price <= 0.0 || sl_price <= 0.0 || tp1_price <= 0.0 {
+        if entry_price <= 0.0 || tp1_price <= 0.0 {
             return Ok(None);
         }
 
@@ -145,13 +150,13 @@ impl EntryAgentEvaluator {
             let cfg = SimCfg {
                 window_bars,
                 max_hold_bars,
-                sl_atr_mult: 0.9,
-                rr1: 1.0,
+                sl_atr_mult: 0.85,  // V4: Reduced from 0.9 for tighter stops
+                rr1: 0.8,           // V4: Faster TP1
                 rr2: 1.5,
-                rr3: 2.0,
-                tp1_close_pct: 0.70,
-                tp2_close_pct: 0.20,
-                tp3_close_pct: 0.10,
+                rr3: 2.5,           // V4: Extended TP3
+                tp1_close_pct: 0.50,  // V4: Less at TP1
+                tp2_close_pct: 0.30,  // V4: More at TP2
+                tp3_close_pct: 0.20,  // V4: More at TP3
             };
 
             let label = find_best_entry(signal.side as i8, 0, ohlc_bars, cfg);
@@ -187,12 +192,12 @@ impl EntryAgentEvaluator {
         // For now, just return a basic result
 
         let entry_price = candles[entry_bar_idx].close;
-        let is_long = signal.side > 0;
+        let _is_long = signal.side > 0;  // Reserved for future evaluation logic
 
         // Simple evaluation (placeholder - would use full SignalEvaluator logic)
-        let mut outcome = Outcome::Expired { last_price: entry_price };
-        let mut pnl_pct = 0.0;
-        let mut bars_used = 0;
+        let outcome = Outcome::Expired { last_price: entry_price };
+        let pnl_pct = 0.0;
+        let bars_used = 0;
 
         // ... (evaluation logic similar to SignalEvaluator)
 
@@ -306,6 +311,7 @@ impl EntryAgentEvaluator {
 }
 
 /// Compare baseline vs Entry Agent evaluation
+#[allow(dead_code)]
 pub async fn run_comparison_evaluation(
     pool: &PgPool,
     signals: &[SignalForBacktest],
@@ -345,6 +351,7 @@ pub async fn run_comparison_evaluation(
 
 /// Comparison results summary
 #[derive(Clone, Debug, Default)]
+#[allow(dead_code)]
 pub struct ComparisonResults {
     pub total_signals: usize,
     pub entered_trades: usize,
@@ -358,6 +365,7 @@ pub struct ComparisonResults {
     pub win_rate: f64,
 }
 
+#[allow(dead_code)]
 fn compare_results(results: &[BacktestResult]) -> ComparisonResults {
     let mut stats = ComparisonResults::default();
 

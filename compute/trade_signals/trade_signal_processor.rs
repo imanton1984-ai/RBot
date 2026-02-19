@@ -99,10 +99,12 @@ impl TradeSignalStage {
         
         if enter_ok && cancel_ok && mm.has_model("entry_enter_tf1") && mm.has_model("entry_cancel_tf1") {
             tracing::info!(target: "trade_signal_stage", "Entry Agent models loaded — will annotate signals with entry timing");
+            // V5: DRACONIAN base config — dynamic thresholds applied per TF via get_*_for_tf()
+            // Plus dynamic adjustments for risk_reward and quality_grade
             let config = EntryAgentConfig {
-                enter_threshold: 0.55,
-                cancel_threshold: 0.42,
-                min_margin: 0.15,
+                enter_threshold: 0.65,   // V5: Higher base (TF-specific: 0.52-0.78)
+                cancel_threshold: 0.45,  // V5: More aggressive
+                min_margin: 0.20,        // V5: Require clarity
                 default_window_bars: 4,
             };
             (Some(EntryAgent::new(config)), Some(mm))

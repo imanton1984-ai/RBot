@@ -1,0 +1,117 @@
+╔══════════════════════════════════════════════════════════════╗
+║         SUPER ENTRY STRATEGY BACKTESTER                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+  Config:
+    P threshold:    0.55
+    Warmup bars:    300
+    Lookahead:      20
+    SL fraction:    0.5
+    GPU:            false
+
+    TF     1m:  TP=1.00%  SL=0.50%
+    TF     5m:  TP=1.75%  SL=0.88%
+    TF    15m:  TP=2.75%  SL=1.38%
+    TF    60m:  TP=3.75%  SL=1.88%
+    TF   240m:  TP=4.75%  SL=2.38%
+    TF  1440m:  TP=5.75%  SL=2.88%
+
+[2m2026-02-19T14:46:11.499318Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Unknown model_type 'super_entry', defaulting to Regressor1
+[2m2026-02-19T14:46:11.502083Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf1.json: missing field `schema_id` at line 1 column 561037
+[2m2026-02-19T14:46:11.521715Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf5.json: missing field `schema_id` at line 1 column 918967
+[2m2026-02-19T14:46:11.533199Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf15.json: missing field `schema_id` at line 1 column 734663
+[2m2026-02-19T14:46:11.548707Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf60.json: missing field `schema_id` at line 1 column 2227933
+[2m2026-02-19T14:46:11.567249Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf240.json: missing field `schema_id` at line 1 column 1734538
+[2m2026-02-19T14:46:11.576110Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf1440.json: missing field `schema_id` at line 1 column 164695
+[2m2026-02-19T14:46:11.586196Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Unknown model_type 'super_dir', defaulting to Regressor1
+[2m2026-02-19T14:46:11.588231Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf1.json: missing field `schema_id` at line 1 column 432132
+[2m2026-02-19T14:46:11.595816Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf5.json: missing field `schema_id` at line 1 column 552415
+[2m2026-02-19T14:46:11.608604Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf15.json: missing field `schema_id` at line 1 column 484808
+[2m2026-02-19T14:46:11.619044Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf60.json: missing field `schema_id` at line 1 column 894474
+[2m2026-02-19T14:46:11.628937Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf240.json: missing field `schema_id` at line 1 column 1077970
+[2m2026-02-19T14:46:11.635501Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf1440.json: missing field `schema_id` at line 1 column 521312
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    SUPER ENTRY BACKTEST RESULTS                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+TF      Trades   Wins   Loss   Exprd  WinRate   AvgPnL%   Sharpe   Cover%
+---------------------------------------------------------------------------
+1m        6230   3043   2473     714    48.8%   0.3260%    0.458    6.69%
+5m       11631   5756   4815    1060    49.5%   0.5470%    0.435   12.49%
+15m       8658   4562   3533     563    52.7%   0.9358%    0.470    9.33%
+1h       32137  18819  12814     504    58.6%   1.4661%    0.534   35.54%
+4h       40660  19505  20896     259    48.0%   1.0617%    0.299   49.61%
+1d       20957   8187  12700      70    39.1%   0.5055%    0.120   46.18%
+---------------------------------------------------------------------------
+TOTAL   120273  59872  57231    3170    49.8%   0.9759%
+
+======== P(SUPER) BUCKET ANALYSIS (calibration helper) ========
+TF      0.55-0.60  0.60-0.70  0.70-0.80  0.80-0.90      0.90+
+1m      31%(381)   41%(671)   49%(655)  55%(1049)  50%(3474) 
+5m      44%(967)  47%(1969)  53%(2216)  53%(1748)  49%(4731) 
+15m     52%(706)  58%(1440)  62%(1277)  58%(1299)  46%(3936) 
+1h     62%(1642)  67%(4130)  66%(4820)  64%(6188)  52%(15357) 
+4h     53%(1403)  55%(3611)  53%(4802)  52%(7580)  44%(23264) 
+1d       56%(71)   43%(203)   52%(302)   52%(777)  38%(19604) 
+
+======== DIRECTION BREAKDOWN ========
+TF         LONG    SHORT    LongWR%   ShortWR%   LongPnL%  ShortPnL%
+1m         4169     2061      48.2%      50.1%    0.3179%    0.3424%
+5m         7445     4186      47.9%      52.4%    0.4976%    0.6349%
+15m        3523     5135      53.9%      51.9%    0.9978%    0.8933%
+1h        18234    13903      52.1%      67.1%    1.0808%    1.9715%
+4h        18545    22115      41.8%      53.1%    0.6231%    1.4294%
+1d         9256    11701      36.3%      41.3%    0.2666%    0.6944%
+
+======== AVG BARS TO OUTCOME ========
+TF     AvgWinBars AvgLossBars AvgExpBars
+1m            7.3         4.3       18.9
+5m            7.3         4.1       19.3
+15m           6.9         3.6       18.7
+1h            6.3         3.0       16.5
+4h            4.6         2.5        8.1
+1d            1.9         1.4        0.5
+
+======== TOP 5 SYMBOLS BY PNL (per TF) ========
+  1m — top 5:
+    ESPUSDT      PnL:  +136.61%  trades:  442  WR:  53.4%
+    RAVEUSDT     PnL:  +116.11%  trades:  318  WR:  49.4%
+    PIPPINUSDT   PnL:  +114.11%  trades:  249  WR:  59.0%
+    DYDXUSDT     PnL:  +107.12%  trades:  225  WR:  42.2%
+    BEATUSDT     PnL:  +103.78%  trades:  300  WR:  52.7%
+  5m — top 5:
+    MYXUSDT      PnL:  +267.75%  trades:  321  WR:  65.1%
+    RIVERUSDT    PnL:  +259.42%  trades:  560  WR:  50.4%
+    OPUSDT       PnL:  +211.75%  trades:  189  WR:  70.9%
+    RPLUSDT      PnL:  +199.98%  trades:  300  WR:  56.0%
+    BANUSDT      PnL:  +152.22%  trades:  155  WR:  63.2%
+  15m — top 5:
+    RIVERUSDT    PnL:  +302.68%  trades:  425  WR:  50.4%
+    TRUTHUSDT    PnL:  +282.15%  trades:  251  WR:  56.2%
+    GPSUSDT      PnL:  +276.24%  trades:  180  WR:  67.2%
+    MYXUSDT      PnL:  +274.08%  trades:  436  WR:  48.2%
+    KITEUSDT     PnL:  +272.00%  trades:  185  WR:  64.3%
+  1h — top 5:
+    NEIROUSDT    PnL:  +819.77%  trades:  369  WR:  72.4%
+    FARTCOINUSDT PnL:  +738.38%  trades:  336  WR:  71.7%
+    DYDXUSDT     PnL:  +729.51%  trades:  280  WR:  78.2%
+    GALAUSDT     PnL:  +708.75%  trades:  267  WR:  80.5%
+    ENAUSDT      PnL:  +671.70%  trades:  256  WR:  76.2%
+  4h — top 5:
+    1000SHIBUSDT PnL:  +825.63%  trades:  319  WR:  69.3%
+    ADAUSDT      PnL:  +816.43%  trades:  391  WR:  62.4%
+    DOTUSDT      PnL:  +775.88%  trades:  404  WR:  60.1%
+    DOGEUSDT     PnL:  +745.09%  trades:  347  WR:  63.4%
+    ALGOUSDT     PnL:  +712.50%  trades:  333  WR:  63.4%
+  1d — top 5:
+    XMRUSDT      PnL:  +462.88%  trades:  289  WR:  51.9%
+    SNXUSDT      PnL:  +405.38%  trades:  412  WR:  44.7%
+    DOTUSDT      PnL:  +365.12%  trades:  381  WR:  44.4%
+    ATOMUSDT     PnL:  +362.25%  trades:  433  WR:  43.0%
+    ZILUSDT      PnL:  +342.12%  trades:  373  WR:  44.0%
+
+Backtest results exported to: super_entry_backtest_results.csv
+╔══════════════════════════════════════════════════════════════╗
+║         BACKTEST COMPLETE                                    ║
+╚══════════════════════════════════════════════════════════════╝

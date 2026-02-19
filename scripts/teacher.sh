@@ -49,6 +49,7 @@ USE_GPU=""
 SKIP_DB=false
 SKIP_QUALITY=false
 SKIP_ENTRY=false
+SKIP_SUPER_ENTRY=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -68,9 +69,13 @@ while [[ $# -gt 0 ]]; do
             SKIP_ENTRY=true
             shift
             ;;
+        --skip-super-entry)
+            SKIP_SUPER_ENTRY=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--gpu] [--skip-db] [--skip-quality] [--skip-entry]"
+            echo "Usage: $0 [--gpu] [--skip-db] [--skip-quality] [--skip-entry] [--skip-super-entry]"
             exit 1
             ;;
     esac
@@ -229,6 +234,60 @@ else
 fi
 
 echo ""
+echo "----------------------------------------------"
+echo ""
+
+# ============================================
+# 4. Train Super Entry Models
+# ============================================
+SUPER_ENTRY_SUCCESS=false
+if [ "$SKIP_SUPER_ENTRY" = false ]; then
+    echo "=============================================="
+    echo "[teacher] === Super Entry Models ==="
+    echo "=============================================="
+    
+    SUPER_CSV="${ROOT_DIR}/super_entry_dataset.csv"
+    
+    if [ ! -f "${SUPER_CSV}" ]; then
+        echo "[teacher] WARNING: ${SUPER_CSV} not found!"
+        echo "[teacher] Building dataset first..."
+        
+        # Build dataset from DB
+        if cargo build --release -p ml_entry_strategy --bin super_entry_dataset 2>&1 | tail -3; then
+            if ./target/release/super_entry_dataset 2>&1 | tail -10; then
+                echo "[teacher] Dataset built successfully"
+            else
+                echo "[teacher] Dataset build failed, skipping super entry training"
+            fi
+        fi
+    fi
+    
+    if [ -f "${SUPER_CSV}" ]; then
+        echo "[teacher] Training super entry models..."
+        echo "[teacher] Input: ${SUPER_CSV}"
+        echo "[teacher] Output: ${MODELS_DIR}/super_entry_v1_tf*.ubj"
+        echo "[teacher]        ${MODELS_DIR}/super_dir_v1_tf*.ubj"
+        echo ""
+        
+        if python "${ROOT_DIR}/trainer/src/train_super_entry.py" \
+            --csv "${SUPER_CSV}" \
+            --output-dir "${MODELS_DIR}" \
+            ${USE_GPU}; then
+            echo ""
+            echo "[teacher] ✅ Super entry models training completed!"
+            SUPER_ENTRY_SUCCESS=true
+        else
+            echo ""
+            echo "[teacher] ❌ Super entry models training failed!"
+        fi
+    else
+        echo "[teacher] Skipping super entry training (no dataset)"
+    fi
+else
+    echo "[teacher] Skipping super entry models training (--skip-super-entry)"
+fi
+
+echo ""
 echo "=============================================="
 echo "[teacher] Training pipeline finished!"
 echo "=============================================="
@@ -259,6 +318,15 @@ if [ "$SKIP_ENTRY" = false ]; then
         echo "                   models/entry_cancel_v1_tf*.ubj"
     else
         echo "  ❌ Entry Policy: FAILED or SKIPPED"
+    fi
+fi
+
+if [ "$SKIP_SUPER_ENTRY" = false ]; then
+    if [ "$SUPER_ENTRY_SUCCESS" = true ]; then
+        echo "  ✅ Super Entry: models/super_entry_v1_tf*.ubj"
+        echo "                  models/super_dir_v1_tf*.ubj"
+    else
+        echo "  ❌ Super Entry: FAILED or SKIPPED"
     fi
 fi
 

@@ -27,8 +27,36 @@ exec > >(tee -a "$START_LOG") 2>&1
 
 section "START (GPU MODE)"
 
-log "ROOT: ${C_BOLD}$ROOT_DIR${C_RESET}"
-log "LOG : ${C_BOLD}$START_LOG${C_RESET}"
+# Parse strategy flags
+STRATEGY="${STRATEGY:-default}"
+RUN_SUPER_ENTRY=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --strategy=*)
+            STRATEGY="${1#*=}"
+            shift
+            ;;
+        --super-entry)
+            RUN_SUPER_ENTRY=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Export strategy for downstream scripts
+export ACTIVE_STRATEGY="$STRATEGY"
+export SUPER_ENTRY_ENABLED="$RUN_SUPER_ENTRY"
+
+log "ROOT:     ${C_BOLD}$ROOT_DIR${C_RESET}"
+log "LOG :     ${C_BOLD}$START_LOG${C_RESET}"
+log "STRATEGY: ${C_BOLD}$STRATEGY${C_RESET}"
+if [ "$RUN_SUPER_ENTRY" = true ]; then
+    log "SUPER ENTRY: ${C_GREEN}ENABLED${C_RESET}"
+fi
 
 # 1. System Check
 ./scripts/sys_check_gpu.sh
@@ -48,4 +76,14 @@ log "LOG : ${C_BOLD}$START_LOG${C_RESET}"
 # 6. Run Services
 ./scripts/run.sh "release" "gpu"
 
+# 7. Super Entry Strategy (if enabled)
+if [ "$RUN_SUPER_ENTRY" = true ]; then
+    section "SUPER ENTRY STRATEGY"
+    log "Running Super Entry pipeline (dataset → train → backtest)..."
+    ./scripts/super_entry.sh --gpu 2>&1 | tee -a "$START_LOG"
+    ok "Super Entry Strategy complete"
+fi
+
 echo -e "\n\033[1;32mGPU BOT STARTED SUCCESSFULLY\033[0m"
+echo -e "Active strategy: $STRATEGY"
+[ "$RUN_SUPER_ENTRY" = true ] && echo -e "Super Entry: \033[1;32mENABLED\033[0m"

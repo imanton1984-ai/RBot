@@ -1,0 +1,10 @@
+[2m2026-02-19T14:11:45.350196Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m === Super Entry Dataset Builder ===
+[2m2026-02-19T14:11:45.350205Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Warmup bars: 300
+[2m2026-02-19T14:11:45.350206Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Lookahead: 20
+[2m2026-02-19T14:11:45.350208Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Output: super_entry_dataset.csv
+[2m2026-02-19T14:11:45.358875Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Found 133 active symbols
+[2m2026-02-19T14:11:45.358882Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 1m (target_move=1%)
+Error: error occurred while decoding column "rsi": mismatched types; Rust type `f64` (as SQL type `FLOAT8`) is not compatible with SQL type `FLOAT4`
+
+Caused by:
+    mismatched types; Rust type `f64` (as SQL type `FLOAT8`) is not compatible with SQL type `FLOAT4`

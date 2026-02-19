@@ -3,7 +3,7 @@
 timeframes = ["1m","5m","15m","1h","4h","1d"]
 
 # Сколько свечей на backfill для каждого TF
-backfill_candles = 500
+backfill_candles = 1000
 
 # Реалтайм стратегия:
 # Важно: WS лимит 1024 streams. 250 пар * 6 TF = 1500 стримов — не влезет.
@@ -28,4 +28,4 @@ intra_update_sampling_ms = 200
 # HTTP concurrency for API requests (higher = more parallel requests)
 # Note: Binance Futures allows 2400 weight/min. With 50 concurrent requests,
 # the rate limiter still controls actual throughput. Safe to go to 50-80.
-http_concurrency = 60
+http_concurrency = 70

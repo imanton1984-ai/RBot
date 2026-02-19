@@ -49,15 +49,17 @@ pub struct SimCfg {
 impl Default for SimCfg {
     fn default() -> Self {
         Self {
+            // V4: Unified with EntryPolicyConfig and EntryAgent
+            // Goal: Early entry, extended hold, tighter stops, better RR
             window_bars: 4,
             max_hold_bars: 14,
-            sl_atr_mult: 0.9,
-            rr1: 1.0,
+            sl_atr_mult: 0.85,  // Reduced from 0.9 for tighter stops
+            rr1: 0.8,           // Faster TP1 hit (was 1.0)
             rr2: 1.5,
-            rr3: 2.0,
-            tp1_close_pct: 0.70,
-            tp2_close_pct: 0.20,
-            tp3_close_pct: 0.10,
+            rr3: 2.5,           // Extended TP3 for full move capture (was 2.0)
+            tp1_close_pct: 0.50,  // Close less at TP1 (was 0.70)
+            tp2_close_pct: 0.30,  // More at TP2 (was 0.20)
+            tp3_close_pct: 0.20,  // More at TP3 (was 0.10)
         }
     }
 }
@@ -315,28 +317,30 @@ where
     examples
 }
 
-/// Get window size for a given timeframe (optimized for each TF)
+/// Get window size for a given timeframe (matches EntryAgent::get_window_bars_for_tf)
+/// V5: UNIFIED — training/inference must match exactly!
+/// V5: DRACONIAN filtering based on V4.1 backtest failure
 pub fn get_window_bars_for_tf(tf_minutes: i16) -> usize {
     match tf_minutes {
-        1 => 3,   // 12 minutes of opportunities
-        5 => 2,   // 50 minutes
-        15 => 2,   // 2 hours
-        60 => 2,   // 6 hours
-        240 => 2,  // 16 hours
-        _ => 8,    // default
+        1 => 4,    // V5: 4 min (fast scalping)
+        5 => 4,    // 20 min (early entry)
+        15 => 5,   // V5: 75 min (more confirmation)
+        60 => 6,   // 6 hour (confirmation needed)
+        240 => 4,  // V5: 16 hour (more patience on 4h)
+        _ => 4,    // default
     }
 }
 
-/// Get max hold bars for a given timeframe
+/// Get max hold bars for a given timeframe (matches EntryAgent::get_max_hold_bars_for_tf)
+/// V5: Extended holding periods to catch full moves (TP2/TP3)
 pub fn get_max_hold_bars_for_tf(tf_minutes: i16) -> usize {
-    // Typically 11-12 bars for consistency with backtester
     match tf_minutes {
-        1 => 13,
-        5 => 13,
-        15 => 13,
-        60 => 13,
-        240 => 6,
-        _ => 10,
+        1 => 12,   // V5: 12 min (cut losses faster)
+        5 => 14,   // V5: 70 min (balanced)
+        15 => 14,  // V5: 210 min (catch TP3)
+        60 => 12,  // V5: 12 hour (more time)
+        240 => 12, // V5: 48 hour (catch full moves)
+        _ => 12,   // default
     }
 }
 
@@ -355,13 +359,13 @@ mod tests {
         let cfg = SimCfg {
             window_bars: 2,
             max_hold_bars: 2,
-            sl_atr_mult: 0.9,
-            rr1: 1.0,
+            sl_atr_mult: 0.85,  // V4: Updated
+            rr1: 0.8,           // V4: Faster TP1
             rr2: 1.5,
-            rr3: 2.0,
-            tp1_close_pct: 0.70,
-            tp2_close_pct: 0.20,
-            tp3_close_pct: 0.10,
+            rr3: 2.5,
+            tp1_close_pct: 0.50,  // V4: Less at TP1
+            tp2_close_pct: 0.30,  // V4: More at TP2
+            tp3_close_pct: 0.20,  // V4: More at TP3
         };
 
         // Long entry at bar 0, TP1 at 102 (101 + 1*2)

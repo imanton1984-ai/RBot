@@ -23,9 +23,11 @@ use crate::entry_policy_labeler::*;
 /// Small buffer for breakeven trailing SL (0.1% inside profit)
 const BREAKEVEN_BUFFER: f64 = 0.001;
 
-/// Position close fractions for partial take-profit (must match evaluator.rs!)
-const TP1_CLOSE_PCT: f64 = 0.70;
-const TP2_CLOSE_PCT: f64 = 0.20;
+/// Position close fractions for partial take-profit (V4: Updated for better RR)
+/// Close less at TP1, more at TP2/TP3 to capture full moves
+const TP1_CLOSE_PCT: f64 = 0.50;  // V4: Reduced from 0.70
+const TP2_CLOSE_PCT: f64 = 0.30;  // V4: Increased from 0.20
+// TP3_CLOSE_PCT = 1.0 - TP1 - TP2 = 0.20 (V4: Increased from 0.10)
 
 /// Calculate PnL percentage from entry to exit
 #[inline]
@@ -112,13 +114,14 @@ impl RealEntryAgentEvaluator {
             tracing::warn!("Failed to load entry_cancel models: {}", e);
         }
         
-        // Configure entry agent — V3: максимально строгие пороги
-        // Синхронизированы с EntryAgentConfig::default()
+        // Configure entry agent — V5: DRACONIAN filtering
+        // Based on V4.1 backtest disaster analysis (4h entered 97% → catastrophic loss)
+        // Dynamic thresholds applied per TF via get_*_for_tf() + RR/quality adjustments
         let config = EntryAgentConfig {
-            enter_threshold: 0.65,   // was 0.55→0.60 → ONLY high confidence entries
-            cancel_threshold: 0.41,  // was 0.50→0.45 → cancel more aggressively
-            min_margin: 0.25,        // was 0.15→0.20 → require 25%+ gap
-            default_window_bars: 4,  // was 10→8 → decide quickly
+            enter_threshold: 0.65,   // V5: Higher base (TF-specific: 0.52-0.78)
+            cancel_threshold: 0.45,  // V5: More aggressive cancel
+            min_margin: 0.20,        // V5: Require clarity
+            default_window_bars: 4,  // V5: Quick decisions
         };
         
         let agent = EntryAgent::new(config);
@@ -213,13 +216,13 @@ impl RealEntryAgentEvaluator {
         let cfg = SimCfg {
             window_bars,
             max_hold_bars,
-            sl_atr_mult: 0.9,
-            rr1: 1.0,
+            sl_atr_mult: 0.85,  // V4: Reduced from 0.9
+            rr1: 0.8,           // V4: Faster TP1
             rr2: 1.5,
-            rr3: 2.0,
-            tp1_close_pct: 0.70,
-            tp2_close_pct: 0.20,
-            tp3_close_pct: 0.10,
+            rr3: 2.5,           // V4: Extended TP3
+            tp1_close_pct: 0.50,  // V4: Less at TP1
+            tp2_close_pct: 0.30,  // V4: More at TP2
+            tp3_close_pct: 0.20,  // V4: More at TP3
         };
         
         let label = find_best_entry(signal.side as i8, 0, &ohlc_bars, cfg);
@@ -312,12 +315,12 @@ impl RealEntryAgentEvaluator {
         
         for i in entry_bar_idx..max_bars {
             bars_used = i - entry_bar_idx + 1;
-            
+
             let candle_high = candles[i].high;
             let candle_low = candles[i].low;
             let candle_open = candles[i].open;
-            let candle_close = candles[i].close;
-            
+            let _candle_close = candles[i].close;  // Reserved for future analysis
+
             // Track MFE/MAE
             let favorable = if is_long {
                 (candle_high - entry_price) / entry_price
@@ -823,6 +826,7 @@ enum EntryBarResult {
 
 /// Candle with indicators for feature extraction
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CandleWithIndicators {
     pub time: chrono::DateTime<chrono::Utc>,
     pub open: f64,
@@ -835,6 +839,7 @@ pub struct CandleWithIndicators {
 
 /// Trade result from Entry Agent evaluation
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct EntryAgentTradeResult {
     pub signal_time: chrono::DateTime<chrono::Utc>,
     pub signal_time_ms: i64,

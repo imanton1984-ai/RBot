@@ -233,6 +233,15 @@ while read -r pid cmd; do
   kill -TERM "$pid" 2>/dev/null || true
 done < <(pgrep -f "compute.*predictor" -l || true)
 
+# Also stop any super_entry strategy processes (dataset builder, backtester)
+echo "Looking for super_entry strategy processes..."
+while read -r pid cmd; do
+  [[ -z "$pid" ]] && continue
+  [[ "$pid" =~ ^[0-9]+$ ]] || continue
+  echo "TERM super_entry: pid=$pid cmd=$cmd"
+  kill -TERM "$pid" 2>/dev/null || true
+done < <(pgrep -f "super_entry" -l || true)
+
 sleep 2
 
 # Force kill if still running

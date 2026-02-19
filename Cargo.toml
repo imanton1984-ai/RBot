@@ -10,6 +10,7 @@ members = [
   "compute/predictors", # <-- модуль предсказаний
   "orderflow",        # <-- модуль order flow метрик
   "backtester",       # <-- бэктестер для оценки сигналов
+  "strategies/ml_entry_strategy", # <-- ML Entry Strategy (Super Entry)
 ]
 resolver = "2"
 

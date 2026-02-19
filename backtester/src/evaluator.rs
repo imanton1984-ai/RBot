@@ -20,10 +20,11 @@ use crate::types::*;
 /// Small buffer for breakeven trailing SL (0.1% inside profit)
 const BREAKEVEN_BUFFER: f64 = 0.001;
 
-/// Position close fractions for partial take-profit
-const TP1_CLOSE_PCT: f64 = 0.70; // Close 70% at TP1
-const TP2_CLOSE_PCT: f64 = 0.20; // Close 20% at TP2
-// TP3 closes whatever remains (should be 0.10)
+/// Position close fractions for partial take-profit (V4: Updated for better RR)
+/// Close less at TP1, more at TP2/TP3 to capture full moves
+const TP1_CLOSE_PCT: f64 = 0.50;  // V4: Reduced from 0.70
+const TP2_CLOSE_PCT: f64 = 0.30;  // V4: Increased from 0.20
+// TP3_CLOSE_PCT = 1.0 - TP1 - TP2 = 0.20 (V4: Increased from 0.10)
 
 /// Calculate PnL percentage from entry to exit
 #[inline]
