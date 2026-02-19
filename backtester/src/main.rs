@@ -624,15 +624,15 @@ async fn export_entry_policy_dataset(
 
     // Configuration for simulation (must match your trading logic!)
     let sim_cfg = SimCfg {
-        window_bars: 10,       // Default, will be overridden per TF
-        max_hold_bars: 12,     // Match backtester timeout
-        sl_atr_mult: 1.0,
+        window_bars: 4,       // Default, will be overridden per TF
+        max_hold_bars: 14,     // Match backtester timeout
+        sl_atr_mult: 0.9,
         rr1: 1.0,
         rr2: 1.5,
         rr3: 2.0,
-        tp1_close_pct: 0.50,
-        tp2_close_pct: 0.30,
-        tp3_close_pct: 0.20,
+        tp1_close_pct: 0.70,
+        tp2_close_pct: 0.20,
+        tp3_close_pct: 0.10,
     };
 
     // Fetch ATR series for each result and generate examples

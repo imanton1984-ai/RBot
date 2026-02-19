@@ -49,15 +49,15 @@ pub struct SimCfg {
 impl Default for SimCfg {
     fn default() -> Self {
         Self {
-            window_bars: 10,
-            max_hold_bars: 12,
-            sl_atr_mult: 1.0,
+            window_bars: 4,
+            max_hold_bars: 14,
+            sl_atr_mult: 0.9,
             rr1: 1.0,
             rr2: 1.5,
             rr3: 2.0,
-            tp1_close_pct: 0.50,
-            tp2_close_pct: 0.30,
-            tp3_close_pct: 0.20,
+            tp1_close_pct: 0.70,
+            tp2_close_pct: 0.20,
+            tp3_close_pct: 0.10,
         }
     }
 }
@@ -318,11 +318,11 @@ where
 /// Get window size for a given timeframe (optimized for each TF)
 pub fn get_window_bars_for_tf(tf_minutes: i16) -> usize {
     match tf_minutes {
-        1 => 12,   // 12 minutes of opportunities
-        5 => 10,   // 50 minutes
-        15 => 8,   // 2 hours
-        60 => 6,   // 6 hours
-        240 => 4,  // 16 hours
+        1 => 3,   // 12 minutes of opportunities
+        5 => 2,   // 50 minutes
+        15 => 2,   // 2 hours
+        60 => 2,   // 6 hours
+        240 => 2,  // 16 hours
         _ => 8,    // default
     }
 }
@@ -331,10 +331,10 @@ pub fn get_window_bars_for_tf(tf_minutes: i16) -> usize {
 pub fn get_max_hold_bars_for_tf(tf_minutes: i16) -> usize {
     // Typically 11-12 bars for consistency with backtester
     match tf_minutes {
-        1 => 12,
-        5 => 12,
-        15 => 10,
-        60 => 8,
+        1 => 13,
+        5 => 13,
+        15 => 13,
+        60 => 13,
         240 => 6,
         _ => 10,
     }
@@ -355,13 +355,13 @@ mod tests {
         let cfg = SimCfg {
             window_bars: 2,
             max_hold_bars: 2,
-            sl_atr_mult: 1.0,
+            sl_atr_mult: 0.9,
             rr1: 1.0,
             rr2: 1.5,
             rr3: 2.0,
-            tp1_close_pct: 0.50,
-            tp2_close_pct: 0.30,
-            tp3_close_pct: 0.20,
+            tp1_close_pct: 0.70,
+            tp2_close_pct: 0.20,
+            tp3_close_pct: 0.10,
         };
 
         // Long entry at bar 0, TP1 at 102 (101 + 1*2)

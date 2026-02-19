@@ -67,8 +67,8 @@ use backtester::entry_policy_labeler::*;
 
 let cfg = SimCfg {
     window_bars: 10,
-    max_hold_bars: 12,
-    sl_atr_mult: 1.0,
+    max_hold_bars: 14,
+    sl_atr_mult: 0.9,
     rr1: 1.0,
     rr2: 1.5,
     rr3: 2.0,

@@ -90,7 +90,7 @@ impl Default for EntryAgentConfig {
             enter_threshold: 0.65,
             cancel_threshold: 0.42,
             min_margin: 0.25,
-            default_window_bars: 6,
+            default_window_bars: 4,
         }
     }
 }
@@ -223,8 +223,8 @@ impl EntryAgent {
     /// Решение: 5m → 6 баров (30 мин), 15m → 5 баров (75 мин) — enter early or cancel.
     pub fn get_window_bars_for_tf(tf_minutes: i32) -> usize {
         match tf_minutes {
-            1 => 5,    // 5 minutes (was 12→8 — максимально ранний вход или cancel)
-            5 => 4,    // 20 minutes (was 10→6 — вход в первые 4 бара или cancel)
+            1 => 4,    // 5 minutes (was 12→8 — максимально ранний вход или cancel)
+            5 => 3,    // 20 minutes (was 10→6 — вход в первые 4 бара или cancel)
             15 => 3,   // 45 minutes (was 8→5 — 3 бара макс, не ждём дольше)
             60 => 4,   // 4 hours (was 6→5)
             240 => 3,  // 12 hours (was 4)
@@ -235,10 +235,10 @@ impl EntryAgent {
     /// Get max hold bars for a given timeframe
     pub fn get_max_hold_bars_for_tf(tf_minutes: i32) -> usize {
         match tf_minutes {
-            1 => 10,
-            5 => 10,
-            15 => 8,
-            60 => 7,
+            1 => 12,
+            5 => 12,
+            15 => 10,
+            60 => 10,
             240 => 6,
             _ => 8,
         }

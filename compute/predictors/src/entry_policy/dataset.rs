@@ -42,15 +42,15 @@ pub struct EntryPolicyConfig {
 impl Default for EntryPolicyConfig {
     fn default() -> Self {
         Self {
-            window_bars: 10,
-            max_hold_bars: 12,
-            sl_atr_mult: 1.0,
+            window_bars: 4,
+            max_hold_bars: 14,
+            sl_atr_mult: 0.9,
             rr1: 1.0,
             rr2: 1.5,
             rr3: 2.0,
-            tp1_close_pct: 0.50,
-            tp2_close_pct: 0.30,
-            tp3_close_pct: 0.20,
+            tp1_close_pct: 0.70,
+            tp2_close_pct: 0.20,
+            tp3_close_pct: 0.10,
             min_setup_score: 0.55,
         }
     }
@@ -60,12 +60,12 @@ impl EntryPolicyConfig {
     /// Create config for a specific timeframe (matches backtester defaults)
     pub fn for_timeframe(tf_minutes: i32) -> Self {
         let (window_bars, max_hold_bars) = match tf_minutes {
-            1 => (12, 12),
-            5 => (10, 12),
-            15 => (8, 10),
-            60 => (6, 8),
-            240 => (4, 6),
-            _ => (10, 10),
+            1 => (4, 12),
+            5 => (3, 12),
+            15 => (2, 12),
+            60 => (2, 10),
+            240 => (2, 6),
+            _ => (4, 8),
         };
 
         Self {

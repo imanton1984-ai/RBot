@@ -77,7 +77,7 @@ impl EntryAgentIntegration {
             enter_threshold: 0.65,      // Only enter when highly confident
             cancel_threshold: 0.42,     // Cancel aggressively on weak setups
             min_margin: 0.25,           // Require 25%+ gap between enter/cancel
-            default_window_bars: 6,     // Decide quickly (early entry or cancel)
+            default_window_bars: 4,     // Decide quickly (early entry or cancel)
         };
 
         let agent = EntryAgent::new(config);

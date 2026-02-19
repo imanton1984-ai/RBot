@@ -101,9 +101,9 @@ impl TradeSignalStage {
             tracing::info!(target: "trade_signal_stage", "Entry Agent models loaded — will annotate signals with entry timing");
             let config = EntryAgentConfig {
                 enter_threshold: 0.55,
-                cancel_threshold: 0.50,
+                cancel_threshold: 0.42,
                 min_margin: 0.15,
-                default_window_bars: 6,
+                default_window_bars: 4,
             };
             (Some(EntryAgent::new(config)), Some(mm))
         } else {

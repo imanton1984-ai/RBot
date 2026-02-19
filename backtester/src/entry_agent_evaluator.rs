@@ -145,13 +145,13 @@ impl EntryAgentEvaluator {
             let cfg = SimCfg {
                 window_bars,
                 max_hold_bars,
-                sl_atr_mult: 1.0,
+                sl_atr_mult: 0.9,
                 rr1: 1.0,
                 rr2: 1.5,
                 rr3: 2.0,
-                tp1_close_pct: 0.50,
-                tp2_close_pct: 0.30,
-                tp3_close_pct: 0.20,
+                tp1_close_pct: 0.70,
+                tp2_close_pct: 0.20,
+                tp3_close_pct: 0.10,
             };
 
             let label = find_best_entry(signal.side as i8, 0, ohlc_bars, cfg);
