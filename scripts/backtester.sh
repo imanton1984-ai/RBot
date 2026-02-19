@@ -14,7 +14,7 @@ cargo build --release -p backtester 2>&1 | tail -5
 export BACKTEST_MIN_SCORE="${BACKTEST_MIN_SCORE:-0.55}"
 export BACKTEST_MAX_SIGNALS="${BACKTEST_MAX_SIGNALS:-500000}"
 export BACKTEST_TIMEOUT_BARS="${BACKTEST_TIMEOUT_BARS:-100}"
-export BACKTEST_CSV_OUTPUT="${BACKTEST_CSV_OUTPUT:-backtest_results.csv}"
+export BACKTEST_CSV_OUTPUT="${BACKTEST_CSV_OUTPUT:-dataset/backtest_results.csv}"
 export RUST_LOG="${RUST_LOG:-info}"
 
 echo "Config:"

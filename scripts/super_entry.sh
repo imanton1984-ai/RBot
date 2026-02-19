@@ -99,12 +99,13 @@ if [ "$RUN_DATASET" = true ]; then
     cargo build --release -p ml_entry_strategy --bin super_entry_dataset 2>&1 | tail -5
 
     echo "[super_entry] Running dataset builder..."
-    export SUPER_ENTRY_DATASET_OUTPUT="super_entry_dataset.csv"
+    mkdir -p "${ROOT_DIR}/dataset"
+    export SUPER_ENTRY_DATASET_OUTPUT="${ROOT_DIR}/dataset/super_entry_dataset.csv"
     ./target/release/super_entry_dataset 2>&1 | tee logs/super_entry_dataset.out
 
-    if [ -f "super_entry_dataset.csv" ]; then
-        ROWS=$(wc -l < super_entry_dataset.csv)
-        echo "[super_entry] ✅ Dataset built: super_entry_dataset.csv ($ROWS rows)"
+    if [ -f "${ROOT_DIR}/dataset/super_entry_dataset.csv" ]; then
+        ROWS=$(wc -l < "${ROOT_DIR}/dataset/super_entry_dataset.csv")
+        echo "[super_entry] ✅ Dataset built: dataset/super_entry_dataset.csv ($ROWS rows)"
     else
         echo "[super_entry] ❌ Dataset build failed!"
         exit 1
@@ -120,7 +121,7 @@ if [ "$RUN_TRAIN" = true ]; then
     echo "[super_entry] Stage 2: Training Models"
     echo "=============================================="
 
-    DATASET_CSV="${ROOT_DIR}/super_entry_dataset.csv"
+    DATASET_CSV="${ROOT_DIR}/dataset/super_entry_dataset.csv"
 
     if [ ! -f "${DATASET_CSV}" ]; then
         echo "[super_entry] WARNING: ${DATASET_CSV} not found!"
@@ -165,7 +166,8 @@ if [ "$RUN_BACKTEST" = true ]; then
         export SUPER_ENTRY_USE_GPU=true
     fi
 
-    export SUPER_ENTRY_BACKTEST_CSV="super_entry_backtest_results.csv"
+    mkdir -p "${ROOT_DIR}/dataset"
+    export SUPER_ENTRY_BACKTEST_CSV="${ROOT_DIR}/dataset/super_entry_backtest_results.csv"
 
     echo "[super_entry] Running backtest..."
     echo "[super_entry] Logs: logs/super_entry_backtest.out"
@@ -174,8 +176,8 @@ if [ "$RUN_BACKTEST" = true ]; then
     echo ""
     echo "[super_entry] Full log saved to: logs/super_entry_backtest.out"
 
-    if [ -f "super_entry_backtest_results.csv" ]; then
-        echo "[super_entry] ✅ Backtest results: super_entry_backtest_results.csv"
+    if [ -f "${ROOT_DIR}/dataset/super_entry_backtest_results.csv" ]; then
+        echo "[super_entry] ✅ Backtest results: dataset/super_entry_backtest_results.csv"
     fi
 fi
 

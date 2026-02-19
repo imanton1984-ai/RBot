@@ -245,7 +245,7 @@ def save_model(model, feature_names, tf, task_name, metrics, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Train Super Entry XGBoost Models")
-    parser.add_argument("--csv", default="super_entry_dataset.csv", help="Path to dataset CSV")
+    parser.add_argument("--csv", default="dataset/super_entry_dataset.csv", help="Path to dataset CSV")
     parser.add_argument("--output-dir", default="models", help="Output directory")
     parser.add_argument("--gpu", action="store_true", help="Use GPU training")
     parser.add_argument("--train-split", type=float, default=0.8, help="Train split ratio (by pairs)")

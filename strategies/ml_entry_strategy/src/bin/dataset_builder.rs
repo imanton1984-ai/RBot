@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
 
     let output_path = std::env::var("SUPER_ENTRY_DATASET_OUTPUT")
-        .unwrap_or_else(|_| "super_entry_dataset.csv".to_string());
+        .unwrap_or_else(|_| "dataset/super_entry_dataset.csv".to_string());
 
     let config = SuperEntryConfig::from_env();
 

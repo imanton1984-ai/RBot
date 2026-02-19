@@ -45,3 +45,8 @@ venv.bak/
 Thumbs.db
 third_party
 target
+
+# Datasets & backtest results (generated, large files)
+dataset/
+*.csv
+!dataset/.gitkeep
