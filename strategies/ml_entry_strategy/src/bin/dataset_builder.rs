@@ -56,7 +56,8 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let timeframes = SuperEntryConfig::timeframes();
+    // Use ALL timeframes for dataset building (including 1d for training)
+    let timeframes = SuperEntryConfig::all_timeframes();
     let mut all_examples: Vec<SuperEntryExample> = Vec::new();
 
     let mut stats_by_tf: std::collections::HashMap<i32, (usize, usize)> = std::collections::HashMap::new();

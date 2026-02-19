@@ -9,6 +9,10 @@ name = "super_entry_backtest"
 path = "src/bin/backtest.rs"
 
 [[bin]]
+name = "super_entry_service"
+path = "src/bin/service.rs"
+
+[[bin]]
 name = "super_entry_dataset"
 path = "src/bin/dataset_builder.rs"
 

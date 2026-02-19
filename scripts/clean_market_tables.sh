@@ -45,6 +45,7 @@ DROP TABLE IF EXISTS trade.ml_train_examples CASCADE;
 DROP TABLE IF EXISTS trade.position_events CASCADE;
 DROP TABLE IF EXISTS trade.positions CASCADE;
 DROP TABLE IF EXISTS trade.orders CASCADE;
+DROP TABLE IF EXISTS trade._090_super_entry_signals CASCADE;
 
 -- Drop entire trade schema (catches any remaining tables)
 DROP SCHEMA IF EXISTS trade CASCADE;

@@ -355,6 +355,97 @@ struct CandleRow {
     poc: f64,
 }
 
+/// Bulk-fetch ALL candles with indicators for a given TF (all symbols at once).
+/// Returns data grouped by symbol. Much faster than per-symbol queries.
+pub async fn fetch_all_candles_for_tf(
+    pool: &PgPool,
+    tf_minutes: i32,
+    limit_per_symbol: usize,
+) -> Result<std::collections::HashMap<String, Vec<CandleWithIndicators>>> {
+    let candle_table = match tf_minutes {
+        1 => "market.candles_1m",
+        5 => "market.candles_5m",
+        15 => "market.candles_15m",
+        60 => "market.candles_1h",
+        240 => "market.candles_4h",
+        1440 => "market.candles_1d",
+        _ => anyhow::bail!("Unsupported timeframe: {}", tf_minutes),
+    };
+
+    // Single query: get last N candles per symbol with indicators via window function
+    let sql = format!(
+        r#"
+        WITH ranked AS (
+            SELECT
+                c.time, c.symbol, p.symbol_id,
+                c.open, c.high, c.low, c.close, c.volume,
+                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,
+                COALESCE(i.cci, 0.0)::FLOAT8 as cci,
+                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,
+                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,
+                COALESCE(i.williams, -50.0)::FLOAT8 as williams,
+                COALESCE(i.macd, 0.0)::FLOAT8 as macd,
+                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,
+                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,
+                COALESCE(i.adx, 25.0)::FLOAT8 as adx,
+                COALESCE(i.sma, c.close)::FLOAT8 as sma,
+                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,
+                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,
+                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,
+                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,
+                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,
+                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,
+                COALESCE(i.atr, 0.001)::FLOAT8 as atr,
+                COALESCE(i.obv, 0.0)::FLOAT8 as obv,
+                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,
+                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,
+                COALESCE(i.trend, 0.0)::FLOAT8 as trend,
+                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,
+                COALESCE(i.poc, c.close)::FLOAT8 as poc,
+                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn
+            FROM {candle_table} c
+            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true
+            LEFT JOIN market.indicators_wide i
+                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1
+        )
+        SELECT time, symbol, symbol_id, open, high, low, close, volume,
+               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,
+               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,
+               obv, vwap, volume_spike, trend, trend_short, poc
+        FROM ranked
+        WHERE rn <= $2
+        ORDER BY symbol, time ASC
+        "#
+    );
+
+    let rows = sqlx::query_as::<_, CandleRow>(&sql)
+        .bind(tf_minutes as i16)
+        .bind(limit_per_symbol as i64)
+        .fetch_all(pool)
+        .await?;
+
+    // Group by symbol
+    let mut grouped: std::collections::HashMap<String, Vec<CandleWithIndicators>> =
+        std::collections::HashMap::new();
+
+    for r in rows {
+        let candle = CandleWithIndicators {
+            time: r.time, symbol: r.symbol.clone(), symbol_id: r.symbol_id,
+            open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume,
+            rsi: r.rsi, cci: r.cci, stoch_k: r.stoch_k, stoch_d: r.stoch_d,
+            williams: r.williams, macd: r.macd, macd_signal: r.macd_signal,
+            macd_hist: r.macd_hist, adx: r.adx, sma: r.sma,
+            ema_20: r.ema_20, ema_50: r.ema_50, ema_200: r.ema_200,
+            bb_upper: r.bb_upper, bb_mid: r.bb_mid, bb_lower: r.bb_lower,
+            atr: r.atr, obv: r.obv, vwap: r.vwap, volume_spike: r.volume_spike,
+            trend: r.trend, trend_short: r.trend_short, poc: r.poc,
+        };
+        grouped.entry(r.symbol).or_default().push(candle);
+    }
+
+    Ok(grouped)
+}
+
 /// Fetch list of active symbols from market.pairs
 pub async fn fetch_active_symbols(pool: &PgPool) -> Result<Vec<String>> {
     let rows: Vec<(String,)> = sqlx::query_as(

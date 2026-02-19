@@ -41,6 +41,7 @@ impl DatabaseInitializer {
             include_str!("../../database/ddl/070_views_all.sql"),
             include_str!("../../database/ddl/080_health_queries.sql"),
             include_str!("../../database/ddl/085_trade_predictors.sql"),
+            include_str!("../../database/ddl/090_super_entry_signals.sql"),
 
         ];
 

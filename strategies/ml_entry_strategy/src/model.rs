@@ -2,8 +2,9 @@
 //
 // Model wrapper for Super Entry XGBoost models.
 //
-// Wraps the existing ModelManager from compute/predictors/src/ml/
-// to load and run inference on super_entry and direction models.
+// Uses direct Booster::load() instead of ModelManager to avoid
+// loading/parsing large XGBoost JSON model dumps as schema files,
+// which causes memory pressure and abort() in release builds.
 //
 // Models:
 //   - super_entry_v1_tf{X}.ubj — binary classifier: P(super move)
@@ -11,8 +12,9 @@
 
 use anyhow::Result;
 use tracing::{info, warn};
+use std::collections::HashMap;
 
-use predictors::ml::model_manager::ModelManager;
+use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
 use crate::config::SuperEntryConfig;
 
 /// Prediction output from the super entry model
@@ -28,173 +30,168 @@ pub struct SuperEntryPrediction {
     pub estimated_magnitude_pct: f64,
 }
 
+/// Loaded model pair for one TF
+struct TfModels {
+    super_model: Booster,
+    dir_model: Option<Booster>,
+}
+
 /// Super Entry Model Manager
 ///
 /// Loads and manages P(super) and P(direction) models per timeframe.
+/// Uses direct Booster loading to avoid ModelManager schema parsing overhead.
 pub struct SuperEntryModelManager {
-    model_manager: ModelManager,
+    models: HashMap<i32, TfModels>,
     config: SuperEntryConfig,
-    available_tfs: Vec<i32>,
 }
 
 impl SuperEntryModelManager {
     /// Create a new SuperEntryModelManager and load models from disk.
     ///
-    /// # Arguments
-    /// * `config` - Strategy configuration
-    /// * `use_gpu` - Whether to attempt GPU loading for inference.
-    ///
-    /// NOTE: XGBoost GPU inference works by loading models on CPU first,
-    /// then the Booster with device=cuda set uses GPU predictor automatically
-    /// during inference. Loading separate GPU copies often causes CUDA OOM  
-    /// when loading 12+ models simultaneously. We always load CPU models
-    /// and let XGBoost handle GPU prediction internally.
-    pub fn new(config: SuperEntryConfig, use_gpu: bool) -> Result<Self> {
-        // Always load on CPU to avoid CUDA OOM from loading 12+ GPU model copies.
-        // XGBoost's gpu_predictor handles GPU inference at predict time,
-        // even with CPU-loaded models (it transfers DMatrix to GPU internally).
-        let mut model_manager = ModelManager::new(false);
-
+    /// Models are loaded one-by-one directly via Booster::load(),
+    /// bypassing ModelManager's schema parsing which can crash on
+    /// large XGBoost JSON model dumps.
+    pub fn new(config: SuperEntryConfig, _use_gpu: bool) -> Result<Self> {
+        let mut models = HashMap::new();
         let timeframes = SuperEntryConfig::timeframes();
-        let mut available_tfs = Vec::new();
 
-        if use_gpu {
-            info!("GPU requested — models will be loaded on CPU, XGBoost uses GPU predictor at inference time");
-        }
+        info!("Loading super_entry models (direct Booster load)...");
 
-        // Load super_entry models (binary classifier: P(super move))
-        info!("Loading super_entry models...");
-        model_manager.load_models_for_timeframes(
-            "super_entry",
-            &config.model_path_template,
-            timeframes,
-            false, // CPU load only — GPU inference handled by XGBoost internally
-        )?;
-
-        // Load direction models (binary classifier: P(LONG))
-        info!("Loading super_dir models...");
-        model_manager.load_models_for_timeframes(
-            "super_dir",
-            &config.direction_model_path_template,
-            timeframes,
-            false, // CPU load only
-        )?;
-
-        // Check which TFs have models
         for &tf in timeframes {
-            let key = format!("super_entry_tf{}", tf);
-            if model_manager.has_model(&key) {
-                available_tfs.push(tf);
-                info!("✅ super_entry model available for TF {}m", tf);
-            } else {
-                warn!("⚠️  super_entry model NOT found for TF {}m", tf);
+            let super_path = config.model_path(tf);
+            let dir_path = config.direction_model_path(tf);
+
+            // Load P(super) model — required
+            if !std::path::Path::new(&super_path).exists() {
+                warn!("Model not found: {} — skipping TF {}m", super_path, tf);
+                continue;
             }
+
+            let super_model = match Booster::load(&super_path, Device::Cpu) {
+                Ok(b) => {
+                    info!("✅ Loaded super_entry TF {}m: {}", tf, super_path);
+                    b
+                }
+                Err(e) => {
+                    warn!("❌ Failed to load {}: {}", super_path, e);
+                    continue;
+                }
+            };
+
+            // Load P(direction) model — optional
+            let dir_model = if std::path::Path::new(&dir_path).exists() {
+                match Booster::load(&dir_path, Device::Cpu) {
+                    Ok(b) => {
+                        info!("✅ Loaded super_dir TF {}m: {}", tf, dir_path);
+                        Some(b)
+                    }
+                    Err(e) => {
+                        warn!("⚠️  Failed to load dir model {}: {}, using neutral direction", dir_path, e);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            models.insert(tf, TfModels { super_model, dir_model });
+
+            // Small yield between model loads
+            std::thread::sleep(std::time::Duration::from_millis(10));
         }
 
-        if available_tfs.is_empty() {
-            warn!("No super_entry models found! Strategy will not generate signals.");
-        }
+        info!(
+            "Models loaded: {} TFs with super_entry, {} with direction",
+            models.len(),
+            models.values().filter(|m| m.dir_model.is_some()).count()
+        );
 
-        Ok(Self {
-            model_manager,
-            config,
-            available_tfs,
-        })
+        Ok(Self { models, config })
     }
 
     /// Check if models are loaded for any timeframe
     pub fn has_models(&self) -> bool {
-        !self.available_tfs.is_empty()
+        !self.models.is_empty()
     }
 
     /// Check if a model is available for a specific timeframe
     pub fn has_model_for_tf(&self, tf_minutes: i32) -> bool {
-        self.available_tfs.contains(&tf_minutes)
+        self.models.contains_key(&tf_minutes)
     }
 
     /// Get available timeframes with loaded models
-    pub fn available_timeframes(&self) -> &[i32] {
-        &self.available_tfs
+    pub fn available_timeframes(&self) -> Vec<i32> {
+        let mut tfs: Vec<i32> = self.models.keys().copied().collect();
+        tfs.sort();
+        tfs
     }
 
     /// Run inference for a single candle's features.
-    ///
-    /// # Arguments
-    /// * `tf_minutes` - Timeframe in minutes
-    /// * `features` - Feature vector (must match model schema)
-    /// * `use_gpu` - Whether to use GPU for inference
-    ///
-    /// # Returns
-    /// SuperEntryPrediction with p_super, p_long, direction
     pub fn predict(
         &self,
         tf_minutes: i32,
         features: &[f32],
-        use_gpu: bool,
+        _use_gpu: bool,
     ) -> Result<Option<SuperEntryPrediction>> {
-        let key_super = format!("super_entry_tf{}", tf_minutes);
-        let key_dir = format!("super_dir_tf{}", tf_minutes);
-
-        // P(super) prediction
-        let p_super = match self.model_manager.predict_one(&key_super, features, use_gpu)? {
-            Some(v) => v.first().copied().unwrap_or(0.0).clamp(0.0, 1.0),
-            None => return Ok(None), // Model not loaded
+        let tf_models = match self.models.get(&tf_minutes) {
+            Some(m) => m,
+            None => return Ok(None),
         };
 
+        let ncol = features.len();
+
+        // P(super) prediction
+        let p_super = tf_models.super_model
+            .predict_dense_cpu(features, 1, ncol, ModelKind::Regressor1)?
+            .first()
+            .copied()
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0);
+
         // P(direction=LONG) prediction
-        let p_long = match self.model_manager.predict_one(&key_dir, features, use_gpu)? {
-            Some(v) => v.first().copied().unwrap_or(0.5).clamp(0.0, 1.0),
-            None => 0.5, // Default to neutral if direction model not available
+        let p_long = match &tf_models.dir_model {
+            Some(dir) => dir
+                .predict_dense_cpu(features, 1, ncol, ModelKind::Regressor1)?
+                .first()
+                .copied()
+                .unwrap_or(0.5)
+                .clamp(0.0, 1.0),
+            None => 0.5, // Neutral if no direction model
         };
 
         let direction = if p_long >= 0.5 { 1 } else { -1 };
         let target = self.config.target_pct_for_tf(tf_minutes);
-        let estimated_magnitude = target * p_super as f64;
 
         Ok(Some(SuperEntryPrediction {
             p_super,
             p_long,
             direction,
-            estimated_magnitude_pct: estimated_magnitude,
+            estimated_magnitude_pct: target * p_super as f64,
         }))
     }
 
     /// Batch inference for multiple feature rows.
-    ///
-    /// # Arguments
-    /// * `tf_minutes` - Timeframe in minutes
-    /// * `features_batch` - Row-major flattened feature matrix [nrow * ncol]
-    /// * `nrow` - Number of rows / examples
-    /// * `ncol` - Number of features per row
-    /// * `use_gpu` - Whether to use GPU
-    ///
-    /// # Returns
-    /// Vec of SuperEntryPrediction, one per row
     pub fn predict_batch(
         &self,
         tf_minutes: i32,
         features_batch: &[f32],
         nrow: usize,
         ncol: usize,
-        use_gpu: bool,
+        _use_gpu: bool,
     ) -> Result<Vec<SuperEntryPrediction>> {
-        let key_super = format!("super_entry_tf{}", tf_minutes);
-        let key_dir = format!("super_dir_tf{}", tf_minutes);
-
-        // Batch P(super) prediction
-        let p_super_vec = match self.model_manager.predict_batch(
-            &key_super, features_batch, nrow, ncol, use_gpu,
-        )? {
-            Some(v) => v,
+        let tf_models = match self.models.get(&tf_minutes) {
+            Some(m) => m,
             None => return Ok(Vec::new()),
         };
 
+        // Batch P(super) prediction
+        let p_super_vec = tf_models.super_model
+            .predict_dense_cpu(features_batch, nrow, ncol, ModelKind::Regressor1)?;
+
         // Batch P(direction) prediction
-        let p_long_vec = match self.model_manager.predict_batch(
-            &key_dir, features_batch, nrow, ncol, use_gpu,
-        )? {
-            Some(v) => v,
-            None => vec![0.5f32; nrow], // Default neutral
+        let p_long_vec = match &tf_models.dir_model {
+            Some(dir) => dir.predict_dense_cpu(features_batch, nrow, ncol, ModelKind::Regressor1)?,
+            None => vec![0.5f32; nrow],
         };
 
         let target = self.config.target_pct_for_tf(tf_minutes);

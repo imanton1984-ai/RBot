@@ -16,20 +16,58 @@
     TF   240m:  TP=4.75%  SL=2.38%
     TF  1440m:  TP=5.75%  SL=2.88%
 
-[2m2026-02-19T14:46:11.499318Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Unknown model_type 'super_entry', defaulting to Regressor1
-[2m2026-02-19T14:46:11.502083Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf1.json: missing field `schema_id` at line 1 column 561037
-[2m2026-02-19T14:46:11.521715Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf5.json: missing field `schema_id` at line 1 column 918967
-[2m2026-02-19T14:46:11.533199Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf15.json: missing field `schema_id` at line 1 column 734663
-[2m2026-02-19T14:46:11.548707Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf60.json: missing field `schema_id` at line 1 column 2227933
-[2m2026-02-19T14:46:11.567249Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf240.json: missing field `schema_id` at line 1 column 1734538
-[2m2026-02-19T14:46:11.576110Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf1440.json: missing field `schema_id` at line 1 column 164695
-[2m2026-02-19T14:46:11.586196Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Unknown model_type 'super_dir', defaulting to Regressor1
-[2m2026-02-19T14:46:11.588231Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf1.json: missing field `schema_id` at line 1 column 432132
-[2m2026-02-19T14:46:11.595816Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf5.json: missing field `schema_id` at line 1 column 552415
-[2m2026-02-19T14:46:11.608604Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf15.json: missing field `schema_id` at line 1 column 484808
-[2m2026-02-19T14:46:11.619044Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf60.json: missing field `schema_id` at line 1 column 894474
-[2m2026-02-19T14:46:11.628937Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf240.json: missing field `schema_id` at line 1 column 1077970
-[2m2026-02-19T14:46:11.635501Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf1440.json: missing field `schema_id` at line 1 column 521312
+[2m2026-02-19T15:45:13.185013Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m CUDA is disabled, will only load CPU models
+[2m2026-02-19T15:45:13.185019Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m Loading super_entry models...
+[2m2026-02-19T15:45:13.185021Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading super_entry models for [1, 5, 15, 60, 240, 1440]...
+[2m2026-02-19T15:45:13.185024Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Unknown model_type 'super_entry', defaulting to Regressor1
+[2m2026-02-19T15:45:13.187229Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf1.json: missing field `schema_id` at line 1 column 561037
+[2m2026-02-19T15:45:13.187238Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_entry_tf1 -> models/super_entry_v1_tf1.ubj
+[2m2026-02-19T15:45:13.197935Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf1.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.202786Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf5.json: missing field `schema_id` at line 1 column 918967
+[2m2026-02-19T15:45:13.202798Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_entry_tf5 -> models/super_entry_v1_tf5.ubj
+[2m2026-02-19T15:45:13.208051Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf5.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.213070Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf15.json: missing field `schema_id` at line 1 column 871320
+[2m2026-02-19T15:45:13.213081Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_entry_tf15 -> models/super_entry_v1_tf15.ubj
+[2m2026-02-19T15:45:13.216166Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.226359Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf60.json: missing field `schema_id` at line 1 column 2224001
+[2m2026-02-19T15:45:13.226371Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_entry_tf60 -> models/super_entry_v1_tf60.ubj
+[2m2026-02-19T15:45:13.233307Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.240853Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf240.json: missing field `schema_id` at line 1 column 1734538
+[2m2026-02-19T15:45:13.240864Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_entry_tf240 -> models/super_entry_v1_tf240.ubj
+[2m2026-02-19T15:45:13.246744Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.248018Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_entry_v1_tf1440.json: missing field `schema_id` at line 1 column 164695
+[2m2026-02-19T15:45:13.248186Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_entry_tf1440 -> models/super_entry_v1_tf1440.ubj
+[2m2026-02-19T15:45:13.253261Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf1440.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.253301Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m ModelManager loaded models: cpu=6, gpu=0 (enable_gpu=false)
+[2m2026-02-19T15:45:13.253328Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m Loading super_dir models...
+[2m2026-02-19T15:45:13.253353Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading super_dir models for [1, 5, 15, 60, 240, 1440]...
+[2m2026-02-19T15:45:13.253378Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Unknown model_type 'super_dir', defaulting to Regressor1
+[2m2026-02-19T15:45:13.255832Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf1.json: missing field `schema_id` at line 1 column 432132
+[2m2026-02-19T15:45:13.255868Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_dir_tf1 -> models/super_dir_v1_tf1.ubj
+[2m2026-02-19T15:45:13.258935Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf1.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.262110Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf5.json: missing field `schema_id` at line 1 column 552415
+[2m2026-02-19T15:45:13.262171Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_dir_tf5 -> models/super_dir_v1_tf5.ubj
+[2m2026-02-19T15:45:13.264959Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf5.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.267959Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf15.json: missing field `schema_id` at line 1 column 524385
+[2m2026-02-19T15:45:13.268011Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_dir_tf15 -> models/super_dir_v1_tf15.ubj
+[2m2026-02-19T15:45:13.270950Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.276662Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf60.json: missing field `schema_id` at line 1 column 1019539
+[2m2026-02-19T15:45:13.276673Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_dir_tf60 -> models/super_dir_v1_tf60.ubj
+[2m2026-02-19T15:45:13.281186Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.287885Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf240.json: missing field `schema_id` at line 1 column 1077970
+[2m2026-02-19T15:45:13.287897Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_dir_tf240 -> models/super_dir_v1_tf240.ubj
+[2m2026-02-19T15:45:13.292192Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.296344Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/super_dir_v1_tf1440.json: missing field `schema_id` at line 1 column 521312
+[2m2026-02-19T15:45:13.296387Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: super_dir_tf1440 -> models/super_dir_v1_tf1440.ubj
+[2m2026-02-19T15:45:13.299941Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf1440.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T15:45:13.299972Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m ModelManager loaded models: cpu=12, gpu=0 (enable_gpu=false)
+[2m2026-02-19T15:45:13.299994Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ super_entry model available for TF 1m
+[2m2026-02-19T15:45:13.300008Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ super_entry model available for TF 5m
+[2m2026-02-19T15:45:13.300020Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ super_entry model available for TF 15m
+[2m2026-02-19T15:45:13.300033Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ super_entry model available for TF 60m
+[2m2026-02-19T15:45:13.300045Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ super_entry model available for TF 240m
+[2m2026-02-19T15:45:13.300058Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ super_entry model available for TF 1440m
+[2m2026-02-19T15:45:13.312694Z[0m [32m INFO[0m [2msuper_entry_backtest[0m[2m:[0m Found 133 active symbols
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                    SUPER ENTRY BACKTEST RESULTS                              ║
@@ -39,19 +77,19 @@ TF      Trades   Wins   Loss   Exprd  WinRate   AvgPnL%   Sharpe   Cover%
 ---------------------------------------------------------------------------
 1m        6230   3043   2473     714    48.8%   0.3260%    0.458    6.69%
 5m       11631   5756   4815    1060    49.5%   0.5470%    0.435   12.49%
-15m       8658   4562   3533     563    52.7%   0.9358%    0.470    9.33%
-1h       32137  18819  12814     504    58.6%   1.4661%    0.534   35.54%
+15m       9926   5242   4045     639    52.8%   0.9445%    0.474   10.70%
+1h       33031  19422  13110     499    58.8%   1.4766%    0.538   36.53%
 4h       40660  19505  20896     259    48.0%   1.0617%    0.299   49.61%
 1d       20957   8187  12700      70    39.1%   0.5055%    0.120   46.18%
 ---------------------------------------------------------------------------
-TOTAL   120273  59872  57231    3170    49.8%   0.9759%
+TOTAL   122435  61155  58039    3241    49.9%   0.9826%
 
 ======== P(SUPER) BUCKET ANALYSIS (calibration helper) ========
 TF      0.55-0.60  0.60-0.70  0.70-0.80  0.80-0.90      0.90+
 1m      31%(381)   41%(671)   49%(655)  55%(1049)  50%(3474) 
 5m      44%(967)  47%(1969)  53%(2216)  53%(1748)  49%(4731) 
-15m     52%(706)  58%(1440)  62%(1277)  58%(1299)  46%(3936) 
-1h     62%(1642)  67%(4130)  66%(4820)  64%(6188)  52%(15357) 
+15m     53%(817)  56%(1609)  62%(1447)  60%(1507)  46%(4546) 
+1h     63%(1654)  66%(4342)  67%(4893)  65%(6399)  52%(15743) 
 4h     53%(1403)  55%(3611)  53%(4802)  52%(7580)  44%(23264) 
 1d       56%(71)   43%(203)   52%(302)   52%(777)  38%(19604) 
 
@@ -59,8 +97,8 @@ TF      0.55-0.60  0.60-0.70  0.70-0.80  0.80-0.90      0.90+
 TF         LONG    SHORT    LongWR%   ShortWR%   LongPnL%  ShortPnL%
 1m         4169     2061      48.2%      50.1%    0.3179%    0.3424%
 5m         7445     4186      47.9%      52.4%    0.4976%    0.6349%
-15m        3523     5135      53.9%      51.9%    0.9978%    0.8933%
-1h        18234    13903      52.1%      67.1%    1.0808%    1.9715%
+15m        4298     5628      55.2%      51.0%    1.0437%    0.8687%
+1h        18459    14572      52.3%      67.0%    1.0966%    1.9579%
 4h        18545    22115      41.8%      53.1%    0.6231%    1.4294%
 1d         9256    11701      36.3%      41.3%    0.2666%    0.6944%
 
@@ -68,8 +106,8 @@ TF         LONG    SHORT    LongWR%   ShortWR%   LongPnL%  ShortPnL%
 TF     AvgWinBars AvgLossBars AvgExpBars
 1m            7.3         4.3       18.9
 5m            7.3         4.1       19.3
-15m           6.9         3.6       18.7
-1h            6.3         3.0       16.5
+15m           7.0         3.6       18.7
+1h            6.2         3.0       16.1
 4h            4.6         2.5        8.1
 1d            1.9         1.4        0.5
 
@@ -87,17 +125,17 @@ TF     AvgWinBars AvgLossBars AvgExpBars
     RPLUSDT      PnL:  +199.98%  trades:  300  WR:  56.0%
     BANUSDT      PnL:  +152.22%  trades:  155  WR:  63.2%
   15m — top 5:
-    RIVERUSDT    PnL:  +302.68%  trades:  425  WR:  50.4%
-    TRUTHUSDT    PnL:  +282.15%  trades:  251  WR:  56.2%
-    GPSUSDT      PnL:  +276.24%  trades:  180  WR:  67.2%
-    MYXUSDT      PnL:  +274.08%  trades:  436  WR:  48.2%
-    KITEUSDT     PnL:  +272.00%  trades:  185  WR:  64.3%
+    MOODENGUSDT  PnL:  +304.47%  trades:  193  WR:  69.4%
+    XNYUSDT      PnL:  +302.22%  trades:  348  WR:  52.6%
+    ZECUSDT      PnL:  +291.51%  trades:  177  WR:  67.8%
+    RIVERUSDT    PnL:  +286.00%  trades:  440  WR:  49.1%
+    MYXUSDT      PnL:  +279.58%  trades:  448  WR:  48.0%
   1h — top 5:
-    NEIROUSDT    PnL:  +819.77%  trades:  369  WR:  72.4%
-    FARTCOINUSDT PnL:  +738.38%  trades:  336  WR:  71.7%
-    DYDXUSDT     PnL:  +729.51%  trades:  280  WR:  78.2%
-    GALAUSDT     PnL:  +708.75%  trades:  267  WR:  80.5%
-    ENAUSDT      PnL:  +671.70%  trades:  256  WR:  76.2%
+    NEIROUSDT    PnL:  +894.77%  trades:  401  WR:  72.6%
+    FARTCOINUSDT PnL:  +741.59%  trades:  351  WR:  70.4%
+    RENDERUSDT   PnL:  +702.73%  trades:  304  WR:  73.7%
+    DYDXUSDT     PnL:  +699.81%  trades:  289  WR:  75.8%
+    GALAUSDT     PnL:  +686.25%  trades:  270  WR:  78.5%
   4h — top 5:
     1000SHIBUSDT PnL:  +825.63%  trades:  319  WR:  69.3%
     ADAUSDT      PnL:  +816.43%  trades:  391  WR:  62.4%
@@ -111,7 +149,7 @@ TF     AvgWinBars AvgLossBars AvgExpBars
     ATOMUSDT     PnL:  +362.25%  trades:  433  WR:  43.0%
     ZILUSDT      PnL:  +342.12%  trades:  373  WR:  44.0%
 
-Backtest results exported to: super_entry_backtest_results.csv
+Backtest results exported to: /home/anton/Desktop/Rust_trader/dataset/super_entry_backtest_results.csv
 ╔══════════════════════════════════════════════════════════════╗
 ║         BACKTEST COMPLETE                                    ║
 ╚══════════════════════════════════════════════════════════════╝

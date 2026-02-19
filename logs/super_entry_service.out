@@ -1,0 +1,11 @@
+
+=== [STAGE 1/4] INIT ===
+[2m2026-02-19T16:56:53.569966Z[0m [32m INFO[0m [2msuper_entry[0m[2m:[0m Connecting to database...
+[2m2026-02-19T16:56:53.574919Z[0m [32m INFO[0m [2msuper_entry[0m[2m:[0m ✅ DB connected
+[2m2026-02-19T16:56:53.599092Z[0m [32m INFO[0m [2mml_entry_strategy::db_writer[0m[2m:[0m trade.super_entry_signals table ensured
+[2m2026-02-19T16:56:53.599111Z[0m [32m INFO[0m [2msuper_entry[0m[2m:[0m ✅ trade.super_entry_signals table ready
+[2m2026-02-19T16:56:53.614473Z[0m [32m INFO[0m [2msuper_entry[0m[2m:[0m Existing signals in DB: 0
+Error: error returned from database: relation "market.pairs" does not exist
+
+Caused by:
+    relation "market.pairs" does not exist

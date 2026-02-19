@@ -1,0 +1,842 @@
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:108: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
+  np.random.shuffle(symbols)
+Loading data from /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv...
+  Loaded 481871 rows, 47 columns
+  Super examples: 293642 (60.9%)
+  By TF:
+    1m: 90440 total, 26725 super (29.5%)
+    5m: 90440 total, 38864 super (43.0%)
+    15m: 90147 total, 44174 super (49.0%)
+    60m: 87821 total, 66887 super (76.2%)
+    240m: 79446 total, 73562 super (92.6%)
+    1440m: 43577 total, 43430 super (99.7%)
+
+============================================================
+Training models for TF 1m (90440 samples)
+  Target move: 1.0%
+============================================================
+
+  Pair-based split:
+    Train: 106 pairs, 72080 rows
+    Test:  27 pairs, 18360 rows
+
+  Training super_entry TF1m...
+    pos/neg: 21777/50303 (scale_pos_weight=2.31)
+[18:44:41] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.88080	train-logloss:0.67158	test-auc:0.82229	test-logloss:0.67482
+[50]	train-auc:0.92393	train-logloss:0.36967	test-auc:0.86595	test-logloss:0.43437
+[81]	train-auc:0.92991	train-logloss:0.34649	test-auc:0.86688	test-logloss:0.43356
+
+  === super_entry TF1m Results ===
+    AUC:       0.8669
+    Precision: 0.6150
+    Recall:    0.7599
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.90      0.82      0.86     13412
+    Positive       0.61      0.76      0.68      4948
+
+    accuracy                           0.81     18360
+   macro avg       0.76      0.79      0.77     18360
+weighted avg       0.83      0.81      0.81     18360
+
+
+  Top 10 Features by Gain:
+    atr_pct                        733.1
+    bb_width_pct                   275.5
+    price_vs_ema200                77.0
+    ema_200                        75.7
+    price_vs_sma                   72.1
+    price_vs_vwap                  70.5
+    ema_50                         59.6
+    vwap                           55.4
+    price_vs_ema20                 52.2
+    bb_lower                       50.9
+  Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1.schema.json
+
+  Training super_dir TF1m...
+    pos/neg: 35360/36720 (scale_pos_weight=1.04)
+[18:44:43] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.61419	train-logloss:0.69087	test-auc:0.54390	test-logloss:0.69228
+[50]	train-auc:0.74225	train-logloss:0.63995	test-auc:0.56314	test-logloss:0.68626
+[69]	train-auc:0.76244	train-logloss:0.62913	test-auc:0.56537	test-logloss:0.68688
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:108: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
+  np.random.shuffle(symbols)
+
+  === super_dir TF1m Results ===
+    AUC:       0.5654
+    Precision: 0.5340
+    Recall:    0.5482
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.56      0.54      0.55      9400
+    Positive       0.53      0.55      0.54      8960
+
+    accuracy                           0.55     18360
+   macro avg       0.55      0.55      0.55     18360
+weighted avg       0.55      0.55      0.55     18360
+
+
+  Top 10 Features by Gain:
+    vwap                           30.6
+    price_vs_ema200                29.1
+    price_vs_vwap                  28.0
+    atr_pct                        28.0
+    obv                            27.8
+    ema_50                         27.7
+    poc                            27.6
+    ema_20                         27.1
+    sma                            25.2
+    bb_lower                       25.0
+  Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1.schema.json
+
+============================================================
+Training models for TF 5m (90440 samples)
+  Target move: 1.75%
+============================================================
+
+  Pair-based split:
+    Train: 106 pairs, 72080 rows
+    Test:  27 pairs, 18360 rows
+
+  Training super_entry TF5m...
+    pos/neg: 30711/41369 (scale_pos_weight=1.35)
+[18:44:44] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.84777	train-logloss:0.67494	test-auc:0.80380	test-logloss:0.67802
+[50]	train-auc:0.90017	train-logloss:0.41296	test-auc:0.87012	test-logloss:0.45627
+[100]	train-auc:0.91118	train-logloss:0.38280	test-auc:0.87171	test-logloss:0.44750
+[150]	train-auc:0.92260	train-logloss:0.36187	test-auc:0.87150	test-logloss:0.44742
+[156]	train-auc:0.92399	train-logloss:0.35910	test-auc:0.87165	test-logloss:0.44712
+
+  === super_entry TF5m Results ===
+    AUC:       0.8717
+    Precision: 0.7403
+    Recall:    0.7831
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.82      0.78      0.80     10207
+    Positive       0.74      0.78      0.76      8153
+
+    accuracy                           0.78     18360
+   macro avg       0.78      0.78      0.78     18360
+weighted avg       0.78      0.78      0.78     18360
+
+
+  Top 10 Features by Gain:
+    atr_pct                        381.8
+    bb_width_pct                   134.8
+    price_vs_sma                   45.2
+    price_vs_vwap                  38.0
+    price_vs_ema200                36.8
+    bb_mid                         31.2
+    ema_200                        30.9
+    bb_upper                       30.0
+    vwap                           29.9
+    rsi_norm                       28.2
+  Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf5.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf5.schema.json
+
+  Training super_dir TF5m...
+    pos/neg: 32647/39433 (scale_pos_weight=1.21)
+[18:44:46] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.62505	train-logloss:0.69044	test-auc:0.56033	test-logloss:0.69168
+[50]	train-auc:0.75264	train-logloss:0.62823	test-auc:0.58777	test-logloss:0.67903
+[84]	train-auc:0.78866	train-logloss:0.60567	test-auc:0.58693	test-logloss:0.67941
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:108: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
+  np.random.shuffle(symbols)
+
+  === super_dir TF5m Results ===
+    AUC:       0.5869
+    Precision: 0.5323
+    Recall:    0.5410
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.59      0.58      0.58      9743
+    Positive       0.53      0.54      0.54      8617
+
+    accuracy                           0.56     18360
+   macro avg       0.56      0.56      0.56     18360
+weighted avg       0.56      0.56      0.56     18360
+
+
+  Top 10 Features by Gain:
+    price_vs_vwap                  36.6
+    macd_norm                      34.8
+    vwap                           34.5
+    price_vs_ema200                34.3
+    bb_upper                       33.1
+    atr_pct                        32.1
+    ema_200                        30.0
+    poc                            29.7
+    price_vs_ema50                 29.1
+    bb_lower                       28.7
+  Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf5.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf5.schema.json
+
+============================================================
+Training models for TF 15m (90147 samples)
+  Target move: 2.75%
+============================================================
+
+  Pair-based split:
+    Train: 106 pairs, 71787 rows
+    Test:  27 pairs, 18360 rows
+
+  Training super_entry TF15m...
+    pos/neg: 34724/37063 (scale_pos_weight=1.07)
+[18:44:49] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.80459	train-logloss:0.67884	test-auc:0.77007	test-logloss:0.68041
+[50]	train-auc:0.86902	train-logloss:0.46114	test-auc:0.81568	test-logloss:0.51884
+[100]	train-auc:0.88312	train-logloss:0.43191	test-auc:0.81885	test-logloss:0.51176
+[150]	train-auc:0.89635	train-logloss:0.41242	test-auc:0.81956	test-logloss:0.51134
+[158]	train-auc:0.89926	train-logloss:0.40839	test-auc:0.81954	test-logloss:0.51138
+
+  === super_entry TF15m Results ===
+    AUC:       0.8197
+    Precision: 0.7411
+    Recall:    0.7332
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.72      0.73      0.72      8910
+    Positive       0.74      0.73      0.74      9450
+
+    accuracy                           0.73     18360
+   macro avg       0.73      0.73      0.73     18360
+weighted avg       0.73      0.73      0.73     18360
+
+
+  Top 10 Features by Gain:
+    atr_pct                        312.7
+    bb_width_pct                   107.4
+    price_vs_ema200                47.3
+    ema_50                         34.5
+    ema_200                        33.2
+    price_vs_vwap                  30.6
+    vwap                           28.7
+    obv                            26.6
+    bb_mid                         25.9
+    poc                            25.0
+  Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf15.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf15.schema.json
+
+  Training super_dir TF15m...
+    pos/neg: 37543/34244 (scale_pos_weight=0.91)
+[18:44:50] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.62502	train-logloss:0.69049	test-auc:0.57711	test-logloss:0.69169
+[50]	train-auc:0.77103	train-logloss:0.62732	test-auc:0.59039	test-logloss:0.68018
+[80]	train-auc:0.80082	train-logloss:0.60668	test-auc:0.58588	test-logloss:0.68200
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:108: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
+  np.random.shuffle(symbols)
+
+  === super_dir TF15m Results ===
+    AUC:       0.5864
+    Precision: 0.5944
+    Recall:    0.5594
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.53      0.56      0.54      8559
+    Positive       0.59      0.56      0.58      9801
+
+    accuracy                           0.56     18360
+   macro avg       0.56      0.56      0.56     18360
+weighted avg       0.56      0.56      0.56     18360
+
+
+  Top 10 Features by Gain:
+    trend                          34.2
+    price_vs_ema200                31.6
+    price_vs_ema50                 30.6
+    price_vs_vwap                  30.1
+    atr_pct                        29.0
+    ema_50                         28.3
+    bb_upper                       26.9
+    ema_20                         26.9
+    bb_lower                       26.6
+    poc                            26.4
+  Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf15.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf15.schema.json
+
+============================================================
+Training models for TF 60m (87821 samples)
+  Target move: 3.75%
+============================================================
+
+  Pair-based split:
+    Train: 104 pairs, 70671 rows
+    Test:  26 pairs, 17150 rows
+
+  Training super_entry TF60m...
+    pos/neg: 54134/16537 (scale_pos_weight=0.31)
+[18:44:52] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.80682	train-logloss:0.67906	test-auc:0.78389	test-logloss:0.68139
+[50]	train-auc:0.87096	train-logloss:0.47029	test-auc:0.83711	test-logloss:0.51905
+[100]	train-auc:0.88325	train-logloss:0.44353	test-auc:0.84043	test-logloss:0.50333
+[150]	train-auc:0.89705	train-logloss:0.42269	test-auc:0.84017	test-logloss:0.49035
+[200]	train-auc:0.91014	train-logloss:0.40266	test-auc:0.83974	test-logloss:0.48264
+[250]	train-auc:0.92144	train-logloss:0.38404	test-auc:0.83975	test-logloss:0.47529
+[300]	train-auc:0.93012	train-logloss:0.36890	test-auc:0.83888	test-logloss:0.47144
+[350]	train-auc:0.93683	train-logloss:0.35641	test-auc:0.83643	test-logloss:0.46825
+[400]	train-auc:0.94330	train-logloss:0.34338	test-auc:0.83542	test-logloss:0.46483
+[450]	train-auc:0.94851	train-logloss:0.33307	test-auc:0.83502	test-logloss:0.46252
+[499]	train-auc:0.95363	train-logloss:0.32209	test-auc:0.83367	test-logloss:0.46073
+
+  === super_entry TF60m Results ===
+    AUC:       0.8337
+    Precision: 0.8850
+    Recall:    0.7957
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.54      0.70      0.61      4397
+    Positive       0.88      0.80      0.84     12753
+
+    accuracy                           0.77     17150
+   macro avg       0.71      0.75      0.72     17150
+weighted avg       0.80      0.77      0.78     17150
+
+
+  Top 10 Features by Gain:
+    atr_pct                        65.3
+    williams_norm                  17.8
+    price_vs_ema50                 17.1
+    bb_width_pct                   16.2
+    price_vs_ema200                13.6
+    price_vs_vwap                  10.5
+    volume_spike_flag              9.5
+    ema_20                         9.1
+    trend                          8.7
+    adx                            8.6
+  Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf60.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf60.schema.json
+
+  Training super_dir TF60m...
+    pos/neg: 31469/39202 (scale_pos_weight=1.25)
+[18:44:58] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.63524	train-logloss:0.69008	test-auc:0.62370	test-logloss:0.69032
+[50]	train-auc:0.77643	train-logloss:0.61090	test-auc:0.68678	test-logloss:0.63912
+[100]	train-auc:0.82244	train-logloss:0.57365	test-auc:0.69115	test-logloss:0.63238
+[150]	train-auc:0.85032	train-logloss:0.54796	test-auc:0.69246	test-logloss:0.63105
+[160]	train-auc:0.85509	train-logloss:0.54306	test-auc:0.69327	test-logloss:0.63081
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:108: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
+  np.random.shuffle(symbols)
+
+  === super_dir TF60m Results ===
+    AUC:       0.6937
+    Precision: 0.5689
+    Recall:    0.6306
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.70      0.65      0.68      9885
+    Positive       0.57      0.63      0.60      7265
+
+    accuracy                           0.64     17150
+   macro avg       0.64      0.64      0.64     17150
+weighted avg       0.65      0.64      0.64     17150
+
+
+  Top 10 Features by Gain:
+    trend                          50.7
+    poc                            32.6
+    price_vs_ema50                 32.5
+    price_vs_vwap                  29.9
+    atr_pct                        29.7
+    adx                            29.1
+    price_vs_ema200                27.8
+    ema_50                         27.4
+    cci_norm                       26.9
+    ema_200                        26.4
+  Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf60.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf60.schema.json
+
+============================================================
+Training models for TF 240m (79446 samples)
+  Target move: 4.75%
+============================================================
+
+  Pair-based split:
+    Train: 100 pairs, 63291 rows
+    Test:  26 pairs, 16155 rows
+
+  Training super_entry TF240m...
+    pos/neg: 58622/4669 (scale_pos_weight=0.08)
+[18:45:00] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.79942	train-logloss:0.67925	test-auc:0.78197	test-logloss:0.67918
+[50]	train-auc:0.89437	train-logloss:0.45011	test-auc:0.83980	test-logloss:0.46743
+[100]	train-auc:0.91827	train-logloss:0.40500	test-auc:0.84512	test-logloss:0.42328
+[150]	train-auc:0.93945	train-logloss:0.36483	test-auc:0.84209	test-logloss:0.38940
+[200]	train-auc:0.95367	train-logloss:0.33296	test-auc:0.84173	test-logloss:0.36107
+[250]	train-auc:0.96271	train-logloss:0.30970	test-auc:0.83792	test-logloss:0.34071
+[300]	train-auc:0.96818	train-logloss:0.29350	test-auc:0.83643	test-logloss:0.32661
+[350]	train-auc:0.97289	train-logloss:0.27839	test-auc:0.83464	test-logloss:0.31364
+[400]	train-auc:0.97674	train-logloss:0.26461	test-auc:0.83468	test-logloss:0.30396
+[450]	train-auc:0.98016	train-logloss:0.25006	test-auc:0.83246	test-logloss:0.29558
+[499]	train-auc:0.98258	train-logloss:0.23963	test-auc:0.83189	test-logloss:0.28911
+
+  === super_entry TF240m Results ===
+    AUC:       0.8319
+    Precision: 0.9516
+    Recall:    0.9171
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.29      0.43      0.35      1215
+    Positive       0.95      0.92      0.93     14940
+
+    accuracy                           0.88     16155
+   macro avg       0.62      0.67      0.64     16155
+weighted avg       0.90      0.88      0.89     16155
+
+
+  Top 10 Features by Gain:
+    atr_pct                        26.5
+    volume_spike_flag              6.7
+    bb_width_pct                   6.6
+    price_vs_ema200                6.6
+    poc                            5.7
+    sma                            5.6
+    ema_20                         5.4
+    bb_mid                         5.3
+    williams_norm                  5.2
+    price_vs_vwap                  5.1
+  Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf240.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf240.schema.json
+
+  Training super_dir TF240m...
+    pos/neg: 26993/36298 (scale_pos_weight=1.34)
+[18:45:07] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.65911	train-logloss:0.68909	test-auc:0.56399	test-logloss:0.69158
+[50]	train-auc:0.79523	train-logloss:0.59822	test-auc:0.63301	test-logloss:0.66122
+[100]	train-auc:0.83200	train-logloss:0.56255	test-auc:0.63933	test-logloss:0.65677
+[150]	train-auc:0.86090	train-logloss:0.53359	test-auc:0.64195	test-logloss:0.65552
+[179]	train-auc:0.87299	train-logloss:0.52090	test-auc:0.63969	test-logloss:0.65741
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:108: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
+  np.random.shuffle(symbols)
+
+  === super_dir TF240m Results ===
+    AUC:       0.6397
+    Precision: 0.5544
+    Recall:    0.5262
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.65      0.67      0.66      9116
+    Positive       0.55      0.53      0.54      7039
+
+    accuracy                           0.61     16155
+   macro avg       0.60      0.60      0.60     16155
+weighted avg       0.61      0.61      0.61     16155
+
+
+  Top 10 Features by Gain:
+    trend                          34.4
+    poc                            34.4
+    bb_width_pct                   32.3
+    price_vs_ema200                31.1
+    ema_50                         30.0
+    adx                            29.7
+    price_vs_vwap                  29.6
+    vwap                           28.8
+    trend_short                    28.1
+    bb_mid                         28.1
+  Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf240.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf240.schema.json
+
+============================================================
+Training models for TF 1440m (43577 samples)
+  Target move: 5.75%
+============================================================
+
+  Pair-based split:
+    Train: 72 pairs, 36307 rows
+    Test:  18 pairs, 7270 rows
+
+  Training super_entry TF1440m...
+    pos/neg: 36160/147 (scale_pos_weight=0.00)
+[18:45:09] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[0]	train-auc:0.95738	train-logloss:0.66147	test-auc:nan	test-logloss:0.65570
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[50]	train-auc:0.98097	train-logloss:0.21459	test-auc:nan	test-logloss:0.08641
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:09] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[100]	train-auc:0.98193	train-logloss:0.19137	test-auc:nan	test-logloss:0.04785
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[150]	train-auc:0.98235	train-logloss:0.18687	test-auc:nan	test-logloss:0.04238
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:10] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:11] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:11] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:11] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:11] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:11] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:11] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:11] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[200]	train-auc:0.98269	train-logloss:0.18132	test-auc:nan	test-logloss:0.03761
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[250]	train-auc:0.98315	train-logloss:0.17557	test-auc:nan	test-logloss:0.03433
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[18:45:12] WARNING: ../src/metric/auc.cc:328: Dataset is empty, or contains only positive or negative samples.
+[271]	train-auc:0.98334	train-logloss:0.17519	test-auc:nan	test-logloss:0.03406
+
+  === super_entry TF1440m Results ===
+    AUC:       0.0000
+    Precision: 1.0000
+    Recall:    0.9963
+
+  Top 10 Features by Gain:
+    atr_pct                        15.7
+    bb_width_pct                   10.8
+    price_vs_ema200                10.4
+    price_vs_vwap                  5.2
+    vwap                           2.8
+    atr                            2.8
+    macd_hist                      2.2
+    obv                            1.6
+    rsi                            1.2
+    ema_50                         1.2
+  Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1440.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1440.schema.json
+
+  Training super_dir TF1440m...
+    pos/neg: 15502/20805 (scale_pos_weight=1.34)
+[18:45:12] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.66355	train-logloss:0.68870	test-auc:0.58671	test-logloss:0.69159
+[50]	train-auc:0.82229	train-logloss:0.59597	test-auc:0.64200	test-logloss:0.66195
+[85]	train-auc:0.86326	train-logloss:0.55823	test-auc:0.64457	test-logloss:0.66258
+
+  === super_dir TF1440m Results ===
+    AUC:       0.6441
+    Precision: 0.5274
+    Recall:    0.6228
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+    Negative       0.69      0.60      0.64      4221
+    Positive       0.53      0.62      0.57      3049
+
+    accuracy                           0.61      7270
+   macro avg       0.61      0.61      0.60      7270
+weighted avg       0.62      0.61      0.61      7270
+
+
+  Top 10 Features by Gain:
+    rsi_norm                       40.7
+    price_vs_ema200                29.6
+    ema_200                        28.6
+    trend                          28.5
+    atr_pct                        28.2
+    vwap                           27.8
+    rsi                            27.4
+    bb_mid                         26.9
+    bb_position                    26.7
+    cci_norm                       26.4
+  Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1440.ubj
+  Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1440.schema.json
+
+============================================================
+✅ Super Entry training complete!
+   Models saved to: /home/anton/Desktop/Rust_trader/models/
+
+   Next steps:
+   1. Run backtest: cargo run --release -p ml_entry_strategy --bin super_entry_backtest
+   2. Or use via script: ./scripts/super_entry.sh --backtest
+============================================================

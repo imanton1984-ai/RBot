@@ -102,6 +102,25 @@ if [ -d "$ROOT_DIR/healthcheck/grafana" ]; then
     ok "Grafana started. Access at http://localhost:3001 (admin/admin)"
 fi
 
+# 8. Super Entry Service (if enabled via flag or env)
+if [ "${SUPER_ENTRY_ENABLED:-false}" = "true" ]; then
+    section "SUPER ENTRY SERVICE"
+    log "Super Entry strategy is ENABLED"
+    
+    # Build super entry service if not yet built
+    if [ ! -x "$TARGET_DIR/super_entry_service" ]; then
+        log "Building super_entry_service..."
+        cargo build --release -p ml_entry_strategy --bin super_entry_service 2>&1 | tail -3
+    fi
+    
+    if [ -x "$TARGET_DIR/super_entry_service" ]; then
+        start_svc "super_entry_service" "super_entry_service"
+    else
+        log "WARNING: super_entry_service binary not found at $TARGET_DIR/super_entry_service"
+        log "Build it: cargo build --release -p ml_entry_strategy --bin super_entry_service"
+    fi
+fi
+
 section "ALL SERVICES STARTED"
 ok "START DONE @ $(date)"
 log "Services started successfully"

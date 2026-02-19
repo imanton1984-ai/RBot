@@ -25,6 +25,7 @@ pub mod scorer;
 pub mod signal_generator;
 pub mod pipeline;
 pub mod strategy;
+pub mod db_writer;
 
 // Re-exports for convenience
 pub use config::SuperEntryConfig;
