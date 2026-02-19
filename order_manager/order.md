@@ -1,0 +1,2 @@
+thi will be centralized order manager - Traced order + standard order
+traced order is order with only stop loss placed - tp1-2-3 are calculated, but kept in memory and traced by position traler and current market sit to understand if we can go higher or time to close position

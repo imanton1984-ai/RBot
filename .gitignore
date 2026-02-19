@@ -50,3 +50,9 @@ target
 dataset/
 *.csv
 !dataset/.gitkeep
+
+# models (generated, large files)
+models/
+*.json
+*.ubj
+!models/.gitkeep

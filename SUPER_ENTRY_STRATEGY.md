@@ -475,3 +475,5 @@ SUPER_ENTRY_BACKTEST_CSV=results.csv ./target/release/super_entry_backtest
 
 ### Какой TF лучший?
 **1h** — однозначно лучший: 58.6% WR, +1.47% AvgPnL, Sharpe 0.534. Рекомендуется начинать live-тестирование именно с 1h.
+
+нужно добить остальные фреймы
