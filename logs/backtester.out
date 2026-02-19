@@ -1,38 +1,36 @@
-[2m2026-02-19T07:03:16.724995Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m === Signal Quality Backtester ===
-[2m2026-02-19T07:03:16.725004Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m min_score=0.55, max_signals=500000, timeout_bars=100
-[2m2026-02-19T07:03:16.726950Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "backtest_results" already exists, skipping
-[2m2026-02-19T07:03:16.734168Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "tp1_hit" of relation "backtest_results" already exists, skipping
-[2m2026-02-19T07:03:16.736593Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "tp2_hit" of relation "backtest_results" already exists, skipping
-[2m2026-02-19T07:03:16.736983Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "tp3_hit" of relation "backtest_results" already exists, skipping
-[2m2026-02-19T07:03:16.738483Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_backtest_results_symbol_time" already exists, skipping
-[2m2026-02-19T07:03:16.739599Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "ix_backtest_results_outcome" already exists, skipping
-[2m2026-02-19T07:03:17.389989Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Loaded 14722 signals for backtesting
-[2m2026-02-19T07:03:17.721825Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 1000/14722 signals: 487 wins, 513 losses, 0 expired
-[2m2026-02-19T07:03:18.040384Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 2000/14722 signals: 1188 wins, 812 losses, 0 expired
-[2m2026-02-19T07:03:18.354110Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 3000/14722 signals: 1938 wins, 1062 losses, 0 expired
-[2m2026-02-19T07:03:18.651699Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 4000/14722 signals: 2583 wins, 1412 losses, 5 expired
-[2m2026-02-19T07:03:18.969932Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 5000/14722 signals: 3251 wins, 1744 losses, 5 expired
-[2m2026-02-19T07:03:19.255942Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 6000/14722 signals: 3589 wins, 2398 losses, 13 expired
-[2m2026-02-19T07:03:19.552297Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 7000/14722 signals: 4059 wins, 2915 losses, 26 expired
-[2m2026-02-19T07:03:19.839520Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 8000/14722 signals: 4635 wins, 3338 losses, 27 expired
-[2m2026-02-19T07:03:20.147100Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 9000/14722 signals: 5232 wins, 3739 losses, 29 expired
-[2m2026-02-19T07:03:20.443448Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 10000/14722 signals: 5710 wins, 4254 losses, 36 expired
-[2m2026-02-19T07:03:20.740344Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 11000/14722 signals: 6502 wins, 4457 losses, 41 expired
-[2m2026-02-19T07:03:21.028029Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 12000/14722 signals: 7238 wins, 4717 losses, 45 expired
-[2m2026-02-19T07:03:21.329163Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 13000/14722 signals: 7821 wins, 5118 losses, 61 expired
-[2m2026-02-19T07:03:21.676985Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 14000/14722 signals: 8331 wins, 5596 losses, 73 expired
-[2m2026-02-19T07:03:21.885444Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Evaluation complete: 14721 results from 14722 signals
-[2m2026-02-19T07:03:22.337218Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Saved 14721 backtest results to trade.backtest_results
-[2m2026-02-19T07:03:27.144708Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported training CSV to backtest_results.csv
-[2m2026-02-19T07:03:28.218508Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3517 4h results to backtest_results_4h.csv
-[2m2026-02-19T07:03:28.679756Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 1401 1m results to backtest_results_1m.csv
-[2m2026-02-19T07:03:29.812933Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3657 5m results to backtest_results_5m.csv
-[2m2026-02-19T07:03:30.803247Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3223 1h results to backtest_results_1h.csv
-[2m2026-02-19T07:03:31.722154Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 2923 15m results to backtest_results_15m.csv
-[2m2026-02-19T07:03:31.735149Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Generating Entry Policy dataset...
-[2m2026-02-19T07:04:27.958684Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Entry Policy dataset: 61750 total examples (12555 ENTER, 2091 CANCEL)
-[2m2026-02-19T07:04:27.960615Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported Entry Policy dataset to entry_policy_dataset.csv
-[2m2026-02-19T07:04:27.960622Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Running Entry Agent comparison evaluation...
+[2m2026-02-19T07:42:59.441451Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m === Signal Quality Backtester ===
+[2m2026-02-19T07:42:59.441460Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m min_score=0.55, max_signals=500000, timeout_bars=100
+[2m2026-02-19T07:42:59.463927Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "tp1_hit" of relation "backtest_results" already exists, skipping
+[2m2026-02-19T07:42:59.464762Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "tp2_hit" of relation "backtest_results" already exists, skipping
+[2m2026-02-19T07:42:59.465121Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "tp3_hit" of relation "backtest_results" already exists, skipping
+[2m2026-02-19T07:43:00.101729Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Loaded 15057 signals for backtesting
+[2m2026-02-19T07:43:00.443662Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 1000/15057 signals: 457 wins, 543 losses, 0 expired
+[2m2026-02-19T07:43:00.744032Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 2000/15057 signals: 1156 wins, 844 losses, 0 expired
+[2m2026-02-19T07:43:01.058209Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 3000/15057 signals: 1895 wins, 1105 losses, 0 expired
+[2m2026-02-19T07:43:01.367971Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 4000/15057 signals: 2548 wins, 1447 losses, 5 expired
+[2m2026-02-19T07:43:01.675470Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 5000/15057 signals: 3190 wins, 1805 losses, 5 expired
+[2m2026-02-19T07:43:01.951496Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 6000/15057 signals: 3607 wins, 2380 losses, 13 expired
+[2m2026-02-19T07:43:02.239011Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 7000/15057 signals: 4005 wins, 2975 losses, 20 expired
+[2m2026-02-19T07:43:02.533408Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 8000/15057 signals: 4664 wins, 3306 losses, 30 expired
+[2m2026-02-19T07:43:02.825779Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 9000/15057 signals: 5276 wins, 3691 losses, 33 expired
+[2m2026-02-19T07:43:03.138574Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 10000/15057 signals: 5693 wins, 4269 losses, 38 expired
+[2m2026-02-19T07:43:03.434619Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 11000/15057 signals: 6444 wins, 4510 losses, 46 expired
+[2m2026-02-19T07:43:03.725035Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 12000/15057 signals: 7138 wins, 4813 losses, 49 expired
+[2m2026-02-19T07:43:04.009871Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 13000/15057 signals: 7793 wins, 5143 losses, 64 expired
+[2m2026-02-19T07:43:04.300201Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 14000/15057 signals: 8296 wins, 5629 losses, 75 expired
+[2m2026-02-19T07:43:04.550428Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Processed 15000/15057 signals: 8762 wins, 6105 losses, 128 expired
+[2m2026-02-19T07:43:04.561659Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Evaluation complete: 15047 results from 15057 signals
+[2m2026-02-19T07:43:04.925439Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Saved 15047 backtest results to trade.backtest_results
+[2m2026-02-19T07:43:09.736251Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported training CSV to backtest_results.csv
+[2m2026-02-19T07:43:10.161949Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 1329 1m results to backtest_results_1m.csv
+[2m2026-02-19T07:43:11.096609Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3008 15m results to backtest_results_15m.csv
+[2m2026-02-19T07:43:12.340820Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3766 4h results to backtest_results_4h.csv
+[2m2026-02-19T07:43:13.422607Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3399 1h results to backtest_results_1h.csv
+[2m2026-02-19T07:43:14.532427Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported 3545 5m results to backtest_results_5m.csv
+[2m2026-02-19T07:43:14.549441Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Generating Entry Policy dataset...
+[2m2026-02-19T07:44:18.141546Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Entry Policy dataset: 62441 total examples (12840 ENTER, 2092 CANCEL)
+[2m2026-02-19T07:44:18.145634Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Exported Entry Policy dataset to entry_policy_dataset.csv
+[2m2026-02-19T07:44:18.145653Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Running Entry Agent comparison evaluation...
 
 
 ╔══════════════════════════════════════════════════════════════╗
@@ -40,83 +38,64 @@
 ╚══════════════════════════════════════════════════════════════╝
 
 
-[2m2026-02-19T07:04:27.960630Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Entry Agent GPU acceleration: true
-[2m2026-02-19T07:04:27.960638Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m CUDA is enabled, will attempt to load GPU models
-[2m2026-02-19T07:04:27.960647Z[0m [32m INFO[0m [2mbacktester::entry_agent_real_evaluator[0m[2m:[0m Loading entry_enter models from: models/entry_enter_v1_tf{tf}.ubj
-[2m2026-02-19T07:04:27.960649Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading entry_enter models for [1, 5, 15, 60, 240]...
-[2m2026-02-19T07:04:27.962998Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf1.json: missing field `schema_id` at line 1 column 581612
-[2m2026-02-19T07:04:27.963009Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf1 -> models/entry_enter_v1_tf1.ubj
-[2m2026-02-19T07:04:27.974079Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf1.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:27.980023Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf1.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:27.980035Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_enter_tf1
-[2m2026-02-19T07:04:27.981412Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf5.json: missing field `schema_id` at line 1 column 300757
-[2m2026-02-19T07:04:27.981425Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf5 -> models/entry_enter_v1_tf5.ubj
-[2m2026-02-19T07:04:27.983041Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf5.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:27.990259Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf5.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:27.990271Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_enter_tf5
-[2m2026-02-19T07:04:27.992574Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf15.json: missing field `schema_id` at line 1 column 442072
-[2m2026-02-19T07:04:27.992584Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf15 -> models/entry_enter_v1_tf15.ubj
-[2m2026-02-19T07:04:27.994723Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.000249Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf15.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.000259Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_enter_tf15
-[2m2026-02-19T07:04:28.001916Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf60.json: missing field `schema_id` at line 1 column 320026
-[2m2026-02-19T07:04:28.001927Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf60 -> models/entry_enter_v1_tf60.ubj
-[2m2026-02-19T07:04:28.003949Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.006291Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf60.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.006300Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_enter_tf60
-[2m2026-02-19T07:04:28.007856Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf240.json: missing field `schema_id` at line 1 column 298132
-[2m2026-02-19T07:04:28.007867Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf240 -> models/entry_enter_v1_tf240.ubj
-[2m2026-02-19T07:04:28.009953Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.014492Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf240.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.014504Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_enter_tf240
-[2m2026-02-19T07:04:28.014507Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m ModelManager loaded models: cpu=5, gpu=5 (enable_gpu=true)
-[2m2026-02-19T07:04:28.014510Z[0m [32m INFO[0m [2mbacktester::entry_agent_real_evaluator[0m[2m:[0m Loading entry_cancel models from: models/entry_cancel_v1_tf{tf}.ubj
-[2m2026-02-19T07:04:28.014512Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading entry_cancel models for [1, 5, 15, 60, 240]...
-[2m2026-02-19T07:04:28.017378Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf1.json: missing field `schema_id` at line 1 column 543230
-[2m2026-02-19T07:04:28.017390Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf1 -> models/entry_cancel_v1_tf1.ubj
-[2m2026-02-19T07:04:28.023191Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf1.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.030256Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf1.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.030268Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_cancel_tf1
-[2m2026-02-19T07:04:28.036913Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf5.json: missing field `schema_id` at line 1 column 1341733
-[2m2026-02-19T07:04:28.036926Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf5 -> models/entry_cancel_v1_tf5.ubj
-[2m2026-02-19T07:04:28.043469Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf5.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.052189Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf5.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.052206Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_cancel_tf5
-[2m2026-02-19T07:04:28.060798Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf15.json: missing field `schema_id` at line 1 column 1505023
-[2m2026-02-19T07:04:28.060813Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf15 -> models/entry_cancel_v1_tf15.ubj
-[2m2026-02-19T07:04:28.067631Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.074963Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf15.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.074982Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_cancel_tf15
-[2m2026-02-19T07:04:28.079413Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf60.json: missing field `schema_id` at line 1 column 673674
-[2m2026-02-19T07:04:28.079429Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf60 -> models/entry_cancel_v1_tf60.ubj
-[2m2026-02-19T07:04:28.085404Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.094926Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf60.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.094940Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_cancel_tf60
-[2m2026-02-19T07:04:28.105433Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf240.json: missing field `schema_id` at line 1 column 1808945
-[2m2026-02-19T07:04:28.105451Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf240 -> models/entry_cancel_v1_tf240.ubj
-[2m2026-02-19T07:04:28.116146Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
-[2m2026-02-19T07:04:28.127350Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf240.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-19T07:04:28.127364Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Successfully loaded GPU model: entry_cancel_tf240
-[2m2026-02-19T07:04:28.127367Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m ModelManager loaded models: cpu=10, gpu=10 (enable_gpu=true)
+[2m2026-02-19T07:44:18.145660Z[0m [32m INFO[0m [2mbacktester[0m[2m:[0m Entry Agent GPU acceleration: false
+[2m2026-02-19T07:44:18.145663Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m CUDA is disabled, will only load CPU models
+[2m2026-02-19T07:44:18.145680Z[0m [32m INFO[0m [2mbacktester::entry_agent_real_evaluator[0m[2m:[0m Loading entry_enter models from: models/entry_enter_v1_tf{tf}.ubj
+[2m2026-02-19T07:44:18.145683Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading entry_enter models for [1, 5, 15, 60, 240]...
+[2m2026-02-19T07:44:18.149104Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf1.json: missing field `schema_id` at line 1 column 556886
+[2m2026-02-19T07:44:18.149119Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf1 -> models/entry_enter_v1_tf1.ubj
+[2m2026-02-19T07:44:18.161602Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf1.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.164018Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf5.json: missing field `schema_id` at line 1 column 329249
+[2m2026-02-19T07:44:18.164124Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf5 -> models/entry_enter_v1_tf5.ubj
+[2m2026-02-19T07:44:18.168061Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf5.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.172362Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf15.json: missing field `schema_id` at line 1 column 514865
+[2m2026-02-19T07:44:18.172677Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf15 -> models/entry_enter_v1_tf15.ubj
+[2m2026-02-19T07:44:18.177070Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.179423Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf60.json: missing field `schema_id` at line 1 column 306804
+[2m2026-02-19T07:44:18.179534Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf60 -> models/entry_enter_v1_tf60.ubj
+[2m2026-02-19T07:44:18.184946Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.187089Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_enter_v1_tf240.json: missing field `schema_id` at line 1 column 293216
+[2m2026-02-19T07:44:18.187128Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_enter_tf240 -> models/entry_enter_v1_tf240.ubj
+[2m2026-02-19T07:44:18.190968Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_enter_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.190983Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m ModelManager loaded models: cpu=5, gpu=0 (enable_gpu=false)
+[2m2026-02-19T07:44:18.190987Z[0m [32m INFO[0m [2mbacktester::entry_agent_real_evaluator[0m[2m:[0m Loading entry_cancel models from: models/entry_cancel_v1_tf{tf}.ubj
+[2m2026-02-19T07:44:18.191134Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading entry_cancel models for [1, 5, 15, 60, 240]...
+[2m2026-02-19T07:44:18.195078Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf1.json: missing field `schema_id` at line 1 column 474249
+[2m2026-02-19T07:44:18.195094Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf1 -> models/entry_cancel_v1_tf1.ubj
+[2m2026-02-19T07:44:18.198187Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf1.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.203493Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf5.json: missing field `schema_id` at line 1 column 1029430
+[2m2026-02-19T07:44:18.203503Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf5 -> models/entry_cancel_v1_tf5.ubj
+[2m2026-02-19T07:44:18.210404Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf5.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.217304Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf15.json: missing field `schema_id` at line 1 column 1478372
+[2m2026-02-19T07:44:18.217316Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf15 -> models/entry_cancel_v1_tf15.ubj
+[2m2026-02-19T07:44:18.226428Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.229516Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf60.json: missing field `schema_id` at line 1 column 531609
+[2m2026-02-19T07:44:18.229525Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf60 -> models/entry_cancel_v1_tf60.ubj
+[2m2026-02-19T07:44:18.232477Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.240640Z[0m [33m WARN[0m [2mpredictors::ml::model_manager[0m[2m:[0m Failed to load schema from models/entry_cancel_v1_tf240.json: missing field `schema_id` at line 1 column 1828961
+[2m2026-02-19T07:44:18.240653Z[0m [32m INFO[0m [2mpredictors::ml::model_manager[0m[2m:[0m Loading model: entry_cancel_tf240 -> models/entry_cancel_v1_tf240.ubj
+[2m2026-02-19T07:44:18.247777Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/entry_cancel_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+[2m2026-02-19T07:44:18.247789Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m ModelManager loaded models: cpu=10, gpu=0 (enable_gpu=false)
 ✅ Entry Agent models loaded successfully!
    Evaluating signals with real model inference...
 
-  Processed 1000/14721 signals: 467 entered, 533 cancelled, 0 expired
-  Processed 2000/14721 signals: 986 entered, 1014 cancelled, 0 expired
-  Processed 3000/14721 signals: 1302 entered, 1698 cancelled, 0 expired
-  Processed 4000/14721 signals: 1607 entered, 2393 cancelled, 0 expired
-  Processed 5000/14721 signals: 1966 entered, 3034 cancelled, 0 expired
-  Processed 6000/14721 signals: 2274 entered, 3726 cancelled, 0 expired
-  Processed 7000/14721 signals: 2601 entered, 4399 cancelled, 0 expired
-  Processed 8000/14721 signals: 2872 entered, 5128 cancelled, 0 expired
-  Processed 9000/14721 signals: 3136 entered, 5864 cancelled, 0 expired
-  Processed 10000/14721 signals: 3649 entered, 6351 cancelled, 0 expired
-  Processed 11000/14721 signals: 4166 entered, 6834 cancelled, 0 expired
-  Processed 12000/14721 signals: 4771 entered, 7229 cancelled, 0 expired
-  Processed 13000/14721 signals: 5383 entered, 7617 cancelled, 0 expired
-  Processed 14000/14721 signals: 5926 entered, 8074 cancelled, 0 expired
+  Processed 1000/15047 signals: 926 entered, 74 cancelled, 0 expired
+  Processed 2000/15047 signals: 1871 entered, 129 cancelled, 0 expired
+  Processed 3000/15047 signals: 2728 entered, 272 cancelled, 0 expired
+  Processed 4000/15047 signals: 3581 entered, 419 cancelled, 0 expired
+  Processed 5000/15047 signals: 4413 entered, 587 cancelled, 0 expired
+  Processed 6000/15047 signals: 5355 entered, 645 cancelled, 0 expired
+  Processed 7000/15047 signals: 6286 entered, 714 cancelled, 0 expired
+  Processed 8000/15047 signals: 7162 entered, 838 cancelled, 0 expired
+  Processed 9000/15047 signals: 8082 entered, 918 cancelled, 0 expired
+  Processed 10000/15047 signals: 8996 entered, 1004 cancelled, 0 expired
+  Processed 11000/15047 signals: 9950 entered, 1050 cancelled, 0 expired
+  Processed 12000/15047 signals: 10922 entered, 1078 cancelled, 0 expired
+  Processed 13000/15047 signals: 11894 entered, 1106 cancelled, 0 expired
+  Processed 14000/15047 signals: 12665 entered, 1334 cancelled, 0 expired
+  Processed 15000/15047 signals: 13354 entered, 1641 cancelled, 0 expired
 
-  Entry Agent evaluation complete: 14714 results
+  Entry Agent evaluation complete: 15042 results
 
 
 
@@ -127,93 +106,93 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ Metric               │   Baseline │  EntryAgent │  Improvement │
 ├──────────────────────┼────────────┼─────────────┼──────────────┤
-│ Total Signals        │      14721 │       14714 │            - │
-│ Entered Trades       │      14597 │        6273 │         -57% │
-│ Win Rate             │      59.4% │       61.4% │        +2.0% │
-│ Avg PnL (entered)    │    0.1276% │     0.3695% │    +0.2418% │
-│ Wins                 │       8665 │        3850 │            - │
-│ Losses               │       5932 │        2394 │            - │
+│ Total Signals        │      15047 │       15042 │            - │
+│ Entered Trades       │      14912 │       13385 │         -10% │
+│ Win Rate             │      58.9% │       59.3% │        +0.4% │
+│ Avg PnL (entered)    │    0.1190% │     0.1524% │    +0.0335% │
+│ Wins                 │       8782 │        7936 │            - │
+│ Losses               │       6130 │        5338 │            - │
 ├──────────────────────┴────────────┴─────────────┼──────────────┤
-│ Cancelled by Agent   │       8441                │              │
+│ Cancelled by Agent   │       1657                │              │
 │ Expired (no entry)   │          0                │              │
 └─────────────────────────────────────────────────┴──────────────┘
 
 ======== BASELINE (Immediate Entry) ========
 TF      Total   Wins   Loss    Exprd  WinRate     AvgPnL     Sharpe
-1m       1401    689    700       12    49.2%   -0.0333%     -0.089
-5m       3657   2322   1311       24    63.5%    0.0807%      0.128
-15m      2923   1783   1080       60    61.0%    0.0162%      0.013
-1h       3223   1758   1446       19    54.5%    0.0325%      0.015
-4h       3517   2113   1395        9    60.1%    0.4203%      0.097
+1m       1329    648    674        7    48.8%   -0.0415%     -0.112
+5m       3545   2230   1281       34    62.9%    0.0745%      0.116
+15m      3008   1863   1084       61    61.9%    0.0363%      0.029
+1h       3399   1843   1536       20    54.2%    0.0267%      0.013
+4h       3766   2198   1555       13    58.4%    0.3669%      0.081
 -------------------------------
-TOTAL: 14721 signals, 8665 wins (59.4%), avg PnL: 0.1276%
+TOTAL: 15047 signals, 8782 wins (58.9%), avg PnL: 0.1190%
 ==================================
 
 ======== ENTRY AGENT (Optimized Entry) ========
 TF      Enter   Wins   Loss    Exprd  WinRate     AvgPnL     Sharpe
-1m        728    381    342        5    52.3%    0.0057%      0.028
-5m       2302   1504    790        8    65.3%    0.0675%      0.186
-15m       743    470    264        9    63.3%    0.0501%      0.148
-1h        743    420    322        1    56.5%    0.0408%      0.070
-4h       1757   1075    676        6    61.2%    0.5075%      0.244
+1m        787    387    400        0    49.2%   -0.0139%     -0.060
+5m       3419   2174   1215       30    63.6%    0.0722%      0.133
+15m      2776   1737    986       53    62.6%    0.0452%      0.043
+1h       2900   1570   1314       16    54.1%   -0.1039%     -0.062
+4h       3503   2068   1423       12    59.0%    0.5365%      0.139
 -------------------------------
-TOTAL: 6273 entered, 3850 wins (61.4%), avg PnL: 0.3695%
+TOTAL: 13385 entered, 7936 wins (59.3%), avg PnL: 0.1524%
 ==================================
 
 ======== IMPROVEMENT DELTA (Agent - Baseline) ========
 TF       ΔWinRate    ΔAvgPnL    ΔAvgWin     ΔAvgLoss
-1m          +3.2%   +0.0391%   -0.0710%     +0.1285%
-5m          +1.8%   -0.0132%   -0.1229%     +0.2534%
-15m         +2.3%   +0.0340%   -0.0920%     +0.5616%
-1h          +2.0%   +0.0083%   -0.3596%     +0.6765%
-4h          +1.1%   +0.0872%   -0.4525%     +2.0274%
+1m          +0.4%   +0.0276%   -0.1112%     +0.1401%
+5m          +0.7%   -0.0023%   -0.1345%     +0.2191%
+15m         +0.6%   +0.0089%   -0.2196%     +0.3867%
+1h          -0.1%   -0.1306%   -0.7273%     +0.5441%
+4h          +0.7%   +0.1696%   -0.9227%     +1.7342%
 =====================================================
 
 ======== TP LEVEL DISTRIBUTION — BASELINE ========
 TF      TP1_hit  TP2_hit  TP3_hit    SL_only    AvgPnL+      AvgPnL-
-1m          689      250      111        700    0.3055%    -0.3662%
-5m         2322      990      347       1311    0.5098%    -0.6768%
-15m        1783      687      299       1080    0.8562%    -1.3493%
-1h         1758      958      629       1446    1.7426%    -2.0698%
-4h         2113     1113      519       1395    3.4306%    -4.1535%
+1m          648      241      107        674    0.2993%    -0.3681%
+5m         2230      967      360       1281    0.5064%    -0.6745%
+15m        1863      727      326       1084    0.8657%    -1.3748%
+1h         1843     1021      678       1536    1.7549%    -2.0680%
+4h         2198     1163      557       1555    3.5511%    -4.1438%
 =====================================================
 
 ======== TP LEVEL DISTRIBUTION — ENTRY AGENT ========
 TF      TP1_hit  TP2_hit  TP3_hit    SL_only    AvgPnL+      AvgPnL-
-1m          381      123       62        342    0.2345%    -0.2377%
-5m         1504      565      207        790    0.3869%    -0.4234%
-15m         470      185       89        264    0.7642%    -0.7877%
-1h          420      176      109        322    1.3831%    -1.3933%
-4h         1075      496      225        676    2.9781%    -2.1261%
+1m          387      120       54        400    0.1880%    -0.2280%
+5m         2174      827      306       1215    0.3719%    -0.4554%
+15m        1737      570      264        986    0.6461%    -0.9881%
+1h         1570      713      481       1314    1.0276%    -1.5239%
+4h         2068      945      472       1423    2.6284%    -2.4097%
 =====================================================
 
 
 ======== BACKTEST SUMMARY ========
 TF      Total   Wins   Loss    Exprd  WinRate   AvgPnL     Sharpe
-1m       1401    689    700       12    49.2% -0.0333%     -0.089
-5m       3657   2322   1311       24    63.5%  0.0807%      0.128
-15m      2923   1783   1080       60    61.0%  0.0162%      0.013
-1h       3223   1758   1446       19    54.5%  0.0325%      0.015
-4h       3517   2113   1395        9    60.1%  0.4203%      0.097
+1m       1329    648    674        7    48.8% -0.0415%     -0.112
+5m       3545   2230   1281       34    62.9%  0.0745%      0.116
+15m      3008   1863   1084       61    61.9%  0.0363%      0.029
+1h       3399   1843   1536       20    54.2%  0.0267%      0.013
+4h       3766   2198   1555       13    58.4%  0.3669%      0.081
 -------------------------------
-TOTAL: 14721 signals, 8665 wins (58.9%), avg PnL: 0.1276%
+TOTAL: 15047 signals, 8782 wins (58.4%), avg PnL: 0.1190%
 ==================================
 
 ======== TP LEVEL DISTRIBUTION (Partial Close) ========
 TF      TP1_hit  TP2_hit  TP3_hit    SL_only    AvgPnL+      AvgPnL-
-1m          689      250      111        700    0.3055%    -0.3662%
-5m         2322      990      347       1311    0.5098%    -0.6768%
-15m        1783      687      299       1080    0.8562%    -1.3493%
-1h         1758      958      629       1446    1.7426%    -2.0698%
-4h         2113     1113      519       1395    3.4306%    -4.1535%
+1m          648      241      107        674    0.2993%    -0.3681%
+5m         2230      967      360       1281    0.5064%    -0.6745%
+15m        1863      727      326       1084    0.8657%    -1.3748%
+1h         1843     1021      678       1536    1.7549%    -2.0680%
+4h         2198     1163      557       1555    3.5511%    -4.1438%
 =====================================================
 
 ======== WIN RATE BY SCORE BUCKET ========
 TF      0.55-0.60  0.60-0.65  0.65-0.70  0.70-0.75  0.75-0.80      0.80+
-1m     49% (1048)  50% (315)   37% (38)        -          -          -  
-5m     61% (2221) 66% (1180)  73% (215)   71% (41)        -          -  
-15m    62% (1901)  58% (839)  65% (156)   52% (27)        -          -  
-1h     54% (2149)  56% (891)  55% (163)   30% (20)        -          -  
-4h     59% (2091) 62% (1065)  62% (318)   51% (43)        -          -  
+1m     50% (1000)  47% (286)   40% (43)        -          -          -  
+5m     61% (2143) 64% (1134)  71% (226)   69% (42)        -          -  
+15m    63% (1930)  60% (881)  63% (171)   50% (26)        -          -  
+1h     54% (2183) 56% (1008)  50% (185)   39% (23)        -          -  
+4h     57% (2250) 60% (1143)  61% (330)   51% (43)        -          -  
 ==========================================
 

@@ -913,6 +913,9 @@ impl FeatureSnapshot {
 
 /// Build a comprehensive raw_signals_summary from ALL available indicators + SR levels.
 /// This feeds into FinalScorer which uses multi-indicator directional scoring.
+///
+/// PHASE 1-3 IMPROVEMENTS: Added impulse_phase, RoC indicators, SR distance features,
+/// score velocity, and momentum acceleration for early entry detection.
 fn build_raw_signals_summary(
     indicators: &IndicatorsWideRow,
     sr_levels: Option<&serde_json::Value>,
@@ -925,6 +928,8 @@ fn build_raw_signals_summary(
 
     let rsi = indicators.rsi as f64;
     let macd_hist = indicators.macd_histogram as f64;
+    let macd_line = indicators.macd_line as f64;
+    let macd_signal = indicators.macd_signal as f64;
     let rsi_dev = (rsi - 50.0).abs() / 50.0;
     let macd_norm = macd_hist.abs().min(1.0);
     let momentum_strength = (0.6 * rsi_dev + 0.4 * macd_norm).clamp(0.0, 1.0);
@@ -941,7 +946,81 @@ fn build_raw_signals_summary(
     let best_levels = ((trend_strength * 0.5 + momentum_strength * 0.3 + volume_spike_score * 0.2) * 1.1).clamp(0.0, 1.0);
     let best_raw = ((trend_strength + momentum_strength) / 2.0).clamp(0.0, 1.0);
 
-    // Extract SR level prices from JSON if available
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 1: Impulse Phase Detection + Momentum Acceleration
+    // ═══════════════════════════════════════════════════════════════════
+    // Classify the impulse phase based on RSI, MACD, and momentum dynamics.
+    // EARLY = beginning of move, MID = developing, LATE = extended, EXHAUSTION = reverting
+    //
+    // impulse_phase: 0.0=EARLY, 0.33=MID, 0.66=LATE, 1.0=EXHAUSTION
+    let stoch_k = indicators.stoch_k as f64;
+    let cci = indicators.cci as f64;
+    
+    let impulse_phase: f64 = if dominant_side > 0 {
+        // LONG: measure how far into the bullish move we are
+        if rsi < 55.0 && macd_hist > 0.0 && stoch_k < 60.0 {
+            0.0  // EARLY: RSI not overbought yet, MACD just crossed
+        } else if rsi >= 55.0 && rsi < 70.0 && macd_hist > 0.0 {
+            0.33 // MID: developing momentum
+        } else if rsi >= 70.0 || (rsi > 65.0 && stoch_k > 80.0) {
+            0.66 // LATE: overbought territory
+        } else {
+            1.0  // EXHAUSTION: momentum fading
+        }
+    } else if dominant_side < 0 {
+        // SHORT: measure how far into the bearish move we are
+        if rsi > 45.0 && macd_hist < 0.0 && stoch_k > 40.0 {
+            0.0  // EARLY
+        } else if rsi <= 45.0 && rsi > 30.0 && macd_hist < 0.0 {
+            0.33 // MID
+        } else if rsi <= 30.0 || (rsi < 35.0 && stoch_k < 20.0) {
+            0.66 // LATE
+        } else {
+            1.0  // EXHAUSTION
+        }
+    } else {
+        0.5 // No clear direction
+    };
+    
+    // Momentum acceleration: is momentum increasing or decreasing?
+    // Positive = momentum building (MACD histogram growing)
+    // Negative = momentum fading (MACD histogram shrinking)
+    let macd_vs_signal = macd_line - macd_signal; // MACD - Signal = histogram
+    let momentum_acceleration = if dominant_side > 0 {
+        // For longs: positive acceleration means MACD histogram is growing positive
+        (macd_hist / (atr_pct.max(0.001) * close)).clamp(-5.0, 5.0)
+    } else if dominant_side < 0 {
+        // For shorts: negative MACD histogram growing = positive acceleration
+        (-macd_hist / (atr_pct.max(0.001) * close)).clamp(-5.0, 5.0)
+    } else {
+        0.0
+    };
+    
+    // RSI slope approximation: (RSI - 50) normalized + direction gives slope context
+    // This approximates RoC of RSI without multi-bar lookback
+    let rsi_slope = if rsi > 50.0 {
+        // Above 50: if stoch_k is also rising (stoch_k > stoch_d), RSI is accelerating
+        let stoch_d = indicators.stoch_d as f64;
+        if stoch_k > stoch_d { ((rsi - 50.0) / 30.0).clamp(0.0, 1.0) }
+        else { -((rsi - 50.0) / 30.0).clamp(0.0, 0.5) } // RSI high but decelerating
+    } else {
+        let stoch_d = indicators.stoch_d as f64;
+        if stoch_k < stoch_d { -((50.0 - rsi) / 30.0).clamp(0.0, 1.0) }
+        else { ((50.0 - rsi) / 30.0).clamp(0.0, 0.5) } // RSI low but recovering
+    };
+    
+    // Volume confirmation of impulse: high volume at early phase = strong signal
+    let volume_impulse_confirm = if volume_spike_score > 0.6 && impulse_phase <= 0.33 {
+        1.0  // Strong volume at early stage
+    } else if volume_spike_score > 0.3 {
+        0.5  // Moderate volume
+    } else {
+        0.0  // Weak volume
+    };
+
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 2: Distance to nearest SR levels (ATR-normalized)
+    // ═══════════════════════════════════════════════════════════════════
     let sr = sr_levels.unwrap_or(&serde_json::Value::Null);
     let get_sr = |key: &str| -> serde_json::Value {
         sr.get(key)
@@ -950,6 +1029,58 @@ fn build_raw_signals_summary(
             .map(|v| serde_json::json!(v))
             .unwrap_or(serde_json::Value::Null)
     };
+    let get_sr_f64 = |key: &str| -> f64 {
+        sr.get(key).and_then(|v| v.as_f64()).filter(|v| v.is_finite() && *v > 0.0).unwrap_or(0.0)
+    };
+    
+    // Find nearest support below price
+    let sup_prices = [get_sr_f64("strong_support"), get_sr_f64("mid_support"), get_sr_f64("light_support")];
+    let nearest_support_dist_atr = sup_prices.iter()
+        .filter(|&&p| p > 0.0 && p < close)
+        .map(|&p| (close - p) / atr.max(1e-9))
+        .fold(f64::MAX, f64::min);
+    let nearest_support_dist_atr = if nearest_support_dist_atr == f64::MAX { -1.0 } else { nearest_support_dist_atr };
+    
+    // Find nearest resistance above price
+    let res_prices = [get_sr_f64("strong_resistance"), get_sr_f64("mid_resistance"), get_sr_f64("light_resistance")];
+    let nearest_resistance_dist_atr = res_prices.iter()
+        .filter(|&&p| p > 0.0 && p > close)
+        .map(|&p| (p - close) / atr.max(1e-9))
+        .fold(f64::MAX, f64::min);
+    let nearest_resistance_dist_atr = if nearest_resistance_dist_atr == f64::MAX { -1.0 } else { nearest_resistance_dist_atr };
+    
+    // Price position between support and resistance (0.0 = at support, 1.0 = at resistance)
+    let sr_position = if nearest_support_dist_atr >= 0.0 && nearest_resistance_dist_atr >= 0.0 {
+        let total = nearest_support_dist_atr + nearest_resistance_dist_atr;
+        if total > 0.0 { nearest_support_dist_atr / total } else { 0.5 }
+    } else { 0.5 };
+
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 3: EMA alignment signals for early trend detection
+    // ═══════════════════════════════════════════════════════════════════
+    let ema_20 = indicators.ema_20 as f64;
+    let ema_50 = indicators.ema_50 as f64;
+    let ema_200 = indicators.ema_200 as f64;
+    
+    // EMA stack: bullish(1) / bearish(-1) / mixed(0)
+    let ema_stack = if ema_20 > ema_50 && ema_50 > ema_200 { 1.0 }
+        else if ema_20 < ema_50 && ema_50 < ema_200 { -1.0 }
+        else { 0.0 };
+    
+    // Price position relative to EMA cloud (above all = bullish, below = bearish)
+    let price_vs_emas = if close > 0.0 && ema_20 > 0.0 {
+        ((close - ema_20) / close + (close - ema_50) / close + (close - ema_200) / close) / 3.0
+    } else { 0.0 };
+    
+    // BB position (0 = at lower band, 1 = at upper band)
+    let bb_upper = indicators.bb_upper as f64;
+    let bb_lower = indicators.bb_lower as f64;
+    let bb_position = if (bb_upper - bb_lower).abs() > 1e-9 {
+        ((close - bb_lower) / (bb_upper - bb_lower)).clamp(0.0, 1.0)
+    } else { 0.5 };
+    
+    // BB width (volatility squeeze detection)
+    let bb_width = if close > 0.0 { (bb_upper - bb_lower) / close } else { 0.0 };
 
     serde_json::json!({
         "atr": indicators.atr,
@@ -966,8 +1097,25 @@ fn build_raw_signals_summary(
         "best_volume_score": best_volume,
         "feature_coverage": 1.0,
 
+        // === Phase 1: Impulse Phase + Momentum Features ===
+        "impulse_phase": impulse_phase,
+        "momentum_acceleration": momentum_acceleration,
+        "rsi_slope": rsi_slope,
+        "volume_impulse_confirm": volume_impulse_confirm,
+        "macd_vs_signal": macd_vs_signal,
+        
+        // === Phase 2: SR Distance Features ===
+        "nearest_support_dist_atr": nearest_support_dist_atr,
+        "nearest_resistance_dist_atr": nearest_resistance_dist_atr,
+        "sr_position": sr_position,
+        
+        // === Phase 3: EMA + BB Features ===
+        "ema_stack": ema_stack,
+        "price_vs_emas": price_vs_emas,
+        "bb_position": bb_position,
+        "bb_width": bb_width,
+
         // === ALL directional indicators for comprehensive scoring ===
-        // Price & EMAs
         "close": indicators.close,
         "open": indicators.open,
         "high": indicators.high,
@@ -976,14 +1124,10 @@ fn build_raw_signals_summary(
         "ema_50": indicators.ema_50,
         "ema_200": indicators.ema_200,
         "sma": indicators.sma,
-
-        // Trend indicators (short → medium → long for multi-TF confirmation)
         "trend_short": indicators.trend_short,
         "trend_medium": indicators.trend_medium,
         "trend_long": indicators.trend_long,
         "adx": indicators.adx,
-
-        // Momentum oscillators
         "rsi": indicators.rsi,
         "macd_hist": indicators.macd_histogram,
         "macd_line": indicators.macd_line,
@@ -992,19 +1136,13 @@ fn build_raw_signals_summary(
         "stoch_d": indicators.stoch_d,
         "williams_r": indicators.williams_r,
         "cci": indicators.cci,
-
-        // Bollinger Bands
         "bb_upper": indicators.bb_upper,
         "bb_lower": indicators.bb_lower,
         "bb_middle": indicators.bb_middle,
-
-        // Volume indicators
         "volume": indicators.volume,
         "volume_sma": indicators.volume_sma,
         "vwap": indicators.vwap,
         "obv": indicators.obv,
-
-        // Support/Resistance levels (primary strategy component)
         "sr_levels": {
             "strong_support": get_sr("strong_support"),
             "mid_support": get_sr("mid_support"),

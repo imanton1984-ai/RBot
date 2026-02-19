@@ -609,6 +609,9 @@ async fn export_entry_policy_dataset(
          quality_multiplier,quality_grade,original_score,\
          pred_vs_raw,pred_vs_ind,component_std,component_min,ml_heur_gap,score_per_risk,\
          atr_pct,market_factor,score_factor,\
+         impulse_phase,momentum_acceleration,rsi_slope,volume_impulse_confirm,\
+         nearest_support_dist_atr,nearest_resistance_dist_atr,sr_position,\
+         ema_stack,price_vs_emas,bb_position,bb_width,\
          elapsed,remaining,label_enter,label_cancel,weight"
     )?;
 
@@ -789,6 +792,9 @@ async fn export_entry_policy_dataset(
                  {:.4},{},{:.4},\
                  {:.4},{:.4},{:.6},{:.4},{:.4},{:.2},\
                  {:.6},{:.4},{:.4},\
+                 {:.4},{:.4},{:.4},{:.4},\
+                 {:.4},{:.4},{:.4},\
+                 {:.4},{:.4},{:.4},{:.4},\
                  {},{},{},{},{:.4}",
                 result.symbol, result.tf_minutes, result.side,
                 result.final_score, ml_s, heur_s,
@@ -805,6 +811,12 @@ async fn export_entry_policy_dataset(
                 quality_mult, quality_grade, original_score,
                 pred_vs_raw, pred_vs_ind, component_std, component_min, ml_heur_gap, score_per_risk,
                 atr_pct, market_factor, score_factor,
+                debug_get("impulse_phase"), debug_get("momentum_acceleration"),
+                debug_get("rsi_slope"), debug_get("volume_impulse_confirm"),
+                debug_get("nearest_support_dist_atr"), debug_get("nearest_resistance_dist_atr"),
+                debug_get("sr_position"),
+                debug_get("ema_stack"), debug_get("price_vs_emas"),
+                debug_get("bb_position"), debug_get("bb_width"),
                 ex.elapsed, ex.remaining, ex.label_enter, ex.label_cancel, ex.weight
             )?;
         }

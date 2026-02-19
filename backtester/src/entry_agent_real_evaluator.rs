@@ -593,6 +593,36 @@ impl RealEntryAgentEvaluator {
         let bar_rsi = bar.rsi;
         let bar_atr = bar.atr;
         
+        // Phase 1: Impulse phase detection from bar-level RSI
+        let impulse_phase = {
+            let r = bar.rsi;
+            if signal.side > 0 {
+                if r < 55.0 { 0.0 } else if r < 70.0 { 0.33 } else { 0.66 }
+            } else if signal.side < 0 {
+                if r > 45.0 { 0.0 } else if r > 30.0 { 0.33 } else { 0.66 }
+            } else { 0.5 }
+        };
+        let rsi_slope = ((bar.rsi - 50.0) / 30.0).clamp(-1.0, 1.0);
+        let momentum_accel = 0.0f64; // Approximation without MACD per-bar
+        let volume_impulse = 0.0f32; // Not available per-bar in backtester
+        
+        // Phase 2: SR distance from reason JSON
+        let sr_get = |k: &str| reason.get(k).and_then(|v| v.as_f64())
+            .or_else(|| reason.get("debug").and_then(|d| d.get(k)).and_then(|v| v.as_f64()))
+            .unwrap_or(-1.0);
+        let nearest_support_dist_atr = sr_get("nearest_support_dist_atr");
+        let nearest_resistance_dist_atr = sr_get("nearest_resistance_dist_atr");
+        let sr_position = if nearest_support_dist_atr >= 0.0 && nearest_resistance_dist_atr >= 0.0 {
+            let total = nearest_support_dist_atr + nearest_resistance_dist_atr;
+            if total > 0.0 { nearest_support_dist_atr / total } else { 0.5 }
+        } else { 0.5 };
+        
+        // Phase 3: EMA/BB from reason
+        let ema_stack = sr_get("ema_stack").max(-1.0);
+        let price_vs_emas = sr_get("price_vs_emas").max(-1.0);
+        let bb_position = 0.5f64;
+        let bb_width = (bar.atr * 2.0 / bar.close.max(1e-9)).clamp(0.0, 0.1);
+        
         let features = vec![
             signal.tf_minutes as f32,
             signal.side as f32,
@@ -639,6 +669,20 @@ impl RealEntryAgentEvaluator {
             bar_close_vs_entry as f32,
             bar_rsi as f32,
             bar_atr as f32,
+            // Phase 1: Impulse + Momentum features
+            impulse_phase as f32,
+            momentum_accel as f32,
+            rsi_slope as f32,
+            volume_impulse,
+            // Phase 2: SR distance features
+            nearest_support_dist_atr as f32,
+            nearest_resistance_dist_atr as f32,
+            sr_position as f32,
+            // Phase 3: EMA/BB features
+            ema_stack as f32,
+            price_vs_emas as f32,
+            bb_position as f32,
+            bb_width as f32,
         ];
         
         Ok(features)

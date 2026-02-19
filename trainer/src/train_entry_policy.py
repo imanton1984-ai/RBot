@@ -64,6 +64,12 @@ FEATURE_COLS = [
     "quality_multiplier", "quality_grade", "original_score",
     "pred_vs_raw", "pred_vs_ind", "component_std", "component_min", "ml_heur_gap", "score_per_risk",
     "atr_pct", "market_factor", "score_factor",
+    # Phase 1: Impulse + Momentum features (for early entry detection)
+    "impulse_phase", "momentum_acceleration", "rsi_slope", "volume_impulse_confirm",
+    # Phase 2: SR distance features
+    "nearest_support_dist_atr", "nearest_resistance_dist_atr", "sr_position",
+    # Phase 3: EMA/BB features
+    "ema_stack", "price_vs_emas", "bb_position", "bb_width",
     # Temporal features (added by labeler)
     "elapsed", "remaining",
 ]

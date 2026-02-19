@@ -1,0 +1,10 @@
+===========================================
+FULL STOP @ Thu 19 Feb 2026 10:39:19 AM MSK
+ROOT: /home/anton/Desktop/Rust_trader
+LOG : /home/anton/Desktop/Rust_trader/logs/full_stop_20260219_103919.log
+===========================================
+Loading env: /home/anton/Desktop/Rust_trader/.env
+--- Stopping by pidfiles in /home/anton/Desktop/Rust_trader/run ---
+No pidfiles found.
+--- Killing leftover processes that belong to this repo only (cmdline contains ROOT_DIR) ---
+TERM leftover: pid=359211 cmd=tee -a /home/anton/Desktop/Rust_trader/logs/full_stop_20260219_103919.log

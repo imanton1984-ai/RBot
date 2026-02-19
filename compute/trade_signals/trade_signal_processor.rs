@@ -361,6 +361,9 @@ fn build_entry_agent_features(signal: &TradeSignal, input: &TradeSignalInput) ->
     let market_factor = get("market_factor");
     let score_factor = get("score_factor");
     
+    // Phase 1-3: Extract new impulse/SR features from raw_signals_summary
+    let raw_get = |k: &str| input.raw_signals_summary.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0);
+    
     vec![
         signal.tf_minutes as f32,
         signal.side as f32,
@@ -403,6 +406,20 @@ fn build_entry_agent_features(signal: &TradeSignal, input: &TradeSignalInput) ->
         atr_pct as f32,
         market_factor as f32,
         score_factor as f32,
+        // Phase 1: Impulse + Momentum features (from raw_signals_summary)
+        raw_get("impulse_phase") as f32,
+        raw_get("momentum_acceleration") as f32,
+        raw_get("rsi_slope") as f32,
+        raw_get("volume_impulse_confirm") as f32,
+        // Phase 2: SR distance features
+        raw_get("nearest_support_dist_atr") as f32,
+        raw_get("nearest_resistance_dist_atr") as f32,
+        raw_get("sr_position") as f32,
+        // Phase 3: EMA/BB features
+        raw_get("ema_stack") as f32,
+        raw_get("price_vs_emas") as f32,
+        raw_get("bb_position") as f32,
+        raw_get("bb_width") as f32,
     ]
 }
 
