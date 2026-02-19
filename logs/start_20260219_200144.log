@@ -1,0 +1,654 @@
+[1m===========================================[0m
+[1m[36mSTART (GPU MODE)[0m
+[1m===========================================[0m
+[1m[20:01:44][0m ROOT:     [1m/home/anton/Desktop/Rust_trader[0m
+[1m[20:01:44][0m LOG :     [1m/home/anton/Desktop/Rust_trader/logs/start_20260219_200144.log[0m
+[1m[20:01:44][0m STRATEGY: [1mdefault[0m
+[1m[20:01:44][0m SUPER ENTRY: [32mENABLED[0m
+[2m===========================================[0m
+[1m[36mGPU SYSTEM CHECK[0m
+[2m===========================================[0m
+[2m[20:01:44][0m [32m✅[0m Using CUDA from: /usr/local/cuda-13.1
+[2m[20:01:44][0m NVCC Version: Cuda compilation tools, release 13.1, V13.1.115
+[2m[20:01:44][0m nvidia-smi available: NVIDIA GeForce RTX 3080 Ti
+[2m[20:01:44][0m [32m✅[0m Found libcudnn.so.9
+[2m[20:01:44][0m Detected CUDA: 13.1.115 (Req: >= 12.9 for latest XGBoost)
+[2m[20:01:44][0m [32m✅[0m GPU system check completed successfully.
+[2m===========================================[0m
+[1m[36mGPU SYSTEM CHECK[0m
+[2m===========================================[0m
+[2m[20:01:44][0m [32m✅[0m Using CUDA from: /usr/local/cuda-13.1
+[2m[20:01:44][0m NVCC Version: Cuda compilation tools, release 13.1, V13.1.115
+[2m[20:01:44][0m nvidia-smi available: NVIDIA GeForce RTX 3080 Ti
+[2m[20:01:44][0m [32m✅[0m Found libcudnn.so.9
+[2m[20:01:44][0m Detected CUDA: 13.1.115 (Req: >= 12.9 for latest XGBoost)
+[2m[20:01:44][0m [32m✅[0m GPU system check completed successfully.
+[2m===========================================[0m
+[1m[36mINSTALL GPU DEPS (XGBoost)[0m
+[2m===========================================[0m
+[2m[20:01:44][0m XGBoost not found. Building with CUDA support...
+[xgb] root=/home/anton/Desktop/Rust_trader
+[xgb] installing deps (ubuntu/debian expected)...
+Get:1 file:/var/cuda-repo-ubuntu2404-13-1-local  InRelease [1,572 B]
+Get:1 file:/var/cuda-repo-ubuntu2404-13-1-local  InRelease [1,572 B]
+Hit:2 http://ru.archive.ubuntu.com/ubuntu noble InRelease
+Hit:3 http://ru.archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:4 http://ru.archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:5 https://dl.google.com/linux/chrome/deb stable InRelease
+Hit:6 https://apt.postgresql.org/pub/repos/apt noble-pgdg InRelease
+Get:7 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+Hit:8 https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/noble pgadmin4 InRelease
+Get:9 https://download.docker.com/linux/ubuntu noble InRelease [48.5 kB]
+Get:10 https://download.docker.com/linux/ubuntu noble/stable amd64 Packages [45.4 kB]
+Hit:12 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64  InRelease
+Hit:11 https://packagecloud.io/timescale/timescaledb/ubuntu noble InRelease
+Get:13 http://security.ubuntu.com/ubuntu noble-security/main i386 Packages [379 kB]
+Get:14 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [1,474 kB]
+Get:15 http://security.ubuntu.com/ubuntu noble-security/universe i386 Packages [579 kB]
+Get:16 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [935 kB]
+Hit:17 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  InRelease
+Fetched 3,587 kB in 3s (1,234 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+git is already the newest version (1:2.43.0-1ubuntu7.3).
+cmake is already the newest version (3.28.3-1build7).
+ninja-build is already the newest version (1.11.1-2).
+build-essential is already the newest version (12.10ubuntu1).
+libomp-dev is already the newest version (1:18.0-59~exp2).
+0 upgraded, 0 newly installed, 0 to remove and 49 not upgraded.
+HEAD is now at 799126051 Bump version to 3.2.0. (#12004)
+CMake Warning:
+  Ignoring extra path from command line:
+
+   ".."
+
+
+CMake Error: The source directory "/home/anton/Desktop/Rust_trader/third_party/xgboost" does not appear to contain CMakeLists.txt.
+Specify --help for usage, or press the help button on the CMake GUI.
+[2m[20:01:55][0m Loading env: [1m/home/anton/Desktop/Rust_trader/.env[0m
+[2m===========================================[0m
+[1m[36mINFRASTRUCTURE[0m
+[2m===========================================[0m
+[2m[20:01:55][0m Starting Docker Compose...
+ Container redpanda Running 
+ Container redpanda_console Running 
+ Container timescaledb Running 
+ Container redpanda Waiting 
+ Container redpanda Healthy 
+[2m[20:01:55][0m Waiting for TCP [1m127.0.0.1:5433[0m (timeout 45s)...
+[2m[20:01:55][0m [32m✅[0m TCP ready: 127.0.0.1:5433
+[2m[20:01:55][0m Waiting for TCP [1m127.0.0.1:19092[0m (timeout 45s)...
+[2m[20:01:55][0m [32m✅[0m TCP ready: 127.0.0.1:19092
+[2m===========================================[0m
+[1m[36mKAFKA TOPICS[0m
+[2m===========================================[0m
+TOPIC          STATUS
+candles.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC           STATUS
+candles.update  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC             STATUS
+indicators.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC    STATUS
+ws_feed  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC        STATUS
+signals.raw  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC          STATUS
+signals.final  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC              STATUS
+features.snapshot  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC       STATUS
+orders.cmd  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC          STATUS
+orders.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC             STATUS
+positions.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+[2m[20:01:56][0m [32m✅[0m Kafka topics ready.
+[2m===========================================[0m
+[1m[36mDATABASE INITIALIZATION[0m
+[2m===========================================[0m
+[2m[20:01:56][0m [33m⚠️[0m Database schema missing. Running initialization...
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.23
+   Compiling quote v1.0.44
+   Compiling libc v0.2.181
+   Compiling serde_core v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling serde v1.0.228
+   Compiling shlex v1.3.0
+   Compiling find-msvc-tools v0.1.9
+   Compiling stable_deref_trait v1.2.1
+   Compiling once_cell v1.21.3
+   Compiling typenum v1.19.0
+   Compiling pin-project-lite v0.2.16
+   Compiling version_check v0.9.5
+   Compiling memchr v2.8.0
+   Compiling signal-hook v0.3.18
+   Compiling pkg-config v0.3.32
+   Compiling futures-core v0.3.31
+   Compiling parking_lot_core v0.9.12
+   Compiling zerocopy v0.8.39
+   Compiling cc v1.2.55
+   Compiling litemap v0.8.1
+   Compiling writeable v0.6.2
+   Compiling generic-array v0.14.7
+   Compiling scopeguard v1.2.0
+   Compiling crunchy v0.2.4
+   Compiling tiny-keccak v2.0.2
+   Compiling futures-sink v0.3.31
+   Compiling icu_normalizer_data v2.1.1
+   Compiling subtle v2.6.1
+   Compiling autocfg v1.5.0
+   Compiling zmij v1.0.21
+   Compiling icu_properties_data v2.1.2
+   Compiling lock_api v0.4.14
+   Compiling equivalent v1.0.2
+   Compiling futures-channel v0.3.31
+   Compiling ring v0.17.14
+   Compiling futures-io v0.3.31
+   Compiling hashbrown v0.16.1
+   Compiling log v0.4.29
+   Compiling pin-utils v0.1.0
+   Compiling crossbeam-utils v0.8.21
+   Compiling num-traits v0.2.19
+   Compiling foldhash v0.1.5
+   Compiling winnow v0.7.14
+   Compiling allocator-api2 v0.2.21
+   Compiling errno v0.3.14
+   Compiling os_pipe v1.2.3
+   Compiling zeroize v1.8.2
+   Compiling serde_json v1.0.149
+   Compiling futures-task v0.3.31
+   Compiling slab v0.4.12
+   Compiling indexmap v2.13.0
+   Compiling getrandom v0.2.17
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling hashbrown v0.15.5
+   Compiling rustls-pki-types v1.14.0
+   Compiling socket2 v0.6.2
+   Compiling mio v1.1.1
+   Compiling signal-hook-registry v1.4.8
+   Compiling tracing-core v0.1.36
+   Compiling vcpkg v0.2.15
+   Compiling digest v0.10.7
+   Compiling toml_parser v1.0.8+spec-1.1.0
+   Compiling getrandom v0.3.4
+   Compiling syn v2.0.115
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling ucd-trie v0.1.7
+   Compiling bytes v1.11.1
+   Compiling typeid v1.0.3
+   Compiling itoa v1.0.17
+   Compiling openssl-sys v0.9.111
+   Compiling hashlink v0.10.0
+   Compiling const-random-macro v0.1.16
+   Compiling ppv-lite86 v0.2.21
+   Compiling sigchld v0.2.4
+   Compiling toml_edit v0.23.10+spec-1.0.0
+   Compiling rustversion v1.0.22
+   Compiling untrusted v0.9.0
+   Compiling bitflags v2.10.0
+   Compiling shared_child v1.1.1
+   Compiling pest v2.8.6
+   Compiling const-random v0.1.18
+   Compiling rustls v0.23.36
+   Compiling proc-macro-crate v3.4.0
+   Compiling iana-time-zone v0.1.65
+   Compiling percent-encoding v2.3.2
+   Compiling utf8_iter v1.0.4
+   Compiling erased-serde v0.4.9
+   Compiling thiserror v2.0.18
+   Compiling tinyvec_macros v0.1.1
+   Compiling rand_core v0.9.5
+   Compiling concurrent-queue v2.5.0
+   Compiling dlv-list v0.5.2
+   Compiling webpki-roots v1.0.6
+   Compiling duct v0.13.7
+   Compiling rand_core v0.6.4
+   Compiling rdkafka-sys v4.10.0+2.12.1
+   Compiling form_urlencoded v1.2.2
+   Compiling cpufeatures v0.2.17
+   Compiling parking v2.2.1
+   Compiling tinyvec v1.10.0
+   Compiling serde_derive v1.0.228
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling futures-macro v0.3.31
+   Compiling tokio-macros v2.6.0
+   Compiling sasl2-sys v0.1.22+2.1.28
+   Compiling tracing-attributes v0.1.31
+   Compiling pest_meta v2.8.6
+   Compiling thiserror-impl v2.0.18
+   Compiling num_enum_derive v0.7.5
+   Compiling crc-catalog v2.4.0
+   Compiling hashbrown v0.14.5
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.1
+   Compiling pest_generator v2.8.6
+   Compiling ordered-multimap v0.7.3
+   Compiling pest_derive v2.8.6
+   Compiling crc v3.4.0
+   Compiling unicode-normalization v0.1.25
+   Compiling rand_chacha v0.3.1
+   Compiling rustls-webpki v0.103.9
+   Compiling event-listener v5.4.1
+   Compiling futures-util v0.3.31
+   Compiling sha2 v0.10.9
+   Compiling webpki-roots v0.26.11
+   Compiling rand_chacha v0.9.0
+   Compiling num_enum v0.7.5
+   Compiling crossbeam-queue v0.3.12
+   Compiling hmac v0.12.1
+   Compiling serde_spanned v1.0.4
+   Compiling encoding_rs v0.8.35
+   Compiling anyhow v1.0.101
+   Compiling uuid v1.20.0
+   Compiling arraydeque v0.5.1
+   Compiling unicode-properties v0.1.4
+   Compiling unicode-bidi v0.3.18
+   Compiling regex-syntax v0.8.9
+   Compiling tracing v0.1.44
+   Compiling unicode-segmentation v1.12.0
+   Compiling zerofrom v0.1.6
+   Compiling base64 v0.22.1
+   Compiling toml v0.9.12+spec-1.1.0
+   Compiling yoke v0.8.1
+   Compiling futures-executor v0.3.31
+   Compiling hkdf v0.12.4
+   Compiling stringprep v0.1.5
+   Compiling convert_case v0.6.0
+   Compiling serde-untagged v0.1.9
+   Compiling rand v0.9.2
+   Compiling regex-automata v0.4.14
+   Compiling rand v0.8.5
+   Compiling rust-ini v0.21.3
+   Compiling yaml-rust2 v0.10.4
+   Compiling async-trait v0.1.89
+   Compiling atoi v2.0.0
+   Compiling zerovec v0.11.5
+   Compiling zerotrie v0.2.3
+   Compiling md-5 v0.10.6
+   Compiling hex v0.4.3
+   Compiling pathdiff v0.2.3
+   Compiling dotenvy v0.15.7
+   Compiling whoami v1.6.1
+   Compiling byteorder v1.5.0
+   Compiling lazy_static v1.5.0
+   Compiling home v0.5.12
+   Compiling twox-hash v2.1.2
+   Compiling futures v0.3.31
+   Compiling tracing-log v0.2.0
+   Compiling thread_local v1.1.9
+   Compiling tinystr v0.8.2
+   Compiling potential_utf v0.1.4
+   Compiling sharded-slab v0.1.7
+   Compiling nu-ansi-term v0.50.3
+   Compiling matchers v0.2.0
+   Compiling icu_locale_core v2.1.1
+   Compiling icu_collections v2.1.1
+   Compiling icu_provider v2.1.1
+   Compiling icu_properties v2.1.2
+   Compiling smallvec v1.15.1
+   Compiling chrono v0.4.43
+   Compiling either v1.15.0
+   Compiling ron v0.12.0
+   Compiling json5 v0.4.1
+   Compiling bincode v1.3.3
+   Compiling icu_normalizer v2.1.1
+   Compiling tracing-subscriber v0.3.22
+   Compiling parking_lot v0.12.5
+   Compiling config v0.15.19
+   Compiling idna_adapter v1.2.1
+   Compiling tokio v1.49.0
+   Compiling futures-intrusive v0.5.0
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling tokio-stream v0.1.18
+   Compiling sqlx-core v0.8.6
+   Compiling sqlx-postgres v0.8.6
+   Compiling sqlx v0.8.6
+   Compiling rdkafka v0.39.0
+   Compiling common v0.1.0 (/home/anton/Desktop/Rust_trader/common)
+   Compiling database v0.1.0 (/home/anton/Desktop/Rust_trader/database)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.16s
+[2m[20:02:13][0m [32m✅[0m Database initialized successfully.
+[2m===========================================[0m
+[1m[36mBUILD (GPU MODE)[0m
+[2m===========================================[0m
+[2m[20:02:13][0m Building with features: cuda
+[1m[92m   Compiling[0m zerocopy v0.8.39
+[1m[92m   Compiling[0m futures-sink v0.3.31
+[1m[92m   Compiling[0m libm v0.2.16
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m jobserver v0.1.34
+[1m[92m   Compiling[0m zerocopy-derive v0.8.39
+[1m[92m   Compiling[0m dunce v1.0.5
+[1m[92m   Compiling[0m fs_extra v1.3.0
+[1m[92m   Compiling[0m smallvec v1.15.1
+[1m[92m   Compiling[0m crypto-common v0.1.7
+[1m[92m   Compiling[0m aws-lc-rs v1.15.4
+[1m[92m   Compiling[0m rustls v0.23.36
+[1m[92m   Compiling[0m base64 v0.22.1
+[1m[92m   Compiling[0m http v1.4.0
+[1m[92m   Compiling[0m form_urlencoded v1.2.2
+[1m[92m   Compiling[0m httparse v1.10.1
+[1m[96m    Building[0m [========>                ] 202/507: libm(build.rs), base64, smallvec, httparse(build.rs), jobserver, fs_extra, num-traits(build.rs), crypto-common, aws-lc-rs(build.rs), zerocopy(build.rs), form_urle…[1m[96m    Building[0m [=========>               ] 203/507: libm(build.rs), base64, smallvec, httparse(build.rs), jobserver, fs_extra, num-traits(build), crypto-common, aws-lc-rs(build.rs), zerocopy(build.rs), form_urlenco…[K[1m[92m   Compiling[0m rdkafka-sys v4.10.0+2.12.1
+[1m[96m    Building[0m [==========>              ] 229/507: libm(build.rs), base64, smallvec, httparse(build.rs), jobserver, fs_extra, num-traits(build), crypto-common, aws-lc-rs(build.rs), zerocopy(build.rs), form_urlenco…[K[1m[92m   Compiling[0m digest v0.10.7
+[1m[96m    Building[0m [==========>              ] 230/507: libm(build.rs), digest, base64, smallvec, httparse(build.rs), jobserver, fs_extra, num-traits(build), aws-lc-rs(build.rs), zerocopy(build.rs), form_urlencoded, du…[K[1m[92m   Compiling[0m cc v1.2.55
+[1m[96m    Building[0m [==========>              ] 231/507: libm(build.rs), digest, base64, smallvec, httparse(build.rs), jobserver, fs_extra, num-traits(build), cc, zerocopy(build.rs), form_urlencoded, dunce, http, zeroco…[K[1m[92m   Compiling[0m tower-service v0.3.3
+[1m[96m    Building[0m [============>            ] 280/507: digest, base64, smallvec, httparse(build.rs), fs_extra, num-traits(build), tower-service, cc, libm(build), zerocopy(build.rs), form_urlencoded, dunce, http, zeroc…[1m[96m    Building[0m [============>            ] 281/507: digest, base64, smallvec, httparse(build.rs), fs_extra, num-traits(build), tower-service, cc, zerocopy(build.rs), form_urlencoded, dunce, http, zerocopy-derive, r…[K[1m[92m   Compiling[0m futures-channel v0.3.31
+[1m[96m    Building[0m [============>            ] 282/507: digest, base64, smallvec, httparse(build.rs), fs_extra, num-traits(build), tower-service, cc, futures-channel, zerocopy(build.rs), form_urlencoded, dunce, http, z…[K[1m[92m   Compiling[0m byteorder v1.5.0
+[1m[96m    Building[0m [=============>           ] 285/507: digest, base64, smallvec, httparse(build.rs), byteorder, fs_extra, num-traits(build), tower-service, cc, futures-channel, zerocopy(build.rs), form_urlencoded, htt…[K[1m[92m   Compiling[0m parking_lot_core v0.9.12
+[1m[92m   Compiling[0m icu_normalizer v2.1.1
+[1m[92m   Compiling[0m try-lock v0.2.5
+[1m[92m   Compiling[0m sync_wrapper v1.0.2
+[1m[96m    Building[0m [===============>         ] 336/507: digest, try-lock, base64, httparse(build.rs), byteorder, sync_wrapper, tower-service, cc, futures-channel, zerocopy(build.rs), parking_lot_core, http, zerocopy-de…[1m[96m    Building[0m [===============>         ] 337/507: digest, try-lock, base64, httparse(build.rs), byteorder, sync_wrapper, tower-service, cc, futures-channel, zerocopy(build), parking_lot_core, http, zerocopy-deriv…[K[1m[92m   Compiling[0m atomic-waker v1.1.2
+[1m[96m    Building[0m [===============>         ] 338/507: digest, try-lock, base64, httparse(build.rs), byteorder, sync_wrapper, tower-service, atomic-waker, cc, futures-channel, parking_lot_core, http, zerocopy-derive, …[1m[96m    Building[0m [===============>         ] 339/507: digest, try-lock, base64, byteorder, sync_wrapper, tower-service, atomic-waker, cc, futures-channel, httparse(build), parking_lot_core, http, zerocopy-derive, rdk…[K[1m[92m   Compiling[0m httpdate v1.0.3
+[1m[96m    Building[0m [===============>         ] 340/507: digest, try-lock, byteorder, sync_wrapper, tower-service, atomic-waker, cc, futures-channel, httparse(build), parking_lot_core, http, httpdate, zerocopy-derive, r…[1m[96m    Building[0m [===============>         ] 341/507: digest, try-lock, byteorder, httparse, sync_wrapper, tower-service, atomic-waker, cc, futures-channel, parking_lot_core, http, httpdate, zerocopy-derive, rdkafka-…[K[1m[92m   Compiling[0m tower-layer v0.3.3
+[1m[96m    Building[0m [===============>         ] 344/507: digest, try-lock, byteorder, httparse, sync_wrapper, tower-service, tower-layer, atomic-waker, cc, futures-channel, parking_lot_core, http, httpdate, zerocopy-der…[K[1m[92m   Compiling[0m http-body v1.0.1
+[1m[96m    Building[0m [================>        ] 345/507: digest, try-lock, byteorder, httparse, sync_wrapper, tower-service, tower-layer, atomic-waker, cc, futures-channel, parking_lot_core, http-body, httpdate, zerocop…[K[1m[92m   Compiling[0m ipnet v2.11.0
+[1m[96m    Building[0m [================>        ] 357/507: digest, try-lock, byteorder, httparse, sync_wrapper, tower-layer, atomic-waker, cc, futures-channel, ipnet, parking_lot_core, http-body, httpdate, zerocopy-derive…[K[1m[92m   Compiling[0m want v0.3.1
+[1m[96m    Building[0m [================>        ] 358/507: digest, want, byteorder, httparse, sync_wrapper, tower-layer, atomic-waker, cc, futures-channel, ipnet, parking_lot_core, http-body, httpdate, zerocopy-derive, ic…[K[1m[92m   Compiling[0m hmac v0.12.1
+[1m[96m    Building[0m [================>        ] 359/507: digest, want, httparse, sync_wrapper, tower-layer, atomic-waker, cc, futures-channel, ipnet, hmac, parking_lot_core, http-body, httpdate, zerocopy-derive, icu_nor…[K[1m[92m   Compiling[0m sha2 v0.10.9
+[1m[92m   Compiling[0m md-5 v0.10.6
+[1m[96m    Building[0m [================>        ] 361/507: want, httparse, tower-layer, atomic-waker, cc, futures-channel, md-5, ipnet, hmac, sha2, parking_lot_core, http-body, httpdate, zerocopy-derive, icu_normalizer, l…[K[1m[92m   Compiling[0m parking_lot v0.12.5
+[1m[96m    Building[0m [================>        ] 362/507: want, httparse, tower-layer, atomic-waker, cc, md-5, ipnet, hmac, sha2, parking_lot, parking_lot_core, http-body, httpdate, zerocopy-derive, icu_normalizer, libm  [K[1m[92m   Compiling[0m futures-util v0.3.31
+[1m[96m    Building[0m [================>        ] 363/507: want, httparse, tower-layer, atomic-waker, cc, md-5, futures-util, ipnet, hmac, sha2, parking_lot, http-body, httpdate, zerocopy-derive, icu_normalizer, libm      [K[1m[92m   Compiling[0m tracing-subscriber v0.3.22
+[1m[96m    Building[0m [================>        ] 365/507: want, httparse, tower-layer, atomic-waker, cc, tracing-subscriber, md-5, futures-util, ipnet, hmac, sha2, parking_lot, http-body, zerocopy-derive, icu_normalizer,…[K[1m[92m   Compiling[0m idna_adapter v1.2.1
+[1m[96m    Building[0m [=================>       ] 366/507: want, httparse, idna_adapter, tower-layer, cc, tracing-subscriber, md-5, futures-util, ipnet, hmac, sha2, parking_lot, http-body, zerocopy-derive, icu_normalizer,…[K[1m[92m   Compiling[0m siphasher v1.0.2
+[1m[96m    Building[0m [=================>       ] 368/507: want, httparse, idna_adapter, tower-layer, cc, tracing-subscriber, siphasher, md-5, futures-util, ipnet, hmac, sha2, parking_lot, http-body, zerocopy-derive, libm [K[1m[92m   Compiling[0m openssl-probe v0.2.1
+[1m[96m    Building[0m [=================>       ] 370/507: want, idna_adapter, tower-layer, cc, tracing-subscriber, siphasher, md-5, futures-util, ipnet, hmac, sha2, parking_lot, openssl-probe, http-body, zerocopy-derive,…[K[1m[92m   Compiling[0m ring v0.17.14
+[1m[96m    Building[0m [=================>       ] 371/507: want, ring(build.rs), idna_adapter, tower-layer, tracing-subscriber, siphasher, md-5, futures-util, ipnet, hmac, sha2, parking_lot, openssl-probe, http-body, zero…[K[1m[92m   Compiling[0m cmake v0.1.57
+[1m[96m    Building[0m [=================>       ] 372/507: cmake, want, ring(build.rs), idna_adapter, tracing-subscriber, siphasher, md-5, futures-util, ipnet, hmac, sha2, parking_lot, openssl-probe, http-body, zerocopy-d…[K[1m[92m   Compiling[0m sasl2-sys v0.1.22+2.1.28
+[1m[96m    Building[0m [=================>       ] 373/507: cmake, want, ring(build.rs), idna_adapter, tracing-subscriber, siphasher, md-5, futures-util, ipnet, hmac, sha2, parking_lot, openssl-probe, sasl2-sys(build.rs), …[K[1m[92m   Compiling[0m libz-sys v1.1.23
+[1m[96m    Building[0m [=================>       ] 374/507: cmake, ring(build.rs), libz-sys(build.rs), idna_adapter, tracing-subscriber, siphasher, md-5, futures-util, ipnet, hmac, sha2, parking_lot, openssl-probe, sasl2-s…[1m[96m    Building[0m [=================>       ] 375/507: num-traits, cmake, ring(build.rs), libz-sys(build.rs), idna_adapter, tracing-subscriber, siphasher, futures-util, ipnet, hmac, sha2, parking_lot, openssl-probe, s…[K[1m[92m   Compiling[0m openssl-sys v0.9.111
+[1m[96m    Building[0m [=================>       ] 376/507: num-traits, cmake, ring(build.rs), libz-sys(build.rs), idna_adapter, openssl-sys(build.rs), tracing-subscriber, siphasher, futures-util, ipnet, sha2, parking_lot,…[K[1m[92m   Compiling[0m hkdf v0.12.4
+[1m[96m    Building[0m [=================>       ] 377/507: num-traits, cmake, ring(build.rs), libz-sys(build.rs), idna_adapter, openssl-sys(build.rs), tracing-subscriber, siphasher, futures-util, sha2, parking_lot, openss…[K[1m[92m   Compiling[0m tokio v1.49.0
+[1m[96m    Building[0m [=================>       ] 378/507: num-traits, cmake, ring(build.rs), libz-sys(build.rs), idna_adapter, openssl-sys(build.rs), tracing-subscriber, siphasher, futures-util, tokio, sha2, parking_lot,…[K[1m[92m   Compiling[0m futures-intrusive v0.5.0
+[1m[96m    Building[0m [=================>       ] 379/507: num-traits, cmake, ring(build.rs), libz-sys(build.rs), idna_adapter, openssl-sys(build.rs), tracing-subscriber, futures-util, tokio, sha2, parking_lot, openssl-pr…[K[1m[92m   Compiling[0m http-body-util v0.1.3
+[1m[96m    Building[0m [=================>       ] 380/507: num-traits, cmake, ring(build.rs), libz-sys(build.rs), idna_adapter, openssl-sys(build.rs), tracing-subscriber, futures-util, tokio, sha2, openssl-probe, hkdf, fu…[K[1m[92m   Compiling[0m fallible-iterator v0.2.0
+[1m[96m    Building[0m [=================>       ] 381/507: num-traits, cmake, fallible-iterator, ring(build.rs), libz-sys(build.rs), idna_adapter, openssl-sys(build.rs), tracing-subscriber, futures-util, tokio, openssl-pr…[K[1m[92m   Compiling[0m cudarc v0.11.9
+[1m[96m    Building[0m [=================>       ] 382/507: num-traits, cmake, fallible-iterator, ring(build.rs), libz-sys(build.rs), idna_adapter, openssl-sys(build.rs), tracing-subscriber, futures-util, tokio, hkdf, futu…[K[1m[92m   Compiling[0m idna v1.1.0
+[1m[96m    Building[0m [=================>       ] 383/507: num-traits, cmake, fallible-iterator, ring(build.rs), libz-sys(build.rs), idna, openssl-sys(build.rs), tracing-subscriber, futures-util, tokio, hkdf, futures-intr…[K[1m[92m   Compiling[0m aws-lc-sys v0.37.1
+[1m[96m    Building[0m [=================>       ] 384/507: num-traits, aws-lc-sys(build.rs), fallible-iterator, ring(build.rs), libz-sys(build.rs), idna, openssl-sys(build.rs), tracing-subscriber, futures-util, tokio, hkd…[K[1m[92m   Compiling[0m rustls-native-certs v0.8.3
+[1m[96m    Building[0m [=================>       ] 385/507: num-traits, aws-lc-sys(build.rs), fallible-iterator, ring(build.rs), libz-sys(build.rs), idna, openssl-sys(build.rs), rustls-native-certs, futures-util, tokio, hk…[K[1m[92m   Compiling[0m phf_shared v0.13.1
+[1m[96m    Building[0m [==================>      ] 386/507: num-traits, aws-lc-sys(build.rs), fallible-iterator, ring(build.rs), libz-sys(build.rs), idna, openssl-sys(build.rs), rustls-native-certs, futures-util, tokio, ph…[1m[96m    Building[0m [==================>      ] 387/507: num-traits, aws-lc-sys(build.rs), fallible-iterator, libz-sys(build.rs), idna, openssl-sys(build.rs), rustls-native-certs, ring(build), futures-util, tokio, phf_s…[1m[96m    Building[0m [==================>      ] 388/507: num-traits, ring(build), aws-lc-sys(build.rs), fallible-iterator, idna, openssl-sys(build.rs), rustls-native-certs, ring(build), futures-util, tokio, phf_shared, …[1m[96m    Building[0m [==================>      ] 389/507: num-traits, ring(build), aws-lc-sys(build.rs), fallible-iterator, idna, openssl-sys(build.rs), rustls-native-certs, ring(build), sasl2-sys(build), futures-util, t…[1m[96m    Building[0m [==================>      ] 390/507: num-traits, ring(build), aws-lc-sys(build.rs), fallible-iterator, libz-sys(build), idna, openssl-sys(build.rs), rustls-native-certs, ring(build), sasl2-sys(build)…[1m[96m    Building[0m [==================>      ] 391/507: num-traits, ring(build), aws-lc-sys(build.rs), fallible-iterator, libz-sys(build), idna, openssl-sys(build.rs), rustls-native-certs, ring(build), sasl2-sys(build)…[K[1m[92m   Compiling[0m sha1 v0.10.6
+[1m[96m    Building[0m [==================>      ] 394/507: num-traits, ring(build), aws-lc-sys(build.rs), libz-sys(build), idna, openssl-sys(build.rs), rustls-native-certs, ring(build), sasl2-sys(build), sha1, futures-uti…[K[1m[92m   Compiling[0m libloading v0.8.9
+[1m[96m    Building[0m [==================>      ] 396/507: num-traits, ring(build), aws-lc-sys(build.rs), libloading, libz-sys(build), idna, openssl-sys(build.rs), rustls-native-certs, ring(build), sasl2-sys(build), sha1,…[K[1m[92m   Compiling[0m powerfmt v0.2.0
+[1m[96m    Building[0m [==================>      ] 397/507: num-traits, ring(build), aws-lc-sys(build.rs), libloading, libz-sys(build), idna, openssl-sys(build.rs), ring(build), sasl2-sys(build), powerfmt, sha1, futures-ut…[K[1m[92m   Compiling[0m chrono v0.4.43
+[1m[96m    Building[0m [==================>      ] 398/507: ring(build), aws-lc-sys(build.rs), libloading, libz-sys(build), idna, openssl-sys(build.rs), chrono, ring(build), sasl2-sys(build), powerfmt, sha1, futures-util, …[K[1m[92m   Compiling[0m atoi v2.0.0
+[1m[96m    Building[0m [==================>      ] 399/507: ring(build), aws-lc-sys(build.rs), libloading, libz-sys(build), idna, openssl-sys(build.rs), chrono, ring(build), sasl2-sys(build), powerfmt, sha1, futures-util, …[1m[96m    Building[0m [==================>      ] 400/507: ring(build), aws-lc-sys(build.rs), libloading, libz-sys(build), idna, openssl-sys(build.rs), chrono, ring(build), powerfmt, sha1, futures-util, atoi, tokio, phf_s…[1m[96m    Building[0m [==================>      ] 401/507: ring(build), aws-lc-sys(build.rs), libloading, idna, openssl-sys(build.rs), chrono, ring(build), libz-sys, powerfmt, sha1, futures-util, atoi, tokio, phf_shared, …[1m[96m    Building[0m [==================>      ] 402/507: ring(build), aws-lc-sys(build.rs), libloading, idna, chrono, ring(build), libz-sys, openssl-sys(build), powerfmt, sha1, futures-util, atoi, tokio, phf_shared, sas…[K[1m[92m   Compiling[0m url v2.5.8
+[1m[96m    Building[0m [==================>      ] 403/507: ring(build), aws-lc-sys(build.rs), libloading, chrono, ring(build), url, libz-sys, openssl-sys(build), powerfmt, sha1, futures-util, atoi, tokio, phf_shared, sasl…[K[1m[92m   Compiling[0m futures-executor v0.3.31
+[1m[96m    Building[0m [==================>      ] 404/507: ring(build), aws-lc-sys(build.rs), libloading, chrono, ring(build), url, libz-sys, openssl-sys(build), powerfmt, sha1, atoi, tokio, phf_shared, sasl2-sys, zerocop…[1m[96m    Building[0m [==================>      ] 405/507: ring(build), aws-lc-sys(build.rs), libloading, chrono, ring(build), url, libz-sys, powerfmt, sha1, atoi, tokio, phf_shared, sasl2-sys, openssl-sys, zerocopy-deriv…[1m[96m    Building[0m [===================>     ] 406/507: ring(build), aws-lc-sys(build.rs), libloading, rdkafka-sys(build), chrono, ring(build), url, libz-sys, powerfmt, sha1, atoi, tokio, sasl2-sys, openssl-sys, zeroco…[K[1m[92m   Compiling[0m data-encoding v2.10.0
+[1m[92m   Compiling[0m mime v0.3.17
+[1m[96m    Building[0m [===================>     ] 410/507: ring(build), aws-lc-sys(build.rs), libloading, rdkafka-sys(build), chrono, ring(build), url, libz-sys, data-encoding, sha1, tokio, zerocopy, sasl2-sys, openssl-sy…[K[1m[92m   Compiling[0m utf-8 v0.7.6
+[1m[96m    Building[0m [===================>     ] 411/507: ring(build), aws-lc-sys(build.rs), libloading, rdkafka-sys(build), utf-8, chrono, ring(build), url, libz-sys, data-encoding, tokio, zerocopy, sasl2-sys, openssl-s…[K[1m[92m   Compiling[0m iri-string v0.7.10
+[1m[96m    Building[0m [===================>     ] 412/507: ring(build), aws-lc-sys(build.rs), libloading, rdkafka-sys(build), utf-8, chrono, ring(build), url, data-encoding, tokio, zerocopy, sasl2-sys, openssl-sys, iri-st…[K[1m[92m   Compiling[0m serde_urlencoded v0.7.1
+[1m[96m    Building[0m [===================>     ] 415/507: ring(build), aws-lc-sys(build.rs), rdkafka-sys(build), utf-8, chrono, ring(build), url, serde_urlencoded, data-encoding, tokio, zerocopy, sasl2-sys, openssl-sys, …[K[1m[92m   Compiling[0m deranged v0.5.6
+[1m[96m    Building[0m [===================>     ] 416/507: ring(build), aws-lc-sys(build.rs), rdkafka-sys(build), utf-8, deranged, chrono, ring(build), url, serde_urlencoded, data-encoding, tokio, zerocopy, openssl-sys, i…[K[1m[92m   Compiling[0m futures v0.3.31
+[1m[96m    Building[0m [===================>     ] 417/507: ring(build), aws-lc-sys(build.rs), rdkafka-sys(build), utf-8, deranged, chrono, ring(build), url, serde_urlencoded, data-encoding, futures, tokio, zerocopy, opens…[K[1m[92m   Compiling[0m axum-core v0.5.6
+[1m[92m   Compiling[0m phf v0.13.1
+[1m[92m   Compiling[0m num-integer v0.1.46
+[1m[92m   Compiling[0m num-complex v0.4.6
+[1m[96m    Building[0m [===================>     ] 421/507: ring(build), aws-lc-sys(build.rs), rdkafka-sys(build), deranged, chrono, ring(build), serde_urlencoded, futures, axum-core, num-complex, tokio, zerocopy, phf, ope…[K[1m[92m   Compiling[0m whoami v2.1.1
+[1m[96m    Building[0m [===================>     ] 423/507: ring(build), aws-lc-sys(build.rs), rdkafka-sys(build), whoami, deranged, ring(build), serde_urlencoded, futures, axum-core, num-complex, tokio, zerocopy, phf, ope…[1m[96m    Building[0m [===================>     ] 424/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), whoami, deranged, ring(build), serde_urlencoded, futures, axum-core, num-complex, tokio, zerocopy, phf, openss…[K[1m[92m   Compiling[0m serde_path_to_error v0.1.20
+[1m[96m    Building[0m [===================>     ] 425/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), whoami, deranged, ring(build), serde_path_to_error, futures, axum-core, num-complex, tokio, zerocopy, phf, ope…[K[1m[92m   Compiling[0m cuda v0.1.0 (/home/anton/Desktop/Rust_trader/cuda)
+[1m[96m    Building[0m [====================>    ] 426/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), whoami, deranged, ring(build), serde_path_to_error, axum-core, num-complex, cuda(build.rs), tokio, zerocopy, p…[K[1m[92m   Compiling[0m matchit v0.8.4
+[1m[96m    Building[0m [====================>    ] 427/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), whoami, deranged, ring(build), serde_path_to_error, axum-core, num-complex, cuda(build.rs), tokio, ze…[K[1m[92m   Compiling[0m time-core v0.1.8
+[1m[96m    Building[0m [====================>    ] 428/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), whoami, deranged, ring(build), serde_path_to_error, axum-core, num-complex, cuda(build.rs), tokio, ze…[K[1m[92m   Compiling[0m num-conv v0.2.0
+[1m[96m    Building[0m [====================>    ] 429/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), whoami, deranged, ring(build), serde_path_to_error, axum-core, cuda(build.rs), tokio, zerocopy, num-c…[K[1m[92m   Compiling[0m predictors v0.1.0 (/home/anton/Desktop/Rust_trader/compute/predictors)
+[1m[96m    Building[0m [====================>    ] 430/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), deranged, ring(build), predictors(build.rs), serde_path_to_error, axum-core, cuda(build.rs), tokio, z…[K[1m[92m   Compiling[0m ndarray v0.16.1
+[1m[96m    Building[0m [====================>    ] 431/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), deranged, ring(build), predictors(build.rs), serde_path_to_error, axum-core, cuda(build.rs), tokio, z…[K[1m[92m   Compiling[0m tokio-stream v0.1.18
+[1m[96m    Building[0m [====================>    ] 432/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), deranged, tokio-stream, ring(build), predictors(build.rs), serde_path_to_error, cuda(build.rs), tokio…[K[1m[92m   Compiling[0m hyper v1.8.1
+[1m[96m    Building[0m [====================>    ] 433/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), deranged, tokio-stream, ring(build), predictors(build.rs), cuda(build.rs), tokio, zerocopy, num-conv,…[K[1m[92m   Compiling[0m tower v0.5.3
+[1m[96m    Building[0m [====================>    ] 434/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), deranged, tokio-stream, ring(build), predictors(build.rs), tower, cuda(build.rs), zerocopy, num-conv,…[K[1m[92m   Compiling[0m tokio-util v0.7.18
+[1m[96m    Building[0m [====================>    ] 435/507: ring(build), matchit, aws-lc-sys(build), rdkafka-sys(build), deranged, tokio-stream, ring(build), predictors(build.rs), tokio-util, tower, zerocopy, num-conv, nda…[1m[96m    Building[0m [====================>    ] 436/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), deranged, tokio-stream, ring(build), predictors(build.rs), tokio-util, tower, zerocopy, num-conv, ndarray, ope…[1m[96m    Building[0m [====================>    ] 437/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), deranged, tokio-stream, ring(build), tokio-util, predictors(build), tower, zerocopy, num-conv, ndarray, openss…[K[1m[92m   Compiling[0m dashmap v5.5.3
+[1m[96m    Building[0m [====================>    ] 438/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), deranged, tokio-stream, ring(build), dashmap, tokio-util, tower, zerocopy, num-conv, ndarray, openssl-sys, hyp…[K[1m[92m   Compiling[0m crossbeam-channel v0.5.15
+[1m[96m    Building[0m [====================>    ] 439/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tokio-stream, ring(build), dashmap, tokio-util, tower, zerocopy, num-conv, ndarray, openssl-sys, hyper, time-c…[K[1m[92m   Compiling[0m time v0.3.47
+[1m[96m    Building[0m [====================>    ] 440/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tokio-stream, ring(build), dashmap, tokio-util, time, tower, zerocopy, num-conv, ndarray, openssl-sys, hyper, …[1m[96m    Building[0m [====================>    ] 441/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tokio-stream, ring(build), dashmap, tokio-util, time, tower, zerocopy, ndarray, openssl-sys, hyper, cuda(build…[1m[96m    Building[0m [====================>    ] 442/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ring(build), dashmap, tokio-util, time, tower, zerocopy, ndarray, openssl-sys, hyper, cuda(build), crossbeam-c…[1m[96m    Building[0m [====================>    ] 443/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ring(build), dashmap, time, tower, zerocopy, ndarray, openssl-sys, hyper, cuda(build), crossbeam-channel       [K[1m[92m   Compiling[0m tower-http v0.6.8
+[1m[96m    Building[0m [====================>    ] 443/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ring(build), dashmap, time, tower, zerocopy, ndarray, openssl-sys, hyper, cuda(build), crossbeam-c…[1m[96m    Building[0m [====================>    ] 444/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ring(build), dashmap, time, zerocopy, ndarray, openssl-sys, hyper, cuda(build), crossbeam-channel  [1m[96m    Building[0m [====================>    ] 445/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ring(build), time, zerocopy, ndarray, openssl-sys, hyper, cuda(build), crossbeam-channel           [K[1m[92m   Compiling[0m hyper-util v0.1.20
+[1m[96m    Building[0m [====================>    ] 445/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ring(build), time, hyper-util, zerocopy, ndarray, openssl-sys, hyper, cuda(build), crossbeam-chann…[1m[96m    Building[0m [====================>    ] 446/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ring(build), time, hyper-util, zerocopy, ndarray, openssl-sys, cuda(build), crossbeam-channel      [1m[96m    Building[0m [=====================>   ] 447/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ring(build), time, hyper-util, zerocopy, ndarray, openssl-sys, cuda(build)                         [1m[96m    Building[0m [=====================>   ] 448/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ring(build), time, hyper-util, zerocopy, openssl-sys, cuda(build)                                  [K[1m[92m   Compiling[0m ppv-lite86 v0.2.21
+[1m[96m    Building[0m [=====================>   ] 449/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ppv-lite86, ring(build), time, hyper-util, openssl-sys, cuda(build)                                [K[1m[92m   Compiling[0m tracing-appender v0.2.4
+[1m[96m    Building[0m [=====================>   ] 450/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), tower-http, ppv-lite86, ring(build), hyper-util, tracing-appender, openssl-sys, cuda(build)                    [1m[96m    Building[0m [=====================>   ] 451/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ppv-lite86, ring(build), hyper-util, tracing-appender, openssl-sys, cuda(build)                                [1m[96m    Building[0m [=====================>   ] 452/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ppv-lite86, ring(build), hyper-util, openssl-sys, cuda(build)                                                  [K[1m[92m   Compiling[0m rand_chacha v0.9.0
+[1m[96m    Building[0m [=====================>   ] 452/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ppv-lite86, ring(build), hyper-util, openssl-sys, cuda(build), rand_chacha                                     [K[1m[92m   Compiling[0m rand_chacha v0.3.1
+[1m[96m    Building[0m [=====================>   ] 453/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ring(build), hyper-util, openssl-sys, rand_chacha, cuda(build), rand_chacha                                    [K[1m[92m   Compiling[0m axum v0.8.8
+[1m[96m    Building[0m [=====================>   ] 454/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ring(build), axum, openssl-sys, rand_chacha, cuda(build), rand_chacha                                          [1m[96m    Building[0m [=====================>   ] 455/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ring(build), axum, rand_chacha, cuda(build), rand_chacha                                                       [K[1m[92m   Compiling[0m rand v0.9.2
+[1m[96m    Building[0m [=====================>   ] 456/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), rand, ring(build), axum, rand_chacha, cuda(build)                                                              [K[1m[92m   Compiling[0m rand v0.8.5
+[1m[96m    Building[0m [=====================>   ] 457/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), rand, ring(build), rand, axum, cuda(build)                                                                     [K[1m[92m   Compiling[0m twox-hash v2.1.2
+[1m[96m    Building[0m [=====================>   ] 458/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), ring(build), rand, axum, twox-hash, cuda(build)                                                                [K[1m[92m   Compiling[0m rand_distr v0.5.1
+[1m[96m    Building[0m [=====================>   ] 459/507: ring(build), rand_distr, aws-lc-sys(build), rdkafka-sys(build), ring(build), axum, twox-hash, cuda(build)                                                          [K[1m[92m   Compiling[0m postgres-protocol v0.6.10
+[1m[96m    Building[0m [=====================>   ] 459/507: ring(build), rand_distr, aws-lc-sys(build), rdkafka-sys(build), ring(build), axum, postgres-protocol, twox-hash, cuda(build)                                       [1m[96m    Building[0m [=====================>   ] 460/507: ring(build), rand_distr, aws-lc-sys(build), rdkafka-sys(build), ring(build), postgres-protocol, twox-hash, cuda(build)                                             [1m[96m    Building[0m [=====================>   ] 461/507: ring(build), rand_distr, aws-lc-sys(build), rdkafka-sys(build), ring(build), postgres-protocol, cuda(build)                                                        [K[1m[92m   Compiling[0m half v2.7.1
+[1m[96m    Building[0m [=====================>   ] 461/507: ring(build), rand_distr, half, aws-lc-sys(build), rdkafka-sys(build), ring(build), postgres-protocol, cuda(build)                                                  [1m[96m    Building[0m [=====================>   ] 462/507: ring(build), half, aws-lc-sys(build), rdkafka-sys(build), ring(build), postgres-protocol, cuda(build)                                                              [K[1m[92m   Compiling[0m postgres-types v0.2.12
+[1m[96m    Building[0m [=====================>   ] 462/507: ring(build), half, aws-lc-sys(build), rdkafka-sys(build), ring(build), postgres-protocol, cuda(build), postgres-types                                              [1m[96m    Building[0m [=====================>   ] 463/507: ring(build), half, aws-lc-sys(build), rdkafka-sys(build), ring(build), cuda(build), postgres-types                                                                 [1m[96m    Building[0m [=====================>   ] 464/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), cuda(build), postgres-types                                                               [K[1m[92m   Compiling[0m tokio-postgres v0.7.16
+[1m[96m    Building[0m [=====================>   ] 465/507: ring(build), aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), cuda(build), tokio-postgres                                                               [1m[96m    Building[0m [=====================>   ] 466/507: aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), ring, cuda(build), tokio-postgres                                                                      [1m[96m    Building[0m [=====================>   ] 466/507: aws-lc-sys(build), rdkafka-sys(build), rustls(build), cudarc, ring(build), ring, cuda(build), tokio-postgres                                                       [1m[96m    Building[0m [======================>  ] 467/507: aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), ring, cuda(build), tokio-postgres                                                                      [1m[96m    Building[0m [======================>  ] 468/507: aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), ring, cuda(build)                                                                                      [K[1m[92m   Compiling[0m rustls-webpki v0.103.9
+[1m[96m    Building[0m [======================>  ] 468/507: aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), ring, cuda(build), rustls-webpki                                                                       [1m[96m    Building[0m [======================>  ] 469/507: aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), cuda(build), rustls-webpki                                                                             [1m[96m    Building[0m [======================>  ] 470/507: rustls, aws-lc-sys(build), rdkafka-sys(build), cudarc, ring(build), cuda(build)                                                                                    [1m[96m    Building[0m [======================>  ] 471/507: rustls, aws-lc-sys(build), rdkafka-sys(build), ring(build), cuda(build)                                                                                            [1m[96m    Building[0m [======================>  ] 472/507: rustls, aws-lc-sys(build), rdkafka-sys(build), cuda(build), ring                                                                                                   [K[1m[92m   Compiling[0m sqlx-core v0.8.6
+[1m[96m    Building[0m [======================>  ] 473/507: sqlx-core, aws-lc-sys(build), rdkafka-sys(build), cuda(build), ring                                                                                                [1m[96m    Building[0m [======================>  ] 474/507: sqlx-core, aws-lc-sys(build), rdkafka-sys(build), cuda(build)                                                                                                      [K[1m[92m   Compiling[0m sqlx-postgres v0.8.6
+[1m[96m    Building[0m [======================>  ] 475/507: aws-lc-sys(build), rdkafka-sys(build), sqlx-postgres, cuda(build)                                                                                                  [K[1m[92m   Compiling[0m sqlx-macros-core v0.8.6
+[1m[96m    Building[0m [======================>  ] 476/507: aws-lc-sys(build), rdkafka-sys(build), sqlx-macros-core, cuda(build)                                                                                               [1m[96m    Building[0m [======================>  ] 477/507: cuda, aws-lc-sys(build), rdkafka-sys(build), sqlx-macros-core                                                                                                      [K[1m[92m   Compiling[0m sqlx-macros v0.8.6
+[1m[96m    Building[0m [======================>  ] 478/507: cuda, sqlx-macros, aws-lc-sys(build), rdkafka-sys(build)                                                                                                           [1m[96m    Building[0m [======================>  ] 479/507: sqlx-macros, aws-lc-sys(build), rdkafka-sys(build)                                                                                                                 [1m[96m    Building[0m [======================>  ] 480/507: aws-lc-sys(build), rdkafka-sys(build)                                                                                                                              [1m[96m    Building[0m [======================>  ] 481/507: aws-lc-sys, rdkafka-sys(build), aws-lc-rs(build)                                                                                                                   [1m[96m    Building[0m [======================>  ] 482/507: aws-lc-sys, rdkafka-sys(build), rustls(build)                                                                                                                      [1m[96m    Building[0m [======================>  ] 483/507: aws-lc-sys, rdkafka-sys(build)                                                                                                                                     [1m[96m    Building[0m [======================>  ] 483/507: aws-lc-sys, rdkafka-sys(build), aws-lc-rs                                                                                                                          [1m[96m    Building[0m [======================>  ] 484/507: rdkafka-sys(build), aws-lc-rs                                                                                                                                      [1m[96m    Building[0m [======================>  ] 484/507: rdkafka-sys(build), rustls-webpki, aws-lc-rs                                                                                                                       [1m[96m    Building[0m [======================>  ] 485/507: rdkafka-sys(build), rustls-webpki                                                                                                                                  [1m[96m    Building[0m [======================>  ] 485/507: rdkafka-sys(build), rustls, rustls-webpki                                                                                                                          [1m[96m    Building[0m [======================>  ] 486/507: rdkafka-sys(build), rustls                                                                                                                                         [K[1m[92m   Compiling[0m tokio-rustls v0.26.4
+[1m[92m   Compiling[0m tungstenite v0.28.0
+[1m[92m   Compiling[0m rustls-platform-verifier v0.6.2
+[1m[96m    Building[0m [======================>  ] 486/507: rdkafka-sys(build), tungstenite, rustls, tokio-rustls, rustls-platform-verifier, sqlx-core                                                                         [1m[96m    Building[0m [=======================> ] 487/507: rdkafka-sys(build), tungstenite, tokio-rustls, rustls-platform-verifier, sqlx-core                                                                                 [K[1m[92m   Compiling[0m hyper-rustls v0.27.7
+[1m[96m    Building[0m [=======================> ] 487/507: hyper-rustls, rdkafka-sys(build), tungstenite, tokio-rustls, rustls-platform-verifier, sqlx-core                                                                   [1m[96m    Building[0m [=======================> ] 488/507: hyper-rustls, rdkafka-sys(build), tungstenite, rustls-platform-verifier, sqlx-core                                                                                 [1m[96m    Building[0m [=======================> ] 489/507: hyper-rustls, rdkafka-sys(build), tungstenite, sqlx-core                                                                                                           [K[1m[92m   Compiling[0m tokio-tungstenite v0.28.0
+[1m[96m    Building[0m [=======================> ] 489/507: hyper-rustls, tokio-tungstenite, rdkafka-sys(build), tungstenite, sqlx-core                                                                                        [1m[96m    Building[0m [=======================> ] 490/507: hyper-rustls, tokio-tungstenite, rdkafka-sys(build), sqlx-core                                                                                                     [K[1m[92m   Compiling[0m reqwest v0.13.2
+[1m[96m    Building[0m [=======================> ] 490/507: hyper-rustls, tokio-tungstenite, rdkafka-sys(build), reqwest, sqlx-core                                                                                            [1m[96m    Building[0m [=======================> ] 491/507: tokio-tungstenite, rdkafka-sys(build), reqwest, sqlx-core                                                                                                          [1m[96m    Building[0m [=======================> ] 492/507: rdkafka-sys(build), reqwest, sqlx-core                                                                                                                             [1m[96m    Building[0m [=======================> ] 492/507: rdkafka-sys(build), sqlx-postgres, reqwest, sqlx-core                                                                                                              [1m[96m    Building[0m [=======================> ] 493/507: rdkafka-sys(build), sqlx-postgres, reqwest                                                                                                                         [1m[96m    Building[0m [=======================> ] 494/507: rdkafka-sys(build), sqlx-postgres                                                                                                                                  [K[1m[92m   Compiling[0m sqlx v0.8.6
+[1m[96m    Building[0m [=======================> ] 494/507: sqlx, rdkafka-sys(build), sqlx-postgres                                                                                                                            [1m[96m    Building[0m [=======================> ] 495/507: sqlx, rdkafka-sys(build)                                                                                                                                           [1m[96m    Building[0m [=======================> ] 496/507: rdkafka-sys(build)                                                                                                                                                 [1m[96m    Building[0m [=======================> ] 497/507: rdkafka-sys                                                                                                                                                        [K[1m[92m   Compiling[0m rdkafka v0.39.0
+[1m[96m    Building[0m [=======================> ] 497/507: rdkafka, rdkafka-sys                                                                                                                                               [1m[96m    Building[0m [=======================> ] 498/507: rdkafka                                                                                                                                                            [K[1m[92m   Compiling[0m common v0.1.0 (/home/anton/Desktop/Rust_trader/common)
+[1m[92m   Compiling[0m connections v0.1.0 (/home/anton/Desktop/Rust_trader/connections)
+[1m[96m    Building[0m [=======================> ] 498/507: connections, rdkafka, common                                                                                                                                       [1m[96m    Building[0m [=======================> ] 499/507: connections, common                                                                                                                                                [1m[96m    Building[0m [=======================> ] 500/507: common                                                                                                                                                             [K[1m[92m   Compiling[0m compute_indicators v0.1.0 (/home/anton/Desktop/Rust_trader/compute/indicators)
+[1m[92m   Compiling[0m database v0.1.0 (/home/anton/Desktop/Rust_trader/database)
+[1m[92m   Compiling[0m raw_signals v0.1.0 (/home/anton/Desktop/Rust_trader/compute/raw_signals)
+[1m[96m    Building[0m [=======================> ] 500/507: raw_signals, compute_indicators, common, database                                                                                                                  [1m[96m    Building[0m [=======================> ] 501/507: raw_signals, compute_indicators, database                                                                                                                          [1m[96m    Building[0m [=======================> ] 502/507: raw_signals, database                                                                                                                                              [1m[96m    Building[0m [=======================> ] 503/507: database                                                                                                                                                           [1m[96m    Building[0m [=======================> ] 503/507: database, predictors                                                                                                                                               [1m[96m    Building[0m [=======================> ] 504/507: predictors                                                                                                                                                         [K[1m[92m   Compiling[0m compute v0.1.0 (/home/anton/Desktop/Rust_trader/compute)
+[1m[96m    Building[0m [=======================> ] 504/507: compute, predictors                                                                                                                                                [1m[96m    Building[0m [=======================> ] 505/507: compute                                                                                                                                                            [1m[96m    Building[0m [=======================> ] 506/507: compute_history(bin)                                                                                                                                               [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 25.75s
+[1m[92m   Compiling[0m compute v0.1.0 (/home/anton/Desktop/Rust_trader/compute)
+[1m[96m    Building[0m [=======================> ] 506/507: compute_realtime(bin)                                                                                                                                              [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 7.27s
+[1m[92m   Compiling[0m futures-util v0.3.31
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m rand v0.9.2
+[1m[92m   Compiling[0m bitflags v2.10.0
+[1m[92m   Compiling[0m rdkafka-sys v4.10.0+2.12.1
+[1m[96m    Building[0m [=====================>   ] 261/289: rand, bitflags, futures-util, num-traits(build), rdkafka-sys(build)                                                                                                [1m[96m    Building[0m [=====================>   ] 262/289: rand, num-traits, bitflags, futures-util, rdkafka-sys(build)                                                                                                       [1m[96m    Building[0m [=====================>   ] 263/289: rand, num-traits, futures-util, rdkafka-sys(build)                                                                                                                 [K[1m[92m   Compiling[0m postgres-protocol v0.6.10
+[1m[92m   Compiling[0m tungstenite v0.28.0
+[1m[96m    Building[0m [=====================>   ] 263/289: rand, num-traits, tungstenite, futures-util, postgres-protocol, rdkafka-sys(build)                                                                                 [1m[96m    Building[0m [=====================>   ] 264/289: num-traits, tungstenite, futures-util, postgres-protocol, rdkafka-sys(build)                                                                                       [K[1m[92m   Compiling[0m chrono v0.4.43
+[1m[92m   Compiling[0m atoi v2.0.0
+[1m[96m    Building[0m [=====================>   ] 264/289: num-traits, tungstenite, futures-util, postgres-protocol, rdkafka-sys(build), chrono, atoi                                                                         [1m[96m    Building[0m [=====================>   ] 265/289: tungstenite, futures-util, postgres-protocol, rdkafka-sys(build), chrono, atoi                                                                                     [1m[96m    Building[0m [======================>  ] 266/289: tungstenite, futures-util, rdkafka-sys(build), chrono, atoi                                                                                                        [1m[96m    Building[0m [======================>  ] 267/289: futures-util, rdkafka-sys(build), chrono, atoi                                                                                                                     [1m[96m    Building[0m [======================>  ] 268/289: futures-util, rdkafka-sys(build), chrono                                                                                                                           [K[1m[92m   Compiling[0m hyper-util v0.1.20
+[1m[92m   Compiling[0m tower v0.5.3
+[1m[92m   Compiling[0m futures-executor v0.3.31
+[1m[92m   Compiling[0m tokio-tungstenite v0.28.0
+[1m[96m    Building[0m [======================>  ] 268/289: tower, futures-executor, futures-util, rdkafka-sys(build), hyper-util, tokio-tungstenite, chrono                                                                   [1m[96m    Building[0m [======================>  ] 269/289: tower, futures-executor, rdkafka-sys(build), hyper-util, tokio-tungstenite, chrono                                                                                 [K[1m[92m   Compiling[0m futures v0.3.31
+[1m[96m    Building[0m [======================>  ] 269/289: tower, futures-executor, futures, rdkafka-sys(build), hyper-util, tokio-tungstenite, chrono                                                                        [1m[96m    Building[0m [======================>  ] 270/289: tower, futures, rdkafka-sys(build), hyper-util, tokio-tungstenite, chrono                                                                                          [K[1m[92m   Compiling[0m sqlx-core v0.8.6
+[1m[92m   Compiling[0m postgres-types v0.2.12
+[1m[96m    Building[0m [======================>  ] 270/289: tower, sqlx-core, futures, postgres-types, rdkafka-sys(build), hyper-util, tokio-tungstenite, chrono                                                               [1m[96m    Building[0m [======================>  ] 271/289: tower, sqlx-core, futures, postgres-types, rdkafka-sys(build), hyper-util, tokio-tungstenite                                                                       [1m[96m    Building[0m [======================>  ] 272/289: tower, sqlx-core, futures, postgres-types, rdkafka-sys(build), hyper-util                                                                                          [K[1m[92m   Compiling[0m tower-http v0.6.8
+[1m[96m    Building[0m [======================>  ] 272/289: tower, sqlx-core, futures, postgres-types, rdkafka-sys(build), hyper-util, tower-http                                                                              [1m[96m    Building[0m [======================>  ] 273/289: sqlx-core, futures, postgres-types, rdkafka-sys(build), hyper-util, tower-http                                                                                     [1m[96m    Building[0m [======================>  ] 274/289: sqlx-core, postgres-types, rdkafka-sys(build), hyper-util, tower-http                                                                                              [K[1m[92m   Compiling[0m hyper-rustls v0.27.7
+[1m[92m   Compiling[0m axum v0.8.8
+[1m[96m    Building[0m [======================>  ] 274/289: axum, sqlx-core, postgres-types, rdkafka-sys(build), hyper-util, hyper-rustls, tower-http                                                                          [1m[96m    Building[0m [======================>  ] 275/289: axum, sqlx-core, postgres-types, rdkafka-sys(build), hyper-rustls, tower-http                                                                                      [K[1m[92m   Compiling[0m tokio-postgres v0.7.16
+[1m[96m    Building[0m [======================>  ] 275/289: axum, sqlx-core, postgres-types, rdkafka-sys(build), hyper-rustls, tokio-postgres, tower-http                                                                      [1m[96m    Building[0m [======================>  ] 276/289: axum, sqlx-core, rdkafka-sys(build), hyper-rustls, tokio-postgres, tower-http                                                                                      [1m[96m    Building[0m [======================>  ] 277/289: axum, sqlx-core, rdkafka-sys(build), hyper-rustls, tokio-postgres                                                                                                  [K[1m[92m   Compiling[0m reqwest v0.13.2
+[1m[96m    Building[0m [======================>  ] 277/289: axum, sqlx-core, rdkafka-sys(build), hyper-rustls, tokio-postgres, reqwest                                                                                         [K[1m[92m   Compiling[0m sqlx-postgres v0.8.6
+[1m[96m    Building[0m [======================>  ] 277/289: axum, sqlx-core, rdkafka-sys(build), hyper-rustls, tokio-postgres, sqlx-postgres, reqwest                                                                          [1m[96m    Building[0m [=======================> ] 278/289: axum, sqlx-core, rdkafka-sys(build), tokio-postgres, sqlx-postgres, reqwest                                                                                        [1m[96m    Building[0m [=======================> ] 279/289: axum, rdkafka-sys(build), tokio-postgres, sqlx-postgres, reqwest                                                                                                   [1m[96m    Building[0m [=======================> ] 280/289: axum, rdkafka-sys(build), sqlx-postgres, reqwest                                                                                                                   [1m[96m    Building[0m [=======================> ] 281/289: axum, rdkafka-sys(build), sqlx-postgres                                                                                                                            [1m[96m    Building[0m [=======================> ] 282/289: rdkafka-sys(build), sqlx-postgres                                                                                                                                  [K[1m[92m   Compiling[0m sqlx v0.8.6
+[1m[96m    Building[0m [=======================> ] 282/289: sqlx, rdkafka-sys(build), sqlx-postgres                                                                                                                            [1m[96m    Building[0m [=======================> ] 283/289: sqlx, rdkafka-sys(build)                                                                                                                                           [1m[96m    Building[0m [=======================> ] 284/289: rdkafka-sys(build)                                                                                                                                                 [1m[96m    Building[0m [=======================> ] 285/289: rdkafka-sys                                                                                                                                                        [K[1m[92m   Compiling[0m rdkafka v0.39.0
+[1m[96m    Building[0m [=======================> ] 285/289: rdkafka, rdkafka-sys                                                                                                                                               [1m[96m    Building[0m [=======================> ] 286/289: rdkafka                                                                                                                                                            [K[1m[92m   Compiling[0m connections v0.1.0 (/home/anton/Desktop/Rust_trader/connections)
+[1m[96m    Building[0m [=======================> ] 286/289: rdkafka, connections                                                                                                                                               [1m[96m    Building[0m [=======================> ] 287/289: connections                                                                                                                                                        [1m[96m    Building[0m [=======================> ] 288/289: connections(bin)                                                                                                                                                   [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 18.74s
+[1m[92m   Compiling[0m getrandom v0.2.17
+[1m[92m   Compiling[0m chrono v0.4.43
+[1m[92m   Compiling[0m uuid v1.20.0
+[1m[92m   Compiling[0m tower-http v0.6.8
+[1m[92m   Compiling[0m rdkafka v0.39.0
+[1m[92m   Compiling[0m twox-hash v2.1.2
+[1m[96m    Building[0m [======================>  ] 318/340: twox-hash, uuid, getrandom, rdkafka, chrono, tower-http                                                                                                            [K[1m[92m   Compiling[0m const-random-macro v0.1.16
+[1m[96m    Building[0m [======================>  ] 319/340: twox-hash, uuid, rdkafka, const-random-macro, chrono, tower-http                                                                                                   [1m[96m    Building[0m [======================>  ] 320/340: uuid, rdkafka, const-random-macro, chrono, tower-http                                                                                                              [1m[96m    Building[0m [======================>  ] 321/340: rdkafka, const-random-macro, chrono, tower-http                                                                                                                    [K[1m[92m   Compiling[0m reqwest v0.13.2
+[1m[96m    Building[0m [======================>  ] 321/340: rdkafka, const-random-macro, chrono, reqwest, tower-http                                                                                                           [1m[96m    Building[0m [======================>  ] 322/340: rdkafka, const-random-macro, chrono, reqwest                                                                                                                       [K[1m[92m   Compiling[0m sqlx-core v0.8.6
+[1m[92m   Compiling[0m postgres-types v0.2.12
+[1m[96m    Building[0m [======================>  ] 322/340: sqlx-core, rdkafka, const-random-macro, chrono, reqwest, postgres-types                                                                                            [1m[96m    Building[0m [======================>  ] 323/340: sqlx-core, const-random-macro, chrono, reqwest, postgres-types                                                                                                     [1m[96m    Building[0m [======================>  ] 324/340: sqlx-core, const-random-macro, reqwest, postgres-types                                                                                                             [K[1m[92m   Compiling[0m const-random v0.1.18
+[1m[96m    Building[0m [======================>  ] 325/340: sqlx-core, const-random, reqwest, postgres-types                                                                                                                   [K[1m[92m   Compiling[0m tokio-postgres v0.7.16
+[1m[96m    Building[0m [======================>  ] 325/340: tokio-postgres, sqlx-core, const-random, reqwest, postgres-types                                                                                                   [1m[96m    Building[0m [======================>  ] 326/340: tokio-postgres, sqlx-core, const-random, reqwest                                                                                                                   [K[1m[92m   Compiling[0m dlv-list v0.5.2
+[1m[96m    Building[0m [======================>  ] 326/340: tokio-postgres, dlv-list, sqlx-core, const-random, reqwest                                                                                                         [1m[96m    Building[0m [=======================> ] 328/340: tokio-postgres, dlv-list, sqlx-core                                                                                                                                [K[1m[92m   Compiling[0m ordered-multimap v0.7.3
+[1m[96m    Building[0m [=======================> ] 328/340: tokio-postgres, dlv-list, sqlx-core, ordered-multimap                                                                                                              [K[1m[92m   Compiling[0m sqlx-postgres v0.8.6
+[1m[96m    Building[0m [=======================> ] 328/340: tokio-postgres, dlv-list, sqlx-postgres, sqlx-core, ordered-multimap                                                                                               [1m[96m    Building[0m [=======================> ] 329/340: tokio-postgres, sqlx-postgres, sqlx-core, ordered-multimap                                                                                                         [1m[96m    Building[0m [=======================> ] 330/340: tokio-postgres, sqlx-postgres, ordered-multimap                                                                                                                    [1m[96m    Building[0m [=======================> ] 331/340: sqlx-postgres, ordered-multimap                                                                                                                                    [K[1m[92m   Compiling[0m rust-ini v0.21.3
+[1m[96m    Building[0m [=======================> ] 331/340: sqlx-postgres, rust-ini, ordered-multimap                                                                                                                          [1m[96m    Building[0m [=======================> ] 332/340: sqlx-postgres, rust-ini                                                                                                                                            [K[1m[92m   Compiling[0m config v0.15.19
+[1m[96m    Building[0m [=======================> ] 332/340: sqlx-postgres, rust-ini, config                                                                                                                                    [1m[96m    Building[0m [=======================> ] 333/340: sqlx-postgres, config                                                                                                                                              [K[1m[92m   Compiling[0m sqlx v0.8.6
+[1m[96m    Building[0m [=======================> ] 333/340: sqlx-postgres, sqlx, config                                                                                                                                        [1m[96m    Building[0m [=======================> ] 334/340: sqlx, config                                                                                                                                                       [K[1m[92m   Compiling[0m common v0.1.0 (/home/anton/Desktop/Rust_trader/common)
+[1m[96m    Building[0m [=======================> ] 334/340: sqlx, config, common                                                                                                                                               [1m[96m    Building[0m [=======================> ] 335/340: sqlx, common                                                                                                                                                       [K[1m[92m   Compiling[0m connections v0.1.0 (/home/anton/Desktop/Rust_trader/connections)
+[1m[96m    Building[0m [=======================> ] 335/340: connections, sqlx, common                                                                                                                                          [1m[96m    Building[0m [=======================> ] 336/340: connections, common                                                                                                                                                [1m[96m    Building[0m [=======================> ] 337/340: connections                                                                                                                                                        [K[1m[92m   Compiling[0m ingestor v0.1.0 (/home/anton/Desktop/Rust_trader/ingestor)
+[1m[96m    Building[0m [=======================> ] 337/340: connections, ingestor                                                                                                                                              [1m[96m    Building[0m [=======================> ] 338/340: ingestor                                                                                                                                                           [1m[96m    Building[0m [=======================> ] 339/340: ingestor(bin)                                                                                                                                                      [K[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`release` profile [optimized]]8;;\ target(s) in 10.70s
+[2m[20:03:16][0m [32m✅[0m GPU Build finished.
+[2m===========================================[0m
+[1m[36mSTARTING SERVICES[0m
+[2m===========================================[0m
+[2m[20:03:16][0m Starting connections...
+[2m[20:03:16][0m   bin: /home/anton/Desktop/Rust_trader/target/release/connections
+[2m[20:03:16][0m   log: /home/anton/Desktop/Rust_trader/logs/connections.out
+[2m[20:03:16][0m [32m✅[0m Started connections (pid 1912680)
+[2m[20:03:16][0m Starting ingestor...
+[2m[20:03:16][0m   bin: /home/anton/Desktop/Rust_trader/target/release/ingestor
+[2m[20:03:16][0m   log: /home/anton/Desktop/Rust_trader/logs/ingestor.out
+[2m[20:03:16][0m [32m✅[0m Started ingestor (pid 1912702)
+[2m[20:03:16][0m Starting compute_history service...
+[2m[20:03:16][0m Starting compute_history...
+[2m[20:03:16][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_history
+[2m[20:03:16][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_history.out
+[2m[20:03:16][0m [32m✅[0m Started compute_history (pid 1912744)
+[2m[20:03:16][0m Starting compute_realtime service...
+[2m[20:03:16][0m Starting compute_realtime...
+[2m[20:03:16][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_realtime
+[2m[20:03:16][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_realtime.out
+[2m[20:03:16][0m [32m✅[0m Started compute_realtime (pid 1912774)
+[2m===========================================[0m
+[1m[36mSTART GRAFANA HEALTHCHECK[0m
+[2m===========================================[0m
+[2m[20:03:16][0m Starting Grafana for healthcheck monitoring...
+[2m[20:03:16][0m [32m✅[0m Grafana started. Access at http://localhost:3001 (admin/admin)
+[2m===========================================[0m
+[1m[36mSUPER ENTRY SERVICE[0m
+[2m===========================================[0m
+[2m[20:03:16][0m Super Entry strategy is ENABLED
+[2m[20:03:16][0m Starting super_entry_service...
+[2m[20:03:16][0m   bin: /home/anton/Desktop/Rust_trader/target/release/super_entry_service
+[2m[20:03:16][0m   log: /home/anton/Desktop/Rust_trader/logs/super_entry_service.out
+[2m[20:03:16][0m [32m✅[0m Started super_entry_service (pid 1912851)
+[2m===========================================[0m
+[1m[36mALL SERVICES STARTED[0m
+[2m===========================================[0m
+[2m[20:03:16][0m [32m✅[0m START DONE @ Thu 19 Feb 2026 08:03:16 PM MSK
+[2m[20:03:16][0m Services started successfully
+[2m[20:03:16][0m PIDs in : /home/anton/Desktop/Rust_trader/run
+[2m[20:03:16][0m Logs in : /home/anton/Desktop/Rust_trader/logs
+[1m===========================================[0m
+[1m[36mSUPER ENTRY STRATEGY[0m
+[1m===========================================[0m
+[1m[20:03:16][0m Running Super Entry pipeline (dataset → train → backtest)...
+==============================================
+==============================================
+[super_entry] Super Entry Strategy Pipeline
+[super_entry] Root: /home/anton/Desktop/Rust_trader
+[super_entry] Super Entry Strategy Pipeline
+[super_entry] Root: /home/anton/Desktop/Rust_trader
+[super_entry] GPU:  --gpu
+[super_entry] GPU:  --gpu
+==============================================
+==============================================
+
+==============================================
+
+[super_entry] Stage 1: Building Dataset
+==============================================
+==============================================
+[super_entry] Stage 1: Building Dataset
+==============================================
+[super_entry] Building Rust binary...
+[super_entry] Building Rust binary...
+   Compiling ml_entry_strategy v0.1.0 (/home/anton/Desktop/Rust_trader/strategies/ml_entry_strategy)
+    Finished `release` profile [optimized] target(s) in 5.09s
+   Compiling ml_entry_strategy v0.1.0 (/home/anton/Desktop/Rust_trader/strategies/ml_entry_strategy)
+    Finished `release` profile [optimized] target(s) in 5.09s
+[super_entry] Running dataset builder...
+[super_entry] Running dataset builder...
+[2m2026-02-19T17:03:21.552858Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m === Super Entry Dataset Builder ===
+[2m2026-02-19T17:03:21.552867Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Warmup bars: 300
+[2m2026-02-19T17:03:21.552870Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Lookahead: 20
+[2m2026-02-19T17:03:21.552858Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m === Super Entry Dataset Builder ===
+[2m2026-02-19T17:03:21.552867Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Warmup bars: 300
+[2m2026-02-19T17:03:21.552870Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Lookahead: 20
+[2m2026-02-19T17:03:21.552871Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Output: /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv
+[2m2026-02-19T17:03:21.552871Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Output: /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv
+[2m2026-02-19T17:03:21.563053Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Found 135 active symbols
+[2m2026-02-19T17:03:21.563061Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 1m (target_move=1%)
+[2m2026-02-19T17:03:21.563053Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Found 135 active symbols
+[2m2026-02-19T17:03:21.563061Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 1m (target_move=1%)
+[2m2026-02-19T17:03:21.604360Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.604368Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 5m (target_move=1.75%)
+[2m2026-02-19T17:03:21.604360Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.604368Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 5m (target_move=1.75%)
+[2m2026-02-19T17:03:21.634393Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 5m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.634399Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 15m (target_move=2.75%)
+[2m2026-02-19T17:03:21.634393Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 5m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.634399Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 15m (target_move=2.75%)
+[2m2026-02-19T17:03:21.662376Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 15m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.662382Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 60m (target_move=3.75%)
+[2m2026-02-19T17:03:21.662376Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 15m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.662382Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 60m (target_move=3.75%)
+[2m2026-02-19T17:03:21.690380Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 60m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.690388Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 240m (target_move=4.75%)
+[2m2026-02-19T17:03:21.690380Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 60m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.690388Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 240m (target_move=4.75%)
+[2m2026-02-19T17:03:21.719568Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 240m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.719575Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 1440m (target_move=5.75%)
+[2m2026-02-19T17:03:21.719568Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 240m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.719575Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 1440m (target_move=5.75%)
+[2m2026-02-19T17:03:21.750361Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1440m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.750361Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1440m: 0 examples, 0 super (0.0%)
+[2m2026-02-19T17:03:21.756485Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m 
+=== Dataset Summary ===
+[2m2026-02-19T17:03:21.756490Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Total examples: 0
+[2m2026-02-19T17:03:21.756499Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Output: /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv
+[2m2026-02-19T17:03:21.756502Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1m: 0 total, 0 super (0.0%), target=1.00%
+[2m2026-02-19T17:03:21.756505Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 5m: 0 total, 0 super (0.0%), target=1.75%
+[2m2026-02-19T17:03:21.756507Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 15m: 0 total, 0 super (0.0%), target=2.75%
+[2m2026-02-19T17:03:21.756509Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 60m: 0 total, 0 super (0.0%), target=3.75%
+[2m2026-02-19T17:03:21.756510Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 240m: 0 total, 0 super (0.0%), target=4.75%
+[2m2026-02-19T17:03:21.756512Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1440m: 0 total, 0 super (0.0%), target=5.75%
+[2m2026-02-19T17:03:21.756513Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m === Done ===
+[2m2026-02-19T17:03:21.756485Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m 
+=== Dataset Summary ===
+[2m2026-02-19T17:03:21.756490Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Total examples: 0
+[2m2026-02-19T17:03:21.756499Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Output: /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv
+[2m2026-02-19T17:03:21.756502Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1m: 0 total, 0 super (0.0%), target=1.00%
+[2m2026-02-19T17:03:21.756505Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 5m: 0 total, 0 super (0.0%), target=1.75%
+[2m2026-02-19T17:03:21.756507Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 15m: 0 total, 0 super (0.0%), target=2.75%
+[2m2026-02-19T17:03:21.756509Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 60m: 0 total, 0 super (0.0%), target=3.75%
+[2m2026-02-19T17:03:21.756510Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 240m: 0 total, 0 super (0.0%), target=4.75%
+[2m2026-02-19T17:03:21.756512Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1440m: 0 total, 0 super (0.0%), target=5.75%
+[2m2026-02-19T17:03:21.756513Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m === Done ===
+[super_entry] ✅ Dataset built: dataset/super_entry_dataset.csv (1 rows)
+[super_entry] ✅ Dataset built: dataset/super_entry_dataset.csv (1 rows)
+
+==============================================
+[super_entry] Stage 2: Training Models
+
+==============================================
+[super_entry] Stage 2: Training Models
+==============================================
+==============================================
+[super_entry] Training super entry models...
+[super_entry] Training super entry models...
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:94: RuntimeWarning: invalid value encountered in scalar divide
+  print(f"  Super examples: {n_super} ({n_super / len(df) * 100:.1f}%)")
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:94: RuntimeWarning: invalid value encountered in scalar divide
+  print(f"  Super examples: {n_super} ({n_super / len(df) * 100:.1f}%)")
+Loading data from /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv...
+  Loaded 0 rows, 47 columns
+  Super examples: 0 (nan%)
+  By TF:
+Too few samples (0). Need 1000+ for meaningful training.
+Loading data from /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv...
+  Loaded 0 rows, 47 columns
+  Super examples: 0 (nan%)
+  By TF:
+Too few samples (0). Need 1000+ for meaningful training.
+[1m[20:03:23][0m [32m✅[0m Super Entry Strategy complete
+
+[1;32mGPU BOT STARTED SUCCESSFULLY[0m
+Active strategy: default
+Super Entry: [1;32mENABLED[0m

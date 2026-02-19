@@ -1,0 +1,182 @@
+[2m2026-02-19T17:03:16.300692Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m Starting Kafka forwarder... topic=market.ws.raw
+[2m2026-02-19T17:03:16.300709Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m Server starting on 0.0.0.0:18080
+[2m2026-02-19T17:03:16.300717Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:03:16.773861Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m db_ok -> true
+[2m2026-02-19T17:03:16.773894Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m rp_ok -> true
+[2m2026-02-19T17:03:16.773901Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m api_ok -> true
+[2m2026-02-19T17:03:17.490835Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:03:17.583096Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=1, last_size=161 bytes
+[2m2026-02-19T17:03:27.586066Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=1125, last_size=162 bytes
+[2m2026-02-19T17:03:36.567656Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m ws_connected -> true
+[2m2026-02-19T17:03:37.586897Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=2312, last_size=161 bytes
+[2m2026-02-19T17:03:47.586950Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=3464, last_size=161 bytes
+[2m2026-02-19T17:03:57.587303Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=4412, last_size=161 bytes
+[2m2026-02-19T17:04:07.590617Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=5664, last_size=160 bytes
+[2m2026-02-19T17:04:17.591320Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=6610, last_size=161 bytes
+[2m2026-02-19T17:04:27.982479Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=7995, last_size=161 bytes
+[2m2026-02-19T17:04:37.983481Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=8986, last_size=161 bytes
+[2m2026-02-19T17:04:47.985558Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=10839, last_size=160 bytes
+[2m2026-02-19T17:04:57.988440Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=12725, last_size=160 bytes
+[2m2026-02-19T17:05:07.990455Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=14421, last_size=161 bytes
+[2m2026-02-19T17:05:17.990962Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=16310, last_size=161 bytes
+[2m2026-02-19T17:05:27.993744Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=18041, last_size=162 bytes
+[2m2026-02-19T17:05:37.994981Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=19935, last_size=160 bytes
+[2m2026-02-19T17:05:47.997270Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=20705, last_size=161 bytes
+[2m2026-02-19T17:05:57.998750Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=22330, last_size=160 bytes
+[2m2026-02-19T17:06:08.000093Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=23500, last_size=162 bytes
+[2m2026-02-19T17:06:18.001682Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=25057, last_size=161 bytes
+[2m2026-02-19T17:06:28.005689Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=26957, last_size=346 bytes
+[2m2026-02-19T17:06:38.007158Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=28094, last_size=161 bytes
+[2m2026-02-19T17:06:48.010152Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=29486, last_size=161 bytes
+[2m2026-02-19T17:06:58.010506Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=31240, last_size=160 bytes
+[2m2026-02-19T17:07:08.011065Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=33133, last_size=160 bytes
+[2m2026-02-19T17:07:18.013390Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=35034, last_size=161 bytes
+[2m2026-02-19T17:07:28.015667Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=36928, last_size=160 bytes
+[2m2026-02-19T17:07:38.018967Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=38827, last_size=160 bytes
+[2m2026-02-19T17:07:48.022557Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=40686, last_size=161 bytes
+[2m2026-02-19T17:07:58.089884Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=41368, last_size=160 bytes
+[2m2026-02-19T17:08:08.093771Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=42590, last_size=161 bytes
+[2m2026-02-19T17:08:18.095954Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=44480, last_size=161 bytes
+[2m2026-02-19T17:08:28.097941Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=46369, last_size=160 bytes
+[2m2026-02-19T17:08:38.098960Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=48258, last_size=161 bytes
+[2m2026-02-19T17:08:48.101091Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=50151, last_size=161 bytes
+[2m2026-02-19T17:08:58.101581Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=51738, last_size=161 bytes
+[2m2026-02-19T17:09:08.134294Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=52663, last_size=161 bytes
+[2m2026-02-19T17:09:18.135586Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=53775, last_size=160 bytes
+[2m2026-02-19T17:09:28.136067Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=54846, last_size=160 bytes
+[2m2026-02-19T17:09:38.136269Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=55309, last_size=161 bytes
+[2m2026-02-19T17:09:48.136341Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=56049, last_size=160 bytes
+[2m2026-02-19T17:09:58.140823Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=57941, last_size=161 bytes
+[2m2026-02-19T17:10:08.142133Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=59831, last_size=161 bytes
+[2m2026-02-19T17:10:18.143021Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=61729, last_size=161 bytes
+[2m2026-02-19T17:10:28.147063Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=63510, last_size=161 bytes
+[2m2026-02-19T17:10:38.148299Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=64688, last_size=160 bytes
+[2m2026-02-19T17:10:48.149123Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=66013, last_size=162 bytes
+[2m2026-02-19T17:10:58.308495Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=67024, last_size=161 bytes
+[2m2026-02-19T17:11:08.310167Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=68590, last_size=160 bytes
+[2m2026-02-19T17:11:18.313443Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=70334, last_size=160 bytes
+[2m2026-02-19T17:11:28.314318Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=72234, last_size=161 bytes
+[2m2026-02-19T17:11:38.602077Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=73496, last_size=160 bytes
+[2m2026-02-19T17:11:48.602595Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=74577, last_size=161 bytes
+[2m2026-02-19T17:11:58.605468Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=76223, last_size=162 bytes
+[2m2026-02-19T17:12:08.615401Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=77093, last_size=162 bytes
+[2m2026-02-19T17:12:19.050631Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=78173, last_size=160 bytes
+[2m2026-02-19T17:12:29.231994Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=79307, last_size=162 bytes
+[2m2026-02-19T17:12:39.232678Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=80337, last_size=162 bytes
+[2m2026-02-19T17:12:49.237844Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=81837, last_size=161 bytes
+[2m2026-02-19T17:12:59.243132Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=83738, last_size=162 bytes
+[2m2026-02-19T17:13:09.244934Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=85637, last_size=161 bytes
+[2m2026-02-19T17:13:19.249924Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=87538, last_size=162 bytes
+[2m2026-02-19T17:13:29.251203Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=89439, last_size=162 bytes
+[2m2026-02-19T17:13:39.253226Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=91339, last_size=160 bytes
+[2m2026-02-19T17:13:49.258366Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=93243, last_size=161 bytes
+[2m2026-02-19T17:13:59.258985Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=95143, last_size=162 bytes
+[2m2026-02-19T17:14:09.261719Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=97044, last_size=161 bytes
+[2m2026-02-19T17:14:19.264173Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=98945, last_size=162 bytes
+[2m2026-02-19T17:14:29.267448Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=100849, last_size=161 bytes
+[2m2026-02-19T17:14:39.268634Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=102751, last_size=161 bytes
+[2m2026-02-19T17:14:49.269458Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=104645, last_size=161 bytes
+[2m2026-02-19T17:14:59.274297Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=106537, last_size=162 bytes
+[2m2026-02-19T17:15:09.275495Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=108432, last_size=160 bytes
+[2m2026-02-19T17:15:13.053081Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-19T17:15:14.053515Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:15:15.244483Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:15:19.275859Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=110324, last_size=160 bytes
+[2m2026-02-19T17:15:29.278187Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=112222, last_size=161 bytes
+[2m2026-02-19T17:15:39.283239Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=114116, last_size=161 bytes
+[2m2026-02-19T17:15:49.288576Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=116013, last_size=161 bytes
+[2m2026-02-19T17:15:59.289054Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=117911, last_size=162 bytes
+[2m2026-02-19T17:16:09.292174Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=119803, last_size=162 bytes
+[2m2026-02-19T17:16:19.296842Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=121690, last_size=161 bytes
+[2m2026-02-19T17:16:29.301524Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=123590, last_size=162 bytes
+[2m2026-02-19T17:16:39.305344Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=125487, last_size=161 bytes
+[2m2026-02-19T17:16:49.307690Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=127383, last_size=162 bytes
+[2m2026-02-19T17:16:50.865292Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-19T17:16:51.866876Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:16:53.051899Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:16:59.311659Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=129280, last_size=160 bytes
+[2m2026-02-19T17:17:09.311923Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=131179, last_size=160 bytes
+[2m2026-02-19T17:17:19.314157Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=133081, last_size=161 bytes
+[2m2026-02-19T17:17:29.319080Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=134987, last_size=161 bytes
+[2m2026-02-19T17:17:39.320645Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=136892, last_size=160 bytes
+[2m2026-02-19T17:17:49.324731Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=138797, last_size=161 bytes
+[2m2026-02-19T17:17:55.332741Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-19T17:17:56.333320Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:17:56.623803Z[0m [33m WARN[0m [2mconnections[0m[2m:[0m ws_connected -> false
+[2m2026-02-19T17:17:57.517249Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:17:59.327812Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=140703, last_size=161 bytes
+[2m2026-02-19T17:18:09.329377Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=142598, last_size=162 bytes
+[2m2026-02-19T17:18:16.619821Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m ws_connected -> true
+[2m2026-02-19T17:18:19.334023Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=144495, last_size=162 bytes
+[2m2026-02-19T17:18:29.338700Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=146397, last_size=160 bytes
+[2m2026-02-19T17:18:39.343791Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=148305, last_size=162 bytes
+[2m2026-02-19T17:18:43.725180Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-19T17:18:44.725969Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:18:45.896622Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:18:49.346553Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=150211, last_size=162 bytes
+[2m2026-02-19T17:18:59.347294Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=152118, last_size=161 bytes
+[2m2026-02-19T17:19:09.350303Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=154021, last_size=161 bytes
+[2m2026-02-19T17:19:19.353413Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=155924, last_size=162 bytes
+[2m2026-02-19T17:19:29.353789Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=157825, last_size=161 bytes
+[2m2026-02-19T17:19:37.045377Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-19T17:19:38.047056Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:19:39.247109Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:19:39.354279Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=159731, last_size=160 bytes
+[2m2026-02-19T17:19:49.357202Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=161632, last_size=161 bytes
+[2m2026-02-19T17:19:59.358387Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=163539, last_size=160 bytes
+[2m2026-02-19T17:20:09.358711Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=165443, last_size=161 bytes
+[2m2026-02-19T17:20:19.363366Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=167350, last_size=161 bytes
+[2m2026-02-19T17:20:29.365724Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=169255, last_size=161 bytes
+[2m2026-02-19T17:20:39.370792Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=171163, last_size=162 bytes
+[2m2026-02-19T17:20:49.372235Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=173069, last_size=160 bytes
+[2m2026-02-19T17:20:59.373130Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=174944, last_size=161 bytes
+[2m2026-02-19T17:21:09.377385Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=176845, last_size=162 bytes
+[2m2026-02-19T17:21:16.072911Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-19T17:21:16.566750Z[0m [33m WARN[0m [2mconnections[0m[2m:[0m ws_connected -> false
+[2m2026-02-19T17:21:17.073405Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:21:18.257313Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:21:19.381121Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=178742, last_size=161 bytes
+[2m2026-02-19T17:21:29.383444Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=180640, last_size=161 bytes
+[2m2026-02-19T17:21:36.568663Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m ws_connected -> true
+[2m2026-02-19T17:21:39.385303Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=182516, last_size=146 bytes
+[2m2026-02-19T17:21:49.388714Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=184372, last_size=160 bytes
+[2m2026-02-19T17:21:59.392457Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=186236, last_size=161 bytes
+[2m2026-02-19T17:22:09.394313Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=188104, last_size=161 bytes
+[2m2026-02-19T17:22:19.397452Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=189913, last_size=162 bytes
+[2m2026-02-19T17:22:29.399489Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=191792, last_size=161 bytes
+[2m2026-02-19T17:22:39.402599Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=193675, last_size=161 bytes
+[2m2026-02-19T17:22:49.405124Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=195554, last_size=161 bytes
+[2m2026-02-19T17:22:59.406243Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=197435, last_size=161 bytes
+[2m2026-02-19T17:23:09.407400Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=199305, last_size=162 bytes
+[2m2026-02-19T17:23:19.407986Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=201171, last_size=161 bytes
+[2m2026-02-19T17:23:29.411015Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=203041, last_size=162 bytes
+[2m2026-02-19T17:23:39.414449Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=204920, last_size=161 bytes
+[2m2026-02-19T17:23:49.414905Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=206798, last_size=161 bytes
+[2m2026-02-19T17:23:59.417991Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=208677, last_size=161 bytes
+[2m2026-02-19T17:24:09.422444Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=210546, last_size=162 bytes
+[2m2026-02-19T17:24:19.424728Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=212418, last_size=161 bytes
+[2m2026-02-19T17:24:29.427954Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=214300, last_size=161 bytes
+[2m2026-02-19T17:24:39.431970Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=216180, last_size=161 bytes
+[2m2026-02-19T17:24:49.433436Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=218056, last_size=161 bytes
+[2m2026-02-19T17:24:59.436195Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=219930, last_size=161 bytes
+[2m2026-02-19T17:25:09.438266Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=221806, last_size=162 bytes
+[2m2026-02-19T17:25:19.441211Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=223677, last_size=160 bytes
+[2m2026-02-19T17:25:29.443892Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=225556, last_size=161 bytes
+[2m2026-02-19T17:25:39.448179Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=227437, last_size=161 bytes
+[2m2026-02-19T17:25:48.279189Z[0m [33m WARN[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS recv error: WebSocket protocol error: Connection reset without closing handshake
+[2m2026-02-19T17:25:49.281243Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Connecting to Binance WS: wss://fstream.binance.com/stream?streams=btcusdt@trade/ethusdt@trade/btcusdt@kline_1m
+[2m2026-02-19T17:25:49.453149Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=229320, last_size=161 bytes
+[2m2026-02-19T17:25:50.472740Z[0m [32m INFO[0m [2mconnections_lib::binance_websocket[0m[2m:[0m Binance WS connected
+[2m2026-02-19T17:25:59.455825Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=231195, last_size=161 bytes
+[2m2026-02-19T17:26:09.459123Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=233077, last_size=161 bytes
+[2m2026-02-19T17:26:19.463201Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=234969, last_size=161 bytes
+[2m2026-02-19T17:26:29.467425Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=236872, last_size=162 bytes
+[2m2026-02-19T17:26:39.471982Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=238772, last_size=160 bytes
+[2m2026-02-19T17:26:49.489715Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=240188, last_size=160 bytes
+[2m2026-02-19T17:26:59.601126Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=241372, last_size=160 bytes
+[2m2026-02-19T17:27:09.606097Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=242842, last_size=160 bytes
+[2m2026-02-19T17:27:19.610970Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=243673, last_size=160 bytes
+[2m2026-02-19T17:27:29.611155Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=245317, last_size=160 bytes
+[2m2026-02-19T17:27:39.611470Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=247216, last_size=160 bytes
+[2m2026-02-19T17:27:49.613648Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=249115, last_size=160 bytes
+[2m2026-02-19T17:27:59.617261Z[0m [32m INFO[0m [2mconnections[0m[2m:[0m WS->Kafka flow ok: msgs=251012, last_size=160 bytes

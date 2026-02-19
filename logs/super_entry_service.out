@@ -9,3 +9,13 @@ Error: error returned from database: relation "market.pairs" does not exist
 
 Caused by:
     relation "market.pairs" does not exist
+
+=== [STAGE 1/4] INIT ===
+
+=== [STAGE 2/4] LOADING MODELS ===
+[2m2026-02-19T17:03:26.409865Z[0m [33m WARN[0m [2mml_entry_strategy::model[0m[2m:[0m Model not found: models/super_entry_v1_tf1.ubj — skipping TF 1m
+[2m2026-02-19T17:03:26.409882Z[0m [33m WARN[0m [2mml_entry_strategy::model[0m[2m:[0m Model not found: models/super_entry_v1_tf5.ubj — skipping TF 5m
+[2m2026-02-19T17:03:26.409893Z[0m [33m WARN[0m [2mml_entry_strategy::model[0m[2m:[0m Model not found: models/super_entry_v1_tf15.ubj — skipping TF 15m
+[2m2026-02-19T17:03:26.409903Z[0m [33m WARN[0m [2mml_entry_strategy::model[0m[2m:[0m Model not found: models/super_entry_v1_tf60.ubj — skipping TF 60m
+[2m2026-02-19T17:03:26.409915Z[0m [33m WARN[0m [2mml_entry_strategy::model[0m[2m:[0m Model not found: models/super_entry_v1_tf240.ubj — skipping TF 240m
+[2m2026-02-19T17:03:26.409925Z[0m [31mERROR[0m [2msuper_entry[0m[2m:[0m ❌ No models found!
