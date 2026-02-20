@@ -392,6 +392,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "settings",
  "sqlx",
  "thiserror 2.0.18",
  "tokio",
@@ -2274,6 +2275,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "risk_manager"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "common",
+ "connections",
+ "futures",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "settings",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ron"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2555,6 +2577,16 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "settings"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

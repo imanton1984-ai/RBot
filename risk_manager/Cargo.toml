@@ -1,0 +1,36 @@
+[package]
+name = "risk_manager"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "risk_manager"
+path = "src/main.rs"
+
+[lib]
+name = "risk_manager"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+chrono = { workspace = true }
+futures = { workspace = true }
+
+sqlx = { workspace = true }
+rdkafka = { workspace = true }
+
+# Workspace crates
+common = { path = "../common" }
+connections = { path = "../connections" }
+settings = { path = "../settings" }

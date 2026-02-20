@@ -43,3 +43,6 @@ rdkafka = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-postgres = { workspace = true }
+
+# Local crates
+settings_lib = { package = "settings", path = "../settings" }
