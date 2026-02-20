@@ -19,12 +19,12 @@ use std::collections::HashMap;
 /// These are based on realistic TP3 targets adjusted per TF volatility.
 pub fn tf_target_move_pct() -> HashMap<i32, f64> {
     let mut m = HashMap::new();
-    m.insert(1, 1.0);     // 1m:  1.0%
-    m.insert(5, 1.75);    // 5m:  1.75%
-    m.insert(15, 2.75);   // 15m: 2.75%
-    m.insert(60, 3.75);   // 1h:  3.75%
-    m.insert(240, 4.75);  // 4h:  4.75%
-    m.insert(1440, 5.75); // 1d:  5.75%
+    m.insert(1, 0.95);     // 1m:  1.0%
+    m.insert(5, 2.2);    // 5m:  1.75%
+    m.insert(15, 3.6);   // 15m: 2.75%
+    m.insert(60, 4.4);   // 1h:  3.75%
+    m.insert(240, 6.0);  // 4h:  4.75%
+    m.insert(1440, 8.0); // 1d:  5.75%
     m
 }
 
