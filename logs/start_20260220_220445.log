@@ -1,0 +1,165 @@
+[1m===========================================[0m
+[1m[36mSTART (GPU MODE)[0m
+[1m===========================================[0m
+[1m[22:04:45][0m ROOT:     [1m/home/anton/Desktop/Rust_trader[0m
+[1m[22:04:45][0m LOG :     [1m/home/anton/Desktop/Rust_trader/logs/start_20260220_220445.log[0m
+[1m[22:04:45][0m STRATEGY: [1msuper_entry[0m
+[1m[22:04:45][0m SUPER ENTRY: [32mENABLED[0m
+[2m===========================================[0m
+[1m[36mGPU SYSTEM CHECK[0m
+[2m===========================================[0m
+[2m[22:04:45][0m [32m✅[0m Using CUDA from: /usr/local/cuda-13.1
+[2m[22:04:45][0m NVCC Version: Cuda compilation tools, release 13.1, V13.1.115
+[2m[22:04:45][0m nvidia-smi available: NVIDIA GeForce RTX 3080 Ti
+[2m[22:04:45][0m [32m✅[0m Found libcudnn.so.9
+[2m[22:04:45][0m Detected CUDA: 13.1.115 (Req: >= 12.9 for latest XGBoost)
+[2m[22:04:45][0m [32m✅[0m GPU system check completed successfully.
+[2m===========================================[0m
+[1m[36mGPU SYSTEM CHECK[0m
+[2m===========================================[0m
+[2m[22:04:45][0m [32m✅[0m Using CUDA from: /usr/local/cuda-13.1
+[2m[22:04:46][0m NVCC Version: Cuda compilation tools, release 13.1, V13.1.115
+[2m[22:04:46][0m nvidia-smi available: NVIDIA GeForce RTX 3080 Ti
+[2m[22:04:46][0m [32m✅[0m Found libcudnn.so.9
+[2m[22:04:46][0m Detected CUDA: 13.1.115 (Req: >= 12.9 for latest XGBoost)
+[2m[22:04:46][0m [32m✅[0m GPU system check completed successfully.
+[2m===========================================[0m
+[1m[36mINSTALL GPU DEPS (XGBoost)[0m
+[2m===========================================[0m
+[2m[22:04:46][0m XGBoost not found. Building with CUDA support...
+[xgb] root=/home/anton/Desktop/Rust_trader
+[xgb] installing deps (ubuntu/debian expected)...
+Get:1 file:/var/cuda-repo-ubuntu2404-13-1-local  InRelease [1,572 B]
+Get:1 file:/var/cuda-repo-ubuntu2404-13-1-local  InRelease [1,572 B]
+Hit:2 http://ru.archive.ubuntu.com/ubuntu noble InRelease
+Hit:3 http://ru.archive.ubuntu.com/ubuntu noble-updates InRelease
+Hit:4 http://ru.archive.ubuntu.com/ubuntu noble-backports InRelease
+Hit:5 https://apt.postgresql.org/pub/repos/apt noble-pgdg InRelease
+Hit:6 https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/noble pgadmin4 InRelease
+Hit:7 https://dl.google.com/linux/chrome/deb stable InRelease
+Hit:8 https://download.docker.com/linux/ubuntu noble InRelease
+Hit:9 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64  InRelease
+Hit:10 http://security.ubuntu.com/ubuntu noble-security InRelease
+Hit:11 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  InRelease
+Hit:12 https://packagecloud.io/timescale/timescaledb/ubuntu noble InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+git is already the newest version (1:2.43.0-1ubuntu7.3).
+cmake is already the newest version (3.28.3-1build7).
+ninja-build is already the newest version (1.11.1-2).
+build-essential is already the newest version (12.10ubuntu1).
+libomp-dev is already the newest version (1:18.0-59~exp2).
+0 upgraded, 0 newly installed, 0 to remove and 48 not upgraded.
+HEAD is now at 799126051 Bump version to 3.2.0. (#12004)
+CMake Warning:
+  Ignoring extra path from command line:
+
+   ".."
+
+
+CMake Error: The source directory "/home/anton/Desktop/Rust_trader/third_party/xgboost" does not appear to contain CMakeLists.txt.
+Specify --help for usage, or press the help button on the CMake GUI.
+[2m[22:04:53][0m Loading env: [1m/home/anton/Desktop/Rust_trader/.env[0m
+[2m===========================================[0m
+[1m[36mINFRASTRUCTURE[0m
+[2m===========================================[0m
+[2m[22:04:53][0m Starting Docker Compose...
+ Container redpanda Running 
+ Container timescaledb Running 
+ Container redpanda_console Running 
+ Container redpanda Waiting 
+ Container redpanda Healthy 
+[2m[22:04:53][0m Waiting for TCP [1m127.0.0.1:5433[0m (timeout 45s)...
+[2m[22:04:53][0m [32m✅[0m TCP ready: 127.0.0.1:5433
+[2m[22:04:53][0m Waiting for TCP [1m127.0.0.1:19092[0m (timeout 45s)...
+[2m[22:04:53][0m [32m✅[0m TCP ready: 127.0.0.1:19092
+[2m===========================================[0m
+[1m[36mKAFKA TOPICS[0m
+[2m===========================================[0m
+TOPIC          STATUS
+candles.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC           STATUS
+candles.update  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC             STATUS
+indicators.close  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC    STATUS
+ws_feed  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC        STATUS
+signals.raw  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC          STATUS
+signals.final  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC              STATUS
+features.snapshot  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC       STATUS
+orders.cmd  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC          STATUS
+orders.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+TOPIC             STATUS
+positions.events  TOPIC_ALREADY_EXISTS: The topic has already been created
+[2m[22:04:54][0m [32m✅[0m Kafka topics ready.
+[2m===========================================[0m
+[1m[36mDATABASE INITIALIZATION[0m
+[2m===========================================[0m
+[2m[22:04:54][0m [33m⚠️[0m Database schema missing. Running initialization...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+[2m[22:04:55][0m [32m✅[0m Database initialized successfully.
+[2m===========================================[0m
+[1m[36mBUILD (GPU MODE)[0m
+[2m===========================================[0m
+[2m[22:04:55][0m [32m✅[0m All binaries already built. Skipping build.
+[2m===========================================[0m
+[1m[36mSTARTING SERVICES[0m
+[2m===========================================[0m
+[2m[22:04:55][0m Starting connections...
+[2m[22:04:55][0m   bin: /home/anton/Desktop/Rust_trader/target/release/connections
+[2m[22:04:55][0m   log: /home/anton/Desktop/Rust_trader/logs/connections.out
+[2m[22:04:55][0m [32m✅[0m Started connections (pid 1730711)
+[2m[22:04:55][0m Starting ingestor...
+[2m[22:04:55][0m   bin: /home/anton/Desktop/Rust_trader/target/release/ingestor
+[2m[22:04:55][0m   log: /home/anton/Desktop/Rust_trader/logs/ingestor.out
+[2m[22:04:55][0m [32m✅[0m Started ingestor (pid 1730732)
+[2m[22:04:55][0m Starting compute_history service...
+[2m[22:04:55][0m Starting compute_history...
+[2m[22:04:55][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_history
+[2m[22:04:55][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_history.out
+[2m[22:04:55][0m [32m✅[0m Started compute_history (pid 1730763)
+[2m[22:04:55][0m Starting compute_realtime service...
+[2m[22:04:55][0m Starting compute_realtime...
+[2m[22:04:55][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_realtime
+[2m[22:04:55][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_realtime.out
+[2m[22:04:55][0m [32m✅[0m Started compute_realtime (pid 1730787)
+[2m===========================================[0m
+[1m[36mSTART GRAFANA HEALTHCHECK[0m
+[2m===========================================[0m
+[2m[22:04:55][0m Starting Grafana for healthcheck monitoring...
+[2m[22:04:55][0m [32m✅[0m Grafana started. Access at http://localhost:3001 (admin/admin)
+[2m[22:04:55][0m Active strategy: super_entry
+[2m===========================================[0m
+[1m[36mSUPER ENTRY STRATEGY[0m
+[2m===========================================[0m
+[2m[22:04:55][0m Super Entry strategy active
+[2m[22:04:55][0m   History: ZERO-COPY pipeline in compute_history (GPU→indicators→XGBoost→DB)
+[2m[22:04:55][0m   Realtime: SuperEntryStage in compute_realtime (single-candle inference)
+[2m[22:04:55][0m   Predictors/trade_signals pipeline: SKIPPED
+[2m[22:04:55][0m   NOTE: Must have models in models/super_entry_v1_tf{X}.ubj
+[2m===========================================[0m
+[1m[36mALL SERVICES STARTED[0m
+[2m===========================================[0m
+[2m[22:04:55][0m [32m✅[0m START DONE @ Fri 20 Feb 2026 10:04:55 PM MSK
+[2m[22:04:55][0m Services started successfully
+[2m[22:04:55][0m PIDs in : /home/anton/Desktop/Rust_trader/run
+[2m[22:04:55][0m Logs in : /home/anton/Desktop/Rust_trader/logs
+[1m===========================================[0m
+[1m[36mSUPER ENTRY STRATEGY[0m
+[1m===========================================[0m
+[1m[22:04:55][0m Super Entry strategy is ENABLED
+[1m[22:04:55][0m   History backfill: integrated into compute_history (batch mode after indicators)
+[1m[22:04:55][0m   Realtime signals: integrated into compute_realtime (super_entry_stage)
+[1m[22:04:55][0m   NOTE: For backtesting, run separately: ./scripts/super_entry_backtester.sh
+[1m[22:04:55][0m [32m✅[0m Super Entry integrated into compute pipeline
+
+[1;32mGPU BOT STARTED SUCCESSFULLY[0m
+Active strategy: super_entry
+Super Entry: [1;32mENABLED[0m

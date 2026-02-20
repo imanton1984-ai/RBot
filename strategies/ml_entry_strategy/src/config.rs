@@ -77,7 +77,7 @@ impl Default for SuperEntryConfig {
     fn default() -> Self {
         Self {
             warmup_bars: 300,
-            lookahead_bars: 50, // was 20
+            lookahead_bars: 20, // was 20
             p_threshold: 0.50,  //was 0.55
             sl_fraction: 0.75, //was 0.5
             max_hold_bars: 25,  // Force-close after 25 bars (reduces expired trades)

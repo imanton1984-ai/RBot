@@ -44,12 +44,12 @@
   ],
   "n_features": 38,
   "metrics": {
-    "auc": 0.6585324338728465,
-    "precision": 0.5576086956521739,
-    "recall": 0.595357833655706
+    "auc": 0.682855780711333,
+    "precision": 0.6059853813267135,
+    "recall": 0.5619644455812763
   },
-  "best_iteration": 170,
-  "n_trees": 171,
+  "best_iteration": 206,
+  "n_trees": 207,
   "strategy": "ml_entry_strategy",
   "target_move_pct": 3.75
 }

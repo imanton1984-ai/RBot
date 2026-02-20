@@ -1,0 +1,28 @@
+[2m2026-02-20T19:13:49.755000Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m === Super Entry Dataset Builder ===
+[2m2026-02-20T19:13:49.755012Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Warmup bars: 300
+[2m2026-02-20T19:13:49.755014Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Lookahead: 20
+[2m2026-02-20T19:13:49.755016Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Output: /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv
+[2m2026-02-20T19:13:49.765529Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Found 132 active symbols
+[2m2026-02-20T19:13:49.765536Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 1m (target_move=0.95%)
+[2m2026-02-20T19:14:31.259132Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1m: 89760 examples, 40802 super (45.5%)
+[2m2026-02-20T19:14:31.259142Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 5m (target_move=2.2%)
+[2m2026-02-20T19:15:13.570356Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 5m: 89760 examples, 30724 super (34.2%)
+[2m2026-02-20T19:15:13.570367Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 15m (target_move=3.6%)
+[2m2026-02-20T19:15:54.564563Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 15m: 89684 examples, 30422 super (33.9%)
+[2m2026-02-20T19:15:54.564573Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 60m (target_move=4.4%)
+[2m2026-02-20T19:16:34.871933Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 60m: 86262 examples, 58754 super (68.1%)
+[2m2026-02-20T19:16:34.871944Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 240m (target_move=6%)
+[2m2026-02-20T19:17:11.929310Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 240m: 77943 examples, 66611 super (85.5%)
+[2m2026-02-20T19:17:11.929319Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Processing TF 1440m (target_move=8%)
+[2m2026-02-20T19:17:37.430619Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1440m: 42878 examples, 42269 super (98.6%)
+[2m2026-02-20T19:17:41.593867Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m 
+=== Dataset Summary ===
+[2m2026-02-20T19:17:41.593877Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Total examples: 476287
+[2m2026-02-20T19:17:41.593880Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m Output: /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv
+[2m2026-02-20T19:17:41.593884Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1m: 89760 total, 40802 super (45.5%), target=0.95%
+[2m2026-02-20T19:17:41.593888Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 5m: 89760 total, 30724 super (34.2%), target=2.20%
+[2m2026-02-20T19:17:41.593894Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 15m: 89684 total, 30422 super (33.9%), target=3.60%
+[2m2026-02-20T19:17:41.593896Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 60m: 86262 total, 58754 super (68.1%), target=4.40%
+[2m2026-02-20T19:17:41.593897Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 240m: 77943 total, 66611 super (85.5%), target=6.00%
+[2m2026-02-20T19:17:41.593901Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m   TF 1440m: 42878 total, 42269 super (98.6%), target=8.00%
+[2m2026-02-20T19:17:41.593903Z[0m [32m INFO[0m [2msuper_entry_dataset[0m[2m:[0m === Done ===
