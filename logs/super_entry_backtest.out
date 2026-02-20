@@ -3,64 +3,64 @@
 ╚══════════════════════════════════════════════════════════════╝
 
   Config:
-    P threshold:    0.55
+    P threshold:    0.5
     Warmup bars:    300
-    Lookahead:      20
-    SL fraction:    0.5
+    Lookahead:      50
+    SL fraction:    0.75
     GPU:            true
 
-    TF     1m:  TP=0.95%  SL=0.47%
-    TF     5m:  TP=2.20%  SL=1.10%
-    TF    15m:  TP=3.60%  SL=1.80%
-    TF    60m:  TP=4.40%  SL=2.20%
-    TF   240m:  TP=6.00%  SL=3.00%
-    TF  1440m:  TP=8.00%  SL=4.00%
+    TF     1m:  TP=0.95%  SL=0.71%
+    TF     5m:  TP=2.20%  SL=1.65%
+    TF    15m:  TP=3.60%  SL=2.70%
+    TF    60m:  TP=4.40%  SL=3.30%
+    TF   240m:  TP=6.00%  SL=4.50%
+    TF  1440m:  TP=8.00%  SL=6.00%
 
-[2m2026-02-20T07:50:49.488805Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m Loading super_entry models (device=Cuda)...
-[2m2026-02-20T07:50:49.500402Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf1.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.500413Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 1m: models/super_entry_v1_tf1.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.509066Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf1.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.509076Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 1m: models/super_dir_v1_tf1.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.525702Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf5.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.525719Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 5m: models/super_entry_v1_tf5.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.534562Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf5.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.534573Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 5m: models/super_dir_v1_tf5.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.549713Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf15.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.549894Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 15m: models/super_entry_v1_tf15.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.557695Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf15.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.557758Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 15m: models/super_dir_v1_tf15.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.581685Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf60.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.581703Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 60m: models/super_entry_v1_tf60.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.593940Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf60.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.593956Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 60m: models/super_dir_v1_tf60.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.614275Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf240.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.617451Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 240m: models/super_entry_v1_tf240.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.621172Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf240.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.621387Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 240m: models/super_dir_v1_tf240.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.639809Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf1440.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.639956Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 1440m: models/super_entry_v1_tf1440.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.642782Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf1440.ubj, device=cuda, predictor=gpu_predictor
-[2m2026-02-20T07:50:49.642791Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 1440m: models/super_dir_v1_tf1440.ubj (device=Cuda)
-[2m2026-02-20T07:50:49.652857Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m Models loaded: 6 TFs with super_entry, 6 with direction
-[2m2026-02-20T07:50:52.275593Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m133000 [3mrows_returned[0m[2m=[0m133000 [3melapsed[0m[2m=[0m2.618625514s [3melapsed_secs[0m[2m=[0m2.618625514 [3mslow_threshold[0m[2m=[0m1s
-  TF     1m: fetched 133 symbols in 2.6s, processing...
-  TF     1m: 4257 trades in 4.0s
-[2m2026-02-20T07:50:55.996632Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_5m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m133000 [3mrows_returned[0m[2m=[0m133000 [3melapsed[0m[2m=[0m2.317646621s [3melapsed_secs[0m[2m=[0m2.317646621 [3mslow_threshold[0m[2m=[0m1s
-  TF     5m: fetched 133 symbols in 2.3s, processing...
-  TF     5m: 5795 trades in 2.8s
-[2m2026-02-20T07:50:58.822135Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_15m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m132837 [3mrows_returned[0m[2m=[0m132837 [3melapsed[0m[2m=[0m2.312567082s [3melapsed_secs[0m[2m=[0m2.312567082 [3mslow_threshold[0m[2m=[0m1s
+[2m2026-02-20T08:24:44.816649Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m Loading super_entry models (device=Cuda)...
+[2m2026-02-20T08:24:44.827731Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf1.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.827745Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 1m: models/super_entry_v1_tf1.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.833506Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf1.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.833579Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 1m: models/super_dir_v1_tf1.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.848660Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf5.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.848713Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 5m: models/super_entry_v1_tf5.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.857154Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf5.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.857218Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 5m: models/super_dir_v1_tf5.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.874758Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf15.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.874862Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 15m: models/super_entry_v1_tf15.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.880586Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf15.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.880651Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 15m: models/super_dir_v1_tf15.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.900391Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf60.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.900404Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 60m: models/super_entry_v1_tf60.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.906833Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf60.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.906846Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 60m: models/super_dir_v1_tf60.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.924488Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf240.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.924504Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 240m: models/super_entry_v1_tf240.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.929646Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf240.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.929657Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 240m: models/super_dir_v1_tf240.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.941784Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_entry_v1_tf1440.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.941873Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_entry TF 1440m: models/super_entry_v1_tf1440.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.944616Z[0m [32m INFO[0m [2mcompute_predictors[0m[2m:[0m XGB Booster loaded: path=models/super_dir_v1_tf1440.ubj, device=cuda, predictor=gpu_predictor
+[2m2026-02-20T08:24:44.944790Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m ✅ Loaded super_dir TF 1440m: models/super_dir_v1_tf1440.ubj (device=Cuda)
+[2m2026-02-20T08:24:44.955003Z[0m [32m INFO[0m [2mml_entry_strategy::model[0m[2m:[0m Models loaded: 6 TFs with super_entry, 6 with direction
+[2m2026-02-20T08:24:47.291761Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m133000 [3mrows_returned[0m[2m=[0m133000 [3melapsed[0m[2m=[0m2.332543971s [3melapsed_secs[0m[2m=[0m2.3325439709999998 [3mslow_threshold[0m[2m=[0m1s
+  TF     1m: fetched 133 symbols in 2.4s, processing...
+  TF     1m: 4795 trades in 4.0s
+[2m2026-02-20T08:24:51.186867Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_5m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m133000 [3mrows_returned[0m[2m=[0m133000 [3melapsed[0m[2m=[0m2.197704707s [3melapsed_secs[0m[2m=[0m2.197704707 [3mslow_threshold[0m[2m=[0m1s
+  TF     5m: fetched 133 symbols in 2.2s, processing...
+  TF     5m: 6094 trades in 2.5s
+[2m2026-02-20T08:24:53.748103Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_15m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m132841 [3mrows_returned[0m[2m=[0m132841 [3melapsed[0m[2m=[0m2.257636846s [3melapsed_secs[0m[2m=[0m2.257636846 [3mslow_threshold[0m[2m=[0m1s
   TF    15m: fetched 133 symbols in 2.3s, processing...
-  TF    15m: 6870 trades in 2.8s
-[2m2026-02-20T07:51:01.846411Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m129680 [3mrows_returned[0m[2m=[0m129680 [3melapsed[0m[2m=[0m2.499051533s [3melapsed_secs[0m[2m=[0m2.499051533 [3mslow_threshold[0m[2m=[0m1s
-  TF    60m: fetched 133 symbols in 2.5s, processing...
-  TF    60m: 33731 trades in 3.2s
-[2m2026-02-20T07:51:03.979921Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_4h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m119703 [3mrows_returned[0m[2m=[0m119703 [3melapsed[0m[2m=[0m1.464450037s [3melapsed_secs[0m[2m=[0m1.464450037 [3mslow_threshold[0m[2m=[0m1s
-  TF   240m: fetched 133 symbols in 1.5s, processing...
-  TF   240m: 33834 trades in 2.0s
+  TF    15m: 7759 trades in 2.4s
+[2m2026-02-20T08:24:56.304854Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m129686 [3mrows_returned[0m[2m=[0m129686 [3melapsed[0m[2m=[0m2.400220859s [3melapsed_secs[0m[2m=[0m2.400220859 [3mslow_threshold[0m[2m=[0m1s
+  TF    60m: fetched 133 symbols in 2.4s, processing...
+  TF    60m: 35669 trades in 2.8s
+[2m2026-02-20T08:24:58.403807Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_4h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m119703 [3mrows_returned[0m[2m=[0m119703 [3melapsed[0m[2m=[0m1.738277801s [3melapsed_secs[0m[2m=[0m1.738277801 [3mslow_threshold[0m[2m=[0m1s
+  TF   240m: fetched 133 symbols in 1.7s, processing...
+  TF   240m: 34719 trades in 2.1s
   TF  1440m: fetched 133 symbols in 0.4s, processing...
-  TF  1440m: 18418 trades in 0.5s
+  TF  1440m: 18439 trades in 0.5s
 
-  Total backtest time: 15.4s
+  Total backtest time: 14.3s
 
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -69,79 +69,79 @@
 
 TF      Trades   Wins   Loss   Exprd  WinRate   AvgPnL%   Sharpe   Cover%
 ---------------------------------------------------------------------------
-1m        4257   2158   1694     405    50.7%   0.3180%    0.468    4.57%
-5m        5795   2430   2380     985    41.9%   0.5618%    0.367    6.22%
-15m       6870   3141   2421    1308    45.7%   1.2475%    0.508    7.39%
-1h       33731  19929  12339    1463    59.1%   1.8609%    0.590   37.51%
-4h       33834  17135  16067     632    50.6%   1.6436%    0.368   41.78%
-1d       18418   7989  10321     108    43.4%   1.2317%    0.208   41.70%
+1m        4795   2880   1607     308    60.1%   0.3365%    0.432    5.15%
+5m        6094   3666   1927     501    60.2%   0.8309%    0.469    6.55%
+15m       7759   5021   2009     729    64.7%   1.7071%    0.620    8.35%
+1h       35669  25883   9136     650    72.6%   2.3566%    0.700   39.68%
+4h       34719  22623  11763     333    65.2%   2.3895%    0.481   42.87%
+1d       18439  10456   7851     132    56.7%   1.9812%    0.287   41.87%
 ---------------------------------------------------------------------------
-TOTAL   102905  52782  45222    4901    51.3%   1.4989%
+TOTAL   107475  70529  34293    2653    65.6%   2.0793%
 
 ======== P(SUPER) BUCKET ANALYSIS (calibration helper) ========
 TF      0.55-0.60  0.60-0.70  0.70-0.80  0.80-0.90      0.90+
-1m      40%(265)   39%(531)   39%(556)   48%(572)  58%(2333) 
-5m      26%(235)   30%(597)   38%(770)  48%(1155)  44%(3038) 
-15m     34%(576)  38%(1259)  49%(1147)  52%(1040)  48%(2848) 
-1h     59%(1754)  62%(4322)  66%(5233)  65%(6886)  53%(15536) 
-4h      53%(868)  57%(2331)  58%(3384)  57%(5800)  47%(21451) 
-1d       43%(60)   48%(134)   49%(261)   52%(534)  43%(17429) 
+1m      55%(313)   55%(590)   56%(601)   59%(560)  65%(2372) 
+5m      58%(253)   57%(594)   66%(769)  64%(1163)  58%(3077) 
+15m     60%(763)  64%(1256)  70%(1148)  73%(1041)  62%(2843) 
+1h     77%(2012)  78%(4320)  79%(5228)  77%(6888)  66%(15517) 
+4h      71%(990)  72%(2331)  73%(3384)  72%(5800)  61%(21451) 
+1d       62%(69)   60%(134)   64%(261)   67%(534)  56%(17375) 
 
 ======== DIRECTION BREAKDOWN ========
 TF         LONG    SHORT    LongWR%   ShortWR%   LongPnL%  ShortPnL%
-1m         2724     1533      52.0%      48.4%    0.3467%    0.2671%
-5m         4564     1231      39.7%      50.1%    0.4710%    0.8984%
-15m        2305     4565      50.5%      43.3%    1.4317%    1.1545%
-1h        18127    15604      53.6%      65.4%    1.4627%    2.3234%
-4h        15992    17842      43.0%      57.5%    0.9368%    2.2771%
-1d         7742    10676      40.6%      45.4%    0.9039%    1.4694%
+1m         3144     1651      60.0%      60.3%    0.3464%    0.3176%
+5m         4737     1357      57.4%      69.7%    0.7172%    1.2277%
+15m        2713     5046      71.3%      61.2%    2.0796%    1.5069%
+1h        18778    16891      66.4%      79.5%    1.8627%    2.9058%
+4h        16222    18497      57.1%      72.2%    1.5634%    3.1140%
+1d         7756    10683      53.7%      58.9%    1.5795%    2.2728%
 
 ======== AVG BARS TO OUTCOME ========
 TF     AvgWinBars AvgLossBars AvgExpBars
-1m            5.7         3.9       16.6
-5m            7.2         4.2       19.0
-15m           8.6         4.7       19.6
-1h            7.4         3.8       18.3
-4h            6.2         3.3       15.1
-1d            2.8         1.9        2.0
+1m            9.0         8.8       35.0
+5m           11.8         9.7       41.2
+15m          13.9        10.0       47.1
+1h            9.1         6.9       30.3
+4h            7.5         5.1       10.8
+1d            3.3         2.5        1.6
 
 ======== TOP 5 SYMBOLS BY PNL (per TF) ========
   1m — top 5:
-    DYDXUSDT     PnL:  +501.60%  trades:  600  WR:  92.0%
-    TRIAUSDT     PnL:   +89.54%  trades:  171  WR:  59.1%
-    ENSOUSDT     PnL:   +74.47%  trades:  286  WR:  51.4%
-    SPACEUSDT    PnL:   +72.67%  trades:  243  WR:  54.3%
-    RECALLUSDT   PnL:   +69.56%  trades:  123  WR:  61.0%
+    DYDXUSDT     PnL:  +452.67%  trades:  585  WR:  89.4%
+    TRIAUSDT     PnL:  +119.01%  trades:  175  WR:  81.1%
+    SPACEUSDT    PnL:  +118.99%  trades:  240  WR:  72.5%
+    ENSOUSDT     PnL:   +98.33%  trades:  304  WR:  62.2%
+    RECALLUSDT   PnL:   +78.88%  trades:  115  WR:  82.6%
   5m — top 5:
-    OPUSDT       PnL:  +219.10%  trades:  124  WR:  73.4%
-    RPLUSDT      PnL:  +168.85%  trades:  137  WR:  61.3%
-    MYXUSDT      PnL:  +156.20%  trades:  227  WR:  54.2%
-    JELLYJELLYUSDT PnL:  +147.14%  trades:  111  WR:  66.7%
-    LYNUSDT      PnL:  +144.67%  trades:  166  WR:  50.0%
+    OPUSDT       PnL:  +282.69%  trades:  130  WR:  98.5%
+    LYNUSDT      PnL:  +271.08%  trades:  167  WR:  83.8%
+    TAKEUSDT     PnL:  +258.85%  trades:  193  WR:  74.1%
+    RPLUSDT      PnL:  +249.15%  trades:  143  WR:  88.1%
+    RIVERUSDT    PnL:  +232.10%  trades:  228  WR:  69.3%
   15m — top 5:
-    PUMPUSDT     PnL:  +408.93%  trades:  194  WR:  37.6%
-    RIVERUSDT    PnL:  +393.07%  trades:  382  WR:  51.6%
-    MONUSDT      PnL:  +377.25%  trades:  139  WR:  68.3%
-    PENGUUSDT    PnL:  +329.13%  trades:  154  WR:  55.8%
-    MYXUSDT      PnL:  +287.53%  trades:  244  WR:  53.7%
+    PUMPUSDT     PnL:  +633.66%  trades:  254  WR:  70.9%
+    RIVERUSDT    PnL:  +595.10%  trades:  380  WR:  67.4%
+    PENGUUSDT    PnL:  +460.94%  trades:  168  WR:  81.0%
+    MONUSDT      PnL:  +428.45%  trades:  143  WR:  89.5%
+    1000PEPEUSDT PnL:  +356.80%  trades:  112  WR:  90.2%
   1h — top 5:
-    ENAUSDT      PnL: +1136.28%  trades:  319  WR:  85.0%
-    BIOUSDT      PnL: +1041.27%  trades:  352  WR:  74.4%
-    TAKEUSDT     PnL:  +959.16%  trades:  545  WR:  59.6%
-    GALAUSDT     PnL:  +946.73%  trades:  281  WR:  77.6%
-    DYDXUSDT     PnL:  +920.99%  trades:  317  WR:  71.9%
+    TAKEUSDT     PnL: +1357.81%  trades:  544  WR:  75.2%
+    BIOUSDT      PnL: +1301.53%  trades:  370  WR:  88.1%
+    ENAUSDT      PnL: +1284.91%  trades:  336  WR:  91.4%
+    GALAUSDT     PnL: +1207.96%  trades:  318  WR:  88.7%
+    DYDXUSDT     PnL: +1174.78%  trades:  330  WR:  88.2%
   4h — top 5:
-    1000SHIBUSDT PnL: +1194.47%  trades:  332  WR:  69.9%
-    ADAUSDT      PnL: +1133.37%  trades:  327  WR:  69.7%
-    DOTUSDT      PnL:  +930.78%  trades:  299  WR:  67.2%
-    POLUSDT      PnL:  +891.39%  trades:  300  WR:  65.7%
-    LDOUSDT      PnL:  +889.71%  trades:  346  WR:  61.0%
+    1000SHIBUSDT PnL: +1678.06%  trades:  346  WR:  88.2%
+    ADAUSDT      PnL: +1534.73%  trades:  332  WR:  85.8%
+    DOTUSDT      PnL: +1469.48%  trades:  325  WR:  84.9%
+    1000PEPEUSDT PnL: +1324.03%  trades:  369  WR:  76.4%
+    LDOUSDT      PnL: +1316.14%  trades:  357  WR:  77.6%
   1d — top 5:
-    ATOMUSDT     PnL:  +820.00%  trades:  360  WR:  52.2%
-    HBARUSDT     PnL:  +792.00%  trades:  327  WR:  53.5%
-    ETHUSDT      PnL:  +786.78%  trades:  367  WR:  51.0%
-    XMRUSDT      PnL:  +776.00%  trades:  196  WR:  66.3%
-    ARBUSDT      PnL:  +684.00%  trades:  391  WR:  47.8%
+    ATOMUSDT     PnL: +1348.00%  trades:  362  WR:  69.3%
+    HBARUSDT     PnL: +1234.00%  trades:  331  WR:  69.5%
+    ETHUSDT      PnL: +1162.18%  trades:  375  WR:  64.5%
+    XMRUSDT      PnL: +1046.00%  trades:  199  WR:  80.4%
+    ARBUSDT      PnL:  +964.00%  trades:  391  WR:  60.4%
 
 Backtest results exported to: /home/anton/Desktop/Rust_trader/dataset/super_entry_backtest_results.csv
 ╔══════════════════════════════════════════════════════════════╗

@@ -71,9 +71,9 @@ impl Default for SuperEntryConfig {
     fn default() -> Self {
         Self {
             warmup_bars: 300,
-            lookahead_bars: 20,
-            p_threshold: 0.55,
-            sl_fraction: 0.5,
+            lookahead_bars: 50, // was 20
+            p_threshold: 0.50,  //was 0.55
+            sl_fraction: 0.75, //was 0.5
             tf_targets: tf_target_move_pct(),
             model_path_template: "models/super_entry_v1_tf{tf}.ubj".to_string(),
             direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),
