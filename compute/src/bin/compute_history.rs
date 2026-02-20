@@ -39,13 +39,16 @@ async fn main() -> Result<()> {
     tracing::info!("compute_history: ACTIVE_STRATEGY = {}", active_strategy);
 
     let run_predictors = should_run_predictors();
+    let is_super = is_super_entry_enabled();
+
     if run_predictors {
         tracing::info!("compute_history: Running predictors + trade_signals pipeline (level strategy)");
-    } else {
-        tracing::info!("compute_history: Skipping predictors pipeline (strategy: {})", active_strategy);
-        tracing::info!("compute_history: MODE: indicators + raw_signals + super_entry_signals (integrated)");
+    } else if is_super {
+        tracing::info!("compute_history: MODE: indicators + raw_signals + super_entry_signals (ZERO-COPY)");
         tracing::info!("compute_history: SUPER_ENTRY_ENABLED={}", 
             std::env::var("SUPER_ENTRY_ENABLED").unwrap_or_else(|_| "false".to_string()));
+    } else {
+        tracing::info!("compute_history: Skipping predictors pipeline (strategy: {})", active_strategy);
     }
 
     let db_url = std::env::var("DATABASE_URL")
@@ -112,26 +115,51 @@ async fn main() -> Result<()> {
     );
     let job_scheduler = Arc::new(job_scheduler);
 
-    // 4. Predictors Pipeline (XGBoost) - ONLY for level strategy
+    // 4. Feature Channel: GPU indicators → downstream consumer
     let (feature_tx, feature_rx) = tokio::sync::mpsc::unbounded_channel::<FeatureSnapshot>();
 
-    // For Level strategy: use predictors pipeline
-    // For Super Entry strategy: we run batch backfill AFTER indicators are computed (see below)
-    if run_predictors {
+    // 5. Connect feature_rx to the appropriate consumer:
+    //    - Level strategy → PredictorsPipeline
+    //    - Super Entry strategy → SuperEntryStage (ZERO-COPY!)
+    //    - Neither → drop receiver
+    let super_entry_handle: Option<tokio::task::JoinHandle<Result<()>>> = if run_predictors {
+        // Level strategy: use predictors pipeline
         setup_predictors_pipeline(
             &db_pool,
             &bulk_sender,
             feature_rx,
             config.use_cuda,
         ).await;
+        None
+    } else if is_super {
+        // ═══════════════════════════════════════════════════════════════════
+        // SUPER ENTRY ZERO-COPY PATH:
+        // GPU indicators → FeatureSnapshot → SuperEntryStage → XGBoost → DB
+        // No DB roundtrip for indicator data — direct in-memory processing.
+        // ═══════════════════════════════════════════════════════════════════
+        tracing::info!("compute_history: Setting up SuperEntryStage for ZERO-COPY history pipeline");
+        match compute_lib::super_entry_stage::setup_super_entry_stage(
+            &db_pool,
+            feature_rx,
+            config.use_cuda,
+        ).await {
+            Some(handle) => {
+                tracing::info!("compute_history: ✅ SuperEntryStage spawned — ZERO-COPY pipeline active");
+                Some(handle)
+            }
+            None => {
+                // Stage failed to initialize (no models? table error?)
+                // feature_rx was already consumed by setup_super_entry_stage
+                tracing::warn!("compute_history: SuperEntryStage not available — will use DB backfill fallback");
+                None
+            }
+        }
     } else {
-        // Super Entry mode: feature_rx is not consumed by predictors pipeline.
-        // We drop it here — super entry backfill will read directly from DB after indicators are written.
         drop(feature_rx);
-        tracing::info!("compute_history: Super Entry mode — will run batch backfill after indicators are computed");
-    }
+        None
+    };
 
-    // 5. Spawn Result Processor
+    // 6. Spawn Result Processor
     let result_processor = ResultProcessor::new(
         Arc::new(indicator_persistor),
         Arc::new(raw_signal_persistor),
@@ -150,8 +178,6 @@ async fn main() -> Result<()> {
     // =====================================================================
 
     // For super_entry mode: use longer wait for candles to load (ingestor backfill takes 2+ minutes)
-    let is_super = is_super_entry_enabled();
-    
     let max_idle_cycles: u32 = if is_super {
         6  // Super entry: allow more idle cycles (candles take time to load)
     } else {
@@ -161,16 +187,16 @@ async fn main() -> Result<()> {
             .unwrap_or(10)
     };
 
-    let poll_interval_secs: u64 = if is_super { 30 } else { 30 };  // 30s for super_entry to wait for candles
-    let initial_wait_secs: u64 = if is_super { 120 } else { 15 };  // 120s for super_entry (ingestor needs time to backfill candles)
+    let poll_interval_secs: u64 = if is_super { 30 } else { 30 };
+    let initial_wait_secs: u64 = if is_super { 120 } else { 15 };
 
     // 1) Wait for active pairs to appear
     let symbols = wait_for_active_symbols(&db_pool).await?;
     tracing::info!("Found {} active symbols", symbols.len());
 
-    if !run_predictors {
-        tracing::info!("compute_history (super_entry mode): will persist indicators for: {:?}", symbols);
-        tracing::info!("compute_history (super_entry mode): fast mode enabled (idle_cycles={}, poll={}s, initial_wait={}s)", 
+    if is_super {
+        tracing::info!("compute_history (super_entry): will persist indicators for: {:?}", symbols);
+        tracing::info!("compute_history (super_entry): fast mode enabled (idle_cycles={}, poll={}s, initial_wait={}s)", 
             max_idle_cycles, poll_interval_secs, initial_wait_secs);
     }
 
@@ -190,7 +216,7 @@ async fn main() -> Result<()> {
     tokio::time::sleep(Duration::from_secs(initial_wait_secs)).await;
     
     // Log current state before processing
-    if !run_predictors {
+    if is_super {
         for tf in &timeframes {
             let candle_table = format!("market.candles_{}", tf.as_str());
             for symbol in &symbols {
@@ -214,7 +240,7 @@ async fn main() -> Result<()> {
                 .flatten();
                 
                 tracing::info!(
-                    "compute_history (super_entry mode): {} {} - candles: {:?}, indicators: {:?}",
+                    "compute_history (super_entry): {} {} - candles: {:?}, indicators: {:?}",
                     symbol, tf.as_str(), candle_count, indicator_count
                 );
             }
@@ -361,19 +387,56 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Give final batch time to flush
-    tracing::info!("Waiting 30s for final flush...");
-    tokio::time::sleep(Duration::from_secs(30)).await;
+    // =====================================================================
+    // SHUTDOWN CHAIN — ensure all data is flushed
+    // =====================================================================
+    //
+    // The chain is:
+    //   1. Drop job_scheduler → closes result_sender
+    //   2. ResultProcessor sees channel closed → exits → drops feature_tx
+    //   3. SuperEntryStage sees feature_rx closed → flushes remaining buffers → exits
+    //   4. BulkPersistor flushes remaining data to DB
+    //
+    // This ensures true ZERO-COPY: GPU → indicators → channel → XGBoost → DB
 
-    // =====================================================================
-    // SUPER ENTRY BACKFILL — runs AFTER indicators are written to DB
-    // Reads candles + indicators from DB, runs XGBoost inference, writes signals
-    // =====================================================================
-    if is_super_entry_enabled() {
-        tracing::info!("compute_history: === SUPER ENTRY BACKFILL ===");
-        tracing::info!("compute_history: Checking indicators_wide table before backfill...");
+    tracing::info!("compute_history: Main loop complete. Starting shutdown chain...");
+
+    // Step 1: Drop job_scheduler to close the result_sender channel.
+    // This triggers ResultProcessor to exit, which in turn drops feature_tx,
+    // which triggers SuperEntryStage to flush remaining buffers.
+    drop(job_scheduler);
+    tracing::info!("compute_history: JobScheduler dropped → result_sender closed");
+
+    // Step 2: Wait for SuperEntryStage to finish processing
+    if let Some(handle) = super_entry_handle {
+        tracing::info!("compute_history: Waiting for SuperEntryStage to finish (timeout: 300s)...");
+        match tokio::time::timeout(Duration::from_secs(300), handle).await {
+            Ok(Ok(Ok(()))) => {
+                tracing::info!("compute_history: ✅ SuperEntryStage completed successfully");
+            }
+            Ok(Ok(Err(e))) => {
+                tracing::error!("compute_history: ❌ SuperEntryStage error: {}", e);
+            }
+            Ok(Err(e)) => {
+                tracing::error!("compute_history: ❌ SuperEntryStage panicked: {}", e);
+            }
+            Err(_) => {
+                tracing::error!("compute_history: ❌ SuperEntryStage timed out after 300s");
+            }
+        }
+    } else if is_super {
+        // ═══════════════════════════════════════════════════════════════════
+        // FALLBACK: DB-based backfill (when SuperEntryStage was not available)
+        // This is slower — reads indicators from DB instead of in-memory.
+        // ═══════════════════════════════════════════════════════════════════
+        tracing::info!("compute_history: Using DB-based backfill fallback for super_entry signals");
         
-        // Quick check: how many indicators exist?
+        // Give final batch time to flush to DB before reading back
+        tracing::info!("Waiting 30s for final flush to DB...");
+        tokio::time::sleep(Duration::from_secs(30)).await;
+
+        tracing::info!("compute_history: === SUPER ENTRY BACKFILL (DB fallback) ===");
+        
         let ind_count: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM market.indicators_wide")
             .fetch_optional(&db_pool)
             .await
@@ -381,7 +444,6 @@ async fn main() -> Result<()> {
             .flatten();
         tracing::info!("compute_history: indicators_wide has {} records", ind_count.unwrap_or(0));
         
-        // Check super_entry_signals table
         let sig_count: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM trade.super_entry_signals")
             .fetch_optional(&db_pool)
             .await
@@ -402,9 +464,13 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Step 3: Wait for BulkPersistor to flush remaining data
+    tracing::info!("compute_history: Waiting 15s for BulkPersistor final flush...");
+    tokio::time::sleep(Duration::from_secs(15)).await;
+
     // Final summary for super_entry mode
-    if !run_predictors {
-        tracing::info!("compute_history (super_entry mode): === FINAL SUMMARY ===");
+    if is_super {
+        tracing::info!("compute_history: === FINAL SUMMARY ===");
         for tf in &timeframes {
             for symbol in &symbols {
                 let indicator_count: Option<i64> = sqlx::query_scalar(
@@ -438,7 +504,7 @@ async fn main() -> Result<()> {
                 .flatten();
                 
                 tracing::info!(
-                    "compute_history (super_entry mode): {} {} - indicators: {:?}, raw_signals: {:?}, super_entry_signals: {:?}",
+                    "RESULT: {} {} - indicators: {:?}, raw_signals: {:?}, super_entry_signals: {:?}",
                     symbol, tf.as_str(), indicator_count, raw_signal_count, super_entry_count
                 );
             }
@@ -451,6 +517,9 @@ async fn main() -> Result<()> {
 
 /// Run Super Entry backfill — reads candles+indicators from DB, runs XGBoost inference,
 /// writes signals to trade.super_entry_signals.
+///
+/// This is the FALLBACK path when SuperEntryStage couldn't be initialized.
+/// The preferred path is ZERO-COPY via SuperEntryStage in the main pipeline.
 ///
 /// Optimized for throughput:
 ///   - Uses fetch_all_candles_for_tf() — single SQL query per TF (all symbols at once)

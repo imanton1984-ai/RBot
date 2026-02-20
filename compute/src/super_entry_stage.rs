@@ -1,13 +1,16 @@
 // compute/src/super_entry_stage.rs
 //
-// Super Entry Stage - integrates Super Entry ML inference into compute_realtime
+// Super Entry Stage — integrates Super Entry ML inference into both
+// compute_realtime (single-candle) and compute_history (batch) pipelines.
 //
-// For REALTIME: Consumes FeatureSnapshot from feature_tx channel, buffers candles
-// per (symbol, tf), and runs inference when enough data is accumulated.
+// ZERO-COPY PATH (history):
+//   GPU indicators → FeatureSnapshot channel → SuperEntryStage → XGBoost → DB
+//   No DB roundtrip for indicator data — direct in-memory processing.
 //
-// For HISTORY: Use run_super_entry_backfill() in compute_history.rs instead —
-// it reads directly from DB after indicators are written (much more reliable).
+// REALTIME PATH:
+//   Kafka close event → indicators → FeatureSnapshot → SuperEntryStage → DB
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use anyhow::Result;
@@ -30,12 +33,16 @@ fn parse_tf_minutes(tf_str: &str) -> Option<i32> {
         .map(|tf| tf.to_minutes())
 }
 
-/// Super Entry Stage - consumes feature snapshots and generates signals (REALTIME)
+/// Super Entry Stage — consumes feature snapshots and generates signals
+/// Works in both HISTORY (batch) and REALTIME (single-candle) modes.
 pub struct SuperEntryStage {
     pipeline: Arc<SuperEntryPipeline>,
     db_pool: PgPool,
     feature_rx: mpsc::UnboundedReceiver<FeatureSnapshot>,
     use_gpu: bool,
+    /// Cache: symbol name → symbol_id from market.pairs
+    /// Prevents repeated DB lookups for the same symbol.
+    symbol_id_cache: HashMap<String, i64>,
 }
 
 impl SuperEntryStage {
@@ -53,6 +60,7 @@ impl SuperEntryStage {
             db_pool,
             feature_rx,
             use_gpu,
+            symbol_id_cache: HashMap::new(),
         })
     }
 
@@ -61,20 +69,66 @@ impl SuperEntryStage {
         self.pipeline.has_models()
     }
 
-    /// Run the stage - consumes feature snapshots and generates signals.
+    /// Resolve symbol_id from cache or DB. Caches the result.
+    async fn resolve_symbol_id(&mut self, symbol: &str) -> i64 {
+        if let Some(&id) = self.symbol_id_cache.get(symbol) {
+            return id;
+        }
+        // Query DB
+        let id: i64 = sqlx::query_scalar(
+            "SELECT symbol_id FROM market.pairs WHERE symbol = $1 LIMIT 1"
+        )
+        .bind(symbol)
+        .fetch_optional(&self.db_pool)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(0);
+
+        if id > 0 {
+            self.symbol_id_cache.insert(symbol.to_string(), id);
+        } else {
+            warn!(target: "super_entry_stage", "symbol_id not found for '{}', using 0", symbol);
+        }
+        id
+    }
+
+    /// Pre-load all symbol_ids from market.pairs at startup
+    async fn preload_symbol_ids(&mut self) {
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT symbol, symbol_id FROM market.pairs WHERE is_active = true"
+        )
+        .fetch_all(&self.db_pool)
+        .await
+        .unwrap_or_default();
+
+        for (symbol, id) in rows {
+            self.symbol_id_cache.insert(symbol, id);
+        }
+        info!(target: "super_entry_stage", "Preloaded {} symbol_ids", self.symbol_id_cache.len());
+    }
+
+    /// Run the stage — consumes feature snapshots and generates signals.
     ///
     /// For realtime: processes single candles via process_single().
-    /// For history snapshots that arrive through the channel: buffers and batch-processes.
+    /// For history: buffers candles per (symbol, tf) and batch-processes.
+    /// When channel closes, flushes ALL remaining buffers.
     pub async fn run(mut self) -> Result<()> {
-        info!(target: "super_entry_stage", "Super Entry Stage started (realtime mode)");
+        info!(target: "super_entry_stage", "Super Entry Stage started");
         
+        // Pre-load symbol_ids to avoid per-candle DB lookups
+        self.preload_symbol_ids().await;
+
         // Buffer candles per (symbol, tf_minutes) for batch processing
-        let mut candle_buffers: std::collections::HashMap<(String, i32), Vec<CandleWithIndicators>> = 
-            std::collections::HashMap::new();
+        let mut candle_buffers: HashMap<(String, i32), Vec<CandleWithIndicators>> = 
+            HashMap::new();
         
         let warmup = self.pipeline.config().warmup_bars;
-        let max_buffer_size = 1000;
+        // Larger buffer for history mode — processes in bigger batches for throughput
+        let max_buffer_size = 5000;
         let mut total_signals_generated = 0u64;
+        let mut total_candles_received = 0u64;
+        let mut total_batches_processed = 0u64;
 
         while let Some(snapshot) = self.feature_rx.recv().await {
             // Parse timeframe string to minutes
@@ -93,8 +147,13 @@ impl SuperEntryStage {
                 continue;
             }
 
-            // Convert snapshot to CandleWithIndicators
-            let candle = snapshot_to_candle(&snapshot);
+            total_candles_received += 1;
+
+            // Resolve symbol_id (cached — no DB roundtrip after first call)
+            let symbol_id = self.resolve_symbol_id(&snapshot.symbol).await;
+
+            // Convert snapshot to CandleWithIndicators with correct symbol_id
+            let candle = snapshot_to_candle(&snapshot, symbol_id);
             
             if snapshot.is_realtime {
                 // REALTIME: use process_single for immediate inference
@@ -121,64 +180,126 @@ impl SuperEntryStage {
                     }
                 }
             } else {
-                // HISTORY: buffer and batch-process
+                // HISTORY: buffer and batch-process (ZERO-COPY path)
                 let key = (snapshot.symbol.clone(), tf_minutes);
-                let buffer = candle_buffers.entry(key).or_insert_with(Vec::new);
+                let buffer = candle_buffers.entry(key).or_default();
                 buffer.push(candle);
                 
-                if buffer.len() > warmup + 10 || buffer.len() >= max_buffer_size {
-                    let candles_to_process = buffer.clone();
-                    let result = self.pipeline.process_candles(
-                        &candles_to_process,
-                        tf_minutes,
-                        self.use_gpu,
-                    );
+                // Process when buffer is large enough (warmup + meaningful batch)
+                if buffer.len() >= warmup + 50 || buffer.len() >= max_buffer_size {
+                    let count = self.flush_buffer(
+                        &snapshot.symbol, tf_minutes, buffer
+                    ).await;
+                    total_signals_generated += count as u64;
+                    total_batches_processed += 1;
                     
-                    match result {
-                        Ok(results) => {
-                            let signals: Vec<_> = results.into_iter()
-                                .filter_map(|r| r.signal)
-                                .collect();
-                            
-                            if !signals.is_empty() {
-                                let count = signals.len();
-                                if let Err(e) = ml_entry_strategy::db_writer::insert_signals_batch(
-                                    &self.db_pool, &signals
-                                ).await {
-                                    error!(target: "super_entry_stage", "Failed to persist {} signals: {}", count, e);
-                                } else {
-                                    total_signals_generated += count as u64;
-                                    info!(target: "super_entry_stage", 
-                                        "Batch: {} {}m → {} signals (total: {})",
-                                        snapshot.symbol, tf_minutes, count, total_signals_generated);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            warn!(target: "super_entry_stage", "process_candles failed for {} {}m: {}", 
-                                snapshot.symbol, tf_minutes, e);
-                        }
+                    if total_batches_processed % 10 == 0 {
+                        info!(target: "super_entry_stage",
+                            "Progress: received={}, batches={}, signals={}",
+                            total_candles_received, total_batches_processed, total_signals_generated);
                     }
-                    
-                    // Keep only recent candles for next iteration
-                    let retain_count = warmup.min(buffer.len());
-                    buffer.drain(0..buffer.len() - retain_count);
                 }
             }
         }
         
+        // ─── FINAL FLUSH — process ALL remaining buffered candles ───
+        // This is critical for history mode: when ResultProcessor finishes and
+        // drops feature_tx, recv() returns None. We must flush remaining data.
         info!(target: "super_entry_stage", 
-            "Super Entry Stage stopped. Total signals generated: {}", total_signals_generated);
+            "Channel closed. Flushing {} remaining buffers...",
+            candle_buffers.len());
+
+        for ((symbol, tf_minutes), buffer) in candle_buffers.iter_mut() {
+            if buffer.len() > warmup {
+                let count = self.flush_buffer(symbol, *tf_minutes, buffer).await;
+                total_signals_generated += count as u64;
+                total_batches_processed += 1;
+            } else {
+                debug!(target: "super_entry_stage",
+                    "Skipping final flush for {} {}m — only {} candles (need > {})",
+                    symbol, tf_minutes, buffer.len(), warmup);
+            }
+        }
+        
+        info!(target: "super_entry_stage", 
+            "Super Entry Stage stopped. Total: received={} candles, processed={} batches, generated={} signals",
+            total_candles_received, total_batches_processed, total_signals_generated);
         Ok(())
+    }
+
+    /// Flush a buffer: run XGBoost inference on accumulated candles, persist signals.
+    /// Returns the number of signals generated.
+    /// After processing, retains only the last `warmup` candles for context.
+    async fn flush_buffer(
+        &self,
+        symbol: &str,
+        tf_minutes: i32,
+        buffer: &mut Vec<CandleWithIndicators>,
+    ) -> usize {
+        // No clone — process_candles takes &[CandleWithIndicators]
+        let result = self.pipeline.process_candles(
+            buffer,
+            tf_minutes,
+            self.use_gpu,
+        );
+
+        let signals_count = match result {
+            Ok(results) => {
+                let signals: Vec<_> = results.into_iter()
+                    .filter_map(|r| r.signal)
+                    .collect();
+
+                if !signals.is_empty() {
+                    let count = signals.len();
+                    match ml_entry_strategy::db_writer::insert_signals_batch(
+                        &self.db_pool, &signals
+                    ).await {
+                        Ok(written) => {
+                            info!(target: "super_entry_stage",
+                                "{} {}m: {} candles → {} signals → {} written to DB",
+                                symbol, tf_minutes, buffer.len(), count, written);
+                            count
+                        }
+                        Err(e) => {
+                            error!(target: "super_entry_stage",
+                                "Failed to persist {} signals for {} {}m: {}",
+                                count, symbol, tf_minutes, e);
+                            0
+                        }
+                    }
+                } else {
+                    debug!(target: "super_entry_stage",
+                        "{} {}m: {} candles → 0 signals",
+                        symbol, tf_minutes, buffer.len());
+                    0
+                }
+            }
+            Err(e) => {
+                warn!(target: "super_entry_stage",
+                    "process_candles failed for {} {}m ({} candles): {}",
+                    symbol, tf_minutes, buffer.len(), e);
+                0
+            }
+        };
+
+        // Keep only last `warmup` candles for context in next batch
+        let warmup = self.pipeline.config().warmup_bars;
+        let retain_count = warmup.min(buffer.len());
+        if buffer.len() > retain_count {
+            buffer.drain(0..buffer.len() - retain_count);
+        }
+
+        signals_count
     }
 }
 
-/// Convert FeatureSnapshot to CandleWithIndicators
-fn snapshot_to_candle(snapshot: &FeatureSnapshot) -> CandleWithIndicators {
+/// Convert FeatureSnapshot to CandleWithIndicators (zero-copy: no DB roundtrip)
+/// symbol_id must be resolved separately (from cache or DB lookup).
+fn snapshot_to_candle(snapshot: &FeatureSnapshot, symbol_id: i64) -> CandleWithIndicators {
     CandleWithIndicators {
         time: snapshot.timestamp,
         symbol: snapshot.symbol.clone(),
-        symbol_id: 0, // Will be populated from DB if needed
+        symbol_id,
         open: snapshot.indicators.open as f64,
         high: snapshot.indicators.high as f64,
         low: snapshot.indicators.low as f64,
@@ -204,14 +325,14 @@ fn snapshot_to_candle(snapshot: &FeatureSnapshot) -> CandleWithIndicators {
         obv: snapshot.indicators.obv as f64,
         vwap: snapshot.indicators.vwap as f64,
         volume_spike: snapshot.indicators.volume_spike as f64,
-        trend: snapshot.indicators.trend_short as f64,
+        trend: snapshot.indicators.trend_medium as f64,
         trend_short: snapshot.indicators.trend_short as f64,
-        poc: 0.0, // Not in snapshot
+        poc: 0.0, // Not in FeatureSnapshot — will be zero
     }
 }
 
-/// Setup Super Entry stage for REALTIME mode.
-/// For HISTORY mode, use run_super_entry_backfill() in compute_history.rs instead.
+/// Setup Super Entry stage for REALTIME or HISTORY mode.
+/// Takes ownership of `feature_rx` — if setup fails, receiver is dropped.
 pub async fn setup_super_entry_stage(
     db_pool: &PgPool,
     feature_rx: mpsc::UnboundedReceiver<FeatureSnapshot>,
@@ -220,18 +341,13 @@ pub async fn setup_super_entry_stage(
     let strategy = std::env::var("ACTIVE_STRATEGY").unwrap_or_else(|_| "level".to_string());
     
     if strategy != "super_entry" && strategy != "combined" {
-        info!(target: "super_entry_stage", "Skipping Super Entry stage (strategy: {})", strategy);
-        return None;
-    }
-    
-    // Check if Super Entry is explicitly enabled
-    let super_entry_enabled = std::env::var("SUPER_ENTRY_ENABLED")
-        .map(|v| v == "true" || v == "1")
-        .unwrap_or(false);
-    
-    if !super_entry_enabled && strategy != "super_entry" {
-        info!(target: "super_entry_stage", "Super Entry not enabled for strategy {}", strategy);
-        return None;
+        let explicit = std::env::var("SUPER_ENTRY_ENABLED")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+        if !explicit {
+            info!(target: "super_entry_stage", "Skipping Super Entry stage (strategy: {})", strategy);
+            return None;
+        }
     }
     
     info!(target: "super_entry_stage", "Setting up Super Entry stage (strategy: {})", strategy);

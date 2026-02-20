@@ -120,12 +120,11 @@ impl SuperEntryConfig {
         self.target_pct_for_tf(tf_minutes) * self.sl_fraction
     }
 
-    /// All supported timeframes for inference.
-    /// NOTE: 1440 (1d) disabled by default — 99.7% super rate makes model useless.
-    /// XGBoost also has a limit of ~10 simultaneous Booster objects in release mode.
-    /// Train 1d models but only use 1m-4h for production signals.
+    /// All supported timeframes for inference (including 1d).
+    /// NOTE: 1d model has lower accuracy (99.7% super rate in dataset),
+    /// but may still provide useful signals. Disable via config if noisy.
     pub fn timeframes() -> &'static [i32] {
-        &[1, 5, 15, 60, 240]
+        &[1, 5, 15, 60, 240, 1440]
     }
 
     /// All timeframes including 1d (for dataset building / training only)

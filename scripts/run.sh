@@ -36,7 +36,15 @@ TARGET_DIR="$ROOT_DIR/target/$BUILD_PROFILE"
 
 # Env vars for services
 export MIN_PAIRS="${MIN_PAIRS:-300}"
-export RUST_LOG="${RUST_LOG:-warn,compute_history=warn,trade_signal_stage=info,ingestor=info,connections=info,super_entry=info,super_entry_stage=info,ml_entry_strategy=info}"
+
+# RUST_LOG: when super_entry is active, enable info logging for compute_history
+# so that ZERO-COPY pipeline messages and shutdown chain are visible.
+ACTIVE_STRATEGY="${ACTIVE_STRATEGY:-default}"
+if [ "$ACTIVE_STRATEGY" = "super_entry" ] || [ "${SUPER_ENTRY_ENABLED:-false}" = "true" ]; then
+    export RUST_LOG="${RUST_LOG:-info,compute_history=info,trade_signal_stage=info,ingestor=info,connections=info,super_entry=info,super_entry_stage=info,ml_entry_strategy=info}"
+else
+    export RUST_LOG="${RUST_LOG:-warn,compute_history=warn,trade_signal_stage=info,ingestor=info,connections=info,super_entry=info,super_entry_stage=info,ml_entry_strategy=info}"
+fi
 
 # Start Helper
 start_svc() {
@@ -118,9 +126,10 @@ if [ "$ACTIVE_STRATEGY" = "super_entry" ] || [ "${SUPER_ENTRY_ENABLED:-false}" =
     # ═══════════════════════════════════════════
     section "SUPER ENTRY STRATEGY"
     log "Super Entry strategy active"
-    log "  History backfill: integrated into compute_history (batch mode)"
-    log "  Realtime signals: integrated into compute_realtime (super_entry_stage)"
+    log "  History: ZERO-COPY pipeline in compute_history (GPU→indicators→XGBoost→DB)"
+    log "  Realtime: SuperEntryStage in compute_realtime (single-candle inference)"
     log "  Predictors/trade_signals pipeline: SKIPPED"
+    log "  NOTE: Must have models in models/super_entry_v1_tf{X}.ubj"
 
 else
     # ═══════════════════════════════════════════
