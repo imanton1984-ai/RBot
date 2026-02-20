@@ -26,10 +26,9 @@ use anyhow::Result;
 use dotenvy::dotenv;
 use sqlx::PgPool;
 use std::collections::HashMap;
-use tracing::info;
 
 use ml_entry_strategy::config::SuperEntryConfig;
-use ml_entry_strategy::dataset::{fetch_candles_with_indicators, fetch_active_symbols, CandleWithIndicators};
+use ml_entry_strategy::dataset::{fetch_all_candles_for_tf, CandleWithIndicators};
 use ml_entry_strategy::pipeline::SuperEntryPipeline;
 
 /// Result of a simulated trade
@@ -247,6 +246,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
 
     let config = SuperEntryConfig::from_env();
+    // Default to GPU when available (XGBoost gpu_predictor is 3-5x faster for batch)
     let use_gpu = std::env::var("SUPER_ENTRY_USE_GPU")
         .unwrap_or_default()
         .parse::<bool>()
@@ -293,26 +293,39 @@ async fn main() -> Result<()> {
     }
 
     let pool = PgPool::connect(&db_url).await?;
-    let symbols = fetch_active_symbols(&pool).await?;
-    info!("Found {} active symbols", symbols.len());
 
     let mut metrics_by_tf: HashMap<i32, TfMetrics> = HashMap::new();
     let mut all_trades: Vec<TradeResult> = Vec::new();
 
+    let t0_total = std::time::Instant::now();
+
     for &tf in SuperEntryConfig::timeframes() {
+        let t0_tf = std::time::Instant::now();
         let target_pct = config.target_pct_for_tf(tf);
         let sl_pct = config.sl_pct_for_tf(tf);
 
         let mut tf_metrics = TfMetrics::default();
 
-        for symbol in &symbols {
-            let candles = fetch_candles_with_indicators(&pool, symbol, tf, 1000).await?;
+        // ── BATCH FETCH: single SQL query per TF (all symbols at once) ──
+        // 6 batch queries instead of 133×6 = 798 individual queries.
+        // Uses ROW_NUMBER window function — much faster than per-symbol fetches.
+        let grouped = match fetch_all_candles_for_tf(&pool, tf, 1000).await {
+            Ok(g) => g,
+            Err(e) => {
+                eprintln!("Failed to fetch candles for TF {}m: {}", tf, e);
+                continue;
+            }
+        };
 
+        println!("  TF {:>5}m: fetched {} symbols in {:.1}s, processing...",
+            tf, grouped.len(), t0_tf.elapsed().as_secs_f64());
+
+        for (_symbol, candles) in &grouped {
             if candles.len() < config.warmup_bars + config.lookahead_bars + 1 {
                 continue;
             }
 
-            let results = pipeline.process_candles(&candles, tf, use_gpu)?;
+            let results = pipeline.process_candles(candles, tf, use_gpu)?;
             tf_metrics.total_candles += results.len();
 
             for result in &results {
@@ -321,7 +334,7 @@ async fn main() -> Result<()> {
                     let entry_price = signal.entry_price;
 
                     let mut trade = simulate_trade(
-                        &candles,
+                        candles,
                         result.candle_index,
                         direction,
                         entry_price,
@@ -349,8 +362,12 @@ async fn main() -> Result<()> {
             }
         }
 
+        println!("  TF {:>5}m: {} trades in {:.1}s",
+            tf, tf_metrics.total, t0_tf.elapsed().as_secs_f64());
         metrics_by_tf.insert(tf, tf_metrics);
     }
+
+    println!("\n  Total backtest time: {:.1}s\n", t0_total.elapsed().as_secs_f64());
 
     // ── Print results ──────────────────────────────────────
     println!();

@@ -72,6 +72,12 @@ if [ "$ALL" = true ]; then
     RUN_BACKTEST=true
 fi
 
+# Auto-detect GPU if not explicitly set
+if [ -z "$USE_GPU" ] && command -v nvidia-smi &>/dev/null; then
+    echo "[super_entry] GPU auto-detected (nvidia-smi found), enabling GPU"
+    USE_GPU="--gpu"
+fi
+
 echo "=============================================="
 echo "[super_entry] Super Entry Strategy Pipeline"
 echo "[super_entry] Root: ${ROOT_DIR}"
@@ -88,6 +94,15 @@ fi
 export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5433/timescaledb_binance}"
 export MODELS_DIR="${MODELS_DIR}"
 export RUST_LOG="${RUST_LOG:-info}"
+
+# Set XGBoost library path for GPU/CPU
+if [ -n "$USE_GPU" ]; then
+    export XGBOOST_LIB_DIR="${ROOT_DIR}/third_party/xgboost/install/lib"
+    export LD_LIBRARY_PATH="/usr/local/cuda/lib64:${XGBOOST_LIB_DIR}:${LD_LIBRARY_PATH:-}"
+else
+    export XGBOOST_LIB_DIR="${ROOT_DIR}/third_party/xgboost/install_cpu/lib"
+    export LD_LIBRARY_PATH="${XGBOOST_LIB_DIR}:${LD_LIBRARY_PATH:-}"
+fi
 
 # ============================================
 # 1. Build Dataset
