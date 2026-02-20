@@ -1,0 +1,39 @@
+# Order Manager Configuration
+# ═══════════════════════════════════════════════════
+
+# ─── Signal Scanner ───────────────────────────────
+# Диапазон combined_score для квалифицированных сигналов
+signal_score_min = 0.70
+signal_score_max = 0.80
+# Максимальный дрифт цены (%) — если текущая цена отклонилась больше, сигнал устарел
+max_price_drift_pct = 0.2
+# Интервал сканирования (секунды)
+scan_interval_secs = 30
+
+# ─── Order Executor ──────────────────────────────
+# Максимальное количество одновременно открытых позиций
+max_open_positions = 10
+# Кредитное плечо (1-125)
+leverage = 10
+# Размер каждой позиции в USDT (notional = trade_size_usdt * leverage)
+trade_size_usdt = 100.0
+# Максимальное количество баров удержания (force-close по истечении)
+max_hold_bars = 25
+
+# Пропорции таймфреймов (в процентах, сумма = 100%)
+# При 10 ордерах: 1h=7, 4h=2, 15m=1
+tf_1h_pct = 70
+tf_4h_pct = 20
+tf_15m_pct = 10
+
+# ─── Position Tracker ────────────────────────────
+# Интервал обновления позиций / PnL (секунды)
+tracker_interval_secs = 10
+
+# ─── Infrastructure ──────────────────────────────
+kafka_brokers = "localhost:19092"
+topic_positions = "positions.updates"
+topic_orders_cmd = "orders.cmd"
+kafka_group_id = "order-manager"
+database_url = "postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance"
+binance_testnet = false

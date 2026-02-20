@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { useDataStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 
 export default function PnlWidget() {
-  const { pnlOverview, setPnlOverview } = useDataStore();
+  const pnlOverview = useDataStore((s) => s.pnlOverview);
+  const setPnlOverview = useDataStore((s) => s.setPnlOverview);
 
   // Load PnL overview every 10 seconds
   const { data } = useQuery({
@@ -14,11 +16,12 @@ export default function PnlWidget() {
     retry: 1,
   });
 
-  if (data) {
-    setPnlOverview(data);
-  }
+  // Sync to store inside useEffect to avoid infinite re-render loop
+  useEffect(() => {
+    if (data) setPnlOverview(data);
+  }, [data, setPnlOverview]);
 
-  const pnl = pnlOverview || data;
+  const pnl = data || pnlOverview;
 
   return (
     <div className="card m-3 mb-0">

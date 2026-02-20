@@ -43,7 +43,7 @@ export default function TopBar() {
                 {currentPair}
                 <ChevronDown className="w-4 h-4" />
               </button>
-              
+
               {pairSearchOpen && (
                 <div className="absolute top-full left-0 mt-1 w-64 bg-panel border border-border rounded-lg shadow-xl z-50">
                   <input
@@ -62,10 +62,10 @@ export default function TopBar() {
                         onClick={() => {
                           setCurrentPair(pair.symbol);
                           setPairSearchOpen(false);
+                          setSearchQuery('');
                         }}
                       >
                         <span>{pair.symbol}</span>
-                        <span className="text-textSecondary text-xs">{pair.base_asset}</span>
                       </button>
                     ))}
                   </div>
@@ -129,3 +129,4 @@ export default function TopBar() {
     </header>
   );
 }
+

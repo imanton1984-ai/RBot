@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useUiStore, useDataStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
@@ -5,7 +6,8 @@ import { Settings } from 'lucide-react';
 
 export default function PositionsPanel() {
   const { positionsView, setPositionsView } = useUiStore();
-  const { positions, setPositions } = useDataStore();
+  const positions = useDataStore((s) => s.positions);
+  const setPositions = useDataStore((s) => s.setPositions);
 
   // Load positions only when tab is active - refetch every 5 seconds
   const { data: openPositions } = useQuery({
@@ -26,12 +28,14 @@ export default function PositionsPanel() {
     retry: 1,
   });
 
-  // Update positions when data arrives
-  if (positionsView === 'open' && openPositions) {
-    setPositions(openPositions);
-  }
+  // Update positions in store when data arrives — inside useEffect to avoid infinite loop
+  useEffect(() => {
+    if (positionsView === 'open' && openPositions) {
+      setPositions(openPositions);
+    }
+  }, [openPositions, positionsView, setPositions]);
 
-  const currentPositions = positionsView === 'open' ? positions : (historyPositions || []);
+  const currentPositions = positionsView === 'open' ? (openPositions || positions) : (historyPositions || []);
 
   return (
     <div className="h-[40%] min-h-[200px] border-t border-border flex flex-col shrink-0">

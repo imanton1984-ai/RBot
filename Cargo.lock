@@ -1727,6 +1727,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "order_manager"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "common",
+ "connections",
+ "dotenvy",
+ "futures",
+ "rdkafka",
+ "risk_manager",
+ "serde",
+ "serde_json",
+ "settings",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "ordered-multimap"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

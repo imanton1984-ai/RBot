@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
 
     // Поддержка RUST_LOG (пример: RUST_LOG=info,connections_lib=debug)
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn,connections=info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     rustls::crypto::aws_lc_rs::default_provider()

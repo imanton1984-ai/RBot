@@ -33,7 +33,9 @@ fn is_super_entry_enabled() -> bool {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new("warn,compute_history=info"))
+        .init();
 
     let active_strategy = get_active_strategy();
     tracing::info!("compute_history: ACTIVE_STRATEGY = {}", active_strategy);

@@ -58,6 +58,225 @@ pub struct FuturesPosition {
     pub notional: String,
 }
 
+/// New order response from Binance Futures
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewOrderResponse {
+    pub order_id: i64,
+    pub symbol: String,
+    pub status: String,
+    pub client_order_id: String,
+    #[serde(default)]
+    pub price: String,
+    #[serde(default)]
+    pub avg_price: String,
+    #[serde(default)]
+    pub orig_qty: String,
+    #[serde(default)]
+    pub executed_qty: String,
+    #[serde(default)]
+    pub cum_quote: String,
+    #[serde(rename = "type")]
+    pub order_type: String,
+    pub side: String,
+    #[serde(default)]
+    pub stop_price: String,
+    #[serde(default)]
+    pub time_in_force: String,
+    #[serde(default)]
+    pub reduce_only: bool,
+    #[serde(default)]
+    pub close_position: bool,
+    pub update_time: i64,
+}
+
+/// Order status response
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderStatusResponse {
+    pub order_id: i64,
+    pub symbol: String,
+    pub status: String,
+    pub client_order_id: String,
+    #[serde(default)]
+    pub price: String,
+    #[serde(default)]
+    pub avg_price: String,
+    #[serde(default)]
+    pub orig_qty: String,
+    #[serde(default)]
+    pub executed_qty: String,
+    #[serde(rename = "type")]
+    pub order_type: String,
+    pub side: String,
+    #[serde(default)]
+    pub stop_price: String,
+    #[serde(default)]
+    pub reduce_only: bool,
+    pub update_time: i64,
+}
+
+/// Mark price response
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkPriceResponse {
+    pub symbol: String,
+    pub mark_price: String,
+    pub index_price: String,
+    pub last_funding_rate: String,
+    pub next_funding_time: i64,
+    pub time: i64,
+}
+
+/// Set leverage response
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LeverageResponse {
+    pub leverage: i32,
+    pub max_notional_value: String,
+    pub symbol: String,
+}
+
+/// Cancel order response
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelOrderResponse {
+    pub order_id: i64,
+    pub symbol: String,
+    pub status: String,
+    pub client_order_id: String,
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXCHANGE INFO (symbol precision / filters)
+// ═══════════════════════════════════════════════════════════
+
+/// Полный ответ exchangeInfo (урезанный до нужных полей)
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExchangeInfoResponse {
+    pub symbols: Vec<SymbolInfo>,
+}
+
+/// Информация о конкретном символе
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolInfo {
+    pub symbol: String,
+    pub status: String,
+    #[serde(default)]
+    pub base_asset: String,
+    #[serde(default)]
+    pub quote_asset: String,
+    #[serde(default)]
+    pub price_precision: u8,
+    #[serde(default)]
+    pub quantity_precision: u8,
+    #[serde(default)]
+    pub filters: Vec<SymbolFilter>,
+}
+
+/// Фильтры символа (LOT_SIZE, PRICE_FILTER, MIN_NOTIONAL и т.д.)
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "filterType")]
+pub enum SymbolFilter {
+    #[serde(rename = "PRICE_FILTER")]
+    PriceFilter {
+        #[serde(default, rename = "minPrice")]
+        min_price: String,
+        #[serde(default, rename = "maxPrice")]
+        max_price: String,
+        #[serde(default, rename = "tickSize")]
+        tick_size: String,
+    },
+    #[serde(rename = "LOT_SIZE")]
+    LotSize {
+        #[serde(default, rename = "minQty")]
+        min_qty: String,
+        #[serde(default, rename = "maxQty")]
+        max_qty: String,
+        #[serde(default, rename = "stepSize")]
+        step_size: String,
+    },
+    #[serde(rename = "MIN_NOTIONAL")]
+    MinNotional {
+        #[serde(default)]
+        notional: String,
+    },
+    #[serde(rename = "MARKET_LOT_SIZE")]
+    MarketLotSize {
+        #[serde(default, rename = "minQty")]
+        min_qty: String,
+        #[serde(default, rename = "maxQty")]
+        max_qty: String,
+        #[serde(default, rename = "stepSize")]
+        step_size: String,
+    },
+    /// Catch-all для остальных фильтров
+    #[serde(other)]
+    Other,
+}
+
+impl SymbolInfo {
+    /// Получить stepSize из LOT_SIZE фильтра
+    pub fn lot_step_size(&self) -> f64 {
+        for f in &self.filters {
+            if let SymbolFilter::LotSize { step_size, .. } = f {
+                return step_size.parse::<f64>().unwrap_or(1e-8);
+            }
+        }
+        1e-8 // fallback
+    }
+
+    /// Получить minQty из LOT_SIZE фильтра
+    pub fn lot_min_qty(&self) -> f64 {
+        for f in &self.filters {
+            if let SymbolFilter::LotSize { min_qty, .. } = f {
+                return min_qty.parse::<f64>().unwrap_or(0.0);
+            }
+        }
+        0.0
+    }
+
+    /// Получить tickSize из PRICE_FILTER
+    pub fn price_tick_size(&self) -> f64 {
+        for f in &self.filters {
+            if let SymbolFilter::PriceFilter { tick_size, .. } = f {
+                return tick_size.parse::<f64>().unwrap_or(0.01);
+            }
+        }
+        0.01
+    }
+
+    /// Получить minNotional из MIN_NOTIONAL
+    pub fn min_notional(&self) -> f64 {
+        for f in &self.filters {
+            if let SymbolFilter::MinNotional { notional } = f {
+                return notional.parse::<f64>().unwrap_or(5.0);
+            }
+        }
+        5.0
+    }
+
+    /// Округлить количество до stepSize
+    pub fn round_quantity(&self, qty: f64) -> f64 {
+        let step = self.lot_step_size();
+        if step <= 0.0 {
+            return qty;
+        }
+        (qty / step).floor() * step
+    }
+
+    /// Округлить цену до tickSize
+    pub fn round_price(&self, price: f64) -> f64 {
+        let tick = self.price_tick_size();
+        if tick <= 0.0 {
+            return price;
+        }
+        (price / tick).round() * tick
+    }
+}
+
 /// Account info (simplified)
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -319,6 +538,386 @@ impl BinanceFuturesClient {
     /// Check if the client is using testnet
     pub fn is_testnet(&self) -> bool {
         self.testnet
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // TRADING METHODS (Order Manager)
+    // ═══════════════════════════════════════════════════════════
+
+    /// Set leverage for a symbol.
+    /// Must be called before placing orders if leverage differs from default.
+    pub async fn set_leverage(&self, symbol: &str, leverage: u16) -> Result<LeverageResponse> {
+        let timestamp = Self::timestamp_ms();
+        let query = format!(
+            "symbol={}&leverage={}&timestamp={}&recvWindow=5000",
+            symbol, leverage, timestamp
+        );
+        let signature = self.sign(&query);
+        let url = format!(
+            "{}/fapi/v1/leverage?{}&signature={}",
+            self.base_url, query, signature
+        );
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .context("Failed to set leverage")?;
+
+        if resp.status().is_success() {
+            let result: LeverageResponse = resp.json().await?;
+            info!("Set leverage for {} to {}x", symbol, result.leverage);
+            Ok(result)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Set leverage failed for {}: {} — {}", symbol, status, body)
+        }
+    }
+
+    /// Place a MARKET order (entry or close).
+    ///
+    /// * `symbol` — e.g. "BTCUSDT"
+    /// * `side` — "BUY" or "SELL"
+    /// * `quantity` — amount in base asset
+    /// * `reduce_only` — true when closing a position
+    pub async fn place_market_order(
+        &self,
+        symbol: &str,
+        side: &str,
+        quantity: f64,
+        reduce_only: bool,
+    ) -> Result<NewOrderResponse> {
+        let timestamp = Self::timestamp_ms();
+        let query = format!(
+            "symbol={}&side={}&type=MARKET&quantity={:.8}&reduceOnly={}&timestamp={}&recvWindow=5000",
+            symbol, side, quantity, reduce_only, timestamp
+        );
+        let signature = self.sign(&query);
+        let url = format!(
+            "{}/fapi/v1/order?{}&signature={}",
+            self.base_url, query, signature
+        );
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .context("Failed to place market order")?;
+
+        if resp.status().is_success() {
+            let order: NewOrderResponse = resp.json().await?;
+            info!(
+                "Market order placed: {} {} {} qty={:.8} → orderId={}",
+                symbol, side, order.status, quantity, order.order_id
+            );
+            Ok(order)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Market order failed for {} {}: {} — {}",
+                symbol, side, status, body
+            )
+        }
+    }
+
+    /// Place a STOP_MARKET order (stop-loss).
+    ///
+    /// * `symbol` — e.g. "BTCUSDT"
+    /// * `side` — opposite of position: "SELL" for LONG SL, "BUY" for SHORT SL
+    /// * `quantity` — amount in base asset
+    /// * `stop_price` — trigger price
+    pub async fn place_stop_market(
+        &self,
+        symbol: &str,
+        side: &str,
+        quantity: f64,
+        stop_price: f64,
+    ) -> Result<NewOrderResponse> {
+        let timestamp = Self::timestamp_ms();
+        let query = format!(
+            "symbol={}&side={}&type=STOP_MARKET&quantity={:.8}&stopPrice={:.8}&reduceOnly=true&timestamp={}&recvWindow=5000",
+            symbol, side, quantity, stop_price, timestamp
+        );
+        let signature = self.sign(&query);
+        let url = format!(
+            "{}/fapi/v1/order?{}&signature={}",
+            self.base_url, query, signature
+        );
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .context("Failed to place stop-market order")?;
+
+        if resp.status().is_success() {
+            let order: NewOrderResponse = resp.json().await?;
+            info!(
+                "Stop-market order placed: {} {} stopPrice={:.8} → orderId={}",
+                symbol, side, stop_price, order.order_id
+            );
+            Ok(order)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Stop-market order failed for {} {}: {} — {}",
+                symbol, side, status, body
+            )
+        }
+    }
+
+    /// Place a TAKE_PROFIT_MARKET order.
+    ///
+    /// * `symbol` — e.g. "BTCUSDT"
+    /// * `side` — opposite of position: "SELL" for LONG TP, "BUY" for SHORT TP
+    /// * `quantity` — amount in base asset
+    /// * `stop_price` — trigger price for TP
+    pub async fn place_take_profit_market(
+        &self,
+        symbol: &str,
+        side: &str,
+        quantity: f64,
+        stop_price: f64,
+    ) -> Result<NewOrderResponse> {
+        let timestamp = Self::timestamp_ms();
+        let query = format!(
+            "symbol={}&side={}&type=TAKE_PROFIT_MARKET&quantity={:.8}&stopPrice={:.8}&reduceOnly=true&timestamp={}&recvWindow=5000",
+            symbol, side, quantity, stop_price, timestamp
+        );
+        let signature = self.sign(&query);
+        let url = format!(
+            "{}/fapi/v1/order?{}&signature={}",
+            self.base_url, query, signature
+        );
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .context("Failed to place take-profit order")?;
+
+        if resp.status().is_success() {
+            let order: NewOrderResponse = resp.json().await?;
+            info!(
+                "Take-profit order placed: {} {} stopPrice={:.8} → orderId={}",
+                symbol, side, stop_price, order.order_id
+            );
+            Ok(order)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Take-profit order failed for {} {}: {} — {}",
+                symbol, side, status, body
+            )
+        }
+    }
+
+    /// Cancel a specific order by orderId.
+    pub async fn cancel_order(&self, symbol: &str, order_id: i64) -> Result<CancelOrderResponse> {
+        let timestamp = Self::timestamp_ms();
+        let query = format!(
+            "symbol={}&orderId={}&timestamp={}&recvWindow=5000",
+            symbol, order_id, timestamp
+        );
+        let signature = self.sign(&query);
+        let url = format!(
+            "{}/fapi/v1/order?{}&signature={}",
+            self.base_url, query, signature
+        );
+
+        let resp = self
+            .client
+            .delete(&url)
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .context("Failed to cancel order")?;
+
+        if resp.status().is_success() {
+            let result: CancelOrderResponse = resp.json().await?;
+            info!(
+                "Order cancelled: {} orderId={} → status={}",
+                symbol, order_id, result.status
+            );
+            Ok(result)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Cancel order failed for {} orderId={}: {} — {}",
+                symbol, order_id, status, body
+            )
+        }
+    }
+
+    /// Cancel all open orders for a symbol.
+    pub async fn cancel_all_orders(&self, symbol: &str) -> Result<()> {
+        let timestamp = Self::timestamp_ms();
+        let query = format!(
+            "symbol={}&timestamp={}&recvWindow=5000",
+            symbol, timestamp
+        );
+        let signature = self.sign(&query);
+        let url = format!(
+            "{}/fapi/v1/allOpenOrders?{}&signature={}",
+            self.base_url, query, signature
+        );
+
+        let resp = self
+            .client
+            .delete(&url)
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .context("Failed to cancel all orders")?;
+
+        if resp.status().is_success() {
+            info!("All open orders cancelled for {}", symbol);
+            Ok(())
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Cancel all orders failed for {}: {} — {}",
+                symbol, status, body
+            )
+        }
+    }
+
+    /// Get order status by orderId.
+    pub async fn get_order_status(
+        &self,
+        symbol: &str,
+        order_id: i64,
+    ) -> Result<OrderStatusResponse> {
+        let timestamp = Self::timestamp_ms();
+        let query = format!(
+            "symbol={}&orderId={}&timestamp={}&recvWindow=5000",
+            symbol, order_id, timestamp
+        );
+        let signature = self.sign(&query);
+        let url = format!(
+            "{}/fapi/v1/order?{}&signature={}",
+            self.base_url, query, signature
+        );
+
+        let resp = self
+            .client
+            .get(&url)
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .context("Failed to get order status")?;
+
+        if resp.status().is_success() {
+            let order: OrderStatusResponse = resp.json().await?;
+            Ok(order)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Get order status failed for {} orderId={}: {} — {}",
+                symbol, order_id, status, body
+            )
+        }
+    }
+
+    /// Get mark (current) price for a symbol.
+    pub async fn get_mark_price(&self, symbol: &str) -> Result<f64> {
+        let url = format!(
+            "{}/fapi/v1/premiumIndex?symbol={}",
+            self.base_url, symbol
+        );
+
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .context("Failed to get mark price")?;
+
+        if resp.status().is_success() {
+            let data: MarkPriceResponse = resp.json().await?;
+            let price = data.mark_price.parse::<f64>().unwrap_or(0.0);
+            Ok(price)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Get mark price failed for {}: {} — {}",
+                symbol, status, body
+            )
+        }
+    }
+
+    /// Close an entire position for a symbol by placing a market order in the opposite direction.
+    ///
+    /// * `symbol` — e.g. "BTCUSDT"
+    /// * `position_side` — "LONG" or "SHORT" (determines close side)
+    /// * `quantity` — position size to close
+    pub async fn close_position(
+        &self,
+        symbol: &str,
+        position_side: &str,
+        quantity: f64,
+    ) -> Result<NewOrderResponse> {
+        let close_side = match position_side {
+            "LONG" => "SELL",
+            "SHORT" => "BUY",
+            _ => anyhow::bail!("Invalid position_side: {}", position_side),
+        };
+        self.place_market_order(symbol, close_side, quantity, true).await
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // EXCHANGE INFO
+    // ═══════════════════════════════════════════════════════════
+
+    /// Получить Exchange Info для всех символов (no auth required).
+    /// Содержит precision, stepSize, tickSize, minNotional для каждого символа.
+    pub async fn get_exchange_info(&self) -> Result<ExchangeInfoResponse> {
+        let url = format!("{}/fapi/v1/exchangeInfo", self.base_url);
+
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .context("Failed to get exchange info")?;
+
+        if resp.status().is_success() {
+            let info: ExchangeInfoResponse = resp.json().await?;
+            info!(
+                "Exchange info loaded: {} symbols",
+                info.symbols.len()
+            );
+            Ok(info)
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Get exchange info failed: {} — {}", status, body)
+        }
+    }
+
+    /// Получить Exchange Info для одного символа
+    pub async fn get_symbol_info(&self, symbol: &str) -> Result<SymbolInfo> {
+        let info = self.get_exchange_info().await?;
+        info.symbols
+            .into_iter()
+            .find(|s| s.symbol == symbol)
+            .ok_or_else(|| anyhow::anyhow!("Symbol {} not found in exchange info", symbol))
     }
 }
 

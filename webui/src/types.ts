@@ -18,8 +18,6 @@ export interface Indicator {
 export interface Pair {
   symbol: string;
   symbol_id: number;
-  base_asset: string;
-  quote_asset: string;
 }
 
 export interface MarketSummary {
@@ -38,16 +36,31 @@ export interface Position {
   qty: number;
   entry_price: number;
   current_price: number;
-  stop_loss?: number;
-  take_profit?: number;
+  stop_loss: number;
+  take_profit: number;
   pnl_usdt: number;
   pnl_pct: number;
   status: string;
   open_time: string;
+  candles_left: number;
+}
+
+export interface HistoryPosition {
+  id: number;
+  pair: string;
+  side: string;
+  qty: number;
+  entry_price: number;
+  close_price: number;
+  close_type: string;
+  pnl_usdt: number;
+  pnl_pct: number;
+  open_time: string;
+  close_time: string;
 }
 
 export interface Signal {
-  id: number;
+  id: string;
   time: string;
   pair: string;
   tf: number;
@@ -58,6 +71,7 @@ export interface Signal {
   tp_price: number;
   strategy: string;
   status: string;
+  p_super: number;
 }
 
 export interface Balance {

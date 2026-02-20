@@ -26,6 +26,10 @@ fn should_run_predictors() -> bool {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new("warn,compute_realtime=info"))
+        .init();
+
     let active_strategy = get_active_strategy();
     tracing::info!("compute_realtime: ACTIVE_STRATEGY = {}", active_strategy);
 

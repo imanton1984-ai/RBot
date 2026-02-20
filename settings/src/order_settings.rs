@@ -95,7 +95,7 @@ pub enum TradingMode {
 
 impl Default for TradingMode {
     fn default() -> Self {
-        Self::Manual // Безопасный дефолт — не торгуем без явного включения
+        Self::Off // Безопасный дефолт — торговля выключена до явного включения через WebUI или env
     }
 }
 
@@ -166,7 +166,7 @@ impl Default for OrderSettings {
             trade_size_value: 100.0,
             strategy_type: StrategyType::MlSuperEntry,
             order_type: OrderType::FuturesOco,
-            trading_mode: TradingMode::Manual,
+            trading_mode: TradingMode::Off,
         }
     }
 }
@@ -291,9 +291,9 @@ mod tests {
         assert!((settings.trade_size_value - 100.0).abs() < 1e-8);
         assert_eq!(settings.strategy_type, StrategyType::MlSuperEntry);
         assert_eq!(settings.order_type, OrderType::FuturesOco);
-        assert_eq!(settings.trading_mode, TradingMode::Manual);
+        assert_eq!(settings.trading_mode, TradingMode::Off);
         assert!(!settings.trading_mode.is_auto());
-        assert!(settings.trading_mode.is_active());
+        assert!(!settings.trading_mode.is_active());
     }
 
     #[test]

@@ -30,6 +30,7 @@ async-trait = "0.1"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+toml = "0.8"
 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -5945,7 +5946,7 @@ impl Default for SuperEntryConfig {
             lookahead_bars: 50, // was 20
             p_threshold: 0.50,  //was 0.55
             sl_fraction: 0.75, //was 0.5
-            max_hold_bars: 25,  // Force-close after 15 bars (reduces expired trades)
+            max_hold_bars: 25,  // Force-close after 25 bars (reduces expired trades)
             tf_targets: tf_target_move_pct(),
             model_path_template: "models/super_entry_v1_tf{tf}.ubj".to_string(),
             direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),
@@ -10057,6 +10058,7 @@ path = "src/lib.rs"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 
@@ -10068,6 +10070,7 @@ tracing = { workspace = true }
 //
 // Настройки биржи: API ключи (из ~/.settings.json), комиссии, режим аккаунта.
 // API ключи НИКОГДА не хранятся в репозитории — только в скрытом файле home-директории.
+// Конфигурация загружается из config/exchange_settings.toml
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -10205,7 +10208,7 @@ impl ExchangeSettings {
         })
     }
 
-    /// Загрузить настройки биржи из JSON-файла
+    /// Загрузить настройки биржи из TOML-файла
     pub fn load_from_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
@@ -10214,7 +10217,7 @@ impl ExchangeSettings {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let mut settings: Self = serde_json::from_str(&content)?;
+        let mut settings: Self = toml::from_str(&content)?;
 
         // Загружаем credentials отдельно (из ~/.settings.json)
         match Self::load_credentials() {
@@ -10230,9 +10233,9 @@ impl ExchangeSettings {
         Ok(settings)
     }
 
-    /// Загрузить из стандартного пути config/exchange_settings.json
+    /// Загрузить из стандартного пути config/exchange_settings.toml
     pub fn load() -> anyhow::Result<Self> {
-        Self::load_from_file("config/exchange_settings.json")
+        Self::load_from_file("config/exchange_settings.toml")
     }
 
     /// Загрузить с override из env-переменных
@@ -10304,7 +10307,7 @@ impl ExchangeSettings {
         notional_usdt * self.maker_fee / 100.0
     }
 
-    /// Сохранить настройки (без credentials!) в JSON-файл
+    /// Сохранить настройки (без credentials!) в TOML-файл
     pub fn save_to_file(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
         // Создаём копию без credentials для сохранения
         let safe_settings = ExchangeSettings {
@@ -10313,7 +10316,7 @@ impl ExchangeSettings {
             account_mode: self.account_mode,
             credentials: None, // Никогда не сохраняем ключи в конфиг проекта
         };
-        let content = serde_json::to_string_pretty(&safe_settings)?;
+        let content = toml::to_string_pretty(&safe_settings)?;
         std::fs::write(path, content)?;
         Ok(())
     }
@@ -10360,8 +10363,8 @@ mod tests {
     #[test]
     fn test_serde_roundtrip() {
         let settings = ExchangeSettings::default();
-        let json = serde_json::to_string_pretty(&settings).unwrap();
-        let deserialized: ExchangeSettings = serde_json::from_str(&json).unwrap();
+        let toml_str = toml::to_string_pretty(&settings).unwrap();
+        let deserialized: ExchangeSettings = toml::from_str(&toml_str).unwrap();
         assert!((deserialized.taker_fee - settings.taker_fee).abs() < 1e-8);
         assert_eq!(deserialized.account_mode, settings.account_mode);
     }
@@ -10373,10 +10376,10 @@ mod tests {
             api_key: "test_key".to_string(),
             api_secret: "test_secret".to_string(),
         });
-        let json = serde_json::to_string(&settings).unwrap();
-        // credentials should NOT appear in JSON
-        assert!(!json.contains("test_key"));
-        assert!(!json.contains("test_secret"));
+        let toml_str = toml::to_string(&settings).unwrap();
+        // credentials should NOT appear in TOML
+        assert!(!toml_str.contains("test_key"));
+        assert!(!toml_str.contains("test_secret"));
     }
 }
 
@@ -10426,7 +10429,7 @@ impl AllSettings {
 // settings/src/order_settings.rs
 //
 // Настройки ордеров: leverage, размер позиции, тип стратегии, тип ордера.
-// Загружаются из config/order_settings.json или env-переменных.
+// Загружаются из config/order_settings.toml или env-переменных.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -10597,7 +10600,7 @@ impl Default for OrderSettings {
 }
 
 impl OrderSettings {
-    /// Загрузить из JSON-файла. Если файл не найден — вернуть дефолт.
+    /// Загрузить из TOML-файла. Если файл не найден — вернуть дефолт.
     pub fn load_from_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
@@ -10606,7 +10609,7 @@ impl OrderSettings {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let settings: Self = serde_json::from_str(&content)?;
+        let settings: Self = toml::from_str(&content)?;
         info!(
             "Loaded order settings: leverage={}, max_orders={}, size_type={}, size_value={}, strategy={}, order_type={}, trading_mode={}",
             settings.leverage,
@@ -10621,9 +10624,9 @@ impl OrderSettings {
         Ok(settings)
     }
 
-    /// Загрузить из стандартного пути config/order_settings.json
+    /// Загрузить из стандартного пути config/order_settings.toml
     pub fn load() -> anyhow::Result<Self> {
-        Self::load_from_file("config/order_settings.json")
+        Self::load_from_file("config/order_settings.toml")
     }
 
     /// Загрузить с override из env-переменных
@@ -10695,9 +10698,9 @@ impl OrderSettings {
         Ok(())
     }
 
-    /// Сохранить в JSON-файл
+    /// Сохранить в TOML-файл
     pub fn save_to_file(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let content = serde_json::to_string_pretty(self)?;
+        let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
         Ok(())
     }
@@ -10763,8 +10766,8 @@ mod tests {
     #[test]
     fn test_serde_roundtrip() {
         let settings = OrderSettings::default();
-        let json = serde_json::to_string_pretty(&settings).unwrap();
-        let deserialized: OrderSettings = serde_json::from_str(&json).unwrap();
+        let toml_str = toml::to_string_pretty(&settings).unwrap();
+        let deserialized: OrderSettings = toml::from_str(&toml_str).unwrap();
         assert_eq!(deserialized.leverage, settings.leverage);
         assert_eq!(deserialized.trade_size_type, settings.trade_size_type);
     }
@@ -12016,25 +12019,46 @@ import BottomBar from './components/BottomBar';
 import OptionsModal from './components/modals/OptionsModal';
 import StrategiesModal from './components/modals/StrategiesModal';
 import SignalsModal from './components/modals/SignalsModal';
+import { useEffect } from 'react';
 
 function App() {
   useWebSocket();
+
+  // Clear saved layout on first load to ensure proper default sizes
+  useEffect(() => {
+    const hasVisited = localStorage.getItem('webui-visited');
+    if (!hasVisited) {
+      // First visit - clear all saved layouts
+      localStorage.removeItem('webui-layout');
+      localStorage.removeItem('webui-left');
+      localStorage.removeItem('webui-middle');
+      localStorage.setItem('webui-visited', 'true');
+    }
+  }, []);
 
   return (
     <div className="h-screen w-screen bg-background flex flex-col overflow-hidden">
       <TopBar />
       <TickerStrip />
       
-      {/* Main Content - Resizable Panels */}
-      <Group orientation="horizontal" className="flex-1 min-h-0" autoSave="webui-layout">
+      {/* Main Content - Resizable Panels with default sizes */}
+      <Group 
+        orientation="horizontal" 
+        className="flex-1 min-h-0" 
+        autoSave="webui-layout"
+      >
         {/* Center Column - Chart + Positions */}
-        <Panel defaultSize={55} minSize={30} className="flex flex-col min-w-0" collapsible={false}>
-          <Group orientation="vertical" className="h-full" autoSave="webui-left">
-            <Panel defaultSize={60} minSize={20}>
+        <Panel defaultSize={55} minSize={25} className="flex flex-col min-w-0">
+          <Group 
+            orientation="vertical" 
+            className="h-full" 
+            autoSave="webui-left"
+          >
+            <Panel defaultSize={65} minSize={20}>
               <ChartPanel />
             </Panel>
             <Separator className="h-1 bg-border hover:bg-binanceYellow transition-colors cursor-row-resize" />
-            <Panel>
+            <Panel defaultSize={35} minSize={15}>
               <PositionsPanel />
             </Panel>
           </Group>
@@ -12044,17 +12068,21 @@ function App() {
         <Separator className="w-1 bg-border hover:bg-binanceYellow transition-colors cursor-col-resize" />
         
         {/* Middle Right - PnL, Balance, Alerts */}
-        <Panel defaultSize={18} minSize={15} className="flex flex-col min-w-0" collapsible={false}>
-          <Group orientation="vertical" className="h-full" autoSave="webui-middle">
-            <Panel defaultSize={35} minSize={15}>
+        <Panel defaultSize={18} minSize={15} className="flex flex-col min-w-0">
+          <Group 
+            orientation="vertical" 
+            className="h-full" 
+            autoSave="webui-middle"
+          >
+            <Panel defaultSize={33} minSize={10}>
               <PnlWidget />
             </Panel>
             <Separator className="h-1 bg-border hover:bg-binanceYellow transition-colors cursor-row-resize" />
-            <Panel defaultSize={35} minSize={15}>
+            <Panel defaultSize={33} minSize={10}>
               <BalanceWidget />
             </Panel>
             <Separator className="h-1 bg-border hover:bg-binanceYellow transition-colors cursor-row-resize" />
-            <Panel>
+            <Panel defaultSize={34} minSize={10}>
               <AlertsWidget />
             </Panel>
           </Group>
@@ -12064,7 +12092,7 @@ function App() {
         <Separator className="w-1 bg-border hover:bg-binanceYellow transition-colors cursor-col-resize" />
         
         {/* Right Column - Trading Panel */}
-        <Panel defaultSize={27} minSize={20} className="p-3 overflow-y-auto" collapsible={false}>
+        <Panel defaultSize={27} minSize={20} className="p-3 overflow-y-auto">
           <TradePanel />
         </Panel>
       </Group>
@@ -12293,6 +12321,11 @@ body {
   background-color: #F0B90B;
 }
 
+[data-panel-group] {
+  /* Ensure panels start with proper sizes */
+  contain: layout;
+}
+
 /* Binance-style button */
 .btn-binance {
   @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
@@ -12368,7 +12401,6 @@ createRoot(document.getElementById('root')!).render(
 //
 // Shared application state for WebUI backend
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use sqlx::PgPool;
@@ -12811,7 +12843,6 @@ export interface WebUiSettings {
 
 use axum::{extract::ws::{Message, WebSocket, WebSocketUpgrade}, response::IntoResponse, extract::State};
 use futures::{sink::SinkExt, stream::StreamExt};
-use serde_json::json;
 use crate::state::AppState;
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
@@ -12854,7 +12885,7 @@ pub struct SubscriptionChannel { pub name: String, #[serde(default)] pub pair: O
 
 # webui/src/api/handlers.rs
 
-// webui/src/api/handlers.rs - Simplified version with proper types
+// webui/src/api/handlers.rs - Fixed column names for actual DB schema
 
 use axum::{extract::{Query, State}, Json, http::StatusCode};
 use serde::{Deserialize, Serialize};
@@ -12888,7 +12919,14 @@ pub async fn get_market_summary(_query: Query<CandlesQuery>, _state: State<AppSt
 
 pub async fn get_candles(Query(query): Query<CandlesQuery>, State(state): State<AppState>) -> Result<Json<Vec<CandleResponse>>, StatusCode> {
     let limit = query.limit.unwrap_or(1000);
-    let candles = sqlx::query_as::<_, CandleRow>("SELECT time_ms as t, open as o, high as h, low as l, close as c, volume as v FROM market.candles WHERE symbol = $1 AND tf_minutes = $2 ORDER BY time_ms DESC LIMIT $3").bind(&query.pair).bind(query.tf).bind(limit).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Candles error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    // Join with market.pairs to get symbol name
+    let candles = sqlx::query_as::<_, CandleRow>(
+        "SELECT c.time_ms as t, c.open as o, c.high as h, c.low as l, c.close as c, c.volume as v 
+         FROM market.candles c 
+         JOIN market.pairs p ON c.symbol_id = p.symbol_id 
+         WHERE p.symbol = $1 AND c.tf_minutes = $2 
+         ORDER BY c.time_ms DESC LIMIT $3"
+    ).bind(&query.pair).bind(query.tf).bind(limit).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Candles error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     Ok(Json(candles.into_iter().rev().map(|c| CandleResponse { t: c.t, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v }).collect()))
 }
 
@@ -12905,17 +12943,41 @@ pub async fn get_signals(Query(query): Query<SignalsQuery>, State(state): State<
 }
 
 pub async fn get_open_positions(State(state): State<AppState>) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
-    let rows = sqlx::query("SELECT p.id, p.symbol as pair, CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side, p.quantity as qty, p.entry_price, p.entry_price as current_price, p.stop_loss, p.take_profit, 0.0 as pnl_usdt, 0.0 as pnl_pct, 'open' as status, p.open_time FROM trade.positions p WHERE p.close_time IS NULL ORDER BY p.open_time DESC").fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Positions error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    // Join with market.pairs to get symbol name, use meta JSONB for SL/TP if available
+    let rows = sqlx::query(
+        "SELECT p.id, mp.symbol as pair, 
+                CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side, 
+                p.qty, p.entry_price, p.entry_price as current_price, 
+                COALESCE((p.meta->>'stop_loss')::double precision, 0) as stop_loss, 
+                COALESCE((p.meta->>'take_profit')::double precision, 0) as take_profit, 
+                COALESCE(p.unrealized_pnl, 0) as pnl_usdt, 
+                0 as pnl_pct, 'open' as status, p.opened_at as open_time,
+                10 as candles_left
+         FROM trade.positions p 
+         JOIN market.pairs mp ON p.symbol_id = mp.symbol_id 
+         WHERE p.status = 1 
+         ORDER BY p.opened_at DESC"
+    ).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Positions error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     Ok(Json(rows.into_iter().filter_map(|r| sqlx::Row::try_get::<serde_json::Value, _>(&r, 0).ok()).collect()))
 }
 
 pub async fn get_positions_history(State(state): State<AppState>) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
-    let rows = sqlx::query("SELECT p.id, p.symbol as pair, p.quantity as qty, p.entry_price, p.close_price, p.close_type, p.pnl_usdt, p.pnl_pct, p.open_time, p.close_time FROM trade.positions p WHERE p.close_time IS NOT NULL ORDER BY p.close_time DESC LIMIT 500").fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("History error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    let rows = sqlx::query(
+        "SELECT p.id, mp.symbol as pair, p.qty, p.entry_price, 
+                COALESCE((p.meta->>'close_price')::double precision, p.entry_price) as close_price, 
+                COALESCE(p.meta->>'close_type', 'manual') as close_type,
+                COALESCE(p.realized_pnl, 0) as pnl_usdt, 
+                0 as pnl_pct, p.opened_at as open_time, p.closed_at as close_time
+         FROM trade.positions p 
+         JOIN market.pairs mp ON p.symbol_id = mp.symbol_id 
+         WHERE p.status = 2 
+         ORDER BY p.closed_at DESC LIMIT 500"
+    ).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("History error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     Ok(Json(rows.into_iter().filter_map(|r| sqlx::Row::try_get::<serde_json::Value, _>(&r, 0).ok()).collect()))
 }
 
 pub async fn get_pnl_overview(State(state): State<AppState>) -> Result<Json<PnlOverview>, StatusCode> {
-    let row = sqlx::query("SELECT COALESCE(SUM(pnl_usdt), 0) as closed_pnl, COUNT(*) FILTER (WHERE pnl_usdt > 0) as wins, COUNT(*) as total_trades FROM trade.positions WHERE close_time IS NOT NULL AND close_time > NOW() - INTERVAL '1 day'").fetch_one(&state.db_pool).await.map_err(|e| { tracing::error!("PnL error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    let row = sqlx::query("SELECT COALESCE(SUM(realized_pnl), 0) as closed_pnl, COUNT(*) FILTER (WHERE realized_pnl > 0) as wins, COUNT(*) as total_trades FROM trade.positions WHERE status = 2 AND closed_at > NOW() - INTERVAL '1 day'").fetch_one(&state.db_pool).await.map_err(|e| { tracing::error!("PnL error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     let closed_pnl: f64 = row.get("closed_pnl");
     let wins: i64 = row.get("wins");
     let total_trades: i64 = row.get("total_trades");
@@ -13256,14 +13318,20 @@ export default function ChartPanel() {
   const { chartView, setChartView, setSignalsModalOpen } = useUiStore();
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
 
-  const { data: candleData } = useQuery({
+  // Load candles only for active pair/TF - refetch every 15 seconds
+  const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
     queryFn: () => apiService.getCandles(currentPair, currentTf, 1000),
-    refetchInterval: 1000,
+    refetchInterval: 15000, // 15 seconds
+    staleTime: 10000,
+    retry: 1,
   });
 
+  const [chartInitialized, setChartInitialized] = useState(false);
+
+  // Initialize chart when data arrives
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || !candleData || candleData.length === 0 || chartInitialized) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -13300,27 +13368,27 @@ export default function ChartPanel() {
       priceScaleId: '',
     });
 
-    if (candleData) {
-      const candles = candleData.map((c) => ({
-        time: (c.t / 1000) as any,
-        open: c.o,
-        high: c.h,
-        low: c.l,
-        close: c.c,
-      }));
+    const candles = candleData.map((c: any) => ({
+      time: (c.t / 1000) as any,
+      open: c.o,
+      high: c.h,
+      low: c.l,
+      close: c.c,
+    }));
 
-      const volume = candleData.map((c) => ({
-        time: (c.t / 1000) as any,
-        value: c.v,
-        color: c.c >= c.o ? 'rgba(14, 203, 129, 0.5)' : 'rgba(246, 70, 93, 0.5)',
-      }));
+    const volume = candleData.map((c: any) => ({
+      time: (c.t / 1000) as any,
+      value: c.v,
+      color: c.c >= c.o ? 'rgba(14, 203, 129, 0.5)' : 'rgba(246, 70, 93, 0.5)',
+    }));
 
-      candlestickSeries.setData(candles);
-      volumeSeries.setData(volume);
-    }
+    candlestickSeries.setData(candles);
+    volumeSeries.setData(volume);
 
-    return () => chart.remove();
-  }, [currentPair, currentTf, candleData]);
+    setChartInitialized(true);
+
+    return () => { chart.remove(); setChartInitialized(false); };
+  }, [currentPair, currentTf]); // Re-init only when pair/TF changes
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -13382,10 +13450,20 @@ export default function ChartPanel() {
         </button>
 
         <div className="flex-1" />
+        
+        {isLoading && (
+          <div className="text-xs text-textSecondary animate-pulse">Loading...</div>
+        )}
       </div>
 
       {chartView === 'chart' ? (
-        <div ref={chartContainerRef} className="flex-1 min-h-0" />
+        <div ref={chartContainerRef} className="flex-1 min-h-0 relative">
+          {isLoading && !chartInitialized && (
+            <div className="absolute inset-0 flex items-center justify-center text-textSecondary">
+              Loading candles...
+            </div>
+          )}
+        </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-textSecondary">Positions View</div>
       )}
@@ -13397,19 +13475,20 @@ export default function ChartPanel() {
 
 # webui/src/components/PnlWidget.tsx
 
-import { useState } from 'react';
 import { useDataStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 
 export default function PnlWidget() {
-  const chartContainerRef = useState<HTMLDivElement | null>(null)[0];
   const { pnlOverview, setPnlOverview } = useDataStore();
 
+  // Load PnL overview every 10 seconds
   const { data } = useQuery({
     queryKey: ['pnl-overview'],
     queryFn: () => apiService.getPnlOverview('1d'),
-    refetchInterval: 5000,
+    refetchInterval: 10000,
+    staleTime: 5000,
+    retry: 1,
   });
 
   if (data) {
@@ -13459,26 +13538,37 @@ export default function PnlWidget() {
 import { useUiStore, useDataStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
-import { Settings, ToggleLeft } from 'lucide-react';
+import { Settings } from 'lucide-react';
 
 export default function PositionsPanel() {
   const { positionsView, setPositionsView } = useUiStore();
-  const { positions } = useDataStore();
+  const { positions, setPositions } = useDataStore();
 
+  // Load positions only when tab is active - refetch every 5 seconds
   const { data: openPositions } = useQuery({
     queryKey: ['positions-open'],
     queryFn: () => apiService.getOpenPositions(),
-    refetchInterval: 2000,
+    refetchInterval: 5000,
+    staleTime: 3000,
     enabled: positionsView === 'open',
+    retry: 1,
   });
 
   const { data: historyPositions } = useQuery({
     queryKey: ['positions-history'],
     queryFn: () => apiService.getPositionsHistory(),
+    refetchInterval: 10000,
+    staleTime: 5000,
     enabled: positionsView === 'history',
+    retry: 1,
   });
 
-  const currentPositions = positionsView === 'open' ? openPositions || positions : historyPositions || [];
+  // Update positions when data arrives
+  if (positionsView === 'open' && openPositions) {
+    setPositions(openPositions);
+  }
+
+  const currentPositions = positionsView === 'open' ? positions : (historyPositions || []);
 
   return (
     <div className="h-[40%] min-h-[200px] border-t border-border flex flex-col shrink-0">
@@ -13524,7 +13614,7 @@ export default function PositionsPanel() {
                 <th className="text-left font-normal px-4 py-2">Stop Loss</th>
                 <th className="text-left font-normal px-4 py-2">Take Profit</th>
                 <th className="text-left font-normal px-4 py-2">PnL</th>
-                <th className="text-left font-normal px-4 py-2">Actions</th>
+                <th className="text-left font-normal px-4 py-2">Candles Left</th>
               </tr>
             ) : (
               <tr>
@@ -13540,50 +13630,51 @@ export default function PositionsPanel() {
             )}
           </thead>
           <tbody>
-            {currentPositions.map((pos: any, idx: number) => (
-              <tr
-                key={pos.id || idx}
-                className="border-t border-border hover:bg-panelAlt transition-colors"
-              >
-                {positionsView === 'open' ? (
-                  <>
-                    <td className="px-4 py-2 text-textPrimary font-medium">{pos.pair}</td>
-                    <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
-                      {pos.side}
-                    </td>
-                    <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
-                    <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-textPrimary">${pos.current_price?.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-textPrimary">${pos.stop_loss?.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-textPrimary">${pos.take_profit?.toFixed(2)}</td>
-                    <td className={`px-4 py-2 ${pos.pnl_usdt >= 0 ? 'text-bull' : 'text-bear'}`}>
-                      ${pos.pnl_usdt?.toFixed(2)} ({pos.pnl_pct?.toFixed(2)}%)
-                    </td>
-                    <td className="px-4 py-2">
-                      <button className="text-binanceYellow hover:underline text-xs">Close</button>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-4 py-2 text-textPrimary font-medium">{pos.pair}</td>
-                    <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
-                      {pos.side}
-                    </td>
-                    <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
-                    <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-textPrimary">${pos.close_price?.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-textSecondary">{pos.close_type || 'manual'}</td>
-                    <td className={`px-4 py-2 ${pos.pnl_usdt >= 0 ? 'text-bull' : 'text-bear'}`}>
-                      ${pos.pnl_usdt?.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2 text-textSecondary">
-                      {new Date(pos.close_time).toLocaleString()}
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))}
-            {currentPositions.length === 0 && (
+            {currentPositions.length > 0 ? (
+              currentPositions.map((pos: any, idx: number) => (
+                <tr
+                  key={pos.id || idx}
+                  className="border-t border-border hover:bg-panelAlt transition-colors"
+                >
+                  {positionsView === 'open' ? (
+                    <>
+                      <td className="px-4 py-2 text-textPrimary font-medium">{pos.pair}</td>
+                      <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
+                        {pos.side}
+                      </td>
+                      <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${pos.current_price?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${pos.stop_loss?.toFixed(2) || '-'}</td>
+                      <td className="px-4 py-2 text-textPrimary">${pos.take_profit?.toFixed(2) || '-'}</td>
+                      <td className={`px-4 py-2 ${pos.pnl_usdt >= 0 ? 'text-bull' : 'text-bear'}`}>
+                        ${pos.pnl_usdt?.toFixed(2)} ({pos.pnl_pct?.toFixed(2)}%)
+                      </td>
+                      <td className="px-4 py-2 text-textPrimary">
+                        {pos.candles_left ?? 10}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-2 text-textPrimary font-medium">{pos.pair}</td>
+                      <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
+                        {pos.side}
+                      </td>
+                      <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${pos.close_price?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-textSecondary">{pos.close_type || 'manual'}</td>
+                      <td className={`px-4 py-2 ${pos.pnl_usdt >= 0 ? 'text-bull' : 'text-bear'}`}>
+                        ${pos.pnl_usdt?.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-textSecondary">
+                        {pos.close_time ? new Date(pos.close_time).toLocaleString() : '-'}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))
+            ) : (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-textSecondary">
                   No {positionsView} positions
@@ -21566,6 +21657,96 @@ echo "Logs in : $LOG_DIR"
 echo "==========================================="
 
 
+# scripts/stopweb.sh
+
+#!/bin/bash
+# stopweb.sh - Stop all WebUI processes (backend + frontend dev servers)
+# Usage: ./scripts/stopweb.sh
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+echo "========================================"
+echo "  Stopping WebUI Processes"
+echo "========================================"
+echo ""
+
+# Function to kill processes by port
+kill_by_port() {
+    local port=$1
+    local name=$2
+    
+    PID=$(lsof -ti:$port 2>/dev/null || true)
+    if [ ! -z "$PID" ]; then
+        echo "[INFO] Killing $name (PID: $PID) on port $port"
+        kill -15 $PID 2>/dev/null || kill -9 $PID 2>/dev/null || true
+        sleep 1
+        echo "[OK] $name stopped"
+    else
+        echo "[INFO] No process found on port $port"
+    fi
+}
+
+# Function to kill processes by name
+kill_by_name() {
+    local pattern=$1
+    local name=$2
+    
+    PIDS=$(pgrep -f "$pattern" 2>/dev/null || true)
+    if [ ! -z "$PIDS" ]; then
+        echo "[INFO] Killing $name processes (PIDs: $PIDS)"
+        echo "$PIDS" | xargs kill -15 2>/dev/null || true
+        sleep 1
+        # Force kill if still running
+        PIDS=$(pgrep -f "$pattern" 2>/dev/null || true)
+        if [ ! -z "$PIDS" ]; then
+            echo "$PIDS" | xargs kill -9 2>/dev/null || true
+        fi
+        echo "[OK] $name stopped"
+    else
+        echo "[INFO] No $name processes found"
+    fi
+}
+
+# Stop backend server (port 3000)
+echo "[1/4] Stopping backend server..."
+kill_by_port 3000 "WebUI backend"
+
+# Stop frontend dev server (port 5173)
+echo ""
+echo "[2/4] Stopping frontend dev server..."
+kill_by_port 5173 "Vite dev server"
+
+# Stop any remaining webui_server processes
+echo ""
+echo "[3/4] Stopping any remaining webui_server processes..."
+kill_by_name "webui_server" "webui_server"
+
+# Stop any remaining vite processes
+echo ""
+echo "[4/4] Stopping any remaining vite/npm processes..."
+kill_by_name "vite" "Vite"
+
+echo ""
+echo "========================================"
+echo "  All WebUI processes stopped"
+echo "========================================"
+
+# Show remaining processes on our ports (if any)
+REMAINING=$(lsof -ti:3000,5173 2>/dev/null || true)
+if [ ! -z "$REMAINING" ]; then
+    echo ""
+    echo "[WARNING] Some processes still running:"
+    echo "$REMAINING" | xargs ps -p 2>/dev/null || true
+    echo ""
+    echo "To force kill, run:"
+    echo "  kill -9 $(lsof -ti:3000,5173 | tr '\n' ' ')"
+fi
+
+
+
 # scripts/super_entry_backtester.sh
 
 #!/usr/bin/env bash
@@ -25757,6 +25938,69 @@ position_tracker = 9030
 
 
 
+# config/exchange_settings.toml
+
+taker_fee = 0.04
+maker_fee = 0.02
+account_mode = "binance_futures"
+
+
+
+# config/order_settings.toml
+
+leverage = 10
+max_orders_at_a_time = 10
+trade_size_type = "fixed_usdt"
+trade_size_value = 100.0
+strategy_type = "ml_super_entry"
+order_type = "futures_oco"
+trading_mode = "manual"
+
+
+
+# config/risk_manager.toml
+
+enabled = true
+btc_alert_threshold_pct = 0.5
+alt_alert_threshold_pct = 1.5
+volume_spike_threshold = 2.0
+monitor_timeframes = [1, 5, 15]
+top_alts_count = 20
+
+top_alt_symbols = [
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "AVAXUSDT",
+    "DOTUSDT",
+    "LINKUSDT",
+    "MATICUSDT",
+    "SHIBUSDT",
+    "LTCUSDT",
+    "TRXUSDT",
+    "ATOMUSDT",
+    "UNIUSDT",
+    "NEARUSDT",
+    "APTUSDT",
+    "ARBUSDT",
+    "OPUSDT",
+    "FILUSDT",
+]
+
+position_closer_enabled = false
+kafka_brokers = "localhost:19092"
+kafka_group_id = "risk-manager"
+topic_indicators = "indicators.close"
+topic_positions = "positions.events"
+topic_alerts = "risk.alerts"
+topic_orders_cmd = "orders.cmd"
+database_url = "postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance"
+
+
+
 # config/runtime.toml
 
 [runtime]
@@ -29522,6 +29766,7 @@ async-trait = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -30908,12 +31153,12 @@ impl Default for RiskManagerConfig {
 }
 
 impl RiskManagerConfig {
-    /// Загрузить из JSON-файла с fallback на дефолт
+    /// Загрузить из TOML-файла с fallback на дефолт
     pub fn load() -> anyhow::Result<Self> {
-        let path = "config/risk_manager.json";
+        let path = "config/risk_manager.toml";
         if std::path::Path::new(path).exists() {
             let content = std::fs::read_to_string(path)?;
-            let config: Self = serde_json::from_str(&content)?;
+            let config: Self = toml::from_str(&content)?;
             Ok(config)
         } else {
             tracing::warn!("Risk manager config not found at {}, using defaults", path);
