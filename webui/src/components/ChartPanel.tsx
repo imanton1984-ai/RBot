@@ -58,7 +58,7 @@ export default function ChartPanel() {
         vertLines: { color: 'rgba(255,255,255,0.03)' },
         horzLines: { color: 'rgba(255,255,255,0.03)' },
       },
-      crosshair: { mode: 1 },
+      crosshair: { mode: 0 },
       timeScale: {
         borderColor: 'rgba(255,255,255,0.06)',
         timeVisible: true,
@@ -81,7 +81,15 @@ export default function ChartPanel() {
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: { type: 'volume' },
-      priceScaleId: '',
+      priceScaleId: 'volume',
+    });
+
+    // Position volume at the bottom 15% of chart, candles in top 85%
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: { top: 0.85, bottom: 0 },
+    });
+    candlestickSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.02, bottom: 0.18 },
     });
 
     chartRef.current = chart;
@@ -115,7 +123,7 @@ export default function ChartPanel() {
     const volume = candleData.map((c: any) => ({
       time: Math.floor(c.t / 1000) as any,
       value: c.v,
-      color: c.c >= c.o ? 'rgba(14, 203, 129, 0.5)' : 'rgba(246, 70, 93, 0.5)',
+      color: c.c >= c.o ? 'rgba(14, 203, 129, 0.3)' : 'rgba(246, 70, 93, 0.3)',
     }));
 
     candleSeriesRef.current.setData(candles);
@@ -127,7 +135,7 @@ export default function ChartPanel() {
   }, [candleData, chartReady, currentPair, currentTf, setCandles]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="h-full w-full flex flex-col overflow-hidden">
       <div className="h-12 border-b border-border flex items-center px-3 gap-2 shrink-0">
         <button
           className={`px-3 py-1.5 rounded text-sm flex items-center gap-1 ${chartView === 'chart' ? 'bg-binanceYellow text-black' : 'text-textSecondary hover:bg-panelAlt'
