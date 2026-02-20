@@ -45,6 +45,11 @@ body {
   background-color: #F0B90B;
 }
 
+[data-panel-group] {
+  /* Ensure panels start with proper sizes */
+  contain: layout;
+}
+
 /* Binance-style button */
 .btn-binance {
   @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;

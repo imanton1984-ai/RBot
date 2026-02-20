@@ -1,16 +1,17 @@
-import { useState } from 'react';
 import { useDataStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 
 export default function PnlWidget() {
-  const chartContainerRef = useState<HTMLDivElement | null>(null)[0];
   const { pnlOverview, setPnlOverview } = useDataStore();
 
+  // Load PnL overview every 10 seconds
   const { data } = useQuery({
     queryKey: ['pnl-overview'],
     queryFn: () => apiService.getPnlOverview('1d'),
-    refetchInterval: 5000,
+    refetchInterval: 10000,
+    staleTime: 5000,
+    retry: 1,
   });
 
   if (data) {

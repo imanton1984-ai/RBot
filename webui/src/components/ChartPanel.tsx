@@ -20,14 +20,20 @@ export default function ChartPanel() {
   const { chartView, setChartView, setSignalsModalOpen } = useUiStore();
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
 
-  const { data: candleData } = useQuery({
+  // Load candles only for active pair/TF - refetch every 15 seconds
+  const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
     queryFn: () => apiService.getCandles(currentPair, currentTf, 1000),
-    refetchInterval: 1000,
+    refetchInterval: 15000, // 15 seconds
+    staleTime: 10000,
+    retry: 1,
   });
 
+  const [chartInitialized, setChartInitialized] = useState(false);
+
+  // Initialize chart when data arrives
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || !candleData || candleData.length === 0 || chartInitialized) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -64,27 +70,27 @@ export default function ChartPanel() {
       priceScaleId: '',
     });
 
-    if (candleData) {
-      const candles = candleData.map((c) => ({
-        time: (c.t / 1000) as any,
-        open: c.o,
-        high: c.h,
-        low: c.l,
-        close: c.c,
-      }));
+    const candles = candleData.map((c: any) => ({
+      time: (c.t / 1000) as any,
+      open: c.o,
+      high: c.h,
+      low: c.l,
+      close: c.c,
+    }));
 
-      const volume = candleData.map((c) => ({
-        time: (c.t / 1000) as any,
-        value: c.v,
-        color: c.c >= c.o ? 'rgba(14, 203, 129, 0.5)' : 'rgba(246, 70, 93, 0.5)',
-      }));
+    const volume = candleData.map((c: any) => ({
+      time: (c.t / 1000) as any,
+      value: c.v,
+      color: c.c >= c.o ? 'rgba(14, 203, 129, 0.5)' : 'rgba(246, 70, 93, 0.5)',
+    }));
 
-      candlestickSeries.setData(candles);
-      volumeSeries.setData(volume);
-    }
+    candlestickSeries.setData(candles);
+    volumeSeries.setData(volume);
 
-    return () => chart.remove();
-  }, [currentPair, currentTf, candleData]);
+    setChartInitialized(true);
+
+    return () => { chart.remove(); setChartInitialized(false); };
+  }, [currentPair, currentTf]); // Re-init only when pair/TF changes
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -146,10 +152,20 @@ export default function ChartPanel() {
         </button>
 
         <div className="flex-1" />
+        
+        {isLoading && (
+          <div className="text-xs text-textSecondary animate-pulse">Loading...</div>
+        )}
       </div>
 
       {chartView === 'chart' ? (
-        <div ref={chartContainerRef} className="flex-1 min-h-0" />
+        <div ref={chartContainerRef} className="flex-1 min-h-0 relative">
+          {isLoading && !chartInitialized && (
+            <div className="absolute inset-0 flex items-center justify-center text-textSecondary">
+              Loading candles...
+            </div>
+          )}
+        </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-textSecondary">Positions View</div>
       )}

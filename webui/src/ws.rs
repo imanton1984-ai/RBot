@@ -2,7 +2,6 @@
 
 use axum::{extract::ws::{Message, WebSocket, WebSocketUpgrade}, response::IntoResponse, extract::State};
 use futures::{sink::SinkExt, stream::StreamExt};
-use serde_json::json;
 use crate::state::AppState;
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {

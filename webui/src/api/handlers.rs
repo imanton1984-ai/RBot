@@ -1,4 +1,4 @@
-// webui/src/api/handlers.rs - Simplified version with proper types
+// webui/src/api/handlers.rs - Fixed column names for actual DB schema
 
 use axum::{extract::{Query, State}, Json, http::StatusCode};
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,14 @@ pub async fn get_market_summary(_query: Query<CandlesQuery>, _state: State<AppSt
 
 pub async fn get_candles(Query(query): Query<CandlesQuery>, State(state): State<AppState>) -> Result<Json<Vec<CandleResponse>>, StatusCode> {
     let limit = query.limit.unwrap_or(1000);
-    let candles = sqlx::query_as::<_, CandleRow>("SELECT time_ms as t, open as o, high as h, low as l, close as c, volume as v FROM market.candles WHERE symbol = $1 AND tf_minutes = $2 ORDER BY time_ms DESC LIMIT $3").bind(&query.pair).bind(query.tf).bind(limit).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Candles error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    // Join with market.pairs to get symbol name
+    let candles = sqlx::query_as::<_, CandleRow>(
+        "SELECT c.time_ms as t, c.open as o, c.high as h, c.low as l, c.close as c, c.volume as v 
+         FROM market.candles c 
+         JOIN market.pairs p ON c.symbol_id = p.symbol_id 
+         WHERE p.symbol = $1 AND c.tf_minutes = $2 
+         ORDER BY c.time_ms DESC LIMIT $3"
+    ).bind(&query.pair).bind(query.tf).bind(limit).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Candles error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     Ok(Json(candles.into_iter().rev().map(|c| CandleResponse { t: c.t, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v }).collect()))
 }
 
@@ -49,17 +56,41 @@ pub async fn get_signals(Query(query): Query<SignalsQuery>, State(state): State<
 }
 
 pub async fn get_open_positions(State(state): State<AppState>) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
-    let rows = sqlx::query("SELECT p.id, p.symbol as pair, CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side, p.quantity as qty, p.entry_price, p.entry_price as current_price, p.stop_loss, p.take_profit, 0.0 as pnl_usdt, 0.0 as pnl_pct, 'open' as status, p.open_time FROM trade.positions p WHERE p.close_time IS NULL ORDER BY p.open_time DESC").fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Positions error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    // Join with market.pairs to get symbol name, use meta JSONB for SL/TP if available
+    let rows = sqlx::query(
+        "SELECT p.id, mp.symbol as pair, 
+                CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side, 
+                p.qty, p.entry_price, p.entry_price as current_price, 
+                COALESCE((p.meta->>'stop_loss')::double precision, 0) as stop_loss, 
+                COALESCE((p.meta->>'take_profit')::double precision, 0) as take_profit, 
+                COALESCE(p.unrealized_pnl, 0) as pnl_usdt, 
+                0 as pnl_pct, 'open' as status, p.opened_at as open_time,
+                10 as candles_left
+         FROM trade.positions p 
+         JOIN market.pairs mp ON p.symbol_id = mp.symbol_id 
+         WHERE p.status = 1 
+         ORDER BY p.opened_at DESC"
+    ).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("Positions error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     Ok(Json(rows.into_iter().filter_map(|r| sqlx::Row::try_get::<serde_json::Value, _>(&r, 0).ok()).collect()))
 }
 
 pub async fn get_positions_history(State(state): State<AppState>) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
-    let rows = sqlx::query("SELECT p.id, p.symbol as pair, p.quantity as qty, p.entry_price, p.close_price, p.close_type, p.pnl_usdt, p.pnl_pct, p.open_time, p.close_time FROM trade.positions p WHERE p.close_time IS NOT NULL ORDER BY p.close_time DESC LIMIT 500").fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("History error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    let rows = sqlx::query(
+        "SELECT p.id, mp.symbol as pair, p.qty, p.entry_price, 
+                COALESCE((p.meta->>'close_price')::double precision, p.entry_price) as close_price, 
+                COALESCE(p.meta->>'close_type', 'manual') as close_type,
+                COALESCE(p.realized_pnl, 0) as pnl_usdt, 
+                0 as pnl_pct, p.opened_at as open_time, p.closed_at as close_time
+         FROM trade.positions p 
+         JOIN market.pairs mp ON p.symbol_id = mp.symbol_id 
+         WHERE p.status = 2 
+         ORDER BY p.closed_at DESC LIMIT 500"
+    ).fetch_all(&state.db_pool).await.map_err(|e| { tracing::error!("History error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     Ok(Json(rows.into_iter().filter_map(|r| sqlx::Row::try_get::<serde_json::Value, _>(&r, 0).ok()).collect()))
 }
 
 pub async fn get_pnl_overview(State(state): State<AppState>) -> Result<Json<PnlOverview>, StatusCode> {
-    let row = sqlx::query("SELECT COALESCE(SUM(pnl_usdt), 0) as closed_pnl, COUNT(*) FILTER (WHERE pnl_usdt > 0) as wins, COUNT(*) as total_trades FROM trade.positions WHERE close_time IS NOT NULL AND close_time > NOW() - INTERVAL '1 day'").fetch_one(&state.db_pool).await.map_err(|e| { tracing::error!("PnL error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    let row = sqlx::query("SELECT COALESCE(SUM(realized_pnl), 0) as closed_pnl, COUNT(*) FILTER (WHERE realized_pnl > 0) as wins, COUNT(*) as total_trades FROM trade.positions WHERE status = 2 AND closed_at > NOW() - INTERVAL '1 day'").fetch_one(&state.db_pool).await.map_err(|e| { tracing::error!("PnL error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
     let closed_pnl: f64 = row.get("closed_pnl");
     let wins: i64 = row.get("wins");
     let total_trades: i64 = row.get("total_trades");

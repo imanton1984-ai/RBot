@@ -1,0 +1,38 @@
+enabled = true
+btc_alert_threshold_pct = 0.5
+alt_alert_threshold_pct = 1.5
+volume_spike_threshold = 2.0
+monitor_timeframes = [1, 5, 15]
+top_alts_count = 20
+
+top_alt_symbols = [
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "AVAXUSDT",
+    "DOTUSDT",
+    "LINKUSDT",
+    "MATICUSDT",
+    "SHIBUSDT",
+    "LTCUSDT",
+    "TRXUSDT",
+    "ATOMUSDT",
+    "UNIUSDT",
+    "NEARUSDT",
+    "APTUSDT",
+    "ARBUSDT",
+    "OPUSDT",
+    "FILUSDT",
+]
+
+position_closer_enabled = false
+kafka_brokers = "localhost:19092"
+kafka_group_id = "risk-manager"
+topic_indicators = "indicators.close"
+topic_positions = "positions.events"
+topic_alerts = "risk.alerts"
+topic_orders_cmd = "orders.cmd"
+database_url = "postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance"

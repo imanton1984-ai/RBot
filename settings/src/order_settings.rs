@@ -1,7 +1,7 @@
 // settings/src/order_settings.rs
 //
 // Настройки ордеров: leverage, размер позиции, тип стратегии, тип ордера.
-// Загружаются из config/order_settings.json или env-переменных.
+// Загружаются из config/order_settings.toml или env-переменных.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -172,7 +172,7 @@ impl Default for OrderSettings {
 }
 
 impl OrderSettings {
-    /// Загрузить из JSON-файла. Если файл не найден — вернуть дефолт.
+    /// Загрузить из TOML-файла. Если файл не найден — вернуть дефолт.
     pub fn load_from_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
@@ -181,7 +181,7 @@ impl OrderSettings {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let settings: Self = serde_json::from_str(&content)?;
+        let settings: Self = toml::from_str(&content)?;
         info!(
             "Loaded order settings: leverage={}, max_orders={}, size_type={}, size_value={}, strategy={}, order_type={}, trading_mode={}",
             settings.leverage,
@@ -196,9 +196,9 @@ impl OrderSettings {
         Ok(settings)
     }
 
-    /// Загрузить из стандартного пути config/order_settings.json
+    /// Загрузить из стандартного пути config/order_settings.toml
     pub fn load() -> anyhow::Result<Self> {
-        Self::load_from_file("config/order_settings.json")
+        Self::load_from_file("config/order_settings.toml")
     }
 
     /// Загрузить с override из env-переменных
@@ -270,9 +270,9 @@ impl OrderSettings {
         Ok(())
     }
 
-    /// Сохранить в JSON-файл
+    /// Сохранить в TOML-файл
     pub fn save_to_file(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let content = serde_json::to_string_pretty(self)?;
+        let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
         Ok(())
     }
@@ -338,8 +338,8 @@ mod tests {
     #[test]
     fn test_serde_roundtrip() {
         let settings = OrderSettings::default();
-        let json = serde_json::to_string_pretty(&settings).unwrap();
-        let deserialized: OrderSettings = serde_json::from_str(&json).unwrap();
+        let toml_str = toml::to_string_pretty(&settings).unwrap();
+        let deserialized: OrderSettings = toml::from_str(&toml_str).unwrap();
         assert_eq!(deserialized.leverage, settings.leverage);
         assert_eq!(deserialized.trade_size_type, settings.trade_size_type);
     }

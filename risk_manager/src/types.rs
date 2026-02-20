@@ -265,12 +265,12 @@ impl Default for RiskManagerConfig {
 }
 
 impl RiskManagerConfig {
-    /// Загрузить из JSON-файла с fallback на дефолт
+    /// Загрузить из TOML-файла с fallback на дефолт
     pub fn load() -> anyhow::Result<Self> {
-        let path = "config/risk_manager.json";
+        let path = "config/risk_manager.toml";
         if std::path::Path::new(path).exists() {
             let content = std::fs::read_to_string(path)?;
-            let config: Self = serde_json::from_str(&content)?;
+            let config: Self = toml::from_str(&content)?;
             Ok(config)
         } else {
             tracing::warn!("Risk manager config not found at {}, using defaults", path);

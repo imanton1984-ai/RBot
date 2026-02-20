@@ -1,0 +1,3 @@
+taker_fee = 0.04
+maker_fee = 0.02
+account_mode = "binance_futures"

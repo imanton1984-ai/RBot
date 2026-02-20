@@ -80,7 +80,7 @@ impl Default for SuperEntryConfig {
             lookahead_bars: 50, // was 20
             p_threshold: 0.50,  //was 0.55
             sl_fraction: 0.75, //was 0.5
-            max_hold_bars: 25,  // Force-close after 15 bars (reduces expired trades)
+            max_hold_bars: 25,  // Force-close after 25 bars (reduces expired trades)
             tf_targets: tf_target_move_pct(),
             model_path_template: "models/super_entry_v1_tf{tf}.ubj".to_string(),
             direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),

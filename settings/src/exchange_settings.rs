@@ -2,6 +2,7 @@
 //
 // Настройки биржи: API ключи (из ~/.settings.json), комиссии, режим аккаунта.
 // API ключи НИКОГДА не хранятся в репозитории — только в скрытом файле home-директории.
+// Конфигурация загружается из config/exchange_settings.toml
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -139,7 +140,7 @@ impl ExchangeSettings {
         })
     }
 
-    /// Загрузить настройки биржи из JSON-файла
+    /// Загрузить настройки биржи из TOML-файла
     pub fn load_from_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
@@ -148,7 +149,7 @@ impl ExchangeSettings {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let mut settings: Self = serde_json::from_str(&content)?;
+        let mut settings: Self = toml::from_str(&content)?;
 
         // Загружаем credentials отдельно (из ~/.settings.json)
         match Self::load_credentials() {
@@ -164,9 +165,9 @@ impl ExchangeSettings {
         Ok(settings)
     }
 
-    /// Загрузить из стандартного пути config/exchange_settings.json
+    /// Загрузить из стандартного пути config/exchange_settings.toml
     pub fn load() -> anyhow::Result<Self> {
-        Self::load_from_file("config/exchange_settings.json")
+        Self::load_from_file("config/exchange_settings.toml")
     }
 
     /// Загрузить с override из env-переменных
@@ -238,7 +239,7 @@ impl ExchangeSettings {
         notional_usdt * self.maker_fee / 100.0
     }
 
-    /// Сохранить настройки (без credentials!) в JSON-файл
+    /// Сохранить настройки (без credentials!) в TOML-файл
     pub fn save_to_file(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
         // Создаём копию без credentials для сохранения
         let safe_settings = ExchangeSettings {
@@ -247,7 +248,7 @@ impl ExchangeSettings {
             account_mode: self.account_mode,
             credentials: None, // Никогда не сохраняем ключи в конфиг проекта
         };
-        let content = serde_json::to_string_pretty(&safe_settings)?;
+        let content = toml::to_string_pretty(&safe_settings)?;
         std::fs::write(path, content)?;
         Ok(())
     }
@@ -294,8 +295,8 @@ mod tests {
     #[test]
     fn test_serde_roundtrip() {
         let settings = ExchangeSettings::default();
-        let json = serde_json::to_string_pretty(&settings).unwrap();
-        let deserialized: ExchangeSettings = serde_json::from_str(&json).unwrap();
+        let toml_str = toml::to_string_pretty(&settings).unwrap();
+        let deserialized: ExchangeSettings = toml::from_str(&toml_str).unwrap();
         assert!((deserialized.taker_fee - settings.taker_fee).abs() < 1e-8);
         assert_eq!(deserialized.account_mode, settings.account_mode);
     }
@@ -307,9 +308,9 @@ mod tests {
             api_key: "test_key".to_string(),
             api_secret: "test_secret".to_string(),
         });
-        let json = serde_json::to_string(&settings).unwrap();
-        // credentials should NOT appear in JSON
-        assert!(!json.contains("test_key"));
-        assert!(!json.contains("test_secret"));
+        let toml_str = toml::to_string(&settings).unwrap();
+        // credentials should NOT appear in TOML
+        assert!(!toml_str.contains("test_key"));
+        assert!(!toml_str.contains("test_secret"));
     }
 }
