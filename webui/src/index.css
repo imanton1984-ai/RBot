@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #0B0F14;
+  color: #E5E7EB;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Resize handles */
+[data-panel-resize-handle-enabled] {
+  transition: background-color 0.15s ease;
+}
+
+[data-panel-resize-handle-enabled]:hover {
+  background-color: #F0B90B;
+}
+
+/* Binance-style button */
+.btn-binance {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+}
+
+.btn-binance-primary {
+  @apply bg-binanceYellow text-black hover:bg-opacity-90;
+}
+
+.btn-binance-success {
+  @apply bg-bull text-white hover:bg-opacity-90;
+}
+
+.btn-binance-danger {
+  @apply bg-bear text-white hover:bg-opacity-90;
+}
+
+.btn-binance-secondary {
+  @apply bg-panelAlt text-textPrimary border border-border hover:bg-opacity-80;
+}
+
+/* Card style */
+.card {
+  @apply bg-panel rounded-lg border border-border p-4;
+}
+
+/* Input style */
+.input-binance {
+  @apply bg-panelAlt border border-border rounded-lg px-3 py-2 text-textPrimary 
+         focus:outline-none focus:border-binanceYellow transition-colors;
+}

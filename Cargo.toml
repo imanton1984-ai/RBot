@@ -14,6 +14,7 @@ members = [
   "strategies/level_strategy",    # <-- Level Strategy (базовая стратегия)
   "settings",                     # <-- Настройки ордеров и биржи
   "risk_manager",                 # <-- Risk Manager (мониторинг рисков)
+  "webui",                        # <-- WebUI сервер
 ]
 resolver = "2"
 

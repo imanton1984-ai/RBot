@@ -1,0 +1,27 @@
+[package]
+name = "webui"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "webui_server"
+path = "src/bin/server.rs"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true, features = ["ws"] }
+tower-http = { workspace = true, features = ["cors", "fs", "trace"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true, features = ["derive"] }
+chrono = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+futures = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tokio-stream = { workspace = true }
+common = { path = "../common" }
+database = { path = "../database" }
+settings = { path = "../settings" }
