@@ -50,6 +50,12 @@ pub struct SuperEntryConfig {
     /// Stop-loss as a fraction of the target move (e.g., 0.5 = SL = 50% of TP).
     pub sl_fraction: f64,
 
+    /// Maximum bars to hold a trade before force-closing.
+    /// If a trade doesn't hit TP or SL within max_hold_bars, close at market.
+    /// Set to 0 to use lookahead_bars as max hold (original behavior).
+    /// Env: SUPER_ENTRY_MAX_HOLD_BARS
+    pub max_hold_bars: usize,
+
     /// Target move percentages per timeframe (override defaults).
     /// Key = tf_minutes, Value = target_pct.
     pub tf_targets: HashMap<i32, f64>,
@@ -74,6 +80,7 @@ impl Default for SuperEntryConfig {
             lookahead_bars: 50, // was 20
             p_threshold: 0.50,  //was 0.55
             sl_fraction: 0.75, //was 0.5
+            max_hold_bars: 25,  // Force-close after 15 bars (reduces expired trades)
             tf_targets: tf_target_move_pct(),
             model_path_template: "models/super_entry_v1_tf{tf}.ubj".to_string(),
             direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),
@@ -100,11 +107,24 @@ impl SuperEntryConfig {
         if let Ok(v) = std::env::var("SUPER_ENTRY_SL_FRACTION") {
             if let Ok(n) = v.parse() { cfg.sl_fraction = n; }
         }
+        if let Ok(v) = std::env::var("SUPER_ENTRY_MAX_HOLD_BARS") {
+            if let Ok(n) = v.parse() { cfg.max_hold_bars = n; }
+        }
         if let Ok(v) = std::env::var("SUPER_ENTRY_TRAIN_SPLIT") {
             if let Ok(n) = v.parse() { cfg.train_split_ratio = n; }
         }
 
         cfg
+    }
+
+    /// Effective max hold bars for backtesting.
+    /// If max_hold_bars is 0, falls back to lookahead_bars.
+    pub fn effective_max_hold(&self) -> usize {
+        if self.max_hold_bars > 0 {
+            self.max_hold_bars
+        } else {
+            self.lookahead_bars
+        }
     }
 
     /// Get target move % for a timeframe, using override or default.
@@ -190,24 +210,35 @@ mod tests {
     fn test_default_config() {
         let cfg = SuperEntryConfig::default();
         assert_eq!(cfg.warmup_bars, 300);
-        assert_eq!(cfg.lookahead_bars, 20);
-        assert!((cfg.p_threshold - 0.55).abs() < 1e-6);
+        assert_eq!(cfg.lookahead_bars, 50);
+        assert!((cfg.p_threshold - 0.50).abs() < 1e-6);
+        assert_eq!(cfg.max_hold_bars, 15);
+        assert_eq!(cfg.effective_max_hold(), 15);
+    }
+
+    #[test]
+    fn test_max_hold_zero_fallback() {
+        let mut cfg = SuperEntryConfig::default();
+        cfg.max_hold_bars = 0;
+        assert_eq!(cfg.effective_max_hold(), cfg.lookahead_bars);
     }
 
     #[test]
     fn test_target_move_pct() {
         let cfg = SuperEntryConfig::default();
-        assert!((cfg.target_pct_for_tf(1) - 1.0).abs() < 1e-6);
-        assert!((cfg.target_pct_for_tf(60) - 3.75).abs() < 1e-6);
-        assert!((cfg.target_pct_for_tf(1440) - 5.75).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(1) - 0.95).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(60) - 4.4).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(1440) - 8.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_sl_pct() {
         let cfg = SuperEntryConfig::default();
-        // SL = 50% of TP target
-        assert!((cfg.sl_pct_for_tf(1) - 0.5).abs() < 1e-6);
-        assert!((cfg.sl_pct_for_tf(60) - 1.875).abs() < 1e-6);
+        // SL = 75% of TP target
+        let expected_1m = 0.95 * 0.75;
+        assert!((cfg.sl_pct_for_tf(1) - expected_1m).abs() < 1e-6);
+        let expected_1h = 4.4 * 0.75;
+        assert!((cfg.sl_pct_for_tf(60) - expected_1h).abs() < 1e-6);
     }
 
     #[test]

@@ -55,7 +55,8 @@ enum TradeOutcome {
 
 /// Simulate a trade from a signal forward.
 ///
-/// Looks ahead `lookahead` candles for TP or SL hit.
+/// Looks ahead `max_hold` candles for TP or SL hit.
+/// If neither is hit within max_hold bars, force-close at market (Expired).
 fn simulate_trade(
     candles: &[CandleWithIndicators],
     signal_idx: usize,
@@ -63,7 +64,7 @@ fn simulate_trade(
     entry_price: f64,
     tp_pct: f64,
     sl_pct: f64,
-    lookahead: usize,
+    max_hold: usize,
 ) -> TradeResult {
     let tp_price = if direction == 1 {
         entry_price * (1.0 + tp_pct / 100.0)
@@ -77,7 +78,7 @@ fn simulate_trade(
         entry_price * (1.0 + sl_pct / 100.0)
     };
 
-    let end_idx = (signal_idx + lookahead).min(candles.len() - 1);
+    let end_idx = (signal_idx + max_hold).min(candles.len() - 1);
 
     for k in (signal_idx + 1)..=end_idx {
         let high = candles[k].high;
@@ -260,6 +261,7 @@ async fn main() -> Result<()> {
     println!("    P threshold:    {}", config.p_threshold);
     println!("    Warmup bars:    {}", config.warmup_bars);
     println!("    Lookahead:      {}", config.lookahead_bars);
+    println!("    Max hold bars:  {} (force-close after N bars)", config.effective_max_hold());
     println!("    SL fraction:    {}", config.sl_fraction);
     println!("    GPU:            {}", use_gpu);
     println!();
@@ -340,7 +342,7 @@ async fn main() -> Result<()> {
                         entry_price,
                         target_pct,
                         sl_pct,
-                        config.lookahead_bars,
+                        config.effective_max_hold(),
                     );
 
                     trade.tf_minutes = tf;
