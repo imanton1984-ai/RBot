@@ -23,6 +23,7 @@ ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS sl_price DOUBLE PRECISION;
 -- Take-profit price
 ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS tp_price DOUBLE PRECISION;
 -- Actual exit price (filled on close)
+ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS current_price DOUBLE PRECISION;
 ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS exit_price DOUBLE PRECISION;
 -- Why the position was closed: tp_hit | sl_hit | max_bars | risk_manager | manual
 ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS close_reason TEXT;

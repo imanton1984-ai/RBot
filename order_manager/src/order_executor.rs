@@ -84,23 +84,26 @@ impl OrderExecutor {
             symbol, entry_side, filled_price, filled_qty, entry_order.order_id
         );
 
-        // 4. Place SL order (with -4120 fallback to client-side monitoring)
+        // 4. Round SL/TP prices by exchange tickSize to avoid -1111 precision errors
+        let sl_price_rounded = self.exchange_info.round_price(symbol, signal.sl_price).await;
+        let tp_price_rounded = self.exchange_info.round_price(symbol, signal.tp_price).await;
+
+        // 4a. Place SL order (with -4120/-1111 fallback to client-side monitoring)
         let sl_order = match self
             .client
-            .place_stop_market(symbol, close_side, filled_qty, signal.sl_price)
+            .place_stop_market(symbol, close_side, filled_qty, sl_price_rounded)
             .await
         {
             Ok(order) => {
-                info!("✅ SL placed: {} stopPrice={:.4}, orderId={}", symbol, signal.sl_price, order.order_id);
+                info!("✅ SL placed: {} stopPrice={:.8}, orderId={}", symbol, sl_price_rounded, order.order_id);
                 Some(order)
             }
             Err(e) => {
                 let err_str = format!("{}", e);
-                if err_str.contains("-4120") {
+                if err_str.contains("-4120") || err_str.contains("-1111") {
                     warn!(
-                        "⚠️ {} does not support STOP_MARKET via /fapi/v1/order (error -4120). \
-                         Client-side SL monitoring active via PositionTracker.",
-                        symbol
+                        "⚠️ {} SL order rejected ({}). Client-side SL monitoring active via PositionTracker.",
+                        symbol, if err_str.contains("-4120") { "-4120: unsupported order type" } else { "-1111: precision error" }
                     );
                 } else {
                     error!("❌ Failed to place SL for {}: {}", symbol, e);
@@ -109,23 +112,22 @@ impl OrderExecutor {
             }
         };
 
-        // 5. Place TP order (with -4120 fallback to client-side monitoring)
+        // 5. Place TP order (with -4120/-1111 fallback to client-side monitoring)
         let tp_order = match self
             .client
-            .place_take_profit_market(symbol, close_side, filled_qty, signal.tp_price)
+            .place_take_profit_market(symbol, close_side, filled_qty, tp_price_rounded)
             .await
         {
             Ok(order) => {
-                info!("✅ TP placed: {} stopPrice={:.4}, orderId={}", symbol, signal.tp_price, order.order_id);
+                info!("✅ TP placed: {} stopPrice={:.8}, orderId={}", symbol, tp_price_rounded, order.order_id);
                 Some(order)
             }
             Err(e) => {
                 let err_str = format!("{}", e);
-                if err_str.contains("-4120") {
+                if err_str.contains("-4120") || err_str.contains("-1111") {
                     warn!(
-                        "⚠️ {} does not support TAKE_PROFIT_MARKET via /fapi/v1/order (error -4120). \
-                         Client-side TP monitoring active via PositionTracker.",
-                        symbol
+                        "⚠️ {} TP order rejected ({}). Client-side TP monitoring active via PositionTracker.",
+                        symbol, if err_str.contains("-4120") { "-4120: unsupported order type" } else { "-1111: precision error" }
                     );
                 } else {
                     error!("❌ Failed to place TP for {}: {}", symbol, e);

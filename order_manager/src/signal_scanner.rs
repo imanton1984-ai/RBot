@@ -92,17 +92,17 @@ impl SignalScanner {
             return Ok(Vec::new());
         }
 
-        // 2. Отфильтровать уже использованные сигналы
-        let used_signal_keys = self.fetch_used_signal_keys(tf_minutes).await?;
+        // 2. Get symbols that already have ANY open position (across ALL timeframes)
+        let used_symbols = self.fetch_open_position_symbols().await?;
 
         // 3. Для каждого сигнала проверить актуальность цены
         let mut qualified = Vec::new();
 
         for raw in &raw_signals {
-            let signal_key = (raw.symbol_id, raw.tf_minutes, raw.time_ms);
-            if used_signal_keys.contains(&signal_key) {
+            // Skip if this symbol already has an open position on ANY timeframe
+            if used_symbols.contains(&raw.symbol) {
                 debug!(
-                    "SignalScanner: skipping {} tf={}m — already has open position",
+                    "SignalScanner: skipping {} tf={}m — already has open position for this symbol",
                     raw.symbol, tf_minutes
                 );
                 continue;
@@ -229,29 +229,26 @@ impl SignalScanner {
         Ok(signals)
     }
 
-    /// Получить ключи сигналов, для которых уже есть ОТКРЫТАЯ позиция.
-    async fn fetch_used_signal_keys(&self, tf_minutes: i16) -> Result<Vec<(i64, i16, i64)>> {
+    /// Получить все символы, для которых уже есть ОТКРЫТАЯ позиция (на ЛЮБОМ TF).
+    /// Prevents opening duplicate positions for the same coin.
+    async fn fetch_open_position_symbols(&self) -> Result<Vec<String>> {
         let rows = sqlx::query(
             r#"
-            SELECT symbol_id, tf_minutes,
-                   EXTRACT(EPOCH FROM signal_time)::bigint * 1000 as signal_ms
+            SELECT DISTINCT COALESCE(symbol, '') as symbol
             FROM trade.positions
             WHERE status = 1
-              AND tf_minutes = $1
-              AND signal_time IS NOT NULL
+              AND symbol IS NOT NULL
+              AND symbol != ''
             "#,
         )
-        .bind(tf_minutes)
         .fetch_all(&self.pool)
         .await?;
 
         Ok(rows
             .iter()
             .map(|r| {
-                let symbol_id: i64 = r.get("symbol_id");
-                let tf: i16 = r.get("tf_minutes");
-                let ms: i64 = r.get("signal_ms");
-                (symbol_id, tf, ms)
+                let s: String = r.get("symbol");
+                s
             })
             .collect())
     }

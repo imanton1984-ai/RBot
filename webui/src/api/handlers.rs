@@ -379,7 +379,7 @@ pub async fn get_open_positions(
                 CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
                 p.qty,
                 p.entry_price,
-                COALESCE(p.entry_price, 0) as current_price,
+                COALESCE(p.current_price, p.entry_price, 0) as current_price,
                 COALESCE(p.sl_price, 0) as stop_loss,
                 COALESCE(p.tp_price, 0) as take_profit,
                 COALESCE(p.unrealized_pnl, 0) as pnl_usdt,

@@ -174,6 +174,7 @@ impl PositionTracker {
                 pos.position_id,
                 pos.unrealized_pnl,
                 pos.candles_left,
+                pos.current_price,
             )
             .await
             .ok();
@@ -322,18 +323,20 @@ impl PositionTracker {
         }
     }
 
-    /// Статический метод: обновить pnl в БД
+    /// Статический метод: обновить pnl и current_price в БД
     async fn update_position_pnl_static(
         pool: &PgPool,
         position_id: i64,
         unrealized_pnl: f64,
         candles_left: i16,
+        current_price: f64,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE trade.positions SET unrealized_pnl = $1, candles_left = $2, updated_at = now() WHERE id = $3",
+            "UPDATE trade.positions SET unrealized_pnl = $1, candles_left = $2, current_price = $3, updated_at = now() WHERE id = $4",
         )
         .bind(unrealized_pnl)
         .bind(candles_left)
+        .bind(current_price)
         .bind(position_id)
         .execute(pool)
         .await?;
