@@ -141,8 +141,9 @@ async fn main() -> Result<()> {
         info!("📊 Current state: {}", tracker_lock.summary());
     }
 
-    let is_auto = order_settings.trading_mode.is_auto();
-    let _is_active = order_settings.trading_mode.is_active(); // true for auto/manual, false for off
+    // NOTE: trading_mode is now re-read from config on EVERY scanner cycle.
+    // This allows WebUI to toggle auto-trading at runtime by modifying order_settings.toml.
+    let _initial_mode = order_settings.trading_mode;
 
     // ─── Spawn Tasks ────────────────────────────────────────
 
@@ -157,6 +158,12 @@ async fn main() -> Result<()> {
 
         tokio::spawn(async move {
             loop {
+                // Re-read trading_mode from config file every cycle
+                // This allows WebUI to toggle trading mode at runtime
+                let current_auto = settings_lib::OrderSettings::load()
+                    .map(|s| s.trading_mode.is_auto())
+                    .unwrap_or(false);
+
                 if let Err(e) = run_scanner_cycle(
                     &scanner,
                     &executor,
@@ -164,7 +171,7 @@ async fn main() -> Result<()> {
                     &config,
                     &allocation,
                     &redpanda,
-                    is_auto,
+                    current_auto,
                 )
                 .await
                 {

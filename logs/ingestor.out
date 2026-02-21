@@ -1,6 +1,0 @@
-[2m2026-02-21T16:11:26.707231Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Refreshing universe pairs...
-Error: error decoding response body
-
-Caused by:
-    0: request or response body error
-    1: operation timed out

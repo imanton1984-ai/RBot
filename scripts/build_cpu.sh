@@ -39,6 +39,7 @@ else
     run_with_pty "cargo build --$PROFILE -p compute --bin compute_realtime"
     run_with_pty "cargo build --$PROFILE -p connections"
     run_with_pty "cargo build --$PROFILE -p ingestor"
+    run_with_pty "cargo build --$PROFILE -p order_manager"
 
     ok "CPU Build finished."
 fi

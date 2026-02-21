@@ -15,7 +15,7 @@ export LIBRARY_PATH="$XGBOOST_LIB_DIR:${LIBRARY_PATH:-}"
 TARGET_DIR="$ROOT_DIR/target/release"
 
 # Check if binaries already exist and are up-to-date
-BINARIES=("compute_history" "compute_realtime" "connections" "ingestor")
+BINARIES=("compute_history" "compute_realtime" "connections" "ingestor" "order_manager")
 
 all_built=true
 for bin in "${BINARIES[@]}"; do
@@ -41,6 +41,7 @@ else
     # Build others
     run_with_pty "cargo build --release -p connections"
     run_with_pty "cargo build --release -p ingestor"
+    run_with_pty "cargo build --release -p order_manager"
 
     ok "GPU Build finished."
 fi

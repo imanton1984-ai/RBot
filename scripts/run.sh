@@ -144,6 +144,11 @@ else
     log "Predictors and trade signals will be computed by compute_history/compute_realtime"
 fi
 
+# 7. Order Manager (auto-trading engine)
+section "ORDER MANAGER"
+log "Starting order_manager service..."
+start_svc "order_manager" "order_manager"
+
 section "ALL SERVICES STARTED"
 ok "START DONE @ $(date)"
 log "Services started successfully"
