@@ -1,0 +1,221 @@
+[2m2026-02-21T18:47:01.879009Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-21T18:47:01.879035Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-02-21T18:47:01.879042Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-21T18:47:01.879115Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:47:01.879131Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:47:01.879146Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Score range: [0.7, 0.8], max_drift: 0.2%
+[2m2026-02-21T18:47:01.879200Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-02-21T18:47:01.879212Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-02-21T18:47:01.879220Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=10x, trade_size=10 USDT (fixed_usdt), strategy=ml_super_entry
+[2m2026-02-21T18:47:01.879228Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m ⚠️ Trading mode is OFF — order_manager will run but NOT scan or trade.
+[2m2026-02-21T18:47:01.879233Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m   Click START TRADING in WebUI or set trading_mode = "auto" in order_manager.toml
+[2m2026-02-21T18:47:01.884559Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-02-21T18:47:06.369597Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 104.64 | Positions: 0
+[2m2026-02-21T18:47:06.377076Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-02-21T18:47:06.378717Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-02-21T18:47:09.804964Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 684 symbols
+[2m2026-02-21T18:47:09.805190Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 597 active symbols
+[2m2026-02-21T18:47:09.805199Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 597 symbols
+[2m2026-02-21T18:47:09.811475Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-02-21T18:47:09.811489Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-02-21T18:47:09.811495Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-02-21T18:47:09.811507Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-21T18:47:09.811512Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-02-21T18:47:09.811517Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-21T18:47:09.811581Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:47:09.811944Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-02-21T18:47:09.817042Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:47:09.822183Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:47:39.823032Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:47:39.823418Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:47:39.824579Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:48:09.825663Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:48:09.826083Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:48:09.827271Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:48:39.828677Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:48:39.829033Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:48:39.829856Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:49:09.831735Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:49:09.832194Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:49:09.833141Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:49:39.834748Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:49:39.835187Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:49:39.838951Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:50:09.840016Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:50:09.840440Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:50:09.844064Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:50:39.845505Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:50:39.850431Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:50:39.860140Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:51:09.861054Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:51:09.865501Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:51:09.874125Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:51:39.875570Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:51:39.876033Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:51:39.877606Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:52:09.878877Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:52:09.879281Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:52:09.880691Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:52:39.881145Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:52:39.881567Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:52:39.882955Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:53:09.884056Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:53:09.884387Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:53:09.885873Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:53:39.887655Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:53:39.888053Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:53:39.889530Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:54:09.890878Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:54:09.891284Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:54:09.892852Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:54:39.894135Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:54:39.894543Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:54:39.896010Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:55:09.897572Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:55:09.897977Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:55:09.899411Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:55:39.900073Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:55:39.900448Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:55:39.902510Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:56:09.903404Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:56:09.903803Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:56:09.905279Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:56:39.906472Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:56:39.906818Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:56:39.908307Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:57:09.909188Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:57:09.909606Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:57:09.911309Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:57:39.912362Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:57:39.912744Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:57:39.914258Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:58:09.915506Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:58:09.915924Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:58:09.917698Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:58:39.918510Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:58:39.918961Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:58:39.921174Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:59:09.922022Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:59:09.922406Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:59:09.923819Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T18:59:39.925324Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T18:59:39.925706Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T18:59:39.927175Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T19:00:09.927990Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T19:00:09.928316Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-21T19:00:09.939961Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 5 qualified signals across timeframes
+[2m2026-02-21T19:00:09.939984Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening FETUSDT SHORT position: price=0.1672, qty=598.00000000, SL=0.1727, TP=0.1598, score=0.765
+[2m2026-02-21T19:00:10.827959Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for FETUSDT to 10x
+[2m2026-02-21T19:00:11.114286Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: FETUSDT SELL NEW qty=598.00000000 → orderId=11025948634
+[2m2026-02-21T19:00:11.114320Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 11025948634 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:11.702726Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 11025948634 FILLED (poll #1, ~300ms): avg_price=0.16720000, qty=598.00000000
+[2m2026-02-21T19:00:11.702753Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: FETUSDT SELL avg_price=0.16720000, qty=598.00000000, orderId=11025948634
+[2m2026-02-21T19:00:11.988067Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ FETUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:12.274616Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Take-profit order placed: FETUSDT BUY stopPrice=0.15984320 → orderId=11025948702
+[2m2026-02-21T19:00:12.274644Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ TP placed: FETUSDT stopPrice=0.1598, orderId=11025948702
+[2m2026-02-21T19:00:12.279651Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #1 opened: FETUSDT SHORT entry=0.1672 SL=0.1727 TP=0.1598 tf=60m candles_left=25
+[2m2026-02-21T19:00:12.285289Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #1 FETUSDT SHORT tf=60m
+[2m2026-02-21T19:00:12.285309Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening INJUSDT SHORT position: price=3.7470, qty=26.60000000, SL=3.8482, TP=3.6121, score=0.758
+[2m2026-02-21T19:00:12.572522Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for INJUSDT to 10x
+[2m2026-02-21T19:00:12.859197Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: INJUSDT SELL NEW qty=26.60000000 → orderId=12551417270
+[2m2026-02-21T19:00:12.859233Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 12551417270 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:13.450434Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 12551417270 FILLED (poll #1, ~300ms): avg_price=3.75200000, qty=26.60000000
+[2m2026-02-21T19:00:13.450473Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: INJUSDT SELL avg_price=3.75200000, qty=26.60000000, orderId=12551417270
+[2m2026-02-21T19:00:13.735733Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ INJUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:14.020884Z[0m [31mERROR[0m [2morder_manager::order_executor[0m[2m:[0m ❌ Failed to place TP for INJUSDT: Take-profit order failed for INJUSDT BUY: 400 Bad Request — {"code":-1111,"msg":"Precision is over the maximum defined for this asset."}
+[2m2026-02-21T19:00:14.020912Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ INJUSDT SL=3.8482 / TP=3.6121 managed entirely client-side. PositionTracker checks every 10s. Bot downtime = unprotected!
+[2m2026-02-21T19:00:14.022386Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #2 opened: INJUSDT SHORT entry=3.7520 SL=3.8482 TP=3.6121 tf=15m candles_left=25
+[2m2026-02-21T19:00:14.027837Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #2 INJUSDT SHORT tf=15m
+[2m2026-02-21T19:00:14.027855Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening SUIUSDT SHORT position: price=0.9570, qty=104.40000000, SL=0.9886, TP=0.9149, score=0.757
+[2m2026-02-21T19:00:14.317960Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for SUIUSDT to 10x
+[2m2026-02-21T19:00:14.603599Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: SUIUSDT SELL NEW qty=104.40000000 → orderId=37515402557
+[2m2026-02-21T19:00:14.603636Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 37515402557 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:15.189657Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 37515402557 FILLED (poll #1, ~300ms): avg_price=0.95740000, qty=104.40000000
+[2m2026-02-21T19:00:15.189692Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: SUIUSDT SELL avg_price=0.95740000, qty=104.40000000, orderId=37515402557
+[2m2026-02-21T19:00:15.474792Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ SUIUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:15.761581Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ SUIUSDT does not support TAKE_PROFIT_MARKET via /fapi/v1/order (error -4120). Client-side TP monitoring active via PositionTracker.
+[2m2026-02-21T19:00:15.761608Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ SUIUSDT SL=0.9886 / TP=0.9149 managed entirely client-side. PositionTracker checks every 10s. Bot downtime = unprotected!
+[2m2026-02-21T19:00:15.762668Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #3 opened: SUIUSDT SHORT entry=0.9574 SL=0.9886 TP=0.9149 tf=60m candles_left=25
+[2m2026-02-21T19:00:15.768035Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #3 SUIUSDT SHORT tf=60m
+[2m2026-02-21T19:00:15.768058Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening KSMUSDT SHORT position: price=4.9410, qty=20.20000000, SL=5.1041, TP=4.7236, score=0.742
+[2m2026-02-21T19:00:16.057228Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for KSMUSDT to 10x
+[2m2026-02-21T19:00:16.343108Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: KSMUSDT SELL NEW qty=20.20000000 → orderId=12491773896
+[2m2026-02-21T19:00:16.343143Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 12491773896 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:16.932631Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 12491773896 FILLED (poll #1, ~300ms): avg_price=4.93500000, qty=20.20000000
+[2m2026-02-21T19:00:16.932659Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: KSMUSDT SELL avg_price=4.93500000, qty=20.20000000, orderId=12491773896
+[2m2026-02-21T19:00:17.217890Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ KSMUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:17.503081Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ KSMUSDT does not support TAKE_PROFIT_MARKET via /fapi/v1/order (error -4120). Client-side TP monitoring active via PositionTracker.
+[2m2026-02-21T19:00:17.503111Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ KSMUSDT SL=5.1041 / TP=4.7236 managed entirely client-side. PositionTracker checks every 10s. Bot downtime = unprotected!
+[2m2026-02-21T19:00:17.504308Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #4 opened: KSMUSDT SHORT entry=4.9350 SL=5.1041 TP=4.7236 tf=60m candles_left=25
+[2m2026-02-21T19:00:17.509752Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #4 KSMUSDT SHORT tf=60m
+[2m2026-02-21T19:00:17.509768Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening FARTCOINUSDT SHORT position: price=0.1871, qty=534.40000000, SL=0.1933, TP=0.1789, score=0.717
+[2m2026-02-21T19:00:17.798463Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for FARTCOINUSDT to 10x
+[2m2026-02-21T19:00:18.084426Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: FARTCOINUSDT SELL NEW qty=534.40000000 → orderId=10521882411
+[2m2026-02-21T19:00:18.084460Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 10521882411 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:18.673257Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 10521882411 FILLED (poll #1, ~300ms): avg_price=0.18710000, qty=534.40000000
+[2m2026-02-21T19:00:18.673287Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: FARTCOINUSDT SELL avg_price=0.18710000, qty=534.40000000, orderId=10521882411
+[2m2026-02-21T19:00:18.958977Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ FARTCOINUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:19.244331Z[0m [31mERROR[0m [2morder_manager::order_executor[0m[2m:[0m ❌ Failed to place TP for FARTCOINUSDT: Take-profit order failed for FARTCOINUSDT BUY: 400 Bad Request — {"code":-1111,"msg":"Precision is over the maximum defined for this asset."}
+[2m2026-02-21T19:00:19.244361Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ FARTCOINUSDT SL=0.1933 / TP=0.1789 managed entirely client-side. PositionTracker checks every 10s. Bot downtime = unprotected!
+[2m2026-02-21T19:00:19.245480Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #5 opened: FARTCOINUSDT SHORT entry=0.1871 SL=0.1933 TP=0.1789 tf=60m candles_left=25
+[2m2026-02-21T19:00:19.250873Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #5 FARTCOINUSDT SHORT tf=60m
+[2m2026-02-21T19:00:19.250895Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 After scanner: Open: 5 (1h=4, 4h=0, 15m=1) | Total unPnL: 0.00 USDT
+[2m2026-02-21T19:00:21.380273Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 5 (1h=4, 4h=0, 15m=1) | Total unPnL: -0.22 USDT
+[2m2026-02-21T19:00:32.848241Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 5 (1h=4, 4h=0, 15m=1) | Total unPnL: -0.19 USDT
+[2m2026-02-21T19:00:44.304420Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 5 (1h=4, 4h=0, 15m=1) | Total unPnL: -0.16 USDT
+[2m2026-02-21T19:00:49.252947Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T19:00:49.253390Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 3), (240, 2)]
+[2m2026-02-21T19:00:49.256526Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 3 qualified signals across timeframes
+[2m2026-02-21T19:00:49.256543Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening FETUSDT SHORT position: price=0.1672, qty=598.00000000, SL=0.1727, TP=0.1598, score=0.765
+[2m2026-02-21T19:00:49.544583Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for FETUSDT to 10x
+[2m2026-02-21T19:00:49.831511Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: FETUSDT SELL NEW qty=598.00000000 → orderId=11025949660
+[2m2026-02-21T19:00:49.831539Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 11025949660 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:50.417221Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 11025949660 FILLED (poll #1, ~300ms): avg_price=0.16720000, qty=598.00000000
+[2m2026-02-21T19:00:50.417259Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: FETUSDT SELL avg_price=0.16720000, qty=598.00000000, orderId=11025949660
+[2m2026-02-21T19:00:50.702525Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ FETUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:50.988226Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ FETUSDT does not support TAKE_PROFIT_MARKET via /fapi/v1/order (error -4120). Client-side TP monitoring active via PositionTracker.
+[2m2026-02-21T19:00:50.988260Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ FETUSDT SL=0.1727 / TP=0.1598 managed entirely client-side. PositionTracker checks every 10s. Bot downtime = unprotected!
+[2m2026-02-21T19:00:50.989460Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #6 opened: FETUSDT SHORT entry=0.1672 SL=0.1727 TP=0.1598 tf=60m candles_left=25
+[2m2026-02-21T19:00:50.994967Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #6 FETUSDT SHORT tf=60m
+[2m2026-02-21T19:00:50.994992Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening SUIUSDT SHORT position: price=0.9570, qty=104.40000000, SL=0.9886, TP=0.9149, score=0.757
+[2m2026-02-21T19:00:51.291335Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for SUIUSDT to 10x
+[2m2026-02-21T19:00:51.577299Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: SUIUSDT SELL NEW qty=104.40000000 → orderId=37515406618
+[2m2026-02-21T19:00:51.577335Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 37515406618 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:52.166999Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 37515406618 FILLED (poll #1, ~300ms): avg_price=0.95730000, qty=104.40000000
+[2m2026-02-21T19:00:52.167030Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: SUIUSDT SELL avg_price=0.95730000, qty=104.40000000, orderId=37515406618
+[2m2026-02-21T19:00:52.452215Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ SUIUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:52.737560Z[0m [31mERROR[0m [2morder_manager::order_executor[0m[2m:[0m ❌ Failed to place TP for SUIUSDT: Take-profit order failed for SUIUSDT BUY: 400 Bad Request — {"code":-1111,"msg":"Precision is over the maximum defined for this asset."}
+[2m2026-02-21T19:00:52.737592Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ SUIUSDT SL=0.9886 / TP=0.9149 managed entirely client-side. PositionTracker checks every 10s. Bot downtime = unprotected!
+[2m2026-02-21T19:00:52.738755Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #7 opened: SUIUSDT SHORT entry=0.9573 SL=0.9886 TP=0.9149 tf=60m candles_left=25
+[2m2026-02-21T19:00:52.744207Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #7 SUIUSDT SHORT tf=60m
+[2m2026-02-21T19:00:52.744229Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening KSMUSDT SHORT position: price=4.9410, qty=20.20000000, SL=5.1041, TP=4.7236, score=0.742
+[2m2026-02-21T19:00:53.042053Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for KSMUSDT to 10x
+[2m2026-02-21T19:00:53.329157Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: KSMUSDT SELL NEW qty=20.20000000 → orderId=12491774802
+[2m2026-02-21T19:00:53.329193Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 12491774802 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-02-21T19:00:53.916857Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 12491774802 FILLED (poll #1, ~300ms): avg_price=4.93600000, qty=20.20000000
+[2m2026-02-21T19:00:53.916889Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: KSMUSDT SELL avg_price=4.93600000, qty=20.20000000, orderId=12491774802
+[2m2026-02-21T19:00:54.202318Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ KSMUSDT does not support STOP_MARKET via /fapi/v1/order (error -4120). Client-side SL monitoring active via PositionTracker.
+[2m2026-02-21T19:00:54.487888Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ KSMUSDT does not support TAKE_PROFIT_MARKET via /fapi/v1/order (error -4120). Client-side TP monitoring active via PositionTracker.
+[2m2026-02-21T19:00:54.487926Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ KSMUSDT SL=5.1041 / TP=4.7236 managed entirely client-side. PositionTracker checks every 10s. Bot downtime = unprotected!
+[2m2026-02-21T19:00:54.489043Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #8 opened: KSMUSDT SHORT entry=4.9360 SL=5.1041 TP=4.7236 tf=60m candles_left=25
+[2m2026-02-21T19:00:56.281091Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #8 KSMUSDT SHORT tf=60m
+[2m2026-02-21T19:00:56.281124Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 After scanner: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.17 USDT
+[2m2026-02-21T19:00:56.318328Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.17 USDT
+[2m2026-02-21T19:01:08.510270Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.21 USDT
+[2m2026-02-21T19:01:20.715618Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.17 USDT
+[2m2026-02-21T19:01:26.282071Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T19:01:26.283378Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(240, 2)]
+[2m2026-02-21T19:01:26.284095Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T19:01:32.978470Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: 0.02 USDT
+[2m2026-02-21T19:01:45.186810Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.07 USDT
+[2m2026-02-21T19:01:56.285123Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T19:01:56.285525Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(240, 2)]
+[2m2026-02-21T19:01:56.286237Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T19:01:57.370320Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.04 USDT
+[2m2026-02-21T19:02:09.593758Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.26 USDT
+[2m2026-02-21T19:02:21.781368Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.26 USDT
+[2m2026-02-21T19:02:26.287945Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-21T19:02:26.288367Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(240, 2)]
+[2m2026-02-21T19:02:26.289142Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-21T19:02:34.034363Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: -0.12 USDT
+[2m2026-02-21T19:02:46.214854Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 8 (1h=7, 4h=0, 15m=1) | Total unPnL: 0.12 USDT

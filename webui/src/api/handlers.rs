@@ -97,6 +97,7 @@ pub struct PositionRow {
     pub open_time: String,
     pub candles_left: i16,
     pub leverage: u16,
+    pub tf_minutes: i16,
 }
 
 #[derive(Debug, Serialize)]
@@ -385,6 +386,7 @@ pub async fn get_open_positions(
                 0::double precision as pnl_pct,
                 COALESCE(p.candles_left, 0)::smallint as candles_left,
                 COALESCE(p.leverage, 10)::smallint as leverage,
+                COALESCE(p.tf_minutes, 60)::smallint as tf_minutes,
                 p.opened_at as open_time
          FROM trade.positions p
          JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
@@ -413,6 +415,7 @@ pub async fn get_open_positions(
             open_time: open_time.to_rfc3339(),
             candles_left: r.get("candles_left"),
             leverage: leverage as u16,
+            tf_minutes: r.get("tf_minutes"),
         }
     }).collect();
 
@@ -960,23 +963,194 @@ pub async fn update_candles_left(
 pub async fn emergency_stop(
     State(state): State<AppState>,
 ) -> Result<StatusCode, StatusCode> {
-    tracing::warn!("EMERGENCY STOP triggered from WebUI!");
+    tracing::warn!("🚨 EMERGENCY STOP triggered from WebUI!");
 
-    // Stop auto trading
+    // 1. Stop auto trading in memory
     {
         let mut at = state.auto_trading.write().await;
         at.is_running = false;
         at.trading_mode = "off".to_string();
     }
 
-    // TODO: Close all open positions via BinanceFuturesClient
-    // TODO: Send Kafka command to order_manager
+    // 2. Persist trading_mode = "off" to config file
+    update_trading_mode_in_config("off");
+
+    // 3. Close ALL open positions on Binance
+    let close_results = emergency_close_all_positions(&state.db_pool).await;
+    match &close_results {
+        Ok(closed) => {
+            tracing::warn!("🚨 Emergency closed {} positions", closed);
+        }
+        Err(e) => {
+            tracing::error!("🚨 Emergency close failed: {}", e);
+        }
+    }
+
+    // 4. Send Kafka close_all command to order_manager (best-effort)
+    if let Err(e) = send_kafka_close_all().await {
+        tracing::warn!("Failed to send Kafka close_all (order_manager may not receive): {}", e);
+    }
 
     state.broadcast(crate::state::WsMessage::TradingStateUpdate(
         state.auto_trading.read().await.clone()
     ));
 
     Ok(StatusCode::OK)
+}
+
+/// Close all open positions via Binance Futures API.
+/// Returns the number of positions closed.
+async fn emergency_close_all_positions(pool: &sqlx::PgPool) -> Result<usize, StatusCode> {
+    // Load Binance client
+    let exchange_settings = settings::ExchangeSettings::load()
+        .map_err(|e| {
+            tracing::error!("Cannot load exchange settings for emergency close: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exchange_settings.has_credentials() {
+        tracing::error!("No API credentials for emergency close");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    let testnet = std::env::var("BINANCE_TESTNET")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    let client = connections_lib::BinanceFuturesClient::new(
+        exchange_settings.api_key(),
+        exchange_settings.api_secret(),
+        testnet,
+    ).map_err(|e| {
+        tracing::error!("Failed to create Binance client for emergency close: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Query open positions from DB
+    let rows = sqlx::query(
+        "SELECT p.id, COALESCE(p.symbol, mp.symbol) as pair,
+                CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
+                p.qty
+         FROM trade.positions p
+         JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+         WHERE p.status = 1"
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to query open positions: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mut closed = 0usize;
+
+    for row in &rows {
+        let pair: String = row.get("pair");
+        let side: String = row.get("side");
+        let qty: f64 = row.get("qty");
+        let position_id: i64 = row.get("id");
+
+        // Cancel all open orders first (SL/TP)
+        if let Err(e) = client.cancel_all_orders(&pair).await {
+            tracing::warn!("Failed to cancel orders for {} (may be none): {}", pair, e);
+        }
+
+        // If qty=0 in DB (entry wasn't confirmed), skip closing via DB qty.
+        // The safety net below will find and close the Binance position.
+        if qty <= 0.0 {
+            tracing::warn!(
+                "🚨 Position #{} {} {} has qty=0 in DB (entry price bug). Skipping DB close, will use Binance safety net.",
+                position_id, pair, side
+            );
+            // Mark as closed in DB so it doesn't show up anymore
+            let _ = sqlx::query(
+                "UPDATE trade.positions SET status = 2, close_reason = 'emergency', closed_at = now() WHERE id = $1"
+            )
+            .bind(position_id)
+            .execute(pool)
+            .await;
+            continue;
+        }
+
+        tracing::warn!("🚨 Emergency closing: {} {} qty={:.8} (position #{})", pair, side, qty, position_id);
+
+        // Close position via market order
+        match client.close_position(&pair, &side, qty).await {
+            Ok(order) => {
+                tracing::warn!(
+                    "🚨 Position #{} {} {} closed → orderId={}, status={}",
+                    position_id, pair, side, order.order_id, order.status
+                );
+
+                // Update DB status
+                let _ = sqlx::query(
+                    "UPDATE trade.positions SET status = 2, close_reason = 'emergency', closed_at = now() WHERE id = $1"
+                )
+                .bind(position_id)
+                .execute(pool)
+                .await;
+
+                closed += 1;
+            }
+            Err(e) => {
+                tracing::error!("🚨 Failed to close position #{} {} {}: {}", position_id, pair, side, e);
+            }
+        }
+    }
+
+    // Also close any positions on Binance that aren't in our DB (safety net)
+    if let Ok(binance_positions) = client.open_positions().await {
+        for bp in &binance_positions {
+            let amt: f64 = bp.position_amt.parse().unwrap_or(0.0);
+            if amt.abs() < 0.001 { continue; }
+
+            let side = if amt > 0.0 { "LONG" } else { "SHORT" };
+            tracing::warn!(
+                "🚨 Found untracked Binance position: {} {} qty={:.8}, closing...",
+                bp.symbol, side, amt.abs()
+            );
+
+            match client.close_position(&bp.symbol, side, amt.abs()).await {
+                Ok(order) => {
+                    tracing::warn!("🚨 Untracked position {} closed → orderId={}", bp.symbol, order.order_id);
+                    closed += 1;
+                }
+                Err(e) => {
+                    tracing::error!("🚨 Failed to close untracked position {}: {}", bp.symbol, e);
+                }
+            }
+        }
+    }
+
+    Ok(closed)
+}
+
+/// Send close_all command to order_manager via Kafka (best-effort).
+async fn send_kafka_close_all() -> anyhow::Result<()> {
+    let brokers = std::env::var("KAFKA_BROKERS")
+        .unwrap_or_else(|_| "127.0.0.1:19092".to_string());
+
+    let producer: rdkafka::producer::FutureProducer = rdkafka::config::ClientConfig::new()
+        .set("bootstrap.servers", &brokers)
+        .set("message.timeout.ms", "5000")
+        .create()?;
+
+    let payload = serde_json::json!({
+        "cmd_type": "close_all",
+        "source": "emergency_stop",
+        "timestamp": chrono::Utc::now().timestamp_millis()
+    });
+
+    let payload_str = serde_json::to_string(&payload)?;
+    let record = rdkafka::producer::FutureRecord::to("orders.cmd")
+        .key("emergency")
+        .payload(&payload_str);
+
+    producer.send(record, std::time::Duration::from_secs(3)).await
+        .map_err(|(e, _)| anyhow::anyhow!("Kafka send error: {}", e))?;
+
+    tracing::info!("📤 Sent close_all command to orders.cmd topic");
+    Ok(())
 }
 
 // ─── POST /api/control/start_trading ──────────────────────────────────

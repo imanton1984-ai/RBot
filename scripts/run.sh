@@ -144,6 +144,9 @@ else
     log "Predictors and trade signals will be computed by compute_history/compute_realtime"
 fi
 
+# Ensure we're back in ROOT_DIR after optional Grafana cd
+cd "$ROOT_DIR"
+
 # 7. Order Manager (auto-trading engine)
 section "ORDER MANAGER"
 log "Starting order_manager service..."

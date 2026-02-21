@@ -3792,6 +3792,7 @@ dependencies = [
  "connections",
  "database",
  "futures",
+ "rdkafka",
  "reqwest",
  "serde",
  "serde_json",

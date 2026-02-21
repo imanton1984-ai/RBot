@@ -52,8 +52,8 @@ export default function PositionsPanel() {
       <div className="h-10 border-b border-border flex items-center px-4 gap-2 shrink-0">
         <button
           className={`px-3 py-1.5 rounded text-sm font-medium ${positionsView === 'open'
-              ? 'bg-binanceYellow text-black'
-              : 'text-textSecondary hover:bg-panelAlt'
+            ? 'bg-binanceYellow text-black'
+            : 'text-textSecondary hover:bg-panelAlt'
             }`}
           onClick={() => setPositionsView('open')}
         >
@@ -64,8 +64,8 @@ export default function PositionsPanel() {
         </button>
         <button
           className={`px-3 py-1.5 rounded text-sm font-medium ${positionsView === 'history'
-              ? 'bg-binanceYellow text-black'
-              : 'text-textSecondary hover:bg-panelAlt'
+            ? 'bg-binanceYellow text-black'
+            : 'text-textSecondary hover:bg-panelAlt'
             }`}
           onClick={() => setPositionsView('history')}
         >
@@ -88,6 +88,7 @@ export default function PositionsPanel() {
                 <th className="text-left font-normal px-4 py-2">PnL</th>
                 <th className="text-left font-normal px-4 py-2">Bars Left</th>
                 <th className="text-left font-normal px-4 py-2">Action</th>
+                <th className="text-left font-normal px-4 py-2">TF</th>
               </tr>
             ) : (
               <tr>
@@ -135,6 +136,13 @@ export default function PositionsPanel() {
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </td>
+                      <td className="px-4 py-2 text-textSecondary font-medium">
+                        {pos.tf_minutes ? (
+                          pos.tf_minutes >= 1440 ? `${pos.tf_minutes / 1440}d` :
+                            pos.tf_minutes >= 60 ? `${pos.tf_minutes / 60}h` :
+                              `${pos.tf_minutes}m`
+                        ) : '-'}
+                      </td>
                     </>
                   ) : (
                     <>
@@ -147,8 +155,8 @@ export default function PositionsPanel() {
                       <td className="px-4 py-2 text-textPrimary">${pos.close_price?.toFixed(2)}</td>
                       <td className="px-4 py-2">
                         <span className={`px-1.5 py-0.5 rounded text-xs ${pos.close_type === 'tp_hit' ? 'bg-bull/20 text-bull' :
-                            pos.close_type === 'sl_hit' ? 'bg-bear/20 text-bear' :
-                              'bg-panelAlt text-textSecondary'
+                          pos.close_type === 'sl_hit' ? 'bg-bear/20 text-bear' :
+                            'bg-panelAlt text-textSecondary'
                           }`}>
                           {pos.close_type || 'manual'}
                         </span>

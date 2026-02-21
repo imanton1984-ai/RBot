@@ -42,8 +42,8 @@ function PositionsGridView() {
           <div
             key={idx}
             className={`rounded-lg border p-3 flex flex-col justify-between transition-all cursor-pointer ${pos
-                ? `border-border bg-panelAlt hover:border-binanceYellow hover:bg-panel ${pos.pnl_usdt >= 0 ? 'hover:shadow-bull/10' : 'hover:shadow-bear/10'} hover:shadow-lg`
-                : 'border-border/30 bg-panel/50'
+              ? `border-border bg-panelAlt hover:border-binanceYellow hover:bg-panel ${pos.pnl_usdt >= 0 ? 'hover:shadow-bull/10' : 'hover:shadow-bear/10'} hover:shadow-lg`
+              : 'border-border/30 bg-panel/50'
               }`}
             onClick={() => pos && handleClick(pos)}
           >
@@ -97,6 +97,7 @@ export default function ChartPanel() {
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const priceLinesRef = useRef<any[]>([]);
 
   const { currentPair, currentTf, setCurrentTf } = useTradingStore();
   const chartView = useUiStore((s) => s.chartView);
@@ -217,38 +218,69 @@ export default function ChartPanel() {
       color: c.c >= c.o ? 'rgba(14, 203, 129, 0.3)' : 'rgba(246, 70, 93, 0.3)',
     }));
 
-    candleSeriesRef.current.setData(candles);
+    // Add whitespace bars into the future for bars_left markers.
+    // Whitespace = data points with only `time`, no OHLC, so lightweight-charts
+    // extends the time axis without drawing actual candles.
+    // We calculate how many chart-timeframe bars we need based on positions.
+    const maxWhitespace = 60; // never add more than 60 whitespace bars
+    let neededWhitespace = 10; // default: a small buffer
+
+    if (currentPairPositions.length > 0) {
+      for (const pos of currentPairPositions) {
+        if (pos.candles_left > 0) {
+          const posTf = pos.tf_minutes || currentTf;
+          const chartBars = Math.round((pos.candles_left * posTf) / currentTf);
+          neededWhitespace = Math.max(neededWhitespace, chartBars + 2);
+        }
+      }
+    }
+    const whitespaceBars = Math.min(neededWhitespace, maxWhitespace);
+
+    const lastCandle = candleData[candleData.length - 1];
+    const lastTimeSec = Math.floor(lastCandle.t / 1000);
+    const tfSec = currentTf * 60;
+    const whitespace: any[] = [];
+    for (let i = 1; i <= whitespaceBars; i++) {
+      whitespace.push({ time: (lastTimeSec + i * tfSec) as any });
+    }
+
+    candleSeriesRef.current.setData([...candles, ...whitespace]);
     volumeSeriesRef.current.setData(volume);
     setCandles(candleData);
     chartRef.current?.timeScale().fitContent();
-  }, [candleData, chartReady, currentPair, currentTf, setCandles]);
+  }, [candleData, chartReady, currentPair, currentTf, setCandles, currentPairPositions]);
 
   // Draw TP/SL lines and Candles Left marker for active positions
   useEffect(() => {
     if (!chartReady || !candleSeriesRef.current) return;
 
-    // Clear existing price lines
     const series = candleSeriesRef.current;
-    // Remove old lines by creating fresh ones
-    // lightweight-charts doesn't have removeAllPriceLines, so we track them
 
-    // Add TP/SL lines for each position on this pair
+    // 1. Remove ALL old price lines before creating new ones
+    for (const line of priceLinesRef.current) {
+      try { series.removePriceLine(line); } catch (_) { /* ignore */ }
+    }
+    priceLinesRef.current = [];
+
+    // 2. Clear old markers
+    series.setMarkers([]);
+
+    // 3. Add TP/SL lines for each position on this pair
     currentPairPositions.forEach((pos: Position) => {
-      // Take Profit line — green
       if (pos.take_profit > 0) {
-        series.createPriceLine({
+        const line = series.createPriceLine({
           price: pos.take_profit,
           color: '#0ECB81',
           lineWidth: 2,
-          lineStyle: 0, // Solid
+          lineStyle: 0,
           axisLabelVisible: true,
           title: `TP ${pos.side}`,
         });
+        priceLinesRef.current.push(line);
       }
 
-      // Stop Loss line — red
       if (pos.stop_loss > 0) {
-        series.createPriceLine({
+        const line = series.createPriceLine({
           price: pos.stop_loss,
           color: '#F6465D',
           lineWidth: 2,
@@ -256,21 +288,25 @@ export default function ChartPanel() {
           axisLabelVisible: true,
           title: `SL ${pos.side}`,
         });
+        priceLinesRef.current.push(line);
       }
     });
 
-    // Add Candles Left markers
+    // 4. Add Candles Left markers on whitespace data points
     if (candleData && candleData.length > 0 && currentPairPositions.length > 0) {
       const markers: any[] = [];
+      const lastCandleIdx = candleData.length - 1;
+      const lastTime = Math.floor(candleData[lastCandleIdx].t / 1000);
+      const chartTfSeconds = currentTf * 60;
+
       currentPairPositions.forEach((pos: Position) => {
         if (pos.candles_left > 0) {
-          // Calculate the candle index for forced close
-          const lastCandleIdx = candleData.length - 1;
-          const targetIdx = Math.min(lastCandleIdx + pos.candles_left, lastCandleIdx + 50);
-          // Use the last candle time + offset
-          const lastTime = Math.floor(candleData[lastCandleIdx].t / 1000);
-          const tfSeconds = currentTf * 60;
-          const markerTime = lastTime + pos.candles_left * tfSeconds;
+          const posTfMinutes = pos.tf_minutes || currentTf;
+          const barsOnChart = Math.round(
+            (pos.candles_left * posTfMinutes) / currentTf
+          );
+          const clampedBars = Math.min(barsOnChart, 60);
+          const markerTime = lastTime + clampedBars * chartTfSeconds;
 
           markers.push({
             time: markerTime as any,
@@ -278,15 +314,27 @@ export default function ChartPanel() {
             color: '#F0B90B',
             shape: 'circle',
             size: 3,
-            text: `${pos.candles_left} bars`,
+            text: `⏳ ${pos.candles_left}×${posTfMinutes}m`,
           });
         }
       });
 
       if (markers.length > 0) {
+        markers.sort((a, b) => (a.time as number) - (b.time as number));
         series.setMarkers(markers);
       }
     }
+
+    // Cleanup: remove lines when effect re-runs or unmounts
+    return () => {
+      if (candleSeriesRef.current) {
+        for (const line of priceLinesRef.current) {
+          try { candleSeriesRef.current.removePriceLine(line); } catch (_) { /* ignore */ }
+        }
+        priceLinesRef.current = [];
+        try { candleSeriesRef.current.setMarkers([]); } catch (_) { /* ignore */ }
+      }
+    };
   }, [chartReady, currentPairPositions, candleData, currentTf]);
 
   return (

@@ -44,6 +44,7 @@ export interface Position {
   open_time: string;
   candles_left: number;
   leverage: number;
+  tf_minutes: number;
 }
 
 export interface HistoryPosition {

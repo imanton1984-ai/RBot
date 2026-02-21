@@ -1,42 +1,22 @@
-# Order Manager Configuration (единый файл настроек торговли)
-# ═══════════════════════════════════════════════════
-
-# ─── Trading Settings (управляются через WebUI Trading Options) ──
+binance_testnet = false
+database_url = "postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance"
+kafka_brokers = "localhost:19092"
+kafka_group_id = "order-manager"
 leverage = 10
-max_orders_at_a_time = 10
-trade_size_type = "fixed_usdt"
-trade_size_value = 10.0
-strategy_type = "ml_super_entry"
-order_type = "futures_oco"
-trading_mode = "off"
-
-# ─── Signal Scanner ───────────────────────────────
-# Диапазон combined_score для квалифицированных сигналов
-signal_score_min = 0.70
-signal_score_max = 0.80
-# Максимальный дрифт цены (%) — если текущая цена отклонилась больше, сигнал устарел
-max_price_drift_pct = 0.2
-# Интервал сканирования (секунды)
-scan_interval_secs = 30
-
-# ─── Order Executor ──────────────────────────────
-# Максимальное количество баров удержания (force-close по истечении)
 max_hold_bars = 25
-
-# Пропорции таймфреймов (в процентах, сумма = 100%)
-# При 10 ордерах: 1h=7, 4h=2, 15m=1
+max_orders_at_a_time = 10
+max_price_drift_pct = 0.2
+order_type = "futures_oco"
+scan_interval_secs = 30
+signal_score_max = 0.8
+signal_score_min = 0.7
+strategy_type = "ml_super_entry"
+tf_15m_pct = 10
 tf_1h_pct = 70
 tf_4h_pct = 20
-tf_15m_pct = 10
-
-# ─── Position Tracker ────────────────────────────
-# Интервал обновления позиций / PnL (секунды)
-tracker_interval_secs = 10
-
-# ─── Infrastructure ──────────────────────────────
-kafka_brokers = "localhost:19092"
-topic_positions = "positions.updates"
 topic_orders_cmd = "orders.cmd"
-kafka_group_id = "order-manager"
-database_url = "postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance"
-binance_testnet = false
+topic_positions = "positions.updates"
+tracker_interval_secs = 10
+trade_size_type = "fixed_usdt"
+trade_size_value = 10.0
+trading_mode = "auto"

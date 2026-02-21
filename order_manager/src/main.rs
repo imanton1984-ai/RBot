@@ -431,8 +431,34 @@ async fn run_command_listener(
         match msg_result {
             Ok(msg) => {
                 if let Some(payload) = msg.payload() {
+                    // Try parsing as ClosePositionCommand first
                     if let Ok(cmd) = serde_json::from_slice::<ClosePositionCommand>(payload) {
-                        if cmd.cmd_type == "close_position" {
+                        if cmd.cmd_type == "close_all" {
+                            // Emergency close all — from WebUI emergency_stop
+                            warn!("🚨 Received CLOSE_ALL command from {}", cmd.source);
+
+                            let all_positions: Vec<_> = {
+                                let tracker_lock = tracker.lock().await;
+                                tracker_lock.open_positions().to_vec()
+                            };
+
+                            for pos in &all_positions {
+                                match executor
+                                    .close_position(pos, order_manager::CloseReason::Manual, pos.current_price)
+                                    .await
+                                {
+                                    Ok(close_event) => {
+                                        send_event(redpanda, config, &close_event).await;
+                                        let mut tracker_lock = tracker.lock().await;
+                                        tracker_lock.remove_position(pos.position_id);
+                                        warn!("🚨 Emergency closed position #{} {} {}", pos.position_id, pos.symbol, pos.side);
+                                    }
+                                    Err(e) => {
+                                        error!("❌ Failed to emergency close position #{}: {}", pos.position_id, e);
+                                    }
+                                }
+                            }
+                        } else if cmd.cmd_type == "close_position" {
                             info!(
                                 "📥 Received close command: {} {} from {}",
                                 cmd.symbol, cmd.side, cmd.source

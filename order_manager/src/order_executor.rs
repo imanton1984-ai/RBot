@@ -13,7 +13,8 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::{PgPool, Row};
-use tracing::{info, warn, error};
+use std::time::Duration;
+use tracing::{info, warn, error, debug};
 
 use connections_lib::BinanceFuturesClient;
 
@@ -73,15 +74,17 @@ impl OrderExecutor {
             .await
             .context("Failed to place entry market order")?;
 
-        let filled_price = entry_order.avg_price.parse::<f64>().unwrap_or(signal.current_price);
-        let filled_qty = entry_order.executed_qty.parse::<f64>().unwrap_or(qty);
+        // 3a. Wait for FILLED status — Binance may return status=NEW initially
+        let (filled_price, filled_qty) = self
+            .wait_for_fill(symbol, &entry_order, signal.current_price, qty)
+            .await;
 
         info!(
-            "✅ Entry filled: {} {} avg_price={:.4}, qty={:.8}, orderId={}",
+            "✅ Entry filled: {} {} avg_price={:.8}, qty={:.8}, orderId={}",
             symbol, entry_side, filled_price, filled_qty, entry_order.order_id
         );
 
-        // 4. Place SL order
+        // 4. Place SL order (with -4120 fallback to client-side monitoring)
         let sl_order = match self
             .client
             .place_stop_market(symbol, close_side, filled_qty, signal.sl_price)
@@ -92,12 +95,21 @@ impl OrderExecutor {
                 Some(order)
             }
             Err(e) => {
-                error!("❌ Failed to place SL for {}: {}", symbol, e);
+                let err_str = format!("{}", e);
+                if err_str.contains("-4120") {
+                    warn!(
+                        "⚠️ {} does not support STOP_MARKET via /fapi/v1/order (error -4120). \
+                         Client-side SL monitoring active via PositionTracker.",
+                        symbol
+                    );
+                } else {
+                    error!("❌ Failed to place SL for {}: {}", symbol, e);
+                }
                 None
             }
         };
 
-        // 5. Place TP order
+        // 5. Place TP order (with -4120 fallback to client-side monitoring)
         let tp_order = match self
             .client
             .place_take_profit_market(symbol, close_side, filled_qty, signal.tp_price)
@@ -108,10 +120,28 @@ impl OrderExecutor {
                 Some(order)
             }
             Err(e) => {
-                error!("❌ Failed to place TP for {}: {}", symbol, e);
+                let err_str = format!("{}", e);
+                if err_str.contains("-4120") {
+                    warn!(
+                        "⚠️ {} does not support TAKE_PROFIT_MARKET via /fapi/v1/order (error -4120). \
+                         Client-side TP monitoring active via PositionTracker.",
+                        symbol
+                    );
+                } else {
+                    error!("❌ Failed to place TP for {}: {}", symbol, e);
+                }
                 None
             }
         };
+
+        // Log if both SL and TP are client-side managed
+        if sl_order.is_none() && tp_order.is_none() {
+            warn!(
+                "🛡️ {} SL={:.4} / TP={:.4} managed entirely client-side. \
+                 PositionTracker checks every {}s. Bot downtime = unprotected!",
+                symbol, signal.sl_price, signal.tp_price, self.config.tracker_interval_secs
+            );
+        }
 
         // 6. Записать позицию в БД
         let now = Utc::now();
@@ -191,7 +221,10 @@ impl OrderExecutor {
             .await
             .context("Failed to place close market order")?;
 
-        let exit_price = close_order.avg_price.parse::<f64>().unwrap_or(current_price);
+        // Wait for FILLED to get real exit price
+        let (exit_price, _) = self
+            .wait_for_fill(symbol, &close_order, current_price, pos.qty)
+            .await;
 
         // 3. Рассчитать PnL
         let direction = match pos.side {
@@ -231,6 +264,104 @@ impl OrderExecutor {
         event.closed_at = Some(Utc::now().to_rfc3339());
 
         Ok(event)
+    }
+
+    /// Wait for a market order to be FILLED.
+    ///
+    /// Binance sometimes returns status="NEW" for MARKET orders, especially
+    /// on low-liquidity tokens. We poll `get_order_status` until we see
+    /// status="FILLED" with a valid avg_price and executed_qty.
+    ///
+    /// Returns (avg_price, executed_qty). Falls back to signal price / qty on timeout.
+    async fn wait_for_fill(
+        &self,
+        symbol: &str,
+        initial_order: &connections_lib::NewOrderResponse,
+        fallback_price: f64,
+        fallback_qty: f64,
+    ) -> (f64, f64) {
+        // Try initial response first
+        let avg_price: f64 = initial_order.avg_price.parse().unwrap_or(0.0);
+        let exec_qty: f64 = initial_order.executed_qty.parse().unwrap_or(0.0);
+
+        if initial_order.status == "FILLED" && avg_price > 0.0 && exec_qty > 0.0 {
+            return (avg_price, exec_qty);
+        }
+
+        // If avg_price came through but status is not FILLED yet (partial?), still check
+        if avg_price > 0.0 && exec_qty > 0.0 {
+            info!(
+                "📋 Order {} status={} but has price={:.8}, qty={:.8} — accepting",
+                initial_order.order_id, initial_order.status, avg_price, exec_qty
+            );
+            return (avg_price, exec_qty);
+        }
+
+        info!(
+            "⏳ Order {} returned status={}, avg_price={}, polling for FILLED...",
+            initial_order.order_id, initial_order.status, initial_order.avg_price
+        );
+
+        // Poll for fill status
+        const MAX_RETRIES: u32 = 15;
+        const RETRY_DELAY_MS: u64 = 300;
+
+        for attempt in 1..=MAX_RETRIES {
+            tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS)).await;
+
+            match self.client.get_order_status(symbol, initial_order.order_id).await {
+                Ok(status) => {
+                    let price: f64 = status.avg_price.parse().unwrap_or(0.0);
+                    let qty: f64 = status.executed_qty.parse().unwrap_or(0.0);
+
+                    if status.status == "FILLED" && price > 0.0 && qty > 0.0 {
+                        info!(
+                            "✅ Order {} FILLED (poll #{}, ~{}ms): avg_price={:.8}, qty={:.8}",
+                            initial_order.order_id,
+                            attempt,
+                            attempt as u64 * RETRY_DELAY_MS,
+                            price,
+                            qty
+                        );
+                        return (price, qty);
+                    }
+
+                    // Check terminal states that mean the order won't fill
+                    if status.status == "CANCELED"
+                        || status.status == "EXPIRED"
+                        || status.status == "REJECTED"
+                    {
+                        warn!(
+                            "⚠️ Order {} terminated with status={}, not filled",
+                            initial_order.order_id, status.status
+                        );
+                        break;
+                    }
+
+                    debug!(
+                        "⏳ Order {} status={} price={} qty={} (attempt {}/{})",
+                        initial_order.order_id, status.status, status.avg_price,
+                        status.executed_qty, attempt, MAX_RETRIES
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to poll order status (attempt {}/{}): {}",
+                        attempt, MAX_RETRIES, e
+                    );
+                }
+            }
+        }
+
+        // Fallback: use signal's current price
+        warn!(
+            "⚠️ Order {} not confirmed FILLED after {}ms polling. Using fallback price={:.8}, qty={:.8}",
+            initial_order.order_id,
+            MAX_RETRIES as u64 * RETRY_DELAY_MS,
+            fallback_price,
+            fallback_qty
+        );
+        (fallback_price, fallback_qty)
     }
 
     /// Рассчитать количество базового актива.
