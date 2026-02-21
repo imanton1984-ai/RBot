@@ -14,9 +14,31 @@ use tracing::{info, warn};
 
 use crate::types::TimeframeAllocation;
 
-/// Полная конфигурация Order Manager
+/// Полная конфигурация Order Manager (единый файл config/order_manager.toml)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderManagerConfig {
+    // ─── Trading Settings (WebUI Trading Options) ──────────
+    /// Кредитное плечо (1-125)
+    pub leverage: u16,
+    /// Максимальное количество одновременно открытых ордеров
+    #[serde(alias = "max_open_positions")]
+    pub max_orders_at_a_time: u16,
+    /// Тип размера позиции: "fixed_usdt" или "percent_depo"
+    #[serde(default = "default_trade_size_type")]
+    pub trade_size_type: String,
+    /// Значение размера позиции (USDT или %)
+    #[serde(alias = "trade_size_usdt")]
+    pub trade_size_value: f64,
+    /// Тип стратегии: "ml_super_entry" или "level_strategy"
+    #[serde(default = "default_strategy_type")]
+    pub strategy_type: String,
+    /// Тип ордера: "futures_oco"
+    #[serde(default = "default_order_type")]
+    pub order_type: String,
+    /// Режим торговли: "auto" / "manual" / "off"
+    #[serde(default = "default_trading_mode")]
+    pub trading_mode: String,
+
     // ─── Signal Scanner ────────────────────────────────────
     /// Минимальный combined_score для сигнала (inclusive)
     pub signal_score_min: f32,
@@ -28,12 +50,6 @@ pub struct OrderManagerConfig {
     pub scan_interval_secs: u64,
 
     // ─── Order Executor ────────────────────────────────────
-    /// Максимальное количество одновременно открытых ордеров
-    pub max_open_positions: u16,
-    /// Кредитное плечо
-    pub leverage: u16,
-    /// Размер позиции в USDT
-    pub trade_size_usdt: f64,
     /// Максимальное количество баров удержания позиции
     pub max_hold_bars: i16,
 
@@ -63,9 +79,23 @@ pub struct OrderManagerConfig {
     pub binance_testnet: bool,
 }
 
+fn default_trade_size_type() -> String { "fixed_usdt".to_string() }
+fn default_strategy_type() -> String { "ml_super_entry".to_string() }
+fn default_order_type() -> String { "futures_oco".to_string() }
+fn default_trading_mode() -> String { "off".to_string() }
+
 impl Default for OrderManagerConfig {
     fn default() -> Self {
         Self {
+            // Trading Settings
+            leverage: 10,
+            max_orders_at_a_time: 10,
+            trade_size_type: "fixed_usdt".to_string(),
+            trade_size_value: 100.0,
+            strategy_type: "ml_super_entry".to_string(),
+            order_type: "futures_oco".to_string(),
+            trading_mode: "off".to_string(),
+
             // Scanner
             signal_score_min: 0.70,
             signal_score_max: 0.80,
@@ -73,9 +103,6 @@ impl Default for OrderManagerConfig {
             scan_interval_secs: 30,
 
             // Executor
-            max_open_positions: 10,
-            leverage: 10,
-            trade_size_usdt: 100.0,
             max_hold_bars: 25,
             tf_1h_pct: 70,
             tf_4h_pct: 20,
@@ -95,6 +122,13 @@ impl Default for OrderManagerConfig {
             ),
             binance_testnet: false,
         }
+    }
+}
+
+impl OrderManagerConfig {
+    /// Is trading mode auto?
+    pub fn is_auto(&self) -> bool {
+        self.trading_mode == "auto"
     }
 }
 
@@ -131,13 +165,13 @@ impl OrderManagerConfig {
             if let Ok(n) = v.parse() { cfg.scan_interval_secs = n; }
         }
         if let Ok(v) = std::env::var("OM_MAX_POSITIONS") {
-            if let Ok(n) = v.parse() { cfg.max_open_positions = n; }
+            if let Ok(n) = v.parse() { cfg.max_orders_at_a_time = n; }
         }
         if let Ok(v) = std::env::var("OM_LEVERAGE") {
             if let Ok(n) = v.parse() { cfg.leverage = n; }
         }
         if let Ok(v) = std::env::var("OM_TRADE_SIZE_USDT") {
-            if let Ok(n) = v.parse() { cfg.trade_size_usdt = n; }
+            if let Ok(n) = v.parse() { cfg.trade_size_value = n; }
         }
         if let Ok(v) = std::env::var("OM_MAX_HOLD_BARS") {
             if let Ok(n) = v.parse() { cfg.max_hold_bars = n; }
@@ -165,14 +199,14 @@ impl OrderManagerConfig {
                 self.signal_score_max
             );
         }
-        if self.max_open_positions == 0 {
-            anyhow::bail!("max_open_positions must be > 0");
+        if self.max_orders_at_a_time == 0 {
+            anyhow::bail!("max_orders_at_a_time must be > 0");
         }
         if self.leverage == 0 || self.leverage > 125 {
             anyhow::bail!("leverage must be 1..125, got {}", self.leverage);
         }
-        if self.trade_size_usdt <= 0.0 {
-            anyhow::bail!("trade_size_usdt must be > 0");
+        if self.trade_size_value <= 0.0 {
+            anyhow::bail!("trade_size_value must be > 0");
         }
         if self.max_hold_bars <= 0 {
             anyhow::bail!("max_hold_bars must be > 0");
@@ -192,7 +226,7 @@ impl OrderManagerConfig {
 
     /// Вычислить распределение слотов по таймфреймам
     pub fn timeframe_allocation(&self) -> TimeframeAllocation {
-        let total = self.max_open_positions;
+        let total = self.max_orders_at_a_time;
         // Рассчитываем слоты: 15m получает floor, 4h получает floor, 1h — остаток
         let slots_15m = (total as f64 * self.tf_15m_pct as f64 / 100.0).floor() as u16;
         let slots_4h = (total as f64 * self.tf_4h_pct as f64 / 100.0).floor() as u16;
@@ -267,6 +301,6 @@ mod tests {
         let toml_str = toml::to_string_pretty(&cfg).unwrap();
         let deserialized: OrderManagerConfig = toml::from_str(&toml_str).unwrap();
         assert!((deserialized.signal_score_min - cfg.signal_score_min).abs() < 1e-6);
-        assert_eq!(deserialized.max_open_positions, cfg.max_open_positions);
+        assert_eq!(deserialized.max_orders_at_a_time, cfg.max_orders_at_a_time);
     }
 }

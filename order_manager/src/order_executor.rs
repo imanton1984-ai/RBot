@@ -240,7 +240,7 @@ impl OrderExecutor {
         if current_price <= 0.0 {
             anyhow::bail!("Invalid price: {}", current_price);
         }
-        let notional = self.config.trade_size_usdt * self.config.leverage as f64;
+        let notional = self.config.trade_size_value * self.config.leverage as f64;
         let raw_qty = notional / current_price;
 
         // Округление по Exchange Info (stepSize)

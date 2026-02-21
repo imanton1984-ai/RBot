@@ -49,47 +49,60 @@ async fn main() -> Result<()> {
     let config = OrderManagerConfig::load_with_env()?;
     let allocation = config.timeframe_allocation();
 
-    info!("Config: max_positions={}, leverage={}x, trade_size={} USDT",
-        config.max_open_positions, config.leverage, config.trade_size_usdt);
     info!("Allocation: {:?}", allocation.slots);
     info!("Score range: [{}, {}], max_drift: {}%",
         config.signal_score_min, config.signal_score_max, config.max_price_drift_pct);
 
-    // Load exchange credentials
-    let exchange_settings = settings_lib::ExchangeSettings::load_with_env()?;
+    // Load exchange credentials (retry-friendly — don't crash on failure)
+    let exchange_settings = match settings_lib::ExchangeSettings::load_with_env() {
+        Ok(es) => es,
+        Err(e) => {
+            warn!("Failed to load exchange settings: {}. Using defaults.", e);
+            settings_lib::ExchangeSettings::default()
+        }
+    };
+
     if !exchange_settings.has_credentials() {
-        anyhow::bail!(
-            "No API credentials found. Set BINANCE_API_KEY/BINANCE_API_SECRET or create ~/.settings.json"
-        );
+        error!("❌ No API credentials found!");
+        error!("  Create ~/.settings.json with {{\"api_key\": \"...\", \"api_secret\": \"...\"}}");
+        error!("  Or set BINANCE_API_KEY and BINANCE_API_SECRET environment variables.");
+        anyhow::bail!("No API credentials. Cannot trade without Binance keys.");
     }
 
-    // Check trading mode (off / manual / auto)
-    let order_settings = settings_lib::OrderSettings::load_with_env()?;
-    match order_settings.trading_mode {
-        settings_lib::TradingMode::Off => {
+    // All settings now in config/order_manager.toml (single source of truth)
+    info!("Config: max_orders={}, leverage={}x, trade_size={} USDT ({}), strategy={}",
+        config.max_orders_at_a_time, config.leverage, config.trade_size_value,
+        config.trade_size_type, config.strategy_type);
+
+    match config.trading_mode.as_str() {
+        "off" => {
             warn!("⚠️ Trading mode is OFF — order_manager will run but NOT scan or trade.");
-            warn!("  Set ORDER_TRADING_MODE=manual or auto to enable.");
+            warn!("  Click START TRADING in WebUI or set trading_mode = \"auto\" in order_manager.toml");
         }
-        settings_lib::TradingMode::Manual => {
-            info!("📋 Trading mode: MANUAL — signals will be scanned but positions will NOT open automatically.");
-            info!("  Confirm orders via WebUI. Set ORDER_TRADING_MODE=auto for full automation.");
+        "manual" => {
+            info!("📋 Trading mode: MANUAL — signals scanned, positions NOT opened automatically.");
         }
-        settings_lib::TradingMode::Auto => {
+        "auto" => {
             warn!("🤖 Trading mode: AUTO — bot will automatically open and manage positions!");
+        }
+        other => {
+            warn!("⚠️ Unknown trading_mode: '{}'. Using OFF.", other);
         }
     }
 
     // Create Binance Futures client
     let binance_client = BinanceFuturesClient::from_settings(&exchange_settings)?;
 
-    // Test connectivity
+    // Test connectivity (don't crash on failure — just warn)
     let status = binance_client.check_connection().await;
     info!("Binance connection: {}", status);
     if !status.futures_auth {
-        anyhow::bail!("Binance Futures authentication failed: {:?}", status.error);
+        error!("⚠️ Binance Futures authentication failed: {:?}", status.error);
+        error!("  order_manager will continue running and retry on each scan cycle.");
     }
     if !status.can_trade {
-        anyhow::bail!("Binance account cannot trade (can_trade=false)");
+        error!("⚠️ Binance account cannot trade (can_trade=false).");
+        error!("  Check that your API key has Futures trading permission.");
     }
 
     // Connect to database
@@ -142,8 +155,7 @@ async fn main() -> Result<()> {
     }
 
     // NOTE: trading_mode is now re-read from config on EVERY scanner cycle.
-    // This allows WebUI to toggle auto-trading at runtime by modifying order_settings.toml.
-    let _initial_mode = order_settings.trading_mode;
+    // This allows WebUI to toggle auto-trading at runtime by modifying order_manager.toml.
 
     // ─── Spawn Tasks ────────────────────────────────────────
 
@@ -158,10 +170,10 @@ async fn main() -> Result<()> {
 
         tokio::spawn(async move {
             loop {
-                // Re-read trading_mode from config file every cycle
-                // This allows WebUI to toggle trading mode at runtime
-                let current_auto = settings_lib::OrderSettings::load()
-                    .map(|s| s.trading_mode.is_auto())
+                // Re-read trading settings from order_manager.toml every cycle
+                // This allows WebUI to toggle trading mode and update params at runtime
+                let current_auto = OrderManagerConfig::load()
+                    .map(|c| c.is_auto())
                     .unwrap_or(false);
 
                 if let Err(e) = run_scanner_cycle(

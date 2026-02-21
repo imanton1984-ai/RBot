@@ -1,5 +1,14 @@
-# Order Manager Configuration
+# Order Manager Configuration (единый файл настроек торговли)
 # ═══════════════════════════════════════════════════
+
+# ─── Trading Settings (управляются через WebUI Trading Options) ──
+leverage = 10
+max_orders_at_a_time = 10
+trade_size_type = "fixed_usdt"
+trade_size_value = 10.0
+strategy_type = "ml_super_entry"
+order_type = "futures_oco"
+trading_mode = "off"
 
 # ─── Signal Scanner ───────────────────────────────
 # Диапазон combined_score для квалифицированных сигналов
@@ -11,12 +20,6 @@ max_price_drift_pct = 0.2
 scan_interval_secs = 30
 
 # ─── Order Executor ──────────────────────────────
-# Максимальное количество одновременно открытых позиций
-max_open_positions = 10
-# Кредитное плечо (1-125)
-leverage = 10
-# Размер каждой позиции в USDT (notional = trade_size_usdt * leverage)
-trade_size_usdt = 100.0
 # Максимальное количество баров удержания (force-close по истечении)
 max_hold_bars = 25
 

@@ -731,32 +731,28 @@ pub async fn get_alerts(
 // ─── GET /api/trading-options ─────────────────────────────────────────
 pub async fn get_trading_options(
 ) -> Result<Json<TradingOptionsPayload>, StatusCode> {
-    match settings::OrderSettings::load() {
-        Ok(os) => {
-            Ok(Json(TradingOptionsPayload {
-                leverage: os.leverage,
-                max_orders_at_a_time: os.max_orders_at_a_time,
-                trade_size_type: format!("{}", os.trade_size_type),
-                trade_size_value: os.trade_size_value,
-                strategy_type: format!("{}", os.strategy_type),
-                order_type: format!("{}", os.order_type),
-                trading_mode: format!("{}", os.trading_mode),
-            }))
-        }
-        Err(e) => {
-            tracing::error!("Failed to load order settings: {}", e);
-            // Return defaults
-            Ok(Json(TradingOptionsPayload {
-                leverage: 10,
-                max_orders_at_a_time: 10,
-                trade_size_type: "fixed_usdt".to_string(),
-                trade_size_value: 100.0,
-                strategy_type: "ml_super_entry".to_string(),
-                order_type: "futures_oco".to_string(),
-                trading_mode: "off".to_string(),
-            }))
+    // Read from unified config/order_manager.toml
+    let path = "config/order_manager.toml";
+    if let Ok(content) = std::fs::read_to_string(path) {
+        if let Ok(val) = content.parse::<toml::Value>() {
+            return Ok(Json(TradingOptionsPayload {
+                leverage: val.get("leverage").and_then(|v| v.as_integer()).unwrap_or(10) as u16,
+                max_orders_at_a_time: val.get("max_orders_at_a_time").and_then(|v| v.as_integer()).unwrap_or(10) as u16,
+                trade_size_type: val.get("trade_size_type").and_then(|v| v.as_str()).unwrap_or("fixed_usdt").to_string(),
+                trade_size_value: val.get("trade_size_value").and_then(|v| v.as_float()).unwrap_or(100.0),
+                strategy_type: val.get("strategy_type").and_then(|v| v.as_str()).unwrap_or("ml_super_entry").to_string(),
+                order_type: val.get("order_type").and_then(|v| v.as_str()).unwrap_or("futures_oco").to_string(),
+                trading_mode: val.get("trading_mode").and_then(|v| v.as_str()).unwrap_or("off").to_string(),
+            }));
         }
     }
+    // Fallback defaults
+    Ok(Json(TradingOptionsPayload {
+        leverage: 10, max_orders_at_a_time: 10,
+        trade_size_type: "fixed_usdt".to_string(), trade_size_value: 100.0,
+        strategy_type: "ml_super_entry".to_string(), order_type: "futures_oco".to_string(),
+        trading_mode: "off".to_string(),
+    }))
 }
 
 // ─── POST /api/trading-options ────────────────────────────────────────
@@ -764,26 +760,28 @@ pub async fn save_trading_options(
     State(state): State<AppState>,
     Json(options): Json<TradingOptionsPayload>,
 ) -> Result<StatusCode, StatusCode> {
-    // Build TOML content matching config/order_settings.toml format
-    let content = format!(
-        "leverage = {}\nmax_orders_at_a_time = {}\ntrade_size_type = \"{}\"\ntrade_size_value = {}\nstrategy_type = \"{}\"\norder_type = \"{}\"\ntrading_mode = \"{}\"",
-        options.leverage,
-        options.max_orders_at_a_time,
-        options.trade_size_type,
-        options.trade_size_value,
-        options.strategy_type,
-        options.order_type,
-        options.trading_mode,
-    );
+    // Update trading fields in order_manager.toml (preserve other fields)
+    let path = "config/order_manager.toml";
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    let mut val: toml::Value = content.parse().unwrap_or(toml::Value::Table(Default::default()));
 
-    std::fs::write("config/order_settings.toml", content)
+    if let Some(table) = val.as_table_mut() {
+        table.insert("leverage".to_string(), toml::Value::Integer(options.leverage as i64));
+        table.insert("max_orders_at_a_time".to_string(), toml::Value::Integer(options.max_orders_at_a_time as i64));
+        table.insert("trade_size_type".to_string(), toml::Value::String(options.trade_size_type));
+        table.insert("trade_size_value".to_string(), toml::Value::Float(options.trade_size_value));
+        table.insert("strategy_type".to_string(), toml::Value::String(options.strategy_type));
+        table.insert("order_type".to_string(), toml::Value::String(options.order_type));
+        table.insert("trading_mode".to_string(), toml::Value::String(options.trading_mode));
+    }
+
+    std::fs::write(path, toml::to_string_pretty(&val).unwrap_or_default())
         .map_err(|e| {
-            tracing::error!("Failed to save order settings: {}", e);
+            tracing::error!("Failed to save trading options: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     state.broadcast(crate::state::WsMessage::OptionsUpdated);
-    tracing::info!("Trading options saved to config/order_settings.toml");
     Ok(StatusCode::OK)
 }
 
@@ -994,17 +992,8 @@ pub async fn start_trading(
         at.clone()
     };
 
-    // Update order_settings.toml trading_mode to auto
-    if let Ok(content) = std::fs::read_to_string("config/order_settings.toml") {
-        let updated = content.lines().map(|line| {
-            if line.starts_with("trading_mode") {
-                "trading_mode = \"auto\""
-            } else {
-                line
-            }
-        }).collect::<Vec<_>>().join("\n");
-        let _ = std::fs::write("config/order_settings.toml", updated);
-    }
+    // Update order_manager.toml trading_mode to auto
+    update_trading_mode_in_config("auto");
 
     state.broadcast(crate::state::WsMessage::TradingStateUpdate(new_state.clone()));
     Ok(Json(new_state))
@@ -1023,17 +1012,8 @@ pub async fn stop_trading(
         at.clone()
     };
 
-    // Update order_settings.toml trading_mode to off
-    if let Ok(content) = std::fs::read_to_string("config/order_settings.toml") {
-        let updated = content.lines().map(|line| {
-            if line.starts_with("trading_mode") {
-                "trading_mode = \"off\""
-            } else {
-                line
-            }
-        }).collect::<Vec<_>>().join("\n");
-        let _ = std::fs::write("config/order_settings.toml", updated);
-    }
+    // Update order_manager.toml trading_mode to off
+    update_trading_mode_in_config("off");
 
     state.broadcast(crate::state::WsMessage::TradingStateUpdate(new_state.clone()));
     Ok(Json(new_state))
@@ -1047,14 +1027,27 @@ pub async fn get_trading_state(
     Ok(Json(at))
 }
 
+/// Helper: update trading_mode in order_manager.toml
+fn update_trading_mode_in_config(mode: &str) {
+    let path = "config/order_manager.toml";
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    let mut val: toml::Value = content.parse().unwrap_or(toml::Value::Table(Default::default()));
+    if let Some(table) = val.as_table_mut() {
+        table.insert("trading_mode".to_string(), toml::Value::String(mode.to_string()));
+    }
+    let _ = std::fs::write(path, toml::to_string_pretty(&val).unwrap_or_default());
+}
+
 // ─── GET /api/strategies ──────────────────────────────────────────────
 pub async fn get_strategies(
     _state: State<AppState>,
 ) -> Result<Json<Vec<crate::state::StrategyInfo>>, StatusCode> {
-    // Read current strategy from order_settings.toml
-    let current_strategy = settings::OrderSettings::load()
-        .map(|s| format!("{}", s.strategy_type))
-        .unwrap_or_else(|_| "ml_super_entry".to_string());
+    // Read current strategy from order_manager.toml
+    let current_strategy = std::fs::read_to_string("config/order_manager.toml")
+        .ok()
+        .and_then(|c| c.parse::<toml::Value>().ok())
+        .and_then(|v| v.get("strategy_type").and_then(|s| s.as_str()).map(|s| s.to_string()))
+        .unwrap_or_else(|| "ml_super_entry".to_string());
 
     Ok(Json(vec![
         crate::state::StrategyInfo {
