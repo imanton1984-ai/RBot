@@ -5,7 +5,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 #[derive(Debug, Clone)]
 pub struct UniversePairsResult {

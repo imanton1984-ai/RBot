@@ -61,30 +61,45 @@ async fn spawn_pair_refresh_task(
                                          result.selected_cnt, result.active_cnt);
 
                             // Check if there are new pairs that need to be added to WebSocket connections
-                            match crate::market::candles::candle_rest::fetch_active_pairs(&crate::market::candles::candle_rest::pg_connect(&std::env::var("DATABASE_URL").unwrap_or_else(|_| cfg.database.url())).await.unwrap()).await {
-                                Ok(updated_pairs) => {
-                                    // Check if there are new pairs that weren't in the original set
-                                    let current_symbols: std::collections::HashSet<_> = symbol_to_id.keys().cloned().collect();
-                                    let updated_symbols: std::collections::HashSet<_> = updated_pairs.iter().map(|p| p.symbol.clone()).collect();
+                            let db_url = std::env::var("DATABASE_URL")
+                                .unwrap_or_else(|_| cfg.database.url());
+                            let pg_res = crate::market::candles::candle_rest::pg_connect(&db_url).await;
 
-                                    let new_symbols: Vec<_> = updated_symbols.difference(&current_symbols).collect();
-                                    if !new_symbols.is_empty() {
-                                        tracing::info!("Detected {} new pairs to add to WebSocket connections", new_symbols.len());
+                            match pg_res {
+                                Ok(pg_client) => {
+                                    match crate::market::candles::candle_rest::fetch_active_pairs(&pg_client).await {
+                                        Ok(updated_pairs) => {
+                                            let current_symbols: std::collections::HashSet<_> = symbol_to_id.keys().cloned().collect();
+                                            let updated_symbols: std::collections::HashSet<_> = updated_pairs.iter().map(|p| p.symbol.clone()).collect();
 
-                                        // In a production system, we would need to restart WebSocket connections with new pairs
-                                        // For now, log the new pairs that need to be added
-                                        for symbol in new_symbols {
-                                            tracing::info!("New pair detected: {}", symbol);
+                                            let new_symbols: Vec<_> = updated_symbols.difference(&current_symbols).collect();
+                                            let removed_symbols: Vec<_> = current_symbols.difference(&updated_symbols).collect();
+
+                                            if !new_symbols.is_empty() {
+                                                tracing::info!("Detected {} new pairs (will be processed on next restart)", new_symbols.len());
+                                                for symbol in &new_symbols {
+                                                    tracing::info!("  New pair: {}", symbol);
+                                                }
+                                            }
+                                            if !removed_symbols.is_empty() {
+                                                tracing::info!("Detected {} removed/deactivated pairs", removed_symbols.len());
+                                                for symbol in &removed_symbols {
+                                                    tracing::info!("  Removed pair: {}", symbol);
+                                                }
+                                            }
+                                        },
+                                        Err(e) => {
+                                            tracing::error!("Failed to fetch updated pairs after refresh: {}", e);
                                         }
                                     }
                                 },
                                 Err(e) => {
-                                    tracing::error!("Failed to fetch updated pairs after refresh: {}", e);
+                                    tracing::error!("Failed to connect to DB for pair check: {}", e);
                                 }
                             }
                         },
                         Err(e) => {
-                            tracing::error!("Failed to refresh pairs: {}", e);
+                            tracing::warn!("Failed to refresh pairs (will retry next cycle): {}", e);
                         }
                     }
                 },
@@ -352,13 +367,13 @@ pub async fn run_candles_ingest() -> Result<()> {
 
         tracing::info!("Fast initial load completed in {:?}", fetch_start.elapsed());
     } else {
-        // OLD: Traditional backfill approach for incremental updates
-        // This section handles incremental updates when the database already contains data
-        // It fills in gaps between the last stored data and current time
-        tracing::info!("Non-empty database detected - performing traditional backfill");
+        // INCREMENTAL: Traditional backfill for non-empty database.
+        // Fills gaps between last stored candle and current time.
+        // Also correctly handles NEW pairs (last_ms=0) by fetching recent N candles.
+        tracing::info!("Non-empty database detected - performing incremental backfill");
 
         // REST backfill concurrent
-        let http_conc = cfg.runtime.http_concurrency.unwrap_or(1).max(1) as usize;
+        let http_conc = cfg.runtime.http_concurrency.unwrap_or(16).max(1) as usize;
         tracing::info!(
             "REST backfill: tfs={}, pairs={}, http_concurrency={}",
             tfs.len(),
@@ -369,20 +384,18 @@ pub async fn run_candles_ingest() -> Result<()> {
         // ВНИМАНИЕ: здесь мы трактуем rate_limit_soft_rps как "weight units per second".
         // Для Futures дефолт: 40 weight/sec (2400/min).
         // Рекомендую держать 75-85% от лимита, чтобы не ловить 429/418.
-        // Use the new parameter if available, otherwise fall back to the old one for backward compatibility
-        let weight_per_sec = cfg.binance.soft_weight_per_sec.unwrap_or(40); // Default to 40 weight/sec for futures
+        let weight_per_sec = cfg.binance.soft_weight_per_sec.unwrap_or(40);
         let rest_limiter = Some(crate::market::candles::candle_common::WeightLimiter::new(
             weight_per_sec,
             cfg.binance.rate_limit_soft_burst,
         ));
 
-        // Log effective request rate based on the limit and weight
         let backfill_override: Option<usize> = std::env::var("BACKFILL_CANDLES").ok().and_then(|v| v.parse().ok());
         let limit = backfill_override.unwrap_or(cfg.runtime.backfill_candles).min(1500).max(1);
         let weight = klines_weight(limit);
         let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
         tracing::info!(
-            "Backfill rate limiting configured: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
+            "Backfill rate limiting: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
             weight_per_sec, limit, weight, effective_req_per_sec
         );
 
@@ -391,8 +404,17 @@ pub async fn run_candles_ingest() -> Result<()> {
             let tx = writers.get(&tf).cloned().unwrap();
             let last = fetch_last_time_per_symbol(&meta, tf).await.unwrap_or_default();
 
+            let mut new_pairs_count = 0u32;
+            let mut existing_pairs_count = 0u32;
+
             for p in &pairs {
                 let last_ms = last.get(&p.symbol_id).copied().unwrap_or(0);
+                if last_ms == 0 {
+                    new_pairs_count += 1;
+                } else {
+                    existing_pairs_count += 1;
+                }
+
                 let cfg2 = cfg.clone();
                 let http2 = http.clone();
                 let p2 = p.clone();
@@ -407,6 +429,11 @@ pub async fn run_candles_ingest() -> Result<()> {
                     r
                 });
             }
+
+            tracing::info!(
+                "Backfill {}: existing_pairs={} (incremental), new_pairs={} (full fetch from cap_start)",
+                tf.as_str(), existing_pairs_count, new_pairs_count
+            );
         }
 
         let backfill_started = Instant::now();
