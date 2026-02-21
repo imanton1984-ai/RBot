@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
-import { useUiStore, useDataStore } from '../store';
+import { useUiStore, useDataStore, useTradingStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { X } from 'lucide-react';
+import { formatPrice, formatQty, formatTf } from '../utils/format';
 
 export default function PositionsPanel() {
-  const { positionsView, setPositionsView } = useUiStore();
+  const { positionsView, setPositionsView, setChartView } = useUiStore();
+  const { setCurrentPair, setCurrentTf } = useTradingStore();
   const positions = useDataStore((s) => s.positions);
   const setPositions = useDataStore((s) => s.setPositions);
 
@@ -45,6 +47,19 @@ export default function PositionsPanel() {
         console.error('Failed to close position:', error);
       }
     }
+  };
+
+  const handleOpenInChart = (pos: any) => {
+    if (!pos?.pair) return;
+
+    setCurrentPair(pos.pair);
+
+    // For open positions, use tf_minutes
+    if (pos.tf_minutes) {
+      setCurrentTf(Number(pos.tf_minutes));
+    }
+
+    setChartView('chart');
   };
 
   return (
@@ -109,6 +124,8 @@ export default function PositionsPanel() {
                 <tr
                   key={pos.id || idx}
                   className="border-t border-border hover:bg-panelAlt transition-colors"
+                  onDoubleClick={() => positionsView === 'open' && handleOpenInChart(pos)}
+                  title={positionsView === 'open' ? 'Double-click to open chart' : undefined}
                 >
                   {positionsView === 'open' ? (
                     <>
@@ -116,11 +133,15 @@ export default function PositionsPanel() {
                       <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
                         {pos.side}
                       </td>
-                      <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.current_price?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-bear">${pos.stop_loss?.toFixed(2) || '-'}</td>
-                      <td className="px-4 py-2 text-bull">${pos.take_profit?.toFixed(2) || '-'}</td>
+                      <td className="px-4 py-2 text-textPrimary">{formatQty(pos.qty)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.entry_price)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.current_price)}</td>
+                      <td className="px-4 py-2 text-bear">
+                        {pos.stop_loss && pos.stop_loss > 0 ? `$${formatPrice(pos.stop_loss)}` : '-'}
+                      </td>
+                      <td className="px-4 py-2 text-bull">
+                        {pos.take_profit && pos.take_profit > 0 ? `$${formatPrice(pos.take_profit)}` : '-'}
+                      </td>
                       <td className={`px-4 py-2 ${pos.pnl_usdt >= 0 ? 'text-bull' : 'text-bear'}`}>
                         {pos.pnl_usdt >= 0 ? '+' : ''}${pos.pnl_usdt?.toFixed(2)}
                       </td>
@@ -130,18 +151,18 @@ export default function PositionsPanel() {
                       <td className="px-4 py-2">
                         <button
                           className="text-bear hover:text-bear/80 transition-colors"
-                          onClick={() => handleClosePosition(pos.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClosePosition(pos.id);
+                          }}
+                          onDoubleClick={(e) => e.stopPropagation()}
                           title="Close position"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </td>
                       <td className="px-4 py-2 text-textSecondary font-medium">
-                        {pos.tf_minutes ? (
-                          pos.tf_minutes >= 1440 ? `${pos.tf_minutes / 1440}d` :
-                            pos.tf_minutes >= 60 ? `${pos.tf_minutes / 60}h` :
-                              `${pos.tf_minutes}m`
-                        ) : '-'}
+                        {formatTf(pos.tf_minutes)}
                       </td>
                     </>
                   ) : (
@@ -150,9 +171,9 @@ export default function PositionsPanel() {
                       <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
                         {pos.side}
                       </td>
-                      <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.close_price?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-textPrimary">{formatQty(pos.qty)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.entry_price)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.close_price)}</td>
                       <td className="px-4 py-2">
                         <span className={`px-1.5 py-0.5 rounded text-xs ${pos.close_type === 'tp_hit' ? 'bg-bull/20 text-bull' :
                           pos.close_type === 'sl_hit' ? 'bg-bear/20 text-bear' :
