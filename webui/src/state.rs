@@ -14,6 +14,7 @@ pub struct AppState {
     pub db_pool: PgPool,
     pub ws_sender: broadcast::Sender<WsMessage>,
     pub settings: Arc<RwLock<WebUiSettings>>,
+    pub auto_trading: Arc<RwLock<AutoTradingState>>,
 }
 
 impl AppState {
@@ -23,6 +24,7 @@ impl AppState {
             db_pool,
             ws_sender,
             settings: Arc::new(RwLock::new(settings)),
+            auto_trading: Arc::new(RwLock::new(AutoTradingState::default())),
         }
     }
 
@@ -53,6 +55,10 @@ pub enum WsMessage {
     OptionsUpdated,
     #[serde(rename = "strategy_updated")]
     StrategyUpdated,
+    #[serde(rename = "connections_update")]
+    ConnectionsUpdate(ConnectionStatus),
+    #[serde(rename = "trading_state_update")]
+    TradingStateUpdate(AutoTradingState),
 }
 
 /// Ticker update for header
@@ -112,12 +118,14 @@ pub struct OrderEvent {
     pub ts: i64,
 }
 
-/// Balance info
+/// Balance info — with proper breakdown
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
     pub overall: f64,
     pub in_orders: f64,
     pub available: f64,
+    pub wallet_balance: f64,
+    pub unrealized_pnl: f64,
 }
 
 /// Risk alert info
@@ -129,6 +137,8 @@ pub struct RiskAlertInfo {
     pub time_ago: String,
     pub message: String,
     pub severity: String,
+    pub source: String,
+    pub timestamp: String,
 }
 
 /// PnL overview
@@ -139,6 +149,7 @@ pub struct PnlOverview {
     pub win_rate: f64,
     pub today_trades: i64,
     pub equity_points: Vec<PnlPoint>,
+    pub overall_balance: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,7 +158,7 @@ pub struct PnlPoint {
     pub value: f64,
 }
 
-/// WebUI settings
+/// WebUI settings (legacy compat)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebUiSettings {
     pub leverage_default: u16,
@@ -165,6 +176,70 @@ impl Default for WebUiSettings {
             max_risk_pct: 2.0,
             order_timeout_bars: 10,
             ws_update_rate_ms: 100,
+        }
+    }
+}
+
+/// Connection status for all services
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionStatus {
+    pub database: bool,
+    pub redpanda: bool,
+    pub rest_api: bool,
+    pub websocket: bool,
+    pub account: bool,
+}
+
+/// Trading Options (maps to config/order_settings.toml)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradingOptionsPayload {
+    pub leverage: u16,
+    pub max_orders_at_a_time: u16,
+    pub trade_size_type: String,
+    pub trade_size_value: f64,
+    pub strategy_type: String,
+    pub order_type: String,
+    pub trading_mode: String,
+}
+
+/// Order Manager Options (maps to subset of config/order_manager.toml)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderManagerOptionsPayload {
+    pub signal_score_min: f64,
+    pub signal_score_max: f64,
+    pub max_hold_bars: i32,
+    pub tf_1h_pct: u16,
+    pub tf_4h_pct: u16,
+    pub tf_15m_pct: u16,
+}
+
+/// Risk Manager Options (subset of config/risk_manager.toml)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskManagerOptionsPayload {
+    pub btc_alert_threshold_pct: f64,
+    pub alt_alert_threshold_pct: f64,
+    pub volume_spike_threshold: f64,
+}
+
+/// Combined Order Options payload
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderOptionsPayload {
+    pub order_manager: OrderManagerOptionsPayload,
+    pub risk_manager: RiskManagerOptionsPayload,
+}
+
+/// Auto trading state
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoTradingState {
+    pub is_running: bool,
+    pub trading_mode: String,
+}
+
+impl Default for AutoTradingState {
+    fn default() -> Self {
+        Self {
+            is_running: false,
+            trading_mode: "off".to_string(),
         }
     }
 }
@@ -193,4 +268,27 @@ pub struct SignalInfo {
     pub tp_price: f64,
     pub strategy: String,
     pub status: String, // active/closed/timeout
+}
+
+/// Manual order request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManualOrderRequest {
+    pub pair: String,
+    pub side: String,
+    #[serde(rename = "type")]
+    pub order_type: String,
+    pub price: Option<f64>,
+    pub amount_usdt: f64,
+    pub leverage: u16,
+    pub take_profit: f64,
+    pub stop_loss: f64,
+    pub entry_price: Option<f64>,
+    pub reduce_only: bool,
+}
+
+/// Candles left update request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandlesLeftUpdateRequest {
+    pub position_id: i64,
+    pub candles_left: i16,
 }

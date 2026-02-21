@@ -20,6 +20,9 @@ pub mod signal_scanner;
 pub mod order_executor;
 pub mod position_tracker;
 
+#[cfg(test)]
+mod tests_synthetic;
+
 pub use types::*;
 pub use config::OrderManagerConfig;
 pub use exchange_info::ExchangeInfoCache;

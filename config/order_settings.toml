@@ -1,7 +1,7 @@
 leverage = 10
 max_orders_at_a_time = 10
 trade_size_type = "fixed_usdt"
-trade_size_value = 100.0
+trade_size_value = 10
 strategy_type = "ml_super_entry"
 order_type = "futures_oco"
-trading_mode = "off"
+trading_mode = "auto"

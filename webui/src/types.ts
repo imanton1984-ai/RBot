@@ -43,6 +43,7 @@ export interface Position {
   status: string;
   open_time: string;
   candles_left: number;
+  leverage: number;
 }
 
 export interface HistoryPosition {
@@ -78,6 +79,8 @@ export interface Balance {
   overall: number;
   in_orders: number;
   available: number;
+  wallet_balance: number;
+  unrealized_pnl: number;
 }
 
 export interface PnlOverview {
@@ -86,6 +89,7 @@ export interface PnlOverview {
   win_rate: number;
   today_trades: number;
   equity_points: PnlPoint[];
+  overall_balance: number;
 }
 
 export interface PnlPoint {
@@ -100,6 +104,8 @@ export interface Alert {
   time_ago: string;
   message: string;
   severity: string;
+  source: string;
+  timestamp: string;
 }
 
 export interface Strategy {
@@ -110,6 +116,70 @@ export interface Strategy {
   description: string;
 }
 
+// ─── Connection Status ──────────────────────────────────────
+export interface ConnectionStatus {
+  database: boolean;
+  redpanda: boolean;
+  rest_api: boolean;
+  websocket: boolean;
+  account: boolean;
+}
+
+// ─── Trading Options (order_settings.toml) ──────────────────
+export interface TradingOptions {
+  leverage: number;
+  max_orders_at_a_time: number;
+  trade_size_type: 'fixed_usdt' | 'percent_depo';
+  trade_size_value: number;
+  strategy_type: 'ml_super_entry' | 'level_strategy';
+  order_type: 'futures_oco';
+  trading_mode: 'auto' | 'manual' | 'off';
+}
+
+// ─── Order Manager Options (order_manager.toml) ────────────
+export interface OrderManagerOptions {
+  signal_score_min: number;
+  signal_score_max: number;
+  max_hold_bars: number;
+  tf_1h_pct: number;
+  tf_4h_pct: number;
+  tf_15m_pct: number;
+}
+
+// ─── Risk Manager Options (subset of risk_manager.toml) ────
+export interface RiskManagerOptions {
+  btc_alert_threshold_pct: number;
+  alt_alert_threshold_pct: number;
+  volume_spike_threshold: number;
+}
+
+// ─── Combined Order Options ─────────────────────────────────
+export interface OrderOptions {
+  order_manager: OrderManagerOptions;
+  risk_manager: RiskManagerOptions;
+}
+
+// ─── Manual Order Request ───────────────────────────────────
+export interface ManualOrderRequest {
+  pair: string;
+  side: 'long' | 'short';
+  type: 'market' | 'limit';
+  price?: number;
+  amount_usdt: number;
+  leverage: number;
+  take_profit: number;
+  stop_loss: number;
+  entry_price?: number;
+  reduce_only: boolean;
+}
+
+// ─── Auto Trading State ─────────────────────────────────────
+export interface AutoTradingState {
+  is_running: boolean;
+  trading_mode: 'auto' | 'manual' | 'off';
+}
+
+// Legacy compat
 export interface WebUiSettings {
   leverage_default: number;
   max_open_orders: number;

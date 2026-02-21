@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { useTradingStore, useUiStore, useDataStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
-import { ChevronDown, LineChart, Table, Bell, Settings2 } from 'lucide-react';
+import { ChevronDown, LineChart, LayoutGrid, Settings2 } from 'lucide-react';
+import type { Position } from '../types';
 
 const TIMEFRAMES = [
   { label: '1m', value: 1 },
@@ -14,6 +15,83 @@ const TIMEFRAMES = [
   { label: '1d', value: 1440 },
 ];
 
+// ─── Positions View (Grid of open positions) ─────────────────────────
+function PositionsGridView() {
+  const positions = useDataStore((s) => s.positions);
+  const { setCurrentPair } = useTradingStore();
+  const setChartView = useUiStore((s) => s.setChartView);
+
+  const { data: openPositions } = useQuery({
+    queryKey: ['positions-open'],
+    queryFn: () => apiService.getOpenPositions(),
+    refetchInterval: 5000,
+  });
+
+  const currentPositions = openPositions || positions;
+  const gridSlots = Array.from({ length: 10 }, (_, i) => currentPositions[i] || null);
+
+  const handleClick = (pos: Position) => {
+    setCurrentPair(pos.pair);
+    setChartView('chart');
+  };
+
+  return (
+    <div className="flex-1 p-3 overflow-y-auto">
+      <div className="grid grid-cols-5 grid-rows-2 gap-2 h-full">
+        {gridSlots.map((pos, idx) => (
+          <div
+            key={idx}
+            className={`rounded-lg border p-3 flex flex-col justify-between transition-all cursor-pointer ${pos
+                ? `border-border bg-panelAlt hover:border-binanceYellow hover:bg-panel ${pos.pnl_usdt >= 0 ? 'hover:shadow-bull/10' : 'hover:shadow-bear/10'} hover:shadow-lg`
+                : 'border-border/30 bg-panel/50'
+              }`}
+            onClick={() => pos && handleClick(pos)}
+          >
+            {pos ? (
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-textPrimary truncate">{pos.pair}</span>
+                  <span className={`text-xs px-1 py-0.5 rounded ${pos.side === 'LONG' ? 'bg-bull/20 text-bull' : 'bg-bear/20 text-bear'}`}>
+                    {pos.side}
+                  </span>
+                </div>
+                <div className="space-y-0.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-textSecondary">Entry</span>
+                    <span className="text-textPrimary">${pos.entry_price?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-textSecondary">Current</span>
+                    <span className="text-textPrimary">${pos.current_price?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-textSecondary">SL</span>
+                    <span className="text-bear">${pos.stop_loss?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-textSecondary">Bars Left</span>
+                    <span className="text-binanceYellow">{pos.candles_left}</span>
+                  </div>
+                </div>
+                {/* PnL mini bar */}
+                <div className={`mt-2 h-6 rounded flex items-center justify-center text-xs font-bold ${pos.pnl_usdt >= 0 ? 'bg-bull/20 text-bull' : 'bg-bear/20 text-bear'
+                  }`}>
+                  {pos.pnl_usdt >= 0 ? '+' : ''}${pos.pnl_usdt?.toFixed(2)}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-full text-textSecondary/30 text-xs">
+                Empty
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Chart Panel ────────────────────────────────────────────────
 export default function ChartPanel() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -25,10 +103,11 @@ export default function ChartPanel() {
   const setChartView = useUiStore((s) => s.setChartView);
   const setSignalsModalOpen = useUiStore((s) => s.setSignalsModalOpen);
   const setCandles = useDataStore((s) => s.setCandles);
+  const positions = useDataStore((s) => s.positions);
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [chartReady, setChartReady] = useState(false);
 
-  // Load candles only for active pair/TF - refetch every 15 seconds
+  // Load candles
   const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
     queryFn: () => apiService.getCandles(currentPair, currentTf, 500),
@@ -37,7 +116,20 @@ export default function ChartPanel() {
     retry: 1,
   });
 
-  // Create chart instance when chart view is active
+  // Load open positions for current pair (for TP/SL lines)
+  const { data: openPositions } = useQuery({
+    queryKey: ['positions-open'],
+    queryFn: () => apiService.getOpenPositions(),
+    refetchInterval: 5000,
+    staleTime: 3000,
+  });
+
+  // Find position for current pair
+  const currentPairPositions = (openPositions || positions).filter(
+    (p: Position) => p.pair === currentPair
+  );
+
+  // Create chart
   useEffect(() => {
     if (chartView !== 'chart') return;
     if (!chartContainerRef.current) return;
@@ -84,7 +176,6 @@ export default function ChartPanel() {
       priceScaleId: 'volume',
     });
 
-    // Position volume at the bottom 15% of chart, candles in top 85%
     chart.priceScale('volume').applyOptions({
       scaleMargins: { top: 0.85, bottom: 0 },
     });
@@ -106,7 +197,7 @@ export default function ChartPanel() {
     };
   }, [chartView]);
 
-  // Update chart data when candleData arrives OR chart becomes ready
+  // Update chart data
   useEffect(() => {
     if (!chartReady) return;
     if (!candleData || candleData.length === 0) return;
@@ -129,10 +220,74 @@ export default function ChartPanel() {
     candleSeriesRef.current.setData(candles);
     volumeSeriesRef.current.setData(volume);
     setCandles(candleData);
-
-    // Auto-fit on data load
     chartRef.current?.timeScale().fitContent();
   }, [candleData, chartReady, currentPair, currentTf, setCandles]);
+
+  // Draw TP/SL lines and Candles Left marker for active positions
+  useEffect(() => {
+    if (!chartReady || !candleSeriesRef.current) return;
+
+    // Clear existing price lines
+    const series = candleSeriesRef.current;
+    // Remove old lines by creating fresh ones
+    // lightweight-charts doesn't have removeAllPriceLines, so we track them
+
+    // Add TP/SL lines for each position on this pair
+    currentPairPositions.forEach((pos: Position) => {
+      // Take Profit line — green
+      if (pos.take_profit > 0) {
+        series.createPriceLine({
+          price: pos.take_profit,
+          color: '#0ECB81',
+          lineWidth: 2,
+          lineStyle: 0, // Solid
+          axisLabelVisible: true,
+          title: `TP ${pos.side}`,
+        });
+      }
+
+      // Stop Loss line — red
+      if (pos.stop_loss > 0) {
+        series.createPriceLine({
+          price: pos.stop_loss,
+          color: '#F6465D',
+          lineWidth: 2,
+          lineStyle: 0,
+          axisLabelVisible: true,
+          title: `SL ${pos.side}`,
+        });
+      }
+    });
+
+    // Add Candles Left markers
+    if (candleData && candleData.length > 0 && currentPairPositions.length > 0) {
+      const markers: any[] = [];
+      currentPairPositions.forEach((pos: Position) => {
+        if (pos.candles_left > 0) {
+          // Calculate the candle index for forced close
+          const lastCandleIdx = candleData.length - 1;
+          const targetIdx = Math.min(lastCandleIdx + pos.candles_left, lastCandleIdx + 50);
+          // Use the last candle time + offset
+          const lastTime = Math.floor(candleData[lastCandleIdx].t / 1000);
+          const tfSeconds = currentTf * 60;
+          const markerTime = lastTime + pos.candles_left * tfSeconds;
+
+          markers.push({
+            time: markerTime as any,
+            position: 'inBar',
+            color: '#F0B90B',
+            shape: 'circle',
+            size: 3,
+            text: `${pos.candles_left} bars`,
+          });
+        }
+      });
+
+      if (markers.length > 0) {
+        series.setMarkers(markers);
+      }
+    }
+  }, [chartReady, currentPairPositions, candleData, currentTf]);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
@@ -149,7 +304,7 @@ export default function ChartPanel() {
             }`}
           onClick={() => setChartView('positions')}
         >
-          <Table className="w-3 h-3" /> Positions
+          <LayoutGrid className="w-3 h-3" /> Positions
         </button>
 
         <div className="w-px h-6 bg-border mx-2" />
@@ -183,14 +338,16 @@ export default function ChartPanel() {
           )}
         </div>
 
-        <button
-          className="px-3 py-1.5 rounded text-sm text-textSecondary hover:bg-panelAlt flex items-center gap-1"
-          onClick={() => setSignalsModalOpen(true)}
-        >
-          <Bell className="w-3 h-3" /> Signals
-        </button>
-
         <div className="flex-1" />
+
+        {/* Position count badge */}
+        {currentPairPositions.length > 0 && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-binanceYellow/10 border border-binanceYellow/30">
+            <span className="text-xs text-binanceYellow font-medium">
+              {currentPairPositions.length} open
+            </span>
+          </div>
+        )}
 
         {isLoading && (
           <div className="text-xs text-textSecondary animate-pulse">Loading...</div>
@@ -206,7 +363,7 @@ export default function ChartPanel() {
           )}
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-textSecondary">Positions View</div>
+        <PositionsGridView />
       )}
     </div>
   );

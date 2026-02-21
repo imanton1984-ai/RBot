@@ -2,18 +2,21 @@ import { useTradingStore, useUiStore, useDataStore, useWsStore } from '../store'
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { ChevronDown, Bell, Settings, Grid3x3, User, SquareTerminal } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function TopBar() {
   const { currentPair, setCurrentPair } = useTradingStore();
-  const { setOptionsModalOpen, setStrategiesModalOpen, setSignalsModalOpen } = useUiStore();
+  const { setTradingOptionsModalOpen, setOrderOptionsModalOpen, setSignalsModalOpen } = useUiStore();
+  const connections = useDataStore((s) => s.connections);
   const { connected, lastPrice, priceChange24h, priceChange1h, volume24h, high24h, low24h } = useWsStore();
   const [pairSearchOpen, setPairSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Load ALL pairs from DB (no limit)
   const { data: pairs = [] } = useQuery({
     queryKey: ['pairs', searchQuery],
-    queryFn: () => apiService.getPairs(searchQuery, 20),
+    queryFn: () => apiService.getPairs(searchQuery, 500),
     enabled: pairSearchOpen,
   });
 
@@ -23,9 +26,42 @@ export default function TopBar() {
     refetchInterval: 5000,
   });
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setPairSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const price = summary?.price || lastPrice || 0;
   const change24h = summary?.change_24h || priceChange24h;
   const change1h = summary?.change_1h || priceChange1h;
+
+  // Connection indicator color logic:
+  // All connected → green
+  // WS or Account disconnected → red
+  // Any other single disconnected → yellow
+  const getConnectionColor = () => {
+    if (!connections) return 'bg-textSecondary';
+    const { database, redpanda, rest_api, websocket, account } = connections;
+    const allConnected = database && redpanda && rest_api && websocket && account;
+    if (allConnected) return 'bg-bull';
+    if (!websocket || !account) return 'bg-bear';
+    return 'bg-binanceYellow';
+  };
+
+  const getConnectionLabel = () => {
+    if (!connections) return 'Checking...';
+    const { database, redpanda, rest_api, websocket, account } = connections;
+    const allConnected = database && redpanda && rest_api && websocket && account;
+    if (allConnected) return 'Connections: OK';
+    if (!websocket || !account) return 'Connections: Critical';
+    return 'Connections: Partial';
+  };
 
   return (
     <header className="h-14 bg-panel border-b border-border flex items-center px-4 justify-between shrink-0">
@@ -35,7 +71,7 @@ export default function TopBar() {
             <SquareTerminal className="w-5 h-5 text-black" />
           </div>
           <div>
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <button
                 className="text-xl font-bold text-textPrimary hover:text-binanceYellow transition-colors flex items-center gap-1"
                 onClick={() => setPairSearchOpen(!pairSearchOpen)}
@@ -45,7 +81,7 @@ export default function TopBar() {
               </button>
 
               {pairSearchOpen && (
-                <div className="absolute top-full left-0 mt-1 w-64 bg-panel border border-border rounded-lg shadow-xl z-50">
+                <div className="absolute top-full left-0 mt-1 w-72 bg-panel border border-border rounded-lg shadow-xl z-50">
                   <input
                     type="text"
                     placeholder="Search pair..."
@@ -54,7 +90,7 @@ export default function TopBar() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     autoFocus
                   />
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto">
                     {pairs.map((pair: any) => (
                       <button
                         key={pair.symbol_id}
@@ -68,6 +104,9 @@ export default function TopBar() {
                         <span>{pair.symbol}</span>
                       </button>
                     ))}
+                    {pairs.length === 0 && (
+                      <div className="px-3 py-4 text-center text-textSecondary text-xs">No pairs found</div>
+                    )}
                   </div>
                 </div>
               )}
@@ -103,23 +142,23 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-1">
-        <button className="px-3 py-2 hover:bg-panelAlt rounded-lg text-sm flex items-center gap-1" onClick={() => setStrategiesModalOpen(true)}>
-          Strategies
-          <ChevronDown className="w-3 h-3" />
-        </button>
         <button className="px-3 py-2 hover:bg-panelAlt rounded-lg text-sm flex items-center gap-1" onClick={() => setSignalsModalOpen(true)}>
           Signals
         </button>
-        <button className="px-3 py-2 hover:bg-panelAlt rounded-lg text-sm flex items-center gap-1" onClick={() => setOptionsModalOpen(true)}>
-          Options
+        <button className="px-3 py-2 hover:bg-panelAlt rounded-lg text-sm flex items-center gap-1" onClick={() => setTradingOptionsModalOpen(true)}>
+          Trading Options
+          <ChevronDown className="w-3 h-3" />
+        </button>
+        <button className="px-3 py-2 hover:bg-panelAlt rounded-lg text-sm flex items-center gap-1" onClick={() => setOrderOptionsModalOpen(true)}>
+          Order Options
           <ChevronDown className="w-3 h-3" />
         </button>
       </div>
 
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-panelAlt">
-          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-bull' : 'bg-bear'}`} />
-          <span className="text-xs text-textSecondary">{connected ? 'WS: Connected' : 'Disconnected'}</span>
+          <div className={`w-2 h-2 rounded-full ${getConnectionColor()}`} />
+          <span className="text-xs text-textSecondary">{getConnectionLabel()}</span>
         </div>
         <button className="p-2 hover:bg-panelAlt rounded-lg"><Bell className="w-4 h-4 text-textSecondary" /></button>
         <button className="p-2 hover:bg-panelAlt rounded-lg"><Grid3x3 className="w-4 h-4 text-textSecondary" /></button>
@@ -129,4 +168,3 @@ export default function TopBar() {
     </header>
   );
 }
-

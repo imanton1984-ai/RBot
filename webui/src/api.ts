@@ -1,5 +1,9 @@
 import axios from 'axios';
-import type { Candle, Indicator, Pair, MarketSummary, Position, Signal, Balance, PnlOverview, Alert, Strategy, WebUiSettings } from './types';
+import type {
+  Candle, Indicator, Pair, MarketSummary, Position, Signal, Balance,
+  PnlOverview, Alert, ConnectionStatus, TradingOptions,
+  OrderOptions, ManualOrderRequest, AutoTradingState,
+} from './types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -7,7 +11,7 @@ const api = axios.create({
 });
 
 export const apiService = {
-  // Pairs
+  // ─── Pairs ──────────────────────────────────────────────────
   getPairs: async (search?: string, limit?: number): Promise<Pair[]> => {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
@@ -16,7 +20,7 @@ export const apiService = {
     return data;
   },
 
-  // Market
+  // ─── Market ─────────────────────────────────────────────────
   getMarketSummary: async (pair: string, tf: number): Promise<MarketSummary> => {
     const { data } = await api.get<MarketSummary>('/market/summary', {
       params: { pair, tf },
@@ -24,7 +28,7 @@ export const apiService = {
     return data;
   },
 
-  // Candles
+  // ─── Candles ────────────────────────────────────────────────
   getCandles: async (pair: string, tf: number, limit?: number): Promise<Candle[]> => {
     const { data } = await api.get<Candle[]>('/candles', {
       params: { pair, tf, limit },
@@ -32,7 +36,7 @@ export const apiService = {
     return data;
   },
 
-  // Indicators
+  // ─── Indicators ──────────────────────────────────────────────
   getIndicators: async (pair: string, tf: number, type: string, limit?: number): Promise<Indicator[]> => {
     const { data } = await api.get<Indicator[]>('/indicators', {
       params: { pair, tf, type, limit },
@@ -40,7 +44,7 @@ export const apiService = {
     return data;
   },
 
-  // Signals
+  // ─── Signals ────────────────────────────────────────────────
   getSignals: async (pair?: string, tf?: number, limit?: number): Promise<Signal[]> => {
     const params = new URLSearchParams();
     if (pair) params.append('pair', pair);
@@ -50,7 +54,7 @@ export const apiService = {
     return data;
   },
 
-  // Positions
+  // ─── Positions ──────────────────────────────────────────────
   getOpenPositions: async (): Promise<Position[]> => {
     const { data } = await api.get<Position[]>('/positions/open');
     return data;
@@ -71,7 +75,7 @@ export const apiService = {
     return data;
   },
 
-  // PnL & Balance
+  // ─── PnL & Balance ─────────────────────────────────────────
   getPnlOverview: async (range?: string): Promise<PnlOverview> => {
     const { data } = await api.get<PnlOverview>('/pnl/overview', {
       params: { range },
@@ -84,7 +88,13 @@ export const apiService = {
     return data;
   },
 
-  // Alerts
+  // ─── Connections ────────────────────────────────────────────
+  getConnections: async (): Promise<ConnectionStatus> => {
+    const { data } = await api.get<ConnectionStatus>('/connections');
+    return data;
+  },
+
+  // ─── Alerts (from risk_manager) ────────────────────────────
   getAlerts: async (limit?: number): Promise<Alert[]> => {
     const { data } = await api.get<Alert[]>('/alerts', {
       params: { limit },
@@ -92,36 +102,28 @@ export const apiService = {
     return data;
   },
 
-  // Settings
-  getOptions: async (): Promise<WebUiSettings> => {
-    const { data } = await api.get<WebUiSettings>('/options');
+  // ─── Trading Options (order_settings.toml) ─────────────────
+  getTradingOptions: async (): Promise<TradingOptions> => {
+    const { data } = await api.get<TradingOptions>('/trading-options');
     return data;
   },
 
-  saveOptions: async (settings: WebUiSettings): Promise<void> => {
-    await api.post('/options', settings);
+  saveTradingOptions: async (options: TradingOptions): Promise<void> => {
+    await api.post('/trading-options', options);
   },
 
-  // Strategies
-  getStrategies: async (): Promise<Strategy[]> => {
-    const { data } = await api.get<Strategy[]>('/strategies');
+  // ─── Order Options (order_manager.toml + risk_manager.toml) ─
+  getOrderOptions: async (): Promise<OrderOptions> => {
+    const { data } = await api.get<OrderOptions>('/order-options');
     return data;
   },
 
-  toggleStrategy: async (id: string, enabled: boolean): Promise<void> => {
-    await api.post('/strategy/toggle', { id, enabled });
+  saveOrderOptions: async (options: OrderOptions): Promise<void> => {
+    await api.post('/order-options', options);
   },
 
-  // Trading
-  placeOrder: async (order: {
-    pair: string;
-    side: string;
-    type: string;
-    price?: number;
-    amount_usdt: number;
-    leverage: number;
-    reduce_only: boolean;
-  }): Promise<void> => {
+  // ─── Trading ────────────────────────────────────────────────
+  placeOrder: async (order: ManualOrderRequest): Promise<void> => {
     await api.post('/trade/order', order);
   },
 
@@ -129,16 +131,28 @@ export const apiService = {
     await api.post('/trade/close', { position_id: positionId });
   },
 
-  // Control
+  // ─── Candles Left Update ────────────────────────────────────
+  updateCandlesLeft: async (positionId: number, candlesLeft: number): Promise<void> => {
+    await api.post('/trade/update-candles-left', { position_id: positionId, candles_left: candlesLeft });
+  },
+
+  // ─── Control ────────────────────────────────────────────────
   emergencyStop: async (): Promise<void> => {
     await api.post('/control/emergency_stop');
   },
 
-  reloadBase: async (): Promise<void> => {
-    await api.post('/control/reload_base');
+  startTrading: async (): Promise<AutoTradingState> => {
+    const { data } = await api.post<AutoTradingState>('/control/start_trading');
+    return data;
   },
 
-  startTrading: async (): Promise<void> => {
-    await api.post('/control/start_trading');
+  stopTrading: async (): Promise<AutoTradingState> => {
+    const { data } = await api.post<AutoTradingState>('/control/stop_trading');
+    return data;
+  },
+
+  getAutoTradingState: async (): Promise<AutoTradingState> => {
+    const { data } = await api.get<AutoTradingState>('/control/trading_state');
+    return data;
   },
 };

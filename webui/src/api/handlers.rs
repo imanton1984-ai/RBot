@@ -1,17 +1,24 @@
-// webui/src/api/handlers.rs — Fixed to match actual DB schema
+// webui/src/api/handlers.rs — Full WebUI API Handlers
 //
-// Key corrections:
-//   - Candles: separate tables per timeframe (market.candles_1m, candles_5m, etc.)
-//   - Indicators: market.indicators_wide with columns ema_20, ema_50, ema_200 (underscores)
-//   - Signals: trade.super_entry_signals (main strategy)
-//   - Positions: direct columns sl_price, tp_price, candles_left, close_reason, exit_price
-//   - History: trade.position_history for closed trades
-//   - Alerts: stub (no risk.alerts table yet)
+// Endpoints for:
+//   - Market data (pairs, candles, indicators, signals)
+//   - Balance (from Binance Futures account via settings)
+//   - PnL (calculated without leverage = real PnL)
+//   - Connections (DB, Redpanda, REST API, WebSocket, Account)
+//   - Trading Options (order_settings.toml)
+//   - Order Options (order_manager.toml + risk_manager.toml)
+//   - Alerts (from risk.alerts Kafka topic / stub)
+//   - Trading control (start/stop, emergency stop)
+//   - Manual order placement with TP/SL
 
 use axum::{extract::{Query, State}, Json, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
-use crate::state::{AppState, WebUiSettings, BalanceInfo, PnlOverview};
+use crate::state::{
+    AppState, BalanceInfo, PnlOverview,
+    ConnectionStatus, TradingOptionsPayload,
+    AutoTradingState, ManualOrderRequest, CandlesLeftUpdateRequest,
+};
 
 // ─── Query parameters ─────────────────────────────────────────────────
 #[derive(Debug, Deserialize)]
@@ -34,6 +41,9 @@ pub struct SignalsQuery { pub pair: Option<String>, pub tf: Option<i32>, pub lim
 
 #[derive(Debug, Deserialize)]
 pub struct AlertsQuery { pub limit: Option<i64> }
+
+#[derive(Debug, Deserialize)]
+pub struct PnlQuery { pub range: Option<String> }
 
 // ─── Response types ────────────────────────────────────────────────────
 #[derive(Debug, Serialize)]
@@ -86,6 +96,7 @@ pub struct PositionRow {
     pub status: String,
     pub open_time: String,
     pub candles_left: i16,
+    pub leverage: u16,
 }
 
 #[derive(Debug, Serialize)]
@@ -103,20 +114,17 @@ pub struct HistoryRow {
     pub close_time: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrderRequest {
+#[derive(Debug, Serialize)]
+pub struct AlertRow {
+    pub id: i64,
     pub pair: String,
-    pub side: String,
-    #[serde(rename = "type")]
-    pub order_type: String,
-    pub price: Option<f64>,
-    pub amount_usdt: f64,
-    pub leverage: u16,
-    pub reduce_only: bool,
+    pub alert_type: String,
+    pub time_ago: String,
+    pub message: String,
+    pub severity: String,
+    pub source: String,
+    pub timestamp: String,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ClosePositionRequest { pub position_id: i64 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
@@ -138,7 +146,7 @@ pub async fn get_pairs(
     Query(query): Query<PairsQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PairInfo>>, StatusCode> {
-    let limit = query.limit.unwrap_or(100);
+    let limit = query.limit.unwrap_or(500); // Default 500 for full list
     let search = query.search.unwrap_or_default();
 
     let rows = sqlx::query(
@@ -166,16 +174,33 @@ pub async fn get_market_summary(
     Query(query): Query<CandlesQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<MarketSummary>, StatusCode> {
-    // Get latest price and 24h stats from candles_1m
     let row = sqlx::query(
-        "SELECT
-            (SELECT close FROM market.candles_1m
-             WHERE symbol = $1 ORDER BY time DESC LIMIT 1) as last_price,
-            COALESCE(MAX(high), 0) as high_24h,
-            COALESCE(MIN(low), 0) as low_24h,
-            COALESCE(SUM(volume), 0) as volume_24h
-         FROM market.candles_1m
-         WHERE symbol = $1 AND time >= now() - INTERVAL '24 hours'"
+        "WITH latest AS (
+            SELECT close FROM market.candles_1m
+            WHERE symbol = $1 ORDER BY time DESC LIMIT 1
+        ), stats AS (
+            SELECT
+                COALESCE(MAX(high), 0) as high_24h,
+                COALESCE(MIN(low), 0) as low_24h,
+                COALESCE(SUM(volume), 0) as volume_24h
+            FROM market.candles_1m
+            WHERE symbol = $1 AND time >= now() - INTERVAL '24 hours'
+        ), price_24h_ago AS (
+            SELECT close as price_24h FROM market.candles_1m
+            WHERE symbol = $1 AND time <= now() - INTERVAL '24 hours'
+            ORDER BY time DESC LIMIT 1
+        ), price_1h_ago AS (
+            SELECT close as price_1h FROM market.candles_1m
+            WHERE symbol = $1 AND time <= now() - INTERVAL '1 hour'
+            ORDER BY time DESC LIMIT 1
+        )
+        SELECT
+            (SELECT close FROM latest) as last_price,
+            (SELECT high_24h FROM stats),
+            (SELECT low_24h FROM stats),
+            (SELECT volume_24h FROM stats),
+            (SELECT price_24h FROM price_24h_ago) as price_24h,
+            (SELECT price_1h FROM price_1h_ago) as price_1h"
     )
     .bind(&query.pair)
     .fetch_optional(&state.db_pool)
@@ -185,11 +210,15 @@ pub async fn get_market_summary(
     match row {
         Some(r) => {
             let price: f64 = r.try_get("last_price").unwrap_or(0.0);
+            let price_24h: f64 = r.try_get("price_24h").unwrap_or(price);
+            let price_1h: f64 = r.try_get("price_1h").unwrap_or(price);
+            let change_24h = if price_24h > 0.0 { (price - price_24h) / price_24h * 100.0 } else { 0.0 };
+            let change_1h = if price_1h > 0.0 { (price - price_1h) / price_1h * 100.0 } else { 0.0 };
             Ok(Json(MarketSummary {
                 price,
                 volume_24h: r.try_get("volume_24h").unwrap_or(0.0),
-                change_24h: 0.0, // TODO: calculate from 24h ago price
-                change_1h: 0.0,
+                change_24h,
+                change_1h,
                 high_24h: r.try_get("high_24h").unwrap_or(0.0),
                 low_24h: r.try_get("low_24h").unwrap_or(0.0),
             }))
@@ -209,7 +238,6 @@ pub async fn get_candles(
     let limit = query.limit.unwrap_or(500).min(5000);
     let table = candle_table(query.tf);
 
-    // Dynamic SQL — table name is from our controlled enum, not user input
     let sql = format!(
         "SELECT c.time_ms as t, c.open as o, c.high as h, c.low as l, c.close as c, c.volume as v
          FROM {} c
@@ -227,7 +255,6 @@ pub async fn get_candles(
         .await
         .map_err(|e| { tracing::error!("Candles error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
 
-    // Rows come DESC, reverse for chronological order
     let candles: Vec<CandleResponse> = rows.iter().rev().map(|r| CandleResponse {
         t: r.get("t"),
         o: r.get("o"),
@@ -245,7 +272,6 @@ pub async fn get_indicators(
     Query(query): Query<IndicatorsQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<IndicatorResponse>>, StatusCode> {
-    // Map indicator type to actual column name in market.indicators_wide
     let column = match query.indicator_type.as_str() {
         "ema" | "ema20" | "ema_20"   => "ema_20",
         "ema50" | "ema_50"           => "ema_50",
@@ -296,7 +322,7 @@ pub async fn get_indicators(
     Ok(Json(indicators))
 }
 
-// ─── GET /api/signals (trade.super_entry_signals) ─────────────────────
+// ─── GET /api/signals ─────────────────────────────────────────────────
 pub async fn get_signals(
     Query(query): Query<SignalsQuery>,
     State(state): State<AppState>,
@@ -358,6 +384,7 @@ pub async fn get_open_positions(
                 COALESCE(p.unrealized_pnl, 0) as pnl_usdt,
                 0::double precision as pnl_pct,
                 COALESCE(p.candles_left, 0)::smallint as candles_left,
+                COALESCE(p.leverage, 10)::smallint as leverage,
                 p.opened_at as open_time
          FROM trade.positions p
          JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
@@ -370,6 +397,7 @@ pub async fn get_open_positions(
 
     let positions: Vec<PositionRow> = rows.iter().map(|r| {
         let open_time: chrono::DateTime<chrono::Utc> = r.get("open_time");
+        let leverage: i16 = r.try_get("leverage").unwrap_or(10);
         PositionRow {
             id: r.get("id"),
             pair: r.get("pair"),
@@ -384,6 +412,7 @@ pub async fn get_open_positions(
             status: "open".to_string(),
             open_time: open_time.to_rfc3339(),
             candles_left: r.get("candles_left"),
+            leverage: leverage as u16,
         }
     }).collect();
 
@@ -434,16 +463,18 @@ pub async fn get_positions_history(
 
 // ─── GET /api/pnl/overview ─────────────────────────────────────────────
 pub async fn get_pnl_overview(
+    Query(_query): Query<PnlQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<PnlOverview>, StatusCode> {
-    // Use position_history for closed PnL stats
+    // Closed PnL — real PnL without leverage effect
+    // realized_pnl in position_history is already the real USDT PnL
     let row = sqlx::query(
         "SELECT
             COALESCE(SUM(realized_pnl), 0) as closed_pnl,
             COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
             COUNT(*) as total_trades
          FROM trade.position_history
-         WHERE closed_at > NOW() - INTERVAL '1 day'"
+         WHERE closed_at > NOW() - INTERVAL '30 days'"
     )
     .fetch_one(&state.db_pool)
     .await
@@ -454,7 +485,9 @@ pub async fn get_pnl_overview(
     let total_trades: i64 = row.get("total_trades");
     let win_rate = if total_trades > 0 { (wins as f64 / total_trades as f64) * 100.0 } else { 0.0 };
 
-    // Unrealized PnL from open positions
+    // Unrealized PnL from open positions (real PnL, not leveraged)
+    // unrealized_pnl = direction * (current_price - entry_price) * qty
+    // This is already in USDT without leverage amplification
     let unrealized_row = sqlx::query(
         "SELECT COALESCE(SUM(unrealized_pnl), 0) as unrealized
          FROM trade.positions WHERE status = 1"
@@ -467,117 +500,574 @@ pub async fn get_pnl_overview(
         .and_then(|r| r.try_get::<f64, _>("unrealized").ok())
         .unwrap_or(0.0);
 
+    // Get overall balance from Binance account (wallet_balance)
+    // This is the real balance without leverage
+    let balance_info = get_binance_balance_internal().await;
+    let overall_balance = balance_info.wallet_balance;
+
     Ok(Json(PnlOverview {
         closed_pnl,
         unrealized_pnl,
         win_rate,
         today_trades: total_trades,
         equity_points: vec![],
+        overall_balance,
     }))
 }
 
 // ─── GET /api/balance ──────────────────────────────────────────────────
 pub async fn get_balance(
-    _state: State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<BalanceInfo>, StatusCode> {
-    // TODO: connect to actual Binance balance via exchange settings
-    Ok(Json(BalanceInfo { overall: 1000.0, in_orders: 0.0, available: 1000.0 }))
+    // Read real balance from Binance Futures account
+    let mut balance = get_binance_balance_internal().await;
+
+    // Also include in_orders from our DB (real margin used, not leveraged notional)
+    let in_orders_row = sqlx::query(
+        "SELECT COALESCE(SUM(qty * entry_price / GREATEST(COALESCE(leverage, 10), 1)), 0) as in_orders
+         FROM trade.positions WHERE status = 1"
+    )
+    .fetch_optional(&state.db_pool)
+    .await
+    .ok()
+    .flatten();
+
+    if let Some(row) = in_orders_row {
+        let db_in_orders: f64 = row.try_get("in_orders").unwrap_or(0.0);
+        if db_in_orders > 0.0 {
+            balance.in_orders = db_in_orders;
+            balance.available = balance.wallet_balance - balance.in_orders;
+        }
+    }
+
+    // Overall = wallet_balance (real deposit + realized PnL, WITHOUT leverage)
+    balance.overall = balance.wallet_balance;
+
+    Ok(Json(balance))
+}
+
+/// Internal function to get Binance balance
+async fn get_binance_balance_internal() -> BalanceInfo {
+    // Try to load credentials and fetch real balance
+    match settings::ExchangeSettings::load() {
+        Ok(exchange_settings) => {
+            if exchange_settings.has_credentials() {
+                let testnet = std::env::var("BINANCE_TESTNET")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false);
+                match connections_lib::BinanceFuturesClient::new(
+                    exchange_settings.api_key(),
+                    exchange_settings.api_secret(),
+                    testnet,
+                ) {
+                    Ok(client) => {
+                        match client.account_info().await {
+                            Ok(info) => {
+                                let wallet_balance = info.total_wallet_balance
+                                    .parse::<f64>().unwrap_or(0.0);
+                                let unrealized_pnl = info.total_unrealized_profit
+                                    .parse::<f64>().unwrap_or(0.0);
+                                let available = info.available_balance
+                                    .parse::<f64>().unwrap_or(0.0);
+
+                                // Calculate in_orders = wallet - available
+                                let in_orders = (wallet_balance - available).max(0.0);
+
+                                return BalanceInfo {
+                                    overall: wallet_balance,
+                                    in_orders,
+                                    available,
+                                    wallet_balance,
+                                    unrealized_pnl,
+                                };
+                            }
+                            Err(e) => {
+                                tracing::debug!("Binance account unavailable: {:?}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::debug!("Failed to create Binance client: {}", e);
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            tracing::debug!("No exchange settings: {}", e);
+        }
+    }
+
+    // Fallback — return zeros
+    BalanceInfo {
+        overall: 0.0,
+        in_orders: 0.0,
+        available: 0.0,
+        wallet_balance: 0.0,
+        unrealized_pnl: 0.0,
+    }
+}
+
+// ─── GET /api/connections ──────────────────────────────────────────────
+pub async fn get_connections(
+    State(state): State<AppState>,
+) -> Result<Json<ConnectionStatus>, StatusCode> {
+    // Check all connections in parallel
+    let db_ok = check_database(&state.db_pool).await;
+    let (api_ok, ws_ok, account_ok) = check_binance().await;
+    let redpanda_ok = check_redpanda().await;
+
+    Ok(Json(ConnectionStatus {
+        database: db_ok,
+        redpanda: redpanda_ok,
+        rest_api: api_ok,
+        websocket: ws_ok,
+        account: account_ok,
+    }))
+}
+
+async fn check_database(pool: &sqlx::PgPool) -> bool {
+    sqlx::query("SELECT 1")
+        .fetch_one(pool)
+        .await
+        .is_ok()
+}
+
+async fn check_redpanda() -> bool {
+    // Try TCP connect to Kafka brokers
+    let brokers = std::env::var("KAFKA_BROKERS")
+        .unwrap_or_else(|_| "127.0.0.1:19092".to_string());
+    let addr = brokers.split(',').next().unwrap_or("127.0.0.1:19092");
+    tokio::net::TcpStream::connect(addr)
+        .await
+        .is_ok()
+}
+
+async fn check_binance() -> (bool, bool, bool) {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .unwrap_or_default();
+
+    // REST API ping
+    let rest_ok = client.get("https://fapi.binance.com/fapi/v1/ping")
+        .send().await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+
+    // WebSocket check (quick TCP/TLS handshake to fstream)
+    let ws_ok = tokio::net::TcpStream::connect("fstream.binance.com:443")
+        .await
+        .is_ok();
+
+    // Account check
+    let account_ok = match settings::ExchangeSettings::load() {
+        Ok(es) if es.has_credentials() => {
+            let testnet = std::env::var("BINANCE_TESTNET")
+                .map(|v| v == "true" || v == "1")
+                .unwrap_or(false);
+            match connections_lib::BinanceFuturesClient::new(es.api_key(), es.api_secret(), testnet) {
+                Ok(c) => c.ping().await.is_ok(),
+                Err(_) => false,
+            }
+        }
+        _ => false,
+    };
+
+    (rest_ok, ws_ok, account_ok)
 }
 
 // ─── GET /api/alerts ──────────────────────────────────────────────────
 pub async fn get_alerts(
     Query(query): Query<AlertsQuery>,
-    State(_state): State<AppState>,
-) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
-    // TODO: risk.alerts table doesn't exist yet — return empty for now
-    let _limit = query.limit.unwrap_or(50);
-    Ok(Json(vec![]))
+    State(state): State<AppState>,
+) -> Result<Json<Vec<AlertRow>>, StatusCode> {
+    let limit = query.limit.unwrap_or(50);
+
+    // Try to read from risk.alerts table if it exists
+    let rows = sqlx::query(
+        "SELECT id, symbol, source, severity, message, price, change_pct, timestamp
+         FROM risk.alerts
+         ORDER BY timestamp DESC
+         LIMIT $1"
+    )
+    .bind(limit)
+    .fetch_all(&state.db_pool)
+    .await;
+
+    match rows {
+        Ok(rows) => {
+            let alerts: Vec<AlertRow> = rows.iter().map(|r| {
+                let ts: chrono::DateTime<chrono::Utc> = r.get("timestamp");
+                let now = chrono::Utc::now();
+                let diff = now - ts;
+                let time_ago = if diff.num_hours() > 0 {
+                    format!("{}h ago", diff.num_hours())
+                } else if diff.num_minutes() > 0 {
+                    format!("{}m ago", diff.num_minutes())
+                } else {
+                    "just now".to_string()
+                };
+
+                AlertRow {
+                    id: r.get("id"),
+                    pair: r.get("symbol"),
+                    alert_type: r.try_get::<String, _>("source").unwrap_or("Info".to_string()),
+                    time_ago,
+                    message: r.get("message"),
+                    severity: r.try_get::<String, _>("severity").unwrap_or("info".to_string()),
+                    source: r.try_get::<String, _>("source").unwrap_or("system".to_string()),
+                    timestamp: ts.to_rfc3339(),
+                }
+            }).collect();
+            Ok(Json(alerts))
+        }
+        Err(_) => {
+            // Table doesn't exist yet — return empty
+            Ok(Json(vec![]))
+        }
+    }
 }
 
-// ─── GET /api/options ─────────────────────────────────────────────────
-pub async fn get_options(
-    State(state): State<AppState>,
-) -> Result<Json<WebUiSettings>, StatusCode> {
-    Ok(Json(state.settings.read().await.clone()))
+// ─── GET /api/trading-options ─────────────────────────────────────────
+pub async fn get_trading_options(
+) -> Result<Json<TradingOptionsPayload>, StatusCode> {
+    match settings::OrderSettings::load() {
+        Ok(os) => {
+            Ok(Json(TradingOptionsPayload {
+                leverage: os.leverage,
+                max_orders_at_a_time: os.max_orders_at_a_time,
+                trade_size_type: format!("{}", os.trade_size_type),
+                trade_size_value: os.trade_size_value,
+                strategy_type: format!("{}", os.strategy_type),
+                order_type: format!("{}", os.order_type),
+                trading_mode: format!("{}", os.trading_mode),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to load order settings: {}", e);
+            // Return defaults
+            Ok(Json(TradingOptionsPayload {
+                leverage: 10,
+                max_orders_at_a_time: 10,
+                trade_size_type: "fixed_usdt".to_string(),
+                trade_size_value: 100.0,
+                strategy_type: "ml_super_entry".to_string(),
+                order_type: "futures_oco".to_string(),
+                trading_mode: "off".to_string(),
+            }))
+        }
+    }
 }
 
-// ─── POST /api/options ────────────────────────────────────────────────
-pub async fn save_options(
+// ─── POST /api/trading-options ────────────────────────────────────────
+pub async fn save_trading_options(
     State(state): State<AppState>,
-    Json(new_settings): Json<WebUiSettings>,
+    Json(options): Json<TradingOptionsPayload>,
 ) -> Result<StatusCode, StatusCode> {
-    *state.settings.write().await = new_settings;
+    // Build TOML content matching config/order_settings.toml format
+    let content = format!(
+        "leverage = {}\nmax_orders_at_a_time = {}\ntrade_size_type = \"{}\"\ntrade_size_value = {}\nstrategy_type = \"{}\"\norder_type = \"{}\"\ntrading_mode = \"{}\"",
+        options.leverage,
+        options.max_orders_at_a_time,
+        options.trade_size_type,
+        options.trade_size_value,
+        options.strategy_type,
+        options.order_type,
+        options.trading_mode,
+    );
+
+    std::fs::write("config/order_settings.toml", content)
+        .map_err(|e| {
+            tracing::error!("Failed to save order settings: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
     state.broadcast(crate::state::WsMessage::OptionsUpdated);
+    tracing::info!("Trading options saved to config/order_settings.toml");
     Ok(StatusCode::OK)
 }
 
-// ─── POST /api/trade/order ────────────────────────────────────────────
+// ─── GET /api/order-options ───────────────────────────────────────────
+pub async fn get_order_options(
+) -> Result<Json<crate::state::OrderOptionsPayload>, StatusCode> {
+    // Load order_manager.toml
+    let om = load_order_manager_toml();
+    // Load risk_manager.toml
+    let rm = load_risk_manager_toml();
+
+    Ok(Json(crate::state::OrderOptionsPayload {
+        order_manager: crate::state::OrderManagerOptionsPayload {
+            signal_score_min: om.0,
+            signal_score_max: om.1,
+            max_hold_bars: om.2,
+            tf_1h_pct: om.3,
+            tf_4h_pct: om.4,
+            tf_15m_pct: om.5,
+        },
+        risk_manager: crate::state::RiskManagerOptionsPayload {
+            btc_alert_threshold_pct: rm.0,
+            alt_alert_threshold_pct: rm.1,
+            volume_spike_threshold: rm.2,
+        },
+    }))
+}
+
+fn load_order_manager_toml() -> (f64, f64, i32, u16, u16, u16) {
+    let path = "config/order_manager.toml";
+    if let Ok(content) = std::fs::read_to_string(path) {
+        if let Ok(val) = content.parse::<toml::Value>() {
+            let score_min = val.get("signal_score_min").and_then(|v| v.as_float()).unwrap_or(0.70);
+            let score_max = val.get("signal_score_max").and_then(|v| v.as_float()).unwrap_or(0.80);
+            let max_hold = val.get("max_hold_bars").and_then(|v| v.as_integer()).unwrap_or(25) as i32;
+            let tf_1h = val.get("tf_1h_pct").and_then(|v| v.as_integer()).unwrap_or(70) as u16;
+            let tf_4h = val.get("tf_4h_pct").and_then(|v| v.as_integer()).unwrap_or(20) as u16;
+            let tf_15m = val.get("tf_15m_pct").and_then(|v| v.as_integer()).unwrap_or(10) as u16;
+            return (score_min, score_max, max_hold, tf_1h, tf_4h, tf_15m);
+        }
+    }
+    (0.70, 0.80, 25, 70, 20, 10)
+}
+
+fn load_risk_manager_toml() -> (f64, f64, f64) {
+    let path = "config/risk_manager.toml";
+    if let Ok(content) = std::fs::read_to_string(path) {
+        if let Ok(val) = content.parse::<toml::Value>() {
+            let btc = val.get("btc_alert_threshold_pct").and_then(|v| v.as_float()).unwrap_or(0.5);
+            let alt = val.get("alt_alert_threshold_pct").and_then(|v| v.as_float()).unwrap_or(1.5);
+            let vol = val.get("volume_spike_threshold").and_then(|v| v.as_float()).unwrap_or(2.0);
+            return (btc, alt, vol);
+        }
+    }
+    (0.5, 1.5, 2.0)
+}
+
+// ─── POST /api/order-options ──────────────────────────────────────────
+pub async fn save_order_options(
+    State(state): State<AppState>,
+    Json(options): Json<crate::state::OrderOptionsPayload>,
+) -> Result<StatusCode, StatusCode> {
+    // Update order_manager.toml — preserve existing fields, update subset
+    save_order_manager_subset(&options.order_manager)
+        .map_err(|e| {
+            tracing::error!("Failed to save order manager opts: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Update risk_manager.toml — preserve existing fields, update subset
+    save_risk_manager_subset(&options.risk_manager)
+        .map_err(|e| {
+            tracing::error!("Failed to save risk manager opts: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    state.broadcast(crate::state::WsMessage::OptionsUpdated);
+    tracing::info!("Order options saved");
+    Ok(StatusCode::OK)
+}
+
+fn save_order_manager_subset(opts: &crate::state::OrderManagerOptionsPayload) -> anyhow::Result<()> {
+    let path = "config/order_manager.toml";
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    let mut val: toml::Value = content.parse().unwrap_or(toml::Value::Table(Default::default()));
+
+    if let Some(table) = val.as_table_mut() {
+        table.insert("signal_score_min".to_string(), toml::Value::Float(opts.signal_score_min));
+        table.insert("signal_score_max".to_string(), toml::Value::Float(opts.signal_score_max));
+        table.insert("max_hold_bars".to_string(), toml::Value::Integer(opts.max_hold_bars as i64));
+        table.insert("tf_1h_pct".to_string(), toml::Value::Integer(opts.tf_1h_pct as i64));
+        table.insert("tf_4h_pct".to_string(), toml::Value::Integer(opts.tf_4h_pct as i64));
+        table.insert("tf_15m_pct".to_string(), toml::Value::Integer(opts.tf_15m_pct as i64));
+    }
+
+    std::fs::write(path, toml::to_string_pretty(&val)?)?;
+    Ok(())
+}
+
+fn save_risk_manager_subset(opts: &crate::state::RiskManagerOptionsPayload) -> anyhow::Result<()> {
+    let path = "config/risk_manager.toml";
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    let mut val: toml::Value = content.parse().unwrap_or(toml::Value::Table(Default::default()));
+
+    if let Some(table) = val.as_table_mut() {
+        table.insert("btc_alert_threshold_pct".to_string(), toml::Value::Float(opts.btc_alert_threshold_pct));
+        table.insert("alt_alert_threshold_pct".to_string(), toml::Value::Float(opts.alt_alert_threshold_pct));
+        table.insert("volume_spike_threshold".to_string(), toml::Value::Float(opts.volume_spike_threshold));
+    }
+
+    std::fs::write(path, toml::to_string_pretty(&val)?)?;
+    Ok(())
+}
+
+// ─── POST /api/trade/order (manual with TP/SL) ───────────────────────
 pub async fn place_order(
     State(state): State<AppState>,
-    Json(order): Json<OrderRequest>,
+    Json(order): Json<ManualOrderRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    tracing::info!("Order: {:?}", order);
+    tracing::info!("Manual order: {:?}", order);
+
+    // Broadcast order event
     state.broadcast(crate::state::WsMessage::OrderEvent(crate::state::OrderEvent {
         order_id: uuid::Uuid::new_v4().to_string(),
-        pair: order.pair,
+        pair: order.pair.clone(),
         side: order.side.clone(),
         order_type: order.order_type.clone(),
         status: "created".into(),
-        price: order.price,
+        price: order.entry_price,
         qty: order.amount_usdt,
         ts: chrono::Utc::now().timestamp_millis(),
     }));
+
+    // TODO: Actually place order via BinanceFuturesClient
+    // 1. Set leverage
+    // 2. Place market/limit entry
+    // 3. Place stop-loss order
+    // 4. Place take-profit order
+    // 5. Record in trade.positions
+
     Ok(StatusCode::OK)
 }
 
 // ─── POST /api/trade/close ────────────────────────────────────────────
 pub async fn close_position(
     _state: State<AppState>,
-    _request: Json<ClosePositionRequest>,
+    Json(request): Json<crate::state::CandlesLeftUpdateRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    // TODO: implement via order_manager
+    tracing::info!("Close position: {}", request.position_id);
+    // TODO: implement via BinanceFuturesClient
     Ok(StatusCode::OK)
 }
 
-// ─── POST /api/control/* ──────────────────────────────────────────────
+// ─── POST /api/trade/update-candles-left ──────────────────────────────
+pub async fn update_candles_left(
+    State(state): State<AppState>,
+    Json(request): Json<CandlesLeftUpdateRequest>,
+) -> Result<StatusCode, StatusCode> {
+    sqlx::query(
+        "UPDATE trade.positions SET candles_left = $1 WHERE id = $2"
+    )
+    .bind(request.candles_left)
+    .bind(request.position_id)
+    .execute(&state.db_pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Update candles_left error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    tracing::info!("Candles left updated: position={} candles_left={}", request.position_id, request.candles_left);
+    Ok(StatusCode::OK)
+}
+
+// ─── POST /api/control/emergency_stop ─────────────────────────────────
 pub async fn emergency_stop(
-    _state: State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<StatusCode, StatusCode> {
     tracing::warn!("EMERGENCY STOP triggered from WebUI!");
-    // TODO: send Kafka command to order_manager
+
+    // Stop auto trading
+    {
+        let mut at = state.auto_trading.write().await;
+        at.is_running = false;
+        at.trading_mode = "off".to_string();
+    }
+
+    // TODO: Close all open positions via BinanceFuturesClient
+    // TODO: Send Kafka command to order_manager
+
+    state.broadcast(crate::state::WsMessage::TradingStateUpdate(
+        state.auto_trading.read().await.clone()
+    ));
+
     Ok(StatusCode::OK)
 }
 
-pub async fn reload_base(
-    _state: State<AppState>,
-) -> Result<StatusCode, StatusCode> {
-    tracing::info!("Reload base triggered from WebUI");
-    Ok(StatusCode::OK)
-}
-
+// ─── POST /api/control/start_trading ──────────────────────────────────
 pub async fn start_trading(
-    _state: State<AppState>,
-) -> Result<StatusCode, StatusCode> {
-    tracing::info!("Start trading triggered from WebUI");
-    Ok(StatusCode::OK)
+    State(state): State<AppState>,
+) -> Result<Json<AutoTradingState>, StatusCode> {
+    tracing::info!("START TRADING triggered from WebUI");
+
+    let new_state = {
+        let mut at = state.auto_trading.write().await;
+        at.is_running = true;
+        at.trading_mode = "auto".to_string();
+        at.clone()
+    };
+
+    // Update order_settings.toml trading_mode to auto
+    if let Ok(content) = std::fs::read_to_string("config/order_settings.toml") {
+        let updated = content.lines().map(|line| {
+            if line.starts_with("trading_mode") {
+                "trading_mode = \"auto\""
+            } else {
+                line
+            }
+        }).collect::<Vec<_>>().join("\n");
+        let _ = std::fs::write("config/order_settings.toml", updated);
+    }
+
+    state.broadcast(crate::state::WsMessage::TradingStateUpdate(new_state.clone()));
+    Ok(Json(new_state))
+}
+
+// ─── POST /api/control/stop_trading ───────────────────────────────────
+pub async fn stop_trading(
+    State(state): State<AppState>,
+) -> Result<Json<AutoTradingState>, StatusCode> {
+    tracing::info!("STOP TRADING triggered from WebUI");
+
+    let new_state = {
+        let mut at = state.auto_trading.write().await;
+        at.is_running = false;
+        at.trading_mode = "off".to_string();
+        at.clone()
+    };
+
+    // Update order_settings.toml trading_mode to off
+    if let Ok(content) = std::fs::read_to_string("config/order_settings.toml") {
+        let updated = content.lines().map(|line| {
+            if line.starts_with("trading_mode") {
+                "trading_mode = \"off\""
+            } else {
+                line
+            }
+        }).collect::<Vec<_>>().join("\n");
+        let _ = std::fs::write("config/order_settings.toml", updated);
+    }
+
+    state.broadcast(crate::state::WsMessage::TradingStateUpdate(new_state.clone()));
+    Ok(Json(new_state))
+}
+
+// ─── GET /api/control/trading_state ───────────────────────────────────
+pub async fn get_trading_state(
+    State(state): State<AppState>,
+) -> Result<Json<AutoTradingState>, StatusCode> {
+    let at = state.auto_trading.read().await.clone();
+    Ok(Json(at))
 }
 
 // ─── GET /api/strategies ──────────────────────────────────────────────
 pub async fn get_strategies(
     _state: State<AppState>,
 ) -> Result<Json<Vec<crate::state::StrategyInfo>>, StatusCode> {
+    // Read current strategy from order_settings.toml
+    let current_strategy = settings::OrderSettings::load()
+        .map(|s| format!("{}", s.strategy_type))
+        .unwrap_or_else(|_| "ml_super_entry".to_string());
+
     Ok(Json(vec![
         crate::state::StrategyInfo {
-            id: "super_entry".into(),
-            name: "Super Entry (ML)".into(),
-            enabled: true,
+            id: "ml_super_entry".into(),
+            name: "ML Super Entry".into(),
+            enabled: current_strategy == "ml_super_entry",
             priority: 0,
             description: "ML-модель поиска super moves с P(super) > threshold".into(),
         },
         crate::state::StrategyInfo {
-            id: "level".into(),
+            id: "level_strategy".into(),
             name: "Level Strategy".into(),
-            enabled: false,
+            enabled: current_strategy == "level_strategy",
             priority: 1,
             description: "ML predictors + trade signals (в разработке)".into(),
         },

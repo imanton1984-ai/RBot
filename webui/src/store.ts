@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Balance, PnlOverview, Position, Alert, Strategy, Candle, Indicator, Signal } from './types';
+import type { Balance, PnlOverview, Position, Alert, Strategy, Candle, Indicator, Signal, ConnectionStatus, TradingOptions, AutoTradingState } from './types';
+import type { TerminalLog } from './components/TerminalWidget';
 
 interface WsState {
   connected: boolean;
@@ -23,22 +24,24 @@ interface TradingState {
   currentTf: number;
   leverage: number;
   tradingMode: 'manual' | 'auto';
+  autoTrading: AutoTradingState;
   setCurrentPair: (pair: string) => void;
   setCurrentTf: (tf: number) => void;
   setLeverage: (lev: number) => void;
   setTradingMode: (mode: 'manual' | 'auto') => void;
+  setAutoTrading: (state: AutoTradingState) => void;
 }
 
 interface UiState {
   positionsView: 'open' | 'history';
   chartView: 'chart' | 'positions';
-  optionsModalOpen: boolean;
-  strategiesModalOpen: boolean;
+  tradingOptionsModalOpen: boolean;
+  orderOptionsModalOpen: boolean;
   signalsModalOpen: boolean;
   setPositionsView: (view: 'open' | 'history') => void;
   setChartView: (view: 'chart' | 'positions') => void;
-  setOptionsModalOpen: (open: boolean) => void;
-  setStrategiesModalOpen: (open: boolean) => void;
+  setTradingOptionsModalOpen: (open: boolean) => void;
+  setOrderOptionsModalOpen: (open: boolean) => void;
   setSignalsModalOpen: (open: boolean) => void;
 }
 
@@ -51,6 +54,9 @@ interface DataState {
   alerts: Alert[];
   strategies: Strategy[];
   signals: Signal[];
+  connections: ConnectionStatus | null;
+  tradingOptions: TradingOptions | null;
+  terminalLogs: TerminalLog[];
   setCandles: (candles: Candle[]) => void;
   setIndicators: (type: string, data: Indicator[]) => void;
   setPositions: (positions: Position[]) => void;
@@ -59,6 +65,10 @@ interface DataState {
   setAlerts: (alerts: Alert[]) => void;
   setStrategies: (strategies: Strategy[]) => void;
   setSignals: (signals: Signal[]) => void;
+  setConnections: (connections: ConnectionStatus) => void;
+  setTradingOptions: (options: TradingOptions) => void;
+  addTerminalLog: (level: 'error' | 'warn' | 'info', message: string) => void;
+  clearTerminalLogs: () => void;
   updateCandle: (candle: Candle) => void;
   updatePosition: (position: Position) => void;
 }
@@ -68,22 +78,24 @@ export const useTradingStore = create<TradingState>((set) => ({
   currentTf: 60,
   leverage: 10,
   tradingMode: 'manual',
+  autoTrading: { is_running: false, trading_mode: 'off' },
   setCurrentPair: (pair) => set({ currentPair: pair }),
   setCurrentTf: (tf) => set({ currentTf: tf }),
   setLeverage: (lev) => set({ leverage: lev }),
   setTradingMode: (mode) => set({ tradingMode: mode }),
+  setAutoTrading: (state) => set({ autoTrading: state }),
 }));
 
 export const useUiStore = create<UiState>((set) => ({
   positionsView: 'open',
   chartView: 'chart',
-  optionsModalOpen: false,
-  strategiesModalOpen: false,
+  tradingOptionsModalOpen: false,
+  orderOptionsModalOpen: false,
   signalsModalOpen: false,
   setPositionsView: (view) => set({ positionsView: view }),
   setChartView: (view) => set({ chartView: view }),
-  setOptionsModalOpen: (open) => set({ optionsModalOpen: open }),
-  setStrategiesModalOpen: (open) => set({ strategiesModalOpen: open }),
+  setTradingOptionsModalOpen: (open) => set({ tradingOptionsModalOpen: open }),
+  setOrderOptionsModalOpen: (open) => set({ orderOptionsModalOpen: open }),
   setSignalsModalOpen: (open) => set({ signalsModalOpen: open }),
 }));
 
@@ -96,6 +108,9 @@ export const useDataStore = create<DataState>((set) => ({
   alerts: [],
   strategies: [],
   signals: [],
+  connections: null,
+  tradingOptions: null,
+  terminalLogs: [],
   setCandles: (candles) => set({ candles }),
   setIndicators: (type, data) => set((state) => ({ indicators: { ...state.indicators, [type]: data } })),
   setPositions: (positions) => set({ positions }),
@@ -104,6 +119,15 @@ export const useDataStore = create<DataState>((set) => ({
   setAlerts: (alerts) => set({ alerts }),
   setStrategies: (strategies) => set({ strategies }),
   setSignals: (signals) => set({ signals }),
+  setConnections: (connections) => set({ connections }),
+  setTradingOptions: (tradingOptions) => set({ tradingOptions }),
+  addTerminalLog: (level, message) => set((state) => {
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-US', { hour12: false });
+    const log: TerminalLog = { id: Date.now() + Math.random(), time, level, message };
+    return { terminalLogs: [...state.terminalLogs.slice(-99), log] }; // Keep max 100
+  }),
+  clearTerminalLogs: () => set({ terminalLogs: [] }),
   updateCandle: (candle) => set((state) => ({ candles: state.candles.length > 0 ? [...state.candles.slice(0, -1), candle] : [candle] })),
   updatePosition: (position) => set((state) => ({ positions: state.positions.map(p => p.id === position.id ? position : p) })),
 }));

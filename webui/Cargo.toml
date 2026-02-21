@@ -25,3 +25,6 @@ tokio-stream = { workspace = true }
 common = { path = "../common" }
 database = { path = "../database" }
 settings = { path = "../settings" }
+connections_lib = { package = "connections", path = "../connections" }
+toml = { workspace = true }
+reqwest = { workspace = true }

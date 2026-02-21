@@ -35,27 +35,42 @@ pub struct BinanceFuturesClient {
     testnet: bool,
 }
 
-/// Account balance info
+/// Account balance info (lenient)
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FuturesBalance {
+    #[serde(default)]
     pub asset: String,
+    #[serde(default)]
     pub balance: String,
+    #[serde(default)]
     pub available_balance: String,
+    #[serde(default)]
     pub cross_un_pnl: String,
+    #[serde(flatten)]
+    pub _extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
-/// Open position info
+/// Open position info (lenient)
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FuturesPosition {
+    #[serde(default)]
     pub symbol: String,
+    #[serde(default)]
     pub position_amt: String,
+    #[serde(default)]
     pub entry_price: String,
+    #[serde(default)]
     pub un_realized_profit: String,
+    #[serde(default)]
     pub leverage: String,
+    #[serde(default)]
     pub position_side: String,
+    #[serde(default)]
     pub notional: String,
+    #[serde(flatten)]
+    pub _extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// New order response from Binance Futures
@@ -277,19 +292,27 @@ impl SymbolInfo {
     }
 }
 
-/// Account info (simplified)
+/// Account info (lenient — ignores unknown fields from Binance)
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FuturesAccountInfo {
+    #[serde(default)]
     pub total_wallet_balance: String,
+    #[serde(default)]
     pub total_unrealized_profit: String,
+    #[serde(default)]
     pub total_margin_balance: String,
+    #[serde(default)]
     pub available_balance: String,
+    #[serde(default)]
     pub can_trade: bool,
     #[serde(default)]
     pub positions: Vec<FuturesPosition>,
     #[serde(default)]
     pub assets: Vec<FuturesBalance>,
+    /// Catch-all for any extra fields Binance adds
+    #[serde(flatten)]
+    pub _extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// Connection status result
@@ -424,7 +447,7 @@ impl BinanceFuturesClient {
     /// Get account information (authenticated)
     pub async fn account_info(&self) -> Result<FuturesAccountInfo> {
         let timestamp = Self::timestamp_ms();
-        let query = format!("timestamp={}&recvWindow=5000", timestamp);
+        let query = format!("timestamp={}&recvWindow=10000", timestamp);
         let signature = self.sign(&query);
         let url = format!(
             "{}/fapi/v2/account?{}&signature={}",
@@ -437,10 +460,13 @@ impl BinanceFuturesClient {
             .header("X-MBX-APIKEY", &self.api_key)
             .send()
             .await
-            .context("Failed to send account info request")?;
+            .context("Binance Futures account_info: network/TLS error")?;
 
         if resp.status().is_success() {
-            let info: FuturesAccountInfo = resp.json().await?;
+            // Parse via text first for better error diagnostics
+            let body = resp.text().await.context("Failed to read response body")?;
+            let info: FuturesAccountInfo = serde_json::from_str(&body)
+                .context("Failed to parse account info JSON")?;
             debug!(
                 "Account info: balance={}, can_trade={}, positions={}",
                 info.total_wallet_balance,

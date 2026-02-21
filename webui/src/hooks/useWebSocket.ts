@@ -1,11 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useWsStore, useDataStore } from '../store';
+import { useWsStore, useDataStore, useTradingStore } from '../store';
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Use selectors — only subscribe to 'connected' for re-render
   const connected = useWsStore((s) => s.connected);
 
   const connect = useCallback(() => {
@@ -29,6 +28,8 @@ export function useWebSocket() {
           { name: 'balance' },
           { name: 'alerts' },
           { name: 'pnl' },
+          { name: 'connections' },
+          { name: 'trading_state' },
         ],
       }));
     };
@@ -70,17 +71,34 @@ export function useWebSocket() {
               overall: message.overall,
               in_orders: message.in_orders,
               available: message.available,
+              wallet_balance: message.wallet_balance ?? message.overall,
+              unrealized_pnl: message.unrealized_pnl ?? 0,
             });
             break;
           case 'positions_update':
             dataState.setPositions(message.positions || []);
             break;
           case 'alert_event':
-            // Prepend new alert to existing list
             dataState.setAlerts([message, ...dataState.alerts.slice(0, 49)]);
             break;
           case 'pnl_update':
             dataState.setPnlOverview(message);
+            break;
+          case 'connections_update':
+            dataState.setConnections(message);
+            break;
+          case 'trading_state_update':
+            useTradingStore.getState().setAutoTrading(message);
+            break;
+          case 'terminal_log':
+            dataState.addTerminalLog(
+              message.level || 'info',
+              message.message || 'Unknown event'
+            );
+            break;
+          case 'options_updated':
+          case 'strategy_updated':
+            // Trigger refetch of queries
             break;
         }
       } catch (e) {
