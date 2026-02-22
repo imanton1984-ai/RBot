@@ -4814,3 +4814,36 @@
 [2m2026-02-22T21:58:48.511553Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.65 USDT
 [2m2026-02-22T21:58:58.139029Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
 [2m2026-02-22T21:59:01.273903Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.57 USDT
+[2m2026-02-22T21:59:14.035875Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.55 USDT
+[2m2026-02-22T21:59:26.794520Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.48 USDT
+[2m2026-02-22T21:59:28.140494Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T21:59:39.560996Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.37 USDT
+[2m2026-02-22T21:59:52.331043Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.27 USDT
+[2m2026-02-22T21:59:58.141922Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:00:10.302226Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.00 USDT
+[2m2026-02-22T22:00:23.061444Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.99 USDT
+[2m2026-02-22T22:00:28.143525Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:00:35.814644Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.08 USDT
+[2m2026-02-22T22:00:48.574010Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.18 USDT
+[2m2026-02-22T22:00:58.144687Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:01:01.327566Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.39 USDT
+[2m2026-02-22T22:01:14.108744Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.16 USDT
+[2m2026-02-22T22:01:26.866260Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.00 USDT
+[2m2026-02-22T22:01:28.145653Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:01:39.638652Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.62 USDT
+[2m2026-02-22T22:01:52.400921Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.74 USDT
+[2m2026-02-22T22:01:58.147499Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:02:05.177316Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.18 USDT
+[2m2026-02-22T22:02:17.930571Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.18 USDT
+[2m2026-02-22T22:02:28.148797Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:02:30.687431Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.17 USDT
+[2m2026-02-22T22:02:43.435593Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.20 USDT
+[2m2026-02-22T22:02:56.251798Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.18 USDT
+[2m2026-02-22T22:03:00.635876Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:03:09.025253Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 2.00 USDT
+[2m2026-02-22T22:03:21.840514Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.92 USDT
+[2m2026-02-22T22:03:30.637440Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-22T22:03:34.616585Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.89 USDT
+[2m2026-02-22T22:03:47.400448Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.69 USDT
+[2m2026-02-22T22:04:00.176987Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.58 USDT
+[2m2026-02-22T22:04:00.639519Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
