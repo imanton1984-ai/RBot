@@ -168,8 +168,8 @@ impl PositionTracker {
             pos.unrealized_pnl = pnl;
             pos.unrealized_pnl_pct = pnl_pct;
 
-            // Обновить в БД (не критично при ошибке)
-            Self::update_position_pnl_static(
+            // Обновить в БД — CRITICAL for WebUI to show current_price and PnL
+            match Self::update_position_pnl_static(
                 &self.pool,
                 pos.position_id,
                 pos.unrealized_pnl,
@@ -177,11 +177,22 @@ impl PositionTracker {
                 pos.current_price,
             )
             .await
-            .ok();
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    warn!(
+                        "⚠️ Failed to update position #{} {} in DB: {} (current_price={:.6}, pnl={:.4})",
+                        pos.position_id, pos.symbol, e, pos.current_price, pos.unrealized_pnl
+                    );
+                }
+            }
         }
     }
 
-    /// Проверить новые свечи и декрементировать candles_left.
+    /// FIX #9: Improved candles_left countdown.
+    /// Two strategies:
+    ///   1. DB candle-time based (accurate when ingestor is running)
+    ///   2. Time-based fallback (calculates from opened_at, never misses a bar)
     async fn check_new_candles(&mut self) {
         // Собираем уникальные (symbol, tf_minutes)
         let pairs: Vec<(String, i16)> = self
@@ -232,6 +243,36 @@ impl PositionTracker {
             }
 
             self.last_candle_times.insert(key, latest_candle_ms);
+        }
+
+        // FIX #9: Time-based fallback — recalculate candles_left from opened_at.
+        // This ensures bars_left is always accurate even if DB candles are delayed.
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        for pos in &mut self.positions {
+            let elapsed_ms = now_ms - pos.opened_at.timestamp_millis();
+            let tf_ms = pos.tf_minutes as i64 * 60_000;
+            if tf_ms <= 0 {
+                continue;
+            }
+            let bars_elapsed = (elapsed_ms / tf_ms) as i16;
+            let time_based_candles_left = (pos.max_hold_bars - bars_elapsed).max(0);
+
+            // Use the MINIMUM of DB-based and time-based countdown (most conservative)
+            if time_based_candles_left < pos.candles_left {
+                debug!(
+                    "🕐 Position #{} {} time-based candles_left correction: {} → {}",
+                    pos.position_id, pos.symbol, pos.candles_left, time_based_candles_left
+                );
+                pos.candles_left = time_based_candles_left;
+
+                Self::update_candles_left_static(
+                    &self.pool,
+                    pos.position_id,
+                    pos.candles_left,
+                )
+                .await
+                .ok();
+            }
         }
     }
 
@@ -324,6 +365,7 @@ impl PositionTracker {
     }
 
     /// Статический метод: обновить pnl и current_price в БД
+    /// FIX #3 + #6: Also writes current_price to DB so WebUI can read fresh prices.
     async fn update_position_pnl_static(
         pool: &PgPool,
         position_id: i64,
@@ -332,7 +374,7 @@ impl PositionTracker {
         current_price: f64,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE trade.positions SET unrealized_pnl = $1, candles_left = $2, current_price = $3, updated_at = now() WHERE id = $4",
+            "UPDATE trade.positions SET unrealized_pnl = $1, candles_left = $2, current_price = $3 WHERE id = $4",
         )
         .bind(unrealized_pnl)
         .bind(candles_left)
@@ -350,7 +392,7 @@ impl PositionTracker {
         candles_left: i16,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE trade.positions SET candles_left = $1, updated_at = now() WHERE id = $2",
+            "UPDATE trade.positions SET candles_left = $1 WHERE id = $2",
         )
         .bind(candles_left)
         .bind(position_id)

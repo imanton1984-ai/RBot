@@ -216,17 +216,65 @@ impl OrderExecutor {
             warn!("Failed to cancel orders for {} (position #{}): {}", symbol, pos.position_id, e);
         }
 
-        // 2. Close position
-        let close_order = self
-            .client
-            .close_position(symbol, pos.side.as_str(), pos.qty)
-            .await
-            .context("Failed to place close market order")?;
+        // FIX #2: Check if position actually exists on Binance before trying to close.
+        // It might have been closed by exchange TP/SL order already.
+        let binance_position_exists = match self.client.open_positions().await {
+            Ok(positions) => {
+                positions.iter().any(|p| {
+                    p.symbol == *symbol
+                        && p.position_amt.parse::<f64>().unwrap_or(0.0).abs() > 0.001
+                })
+            }
+            Err(e) => {
+                debug!("Could not check Binance positions (will try close anyway): {}", e);
+                true // Assume it exists if we can't check
+            }
+        };
 
-        // Wait for FILLED to get real exit price
-        let (exit_price, _) = self
-            .wait_for_fill(symbol, &close_order, current_price, pos.qty)
-            .await;
+        let exit_price;
+
+        if !binance_position_exists {
+            // FIX #2: Position already closed on Binance (e.g. TP/SL triggered on exchange).
+            // Use current_price as approximate exit price.
+            warn!(
+                "📋 Position #{} {} no longer exists on Binance — already closed by exchange. Using current_price={:.8}",
+                pos.position_id, symbol, current_price
+            );
+            exit_price = current_price;
+        } else {
+            // 2. Close position on Binance
+            let close_result = self
+                .client
+                .close_position(symbol, pos.side.as_str(), pos.qty)
+                .await;
+
+            match close_result {
+                Ok(close_order) => {
+                    // Wait for FILLED to get real exit price
+                    let (filled_price, _) = self
+                        .wait_for_fill(symbol, &close_order, current_price, pos.qty)
+                        .await;
+                    exit_price = filled_price;
+                }
+                Err(e) => {
+                    let err_str = format!("{}", e);
+                    // FIX #2: Handle "ReduceOnly cannot be sent" or "insufficient position"
+                    // errors as "position already closed on exchange"
+                    if err_str.contains("-2022") || err_str.contains("ReduceOnly")
+                        || err_str.contains("-2018") || err_str.contains("insufficient")
+                        || err_str.contains("-4131")
+                    {
+                        warn!(
+                            "📋 Position #{} {} close rejected ({}). Position likely already closed on Binance.",
+                            pos.position_id, symbol, err_str
+                        );
+                        exit_price = current_price;
+                    } else {
+                        return Err(e.context("Failed to place close market order"));
+                    }
+                }
+            }
+        }
 
         // 3. Рассчитать PnL
         let direction = match pos.side {
@@ -266,6 +314,44 @@ impl OrderExecutor {
         event.closed_at = Some(Utc::now().to_rfc3339());
 
         Ok(event)
+    }
+
+    /// FIX #2 + #7: Force-close a position in DB when Binance close fails after MAX_CLOSE_RETRIES.
+    /// Records position in history with approximate PnL so it appears in UI history.
+    pub async fn force_close_in_db(
+        &self,
+        pos: &ManagedPosition,
+        reason: CloseReason,
+    ) -> Result<()> {
+        let exit_price = pos.current_price; // Best approximation we have
+
+        let direction = match pos.side {
+            Side::Long => 1.0,
+            Side::Short => -1.0,
+        };
+        let realized_pnl = direction * (exit_price - pos.entry_price) * pos.qty;
+        let realized_pnl_pct = direction * (exit_price - pos.entry_price) / pos.entry_price * 100.0;
+
+        let taker_fee_pct = 0.04;
+        let fees_total = (pos.entry_price * pos.qty + exit_price * pos.qty) * taker_fee_pct / 100.0;
+        let bars_lived = pos.max_hold_bars - pos.candles_left;
+
+        warn!(
+            "🔴 Force-closing position #{} {} {} in DB: exit≈{:.4} PnL≈{:.4} USDT",
+            pos.position_id, pos.symbol, pos.side, exit_price, realized_pnl
+        );
+
+        // Update trade.positions
+        self.update_position_closed(pos.position_id, exit_price, realized_pnl, realized_pnl_pct, fees_total, reason)
+            .await
+            .ok(); // Don't fail even if DB update fails
+
+        // Insert into trade.position_history
+        self.insert_position_history(pos, exit_price, realized_pnl, realized_pnl_pct, fees_total, reason, bars_lived)
+            .await
+            .ok(); // Don't fail even if DB insert fails
+
+        Ok(())
     }
 
     /// Wait for a market order to be FILLED.
@@ -535,8 +621,7 @@ impl OrderExecutor {
                 realized_pnl_pct = $4,
                 fees_total = $5,
                 close_reason = $6,
-                closed_at = now(),
-                updated_at = now()
+                closed_at = now()
             WHERE id = $7
             "#,
         )

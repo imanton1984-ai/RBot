@@ -477,7 +477,7 @@ mod synthetic_futures_tests {
     #[test]
     fn test_timeframe_allocation_custom() {
         let mut config = OrderManagerConfig::default();
-        config.max_open_positions = 20;
+        config.max_orders_at_a_time = 20;
         // 70% 1h = 14, 20% 4h = 4, 10% 15m = 2
         let alloc = config.timeframe_allocation();
         assert_eq!(alloc.slots_for_tf(60), 14);

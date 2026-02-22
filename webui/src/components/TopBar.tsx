@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { ChevronDown, Bell, Settings, Grid3x3, User, SquareTerminal } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { formatPrice } from '../utils/format';
 
 export default function TopBar() {
   const { currentPair, setCurrentPair } = useTradingStore();
@@ -112,7 +113,7 @@ export default function TopBar() {
               )}
             </div>
             <div className={`text-sm ${change24h >= 0 ? 'text-bull' : 'text-bear'}`}>
-              ${price?.toFixed(2)}
+              ${formatPrice(price)}
             </div>
           </div>
         </div>
@@ -132,11 +133,11 @@ export default function TopBar() {
           </div>
           <div>
             <div className="text-textSecondary">High (24h)</div>
-            <div className="text-textPrimary">${(summary?.high_24h || high24h || 0).toFixed(2)}</div>
+            <div className="text-textPrimary">${formatPrice(summary?.high_24h || high24h || 0)}</div>
           </div>
           <div>
             <div className="text-textSecondary">Low (24h)</div>
-            <div className="text-textPrimary">${(summary?.low_24h || low24h || 0).toFixed(2)}</div>
+            <div className="text-textPrimary">${formatPrice(summary?.low_24h || low24h || 0)}</div>
           </div>
         </div>
       </div>

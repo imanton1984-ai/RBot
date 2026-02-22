@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { ChevronDown, LineChart, LayoutGrid, Settings2 } from 'lucide-react';
 import type { Position } from '../types';
+import { formatPrice } from '../utils/format';
 
 const TIMEFRAMES = [
   { label: '1m', value: 1 },
@@ -58,15 +59,15 @@ function PositionsGridView() {
                 <div className="space-y-0.5 text-xs">
                   <div className="flex justify-between">
                     <span className="text-textSecondary">Entry</span>
-                    <span className="text-textPrimary">${pos.entry_price?.toFixed(2)}</span>
+                    <span className="text-textPrimary">${formatPrice(pos.entry_price)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-textSecondary">Current</span>
-                    <span className="text-textPrimary">${pos.current_price?.toFixed(2)}</span>
+                    <span className="text-textPrimary">${formatPrice(pos.current_price)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-textSecondary">SL</span>
-                    <span className="text-bear">${pos.stop_loss?.toFixed(2)}</span>
+                    <span className="text-bear">${formatPrice(pos.stop_loss)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-textSecondary">Bars Left</span>
@@ -108,12 +109,14 @@ export default function ChartPanel() {
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [chartReady, setChartReady] = useState(false);
 
-  // Load candles
+  // Load candles — FIX #4: reduced interval from 15s → 5s for near-real-time chart updates.
+  // Candles come from DB (ingestor writes them). For the current (forming) candle,
+  // the ingestor updates it every few seconds, so 5s poll gives smooth updates.
   const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
     queryFn: () => apiService.getCandles(currentPair, currentTf, 500),
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 5000,
+    staleTime: 3000,
     retry: 1,
   });
 
@@ -204,6 +207,25 @@ export default function ChartPanel() {
     if (!candleData || candleData.length === 0) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
+    // FIX #8: Dynamic price precision for the right price axis.
+    // Determine precision from the latest close price so low-price coins
+    // (e.g., DOGE at 0.10234) show enough decimals instead of "0.10".
+    const lastClose = candleData[candleData.length - 1]?.c || 0;
+    let precision = 2;
+    let minMove = 0.01;
+    if (lastClose > 0 && lastClose < 1) { precision = 5; minMove = 0.00001; }
+    if (lastClose > 0 && lastClose < 0.1) { precision = 6; minMove = 0.000001; }
+    if (lastClose > 0 && lastClose < 0.01) { precision = 7; minMove = 0.0000001; }
+    if (lastClose > 0 && lastClose < 0.001) { precision = 8; minMove = 0.00000001; }
+
+    candleSeriesRef.current.applyOptions({
+      priceFormat: {
+        type: 'price',
+        precision,
+        minMove,
+      },
+    });
+
     const candles = candleData.map((c: any) => ({
       time: Math.floor(c.t / 1000) as any,
       open: c.o,
@@ -218,23 +240,9 @@ export default function ChartPanel() {
       color: c.c >= c.o ? 'rgba(14, 203, 129, 0.3)' : 'rgba(246, 70, 93, 0.3)',
     }));
 
-    // Add whitespace bars into the future for bars_left markers.
-    // Whitespace = data points with only `time`, no OHLC, so lightweight-charts
-    // extends the time axis without drawing actual candles.
-    // We calculate how many chart-timeframe bars we need based on positions.
-    const maxWhitespace = 60; // never add more than 60 whitespace bars
-    let neededWhitespace = 10; // default: a small buffer
-
-    if (currentPairPositions.length > 0) {
-      for (const pos of currentPairPositions) {
-        if (pos.candles_left > 0) {
-          const posTf = pos.tf_minutes || currentTf;
-          const chartBars = Math.round((pos.candles_left * posTf) / currentTf);
-          neededWhitespace = Math.max(neededWhitespace, chartBars + 2);
-        }
-      }
-    }
-    const whitespaceBars = Math.min(neededWhitespace, maxWhitespace);
+    // FIX #10: Since markers are now on the open bar (not in the future),
+    // we only need a small whitespace buffer for visual padding.
+    const whitespaceBars = 5;
 
     const lastCandle = candleData[candleData.length - 1];
     const lastTimeSec = Math.floor(lastCandle.t / 1000);
@@ -292,29 +300,33 @@ export default function ChartPanel() {
       }
     });
 
-    // 4. Add Candles Left markers on whitespace data points
+    // FIX #10: Orange circle placed on the bar where the order was OPENED (not in the future).
+    // FIX #9: Show real bars_left countdown value in the marker text.
+    // Size reduced by 25% from 3 → 2.
     if (candleData && candleData.length > 0 && currentPairPositions.length > 0) {
       const markers: any[] = [];
-      const lastCandleIdx = candleData.length - 1;
-      const lastTime = Math.floor(candleData[lastCandleIdx].t / 1000);
       const chartTfSeconds = currentTf * 60;
 
       currentPairPositions.forEach((pos: Position) => {
-        if (pos.candles_left > 0) {
+        // FIX #10: Place marker on the bar where the order was opened
+        if (pos.open_time) {
+          const openTimeSec = Math.floor(new Date(pos.open_time).getTime() / 1000);
+          // Snap to nearest chart-timeframe bar boundary
+          const snappedTime = Math.floor(openTimeSec / chartTfSeconds) * chartTfSeconds;
+
+          // FIX #9: Show bars_left countdown value
           const posTfMinutes = pos.tf_minutes || currentTf;
-          const barsOnChart = Math.round(
-            (pos.candles_left * posTfMinutes) / currentTf
-          );
-          const clampedBars = Math.min(barsOnChart, 60);
-          const markerTime = lastTime + clampedBars * chartTfSeconds;
+          const barsLeftText = pos.candles_left > 0
+            ? `📊 ${pos.candles_left} bars (${posTfMinutes}m)`
+            : '⏰ Expired';
 
           markers.push({
-            time: markerTime as any,
+            time: snappedTime as any,
             position: 'inBar',
             color: '#F0B90B',
             shape: 'circle',
-            size: 3,
-            text: `⏳ ${pos.candles_left}×${posTfMinutes}m`,
+            size: 2,  // FIX #10: reduced by 25% from 3 → 2
+            text: barsLeftText,
           });
         }
       });

@@ -12,6 +12,7 @@
 // или SL/TP hit — Tracker инициирует закрытие через Executor.
 
 use anyhow::Result;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -195,17 +196,21 @@ async fn main() -> Result<()> {
         })
     };
 
+    // FIX #2: Shared retry counter for close failures
+    let close_retries: Arc<Mutex<CloseRetryMap>> = Arc::new(Mutex::new(HashMap::new()));
+
     // Task 2: Position Tracker loop
     let tracker_handle = {
         let tracker = tracker.clone();
         let executor = executor.clone();
         let config = config.clone();
         let redpanda = redpanda.clone();
+        let close_retries = close_retries.clone();
 
         tokio::spawn(async move {
             loop {
                 if let Err(e) =
-                    run_tracker_cycle(&tracker, &executor, &redpanda, &config).await
+                    run_tracker_cycle(&tracker, &executor, &redpanda, &config, &close_retries).await
                 {
                     error!("Tracker cycle error: {}", e);
                 }
@@ -285,8 +290,31 @@ async fn run_scanner_cycle(
         return Ok(());
     }
 
+    // FIX #1: Track symbols opened during THIS cycle to prevent duplicate
+    // orders for the same symbol on different timeframes within a single batch.
+    // The DB check in scan_for_signals catches existing positions, but during
+    // the same cycle, two signals (e.g., BREVUSDT 1h + BREVUSDT 4h) could slip through.
+    let mut opened_symbols_this_cycle: HashSet<String> = HashSet::new();
+
+    // Also pre-populate with symbols already in the tracker (in-memory, fresher than DB)
+    {
+        let tracker_lock = tracker.lock().await;
+        for pos in tracker_lock.open_positions() {
+            opened_symbols_this_cycle.insert(pos.symbol.clone());
+        }
+    }
+
     // 3. Открыть позиции для найденных сигналов
     for signal in &signals {
+        // FIX #1: Skip if symbol already opened in this cycle or in tracker
+        if opened_symbols_this_cycle.contains(&signal.symbol) {
+            info!(
+                "⚠️ Skipping {} tf={}m — symbol already has open position (anti-duplicate guard)",
+                signal.symbol, signal.tf_minutes
+            );
+            continue;
+        }
+
         // Проверяем, не заполнились ли слоты за время цикла
         let tracker_lock = tracker.lock().await;
         let current_tf_count = tracker_lock.count_by_tf(signal.tf_minutes);
@@ -304,6 +332,9 @@ async fn run_scanner_cycle(
         // Открыть позицию
         match executor.open_position(signal).await {
             Ok(managed_pos) => {
+                // FIX #1: Mark symbol as opened to prevent duplicates in this batch
+                opened_symbols_this_cycle.insert(managed_pos.symbol.clone());
+
                 // Отправить событие в WebUI
                 let event = PositionUpdateEvent {
                     event_type: "position_opened".to_string(),
@@ -355,11 +386,20 @@ async fn run_scanner_cycle(
 // TRACKER CYCLE
 // ═══════════════════════════════════════════════════════════
 
+/// FIX #2: Track close retry attempts to prevent infinite error loops.
+/// After MAX_CLOSE_RETRIES, force-close the position in DB and remove from tracker.
+const MAX_CLOSE_RETRIES: u32 = 5;
+
+/// Shared retry counter for positions that failed to close on Binance.
+/// Key = position_id, Value = retry count.
+type CloseRetryMap = HashMap<i64, u32>;
+
 async fn run_tracker_cycle(
     tracker: &Arc<Mutex<PositionTracker>>,
     executor: &OrderExecutor,
     redpanda: &RedpandaConnection,
     config: &OrderManagerConfig,
+    close_retries: &Arc<Mutex<CloseRetryMap>>,
 ) -> Result<()> {
     let (events, to_close) = {
         let mut tracker_lock = tracker.lock().await;
@@ -373,6 +413,46 @@ async fn run_tracker_cycle(
 
     // Закрыть позиции, которые требуют закрытия
     for (position_id, reason) in &to_close {
+        // FIX #2: Check if this position is already being retried too many times
+        let retry_count = {
+            let retries = close_retries.lock().await;
+            retries.get(position_id).copied().unwrap_or(0)
+        };
+
+        if retry_count >= MAX_CLOSE_RETRIES {
+            warn!(
+                "🔴 Position #{} failed to close {} times. Force-closing in DB and removing from tracker.",
+                position_id, retry_count
+            );
+
+            // FIX #2 + #7: Force-close in DB so it appears in history
+            let pos = {
+                let tracker_lock = tracker.lock().await;
+                tracker_lock.get_position(*position_id).cloned()
+            };
+
+            if let Some(pos) = pos {
+                // Try to mark as closed in DB with whatever info we have
+                if let Err(e) = executor.force_close_in_db(&pos, *reason).await {
+                    error!(
+                        "❌ Failed to force-close position #{} in DB: {}",
+                        position_id, e
+                    );
+                }
+            }
+
+            // Remove from tracker and retry map regardless
+            {
+                let mut tracker_lock = tracker.lock().await;
+                tracker_lock.remove_position(*position_id);
+            }
+            {
+                let mut retries = close_retries.lock().await;
+                retries.remove(position_id);
+            }
+            continue;
+        }
+
         let pos = {
             let tracker_lock = tracker.lock().await;
             tracker_lock.get_position(*position_id).cloned()
@@ -385,11 +465,19 @@ async fn run_tracker_cycle(
 
                     let mut tracker_lock = tracker.lock().await;
                     tracker_lock.remove_position(*position_id);
+
+                    // Clean up retry counter on success
+                    let mut retries = close_retries.lock().await;
+                    retries.remove(position_id);
                 }
                 Err(e) => {
+                    // FIX #2: Increment retry counter instead of infinite loop
+                    let mut retries = close_retries.lock().await;
+                    let count = retries.entry(*position_id).or_insert(0);
+                    *count += 1;
                     error!(
-                        "❌ Failed to close position #{}: {}",
-                        position_id, e
+                        "❌ Failed to close position #{} (attempt {}/{}): {}",
+                        position_id, count, MAX_CLOSE_RETRIES, e
                     );
                 }
             }

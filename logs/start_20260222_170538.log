@@ -1,0 +1,50 @@
+[2m===========================================[0m
+[1m[36mSTARTING SERVICES[0m
+[2m===========================================[0m
+[2m[17:05:38][0m Starting connections...
+[2m[17:05:38][0m   bin: /home/anton/Desktop/Rust_trader/target/release/connections
+[2m[17:05:38][0m   log: /home/anton/Desktop/Rust_trader/logs/connections.out
+[2m[17:05:38][0m [32m✅[0m Started connections (pid 860648)
+[2m[17:05:38][0m Starting ingestor...
+[2m[17:05:38][0m   bin: /home/anton/Desktop/Rust_trader/target/release/ingestor
+[2m[17:05:38][0m   log: /home/anton/Desktop/Rust_trader/logs/ingestor.out
+[2m[17:05:38][0m [32m✅[0m Started ingestor (pid 860669)
+[2m[17:05:38][0m Starting compute_history service...
+[2m[17:05:38][0m Starting compute_history...
+[2m[17:05:38][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_history
+[2m[17:05:38][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_history.out
+[2m[17:05:38][0m [32m✅[0m Started compute_history (pid 860700)
+[2m[17:05:38][0m Starting compute_realtime service...
+[2m[17:05:38][0m Starting compute_realtime...
+[2m[17:05:38][0m   bin: /home/anton/Desktop/Rust_trader/target/release/compute_realtime
+[2m[17:05:38][0m   log: /home/anton/Desktop/Rust_trader/logs/compute_realtime.out
+[2m[17:05:38][0m [32m✅[0m Started compute_realtime (pid 860725)
+[2m===========================================[0m
+[1m[36mSTART GRAFANA HEALTHCHECK[0m
+[2m===========================================[0m
+[2m[17:05:38][0m Starting Grafana for healthcheck monitoring...
+[2m[17:05:38][0m [32m✅[0m Grafana started. Access at http://localhost:3001 (admin/admin)
+[2m[17:05:38][0m Active strategy: super_entry
+[2m===========================================[0m
+[1m[36mSUPER ENTRY STRATEGY[0m
+[2m===========================================[0m
+[2m[17:05:38][0m Super Entry strategy active
+[2m[17:05:38][0m   History: ZERO-COPY pipeline in compute_history (GPU→indicators→XGBoost→DB)
+[2m[17:05:38][0m   Realtime: SuperEntryStage in compute_realtime (single-candle inference)
+[2m[17:05:38][0m   Predictors/trade_signals pipeline: SKIPPED
+[2m[17:05:38][0m   NOTE: Must have models in models/super_entry_v1_tf{X}.ubj
+[2m===========================================[0m
+[1m[36mORDER MANAGER[0m
+[2m===========================================[0m
+[2m[17:05:38][0m Starting order_manager service...
+[2m[17:05:38][0m Starting order_manager...
+[2m[17:05:38][0m   bin: /home/anton/Desktop/Rust_trader/target/release/order_manager
+[2m[17:05:38][0m   log: /home/anton/Desktop/Rust_trader/logs/order_manager.out
+[2m[17:05:38][0m [32m✅[0m Started order_manager (pid 860799)
+[2m===========================================[0m
+[1m[36mALL SERVICES STARTED[0m
+[2m===========================================[0m
+[2m[17:05:39][0m [32m✅[0m START DONE @ Sun 22 Feb 2026 05:05:39 PM MSK
+[2m[17:05:39][0m Services started successfully
+[2m[17:05:39][0m PIDs in : /home/anton/Desktop/Rust_trader/run
+[2m[17:05:39][0m Logs in : /home/anton/Desktop/Rust_trader/logs

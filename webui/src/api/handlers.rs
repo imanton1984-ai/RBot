@@ -142,6 +142,19 @@ fn candle_table(tf: i32) -> &'static str {
     }
 }
 
+/// Map tf_minutes → timeframe string used in market.candles_live
+fn tf_live_label(tf: i32) -> &'static str {
+    match tf {
+        1    => "1m",
+        5    => "5m",
+        15   => "15m",
+        60   => "1h",
+        240  => "4h",
+        1440 => "1d",
+        _    => "1m",
+    }
+}
+
 // ─── GET /api/pairs ────────────────────────────────────────────────────
 pub async fn get_pairs(
     Query(query): Query<PairsQuery>,
@@ -256,7 +269,7 @@ pub async fn get_candles(
         .await
         .map_err(|e| { tracing::error!("Candles error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
 
-    let candles: Vec<CandleResponse> = rows.iter().rev().map(|r| CandleResponse {
+    let mut candles: Vec<CandleResponse> = rows.iter().rev().map(|r| CandleResponse {
         t: r.get("t"),
         o: r.get("o"),
         h: r.get("h"),
@@ -264,6 +277,96 @@ pub async fn get_candles(
         c: r.get("c"),
         v: r.get("v"),
     }).collect();
+
+    // FIX #4: Append/update the current FORMING candle from market.candles_live.
+    // The ingestor writes forming candles to candles_live via WebSocket UPSERT.
+    //
+    // IMPORTANT: Per runtime.toml, only 1m/5m/15m/1h have WS streams.
+    // 4h and 1d use poll-on-close (no intra-candle updates in candles_live).
+    // Fallback for 4h/1d: use the latest 1m live candle's close as current price
+    // and update the last candle in the chart.
+    //
+    // KEY: candles_live stores `open_time_ms` while candles_1h stores `time_ms` (close time).
+    // We convert open_time → close_time for consistent chart x-axis.
+    {
+        let tf_label = tf_live_label(query.tf);
+        let tf_ms = query.tf as i64 * 60_000;
+
+        // Try the exact TF from candles_live first
+        let live_result = sqlx::query(
+            "SELECT open_time_ms,
+                    open as o, high as h, low as l, close as close_val, volume as v
+             FROM market.candles_live
+             WHERE symbol = $1 AND timeframe = $2
+             ORDER BY open_time_ms DESC
+             LIMIT 1"
+        )
+        .bind(&query.pair)
+        .bind(tf_label)
+        .fetch_optional(&state.db_pool)
+        .await;
+
+        // Extract live OHLCV data
+        let live_data: Option<(i64, f64, f64, f64, f64, f64)> = match &live_result {
+            Ok(Some(r)) => {
+                let open_time_ms: i64 = r.get("open_time_ms");
+                let live_t = open_time_ms + tf_ms;
+                Some((live_t, r.get("o"), r.get("h"), r.get("l"), r.get("close_val"), r.get("v")))
+            }
+            _ => None,
+        };
+
+        // For 4h/1d (no WS stream), fallback: get current price from 1m candles_live
+        // and just update the close of the last chart candle
+        let fallback_price: Option<f64> = if live_data.is_none() && query.tf > 60 {
+            sqlx::query(
+                "SELECT close as close_val FROM market.candles_live
+                 WHERE symbol = $1 AND timeframe = '1m'
+                 ORDER BY open_time_ms DESC LIMIT 1"
+            )
+            .bind(&query.pair)
+            .fetch_optional(&state.db_pool)
+            .await
+            .ok()
+            .flatten()
+            .map(|r| r.get::<f64, _>("close_val"))
+        } else {
+            None
+        };
+
+        if let Some((live_t, live_o, live_h, live_l, live_c, live_v)) = live_data {
+            if live_o > 0.0 && live_c > 0.0 {
+                if let Some(last) = candles.last_mut() {
+                    if last.t == live_t {
+                        // Same candle period — update OHLCV with live data
+                        last.h = live_h.max(last.h);
+                        last.l = if last.l > 0.0 { live_l.min(last.l) } else { live_l };
+                        last.c = live_c;
+                        last.v = live_v;
+                    } else if live_t > last.t {
+                        // New forming candle — append
+                        candles.push(CandleResponse {
+                            t: live_t, o: live_o, h: live_h, l: live_l, c: live_c, v: live_v,
+                        });
+                    }
+                } else {
+                    candles.push(CandleResponse {
+                        t: live_t, o: live_o, h: live_h, l: live_l, c: live_c, v: live_v,
+                    });
+                }
+            }
+        } else if let Some(current_price) = fallback_price {
+            // Fallback for 4h/1d: update close of the last candle with current 1m price
+            if current_price > 0.0 {
+                if let Some(last) = candles.last_mut() {
+                    last.c = current_price;
+                    // Also update high/low if current price extends the range
+                    if current_price > last.h { last.h = current_price; }
+                    if current_price < last.l { last.l = current_price; }
+                }
+            }
+        }
+    }
 
     Ok(Json(candles))
 }
@@ -373,23 +476,44 @@ pub async fn get_signals(
 pub async fn get_open_positions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PositionRow>>, StatusCode> {
+    // FIX #6: Calculate pnl_pct dynamically.
+    // Use candles_live as fallback for current_price when position_tracker
+    // hasn't written to DB yet (e.g. right after opening, or DB write fails).
     let rows = sqlx::query(
         "SELECT p.id,
                 COALESCE(p.symbol, mp.symbol) as pair,
                 CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
                 p.qty,
                 p.entry_price,
-                COALESCE(p.current_price, p.entry_price, 0) as current_price,
+                COALESCE(
+                    NULLIF(p.current_price, p.entry_price),
+                    cl.close,
+                    p.current_price,
+                    p.entry_price,
+                    0
+                ) as current_price,
                 COALESCE(p.sl_price, 0) as stop_loss,
                 COALESCE(p.tp_price, 0) as take_profit,
                 COALESCE(p.unrealized_pnl, 0) as pnl_usdt,
-                0::double precision as pnl_pct,
+                CASE
+                    WHEN p.entry_price > 0 AND p.qty > 0 THEN
+                        CASE WHEN p.side = 1
+                            THEN (COALESCE(NULLIF(p.current_price, p.entry_price), cl.close, p.entry_price) - p.entry_price) / p.entry_price * 100.0
+                            ELSE (p.entry_price - COALESCE(NULLIF(p.current_price, p.entry_price), cl.close, p.entry_price)) / p.entry_price * 100.0
+                        END
+                    ELSE 0
+                END::double precision as pnl_pct,
                 COALESCE(p.candles_left, 0)::smallint as candles_left,
                 COALESCE(p.leverage, 10)::smallint as leverage,
                 COALESCE(p.tf_minutes, 60)::smallint as tf_minutes,
                 p.opened_at as open_time
          FROM trade.positions p
          JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+         LEFT JOIN LATERAL (
+             SELECT close FROM market.candles_live
+             WHERE symbol = COALESCE(p.symbol, mp.symbol) AND timeframe = '1m'
+             ORDER BY open_time_ms DESC LIMIT 1
+         ) cl ON true
          WHERE p.status = 1
          ORDER BY p.opened_at DESC"
     )

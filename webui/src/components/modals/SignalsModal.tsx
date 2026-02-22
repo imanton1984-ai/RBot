@@ -3,6 +3,7 @@ import { useUiStore, useTradingStore } from '../../store';
 import { X, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../../api';
+import { formatPrice } from '../../utils/format';
 
 export default function SignalsModal() {
   const { signalsModalOpen, setSignalsModalOpen } = useUiStore();
@@ -80,9 +81,9 @@ export default function SignalsModal() {
                   <td className="px-3 py-2 text-textSecondary">{signal.tf >= 1440 ? `${signal.tf/1440}d` : signal.tf >= 60 ? `${signal.tf/60}h` : `${signal.tf}m`}</td>
                   <td className={`px-3 py-2 ${signal.side === 1 ? 'text-bull' : 'text-bear'}`}>{signal.side === 1 ? 'LONG' : 'SHORT'}</td>
                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${signal.score >= 0.8 ? 'bg-bull text-white' : 'bg-border text-textSecondary'}`}>{signal.score.toFixed(2)}</span></td>
-                  <td className="px-3 py-2 text-textPrimary">${signal.entry_price?.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-textSecondary">${signal.sl_price?.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-textPrimary">${signal.tp_price?.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-textPrimary">${formatPrice(signal.entry_price)}</td>
+                  <td className="px-3 py-2 text-textSecondary">${formatPrice(signal.sl_price)}</td>
+                  <td className="px-3 py-2 text-textPrimary">${formatPrice(signal.tp_price)}</td>
                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${signal.status === 'active' ? 'bg-bull text-white' : 'bg-panelAlt text-textSecondary'}`}>{signal.status}</span></td>
                 </tr>
               ))}
