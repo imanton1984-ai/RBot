@@ -1,0 +1,819 @@
+[2m2026-02-21T20:07:39.847940Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Refreshing universe pairs...
+[2m2026-02-21T20:07:44.696151Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-02-21T20:07:44.696182Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-02-21T20:07:44.696195Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-02-21T20:07:44.696208Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-02-21T20:07:44.696212Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-02-21T20:07:44.696218Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-02-21T20:07:44.723569Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=113, active_cnt=113
+[2m2026-02-21T20:07:44.723759Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Universe pairs refreshed OK: selected=113, active=113
+[2m2026-02-21T20:07:44.723774Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Starting ingest (candles monolith)...
+[2m2026-02-21T20:07:44.738762Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Active pairs: 113
+[2m2026-02-21T20:07:44.740911Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1m: 0
+[2m2026-02-21T20:07:44.741973Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 5m: 0
+[2m2026-02-21T20:07:44.743236Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 15m: 0
+[2m2026-02-21T20:07:44.744504Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1h: 0
+[2m2026-02-21T20:07:44.747021Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 4h: 0
+[2m2026-02-21T20:07:44.747423Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): synchronous_commit=OFF
+[2m2026-02-21T20:07:44.747468Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): synchronous_commit=OFF
+[2m2026-02-21T20:07:44.748278Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1d: 0
+[2m2026-02-21T20:07:44.748399Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): synchronous_commit=OFF
+[2m2026-02-21T20:07:44.749343Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Periodically refreshing universe pairs...
+[2m2026-02-21T20:07:44.749350Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Empty database detected - performing fast one-shot initial load
+[2m2026-02-21T20:07:44.749382Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Rate limiting configured: 34 weight/sec, limit=1000, weight=5, effective ~6.8 req/sec
+[2m2026-02-21T20:07:44.750726Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): synchronous_commit=OFF
+[2m2026-02-21T20:07:44.751909Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(4h): synchronous_commit=OFF
+[2m2026-02-21T20:07:44.754095Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1d): synchronous_commit=OFF
+[2m2026-02-21T20:07:52.387283Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-02-21T20:07:52.387315Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-02-21T20:07:52.387329Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-02-21T20:07:52.387350Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-02-21T20:07:52.387357Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-02-21T20:07:52.387364Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-02-21T20:07:52.430978Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=113, active_cnt=113
+[2m2026-02-21T20:07:52.431190Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Pairs refreshed: selected_cnt=113, active_cnt=113
+[2m2026-02-21T20:09:21.316013Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 112210 candles for market.candles_1m in 2.451185043s
+[2m2026-02-21T20:09:21.957611Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 111949 candles for market.candles_5m in 641.562379ms
+[2m2026-02-21T20:09:22.621189Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 111908 candles for market.candles_15m in 663.544818ms
+[2m2026-02-21T20:09:23.229773Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 109886 candles for market.candles_1h in 608.543769ms
+[2m2026-02-21T20:09:23.820523Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 100723 candles for market.candles_4h in 590.699864ms
+[2m2026-02-21T20:09:24.403213Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Direct COPY inserted 70064 candles for market.candles_1d in 582.631989ms
+[2m2026-02-21T20:09:24.403248Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Fast initial load completed in 99.653854666s
+[2m2026-02-21T20:09:24.408522Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Waiting for 5 seconds before starting WebSocket connections...
+[2m2026-02-21T20:09:29.509501Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS streams total=452, connections=23
+[2m2026-02-21T20:09:29.509534Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Starting live candle writer with flush interval: 2000ms
+[2m2026-02-21T20:09:29.513378Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill start...
+[2m2026-02-21T20:09:29.513401Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill done.
+[2m2026-02-21T20:09:29.513386Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #0 streams=20
+[2m2026-02-21T20:09:29.513411Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #2 streams=20
+[2m2026-02-21T20:09:29.513461Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Candles ingest running (WS realtime + BINARY COPY writers). Press Ctrl+C to stop.
+[2m2026-02-21T20:09:29.513482Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #7 streams=20
+[2m2026-02-21T20:09:29.513502Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #10 streams=20
+[2m2026-02-21T20:09:29.513425Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #3 streams=20
+[2m2026-02-21T20:09:29.513534Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #13 streams=20
+[2m2026-02-21T20:09:29.513555Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #14 streams=20
+[2m2026-02-21T20:09:29.513476Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #6 streams=20
+[2m2026-02-21T20:09:29.513419Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: streams=452
+[2m2026-02-21T20:09:29.513497Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #9 streams=20
+[2m2026-02-21T20:09:29.513514Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #11 streams=20
+[2m2026-02-21T20:09:29.513522Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #12 streams=20
+[2m2026-02-21T20:09:29.513445Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #4 streams=20
+[2m2026-02-21T20:09:29.513410Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #1 streams=20
+[2m2026-02-21T20:09:29.513719Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #16 streams=20
+[2m2026-02-21T20:09:29.513462Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #5 streams=20
+[2m2026-02-21T20:09:29.513548Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #15 streams=20
+[2m2026-02-21T20:09:29.515584Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=moodengusdt@kline_1m/moodengusdt@kline_5m/moodengusdt@kline_15m/moodengusdt@kline_1h/morphousdt@kline_1m/morphousdt@kline_5m/morphousdt@kline_15m/morphousdt@kline_1h/orcausdt@kline_1m/orcausdt@kline_5m/orcausdt@kline_15m/orcausdt@kline_1h/virtualusdt@kline_1m/virtualusdt@kline_5m/virtualusdt@kline_15m/virtualusdt@kline_1h/vanausdt@kline_1m/vanausdt@kline_5m/vanausdt@kline_15m/vanausdt@kline_1h
+[2m2026-02-21T20:09:29.515739Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=xmrusdt@kline_1m/xmrusdt@kline_5m/xmrusdt@kline_15m/xmrusdt@kline_1h/dashusdt@kline_1m/dashusdt@kline_5m/dashusdt@kline_15m/dashusdt@kline_1h/zecusdt@kline_1m/zecusdt@kline_5m/zecusdt@kline_15m/zecusdt@kline_1h/bnbusdt@kline_1m/bnbusdt@kline_5m/bnbusdt@kline_15m/bnbusdt@kline_1h/atomusdt@kline_1m/atomusdt@kline_5m/atomusdt@kline_15m/atomusdt@kline_1h
+[2m2026-02-21T20:09:29.515824Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=zilusdt@kline_1m/zilusdt@kline_5m/zilusdt@kline_15m/zilusdt@kline_1h/dogeusdt@kline_1m/dogeusdt@kline_5m/dogeusdt@kline_15m/dogeusdt@kline_1h/snxusdt@kline_1m/snxusdt@kline_5m/snxusdt@kline_15m/snxusdt@kline_1h/dotusdt@kline_1m/dotusdt@kline_5m/dotusdt@kline_15m/dotusdt@kline_1h/crvusdt@kline_1m/crvusdt@kline_5m/crvusdt@kline_15m/crvusdt@kline_1h
+[2m2026-02-21T20:09:29.515939Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=aweusdt@kline_1m/aweusdt@kline_5m/aweusdt@kline_15m/aweusdt@kline_1h/hypeusdt@kline_1m/hypeusdt@kline_5m/hypeusdt@kline_15m/hypeusdt@kline_1h/myxusdt@kline_1m/myxusdt@kline_5m/myxusdt@kline_15m/myxusdt@kline_1h/pumpusdt@kline_1m/pumpusdt@kline_5m/pumpusdt@kline_15m/pumpusdt@kline_1h/naorisusdt@kline_1m/naorisusdt@kline_5m/naorisusdt@kline_15m/naorisusdt@kline_1h
+[2m2026-02-21T20:09:29.516014Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=wldusdt@kline_1m/wldusdt@kline_5m/wldusdt@kline_15m/wldusdt@kline_1h/agldusdt@kline_1m/agldusdt@kline_5m/agldusdt@kline_15m/agldusdt@kline_1h/yggusdt@kline_1m/yggusdt@kline_5m/yggusdt@kline_15m/yggusdt@kline_1h/seiusdt@kline_1m/seiusdt@kline_5m/seiusdt@kline_15m/seiusdt@kline_1h/cyberusdt@kline_1m/cyberusdt@kline_5m/cyberusdt@kline_15m/cyberusdt@kline_1h
+[2m2026-02-21T20:09:29.516027Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #17 streams=20
+[2m2026-02-21T20:09:29.516157Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #19 streams=20
+[2m2026-02-21T20:09:29.516078Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=iousdt@kline_1m/iousdt@kline_5m/iousdt@kline_15m/iousdt@kline_1h/zrousdt@kline_1m/zrousdt@kline_5m/zrousdt@kline_15m/zrousdt@kline_1h/renderusdt@kline_1m/renderusdt@kline_5m/renderusdt@kline_15m/renderusdt@kline_1h/rplusdt@kline_1m/rplusdt@kline_5m/rplusdt@kline_15m/rplusdt@kline_1h/polusdt@kline_1m/polusdt@kline_5m/polusdt@kline_15m/polusdt@kline_1h
+[2m2026-02-21T20:09:29.516211Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #21 streams=20
+[2m2026-02-21T20:09:29.516051Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #18 streams=20
+[2m2026-02-21T20:09:29.516158Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #20 streams=20
+[2m2026-02-21T20:09:29.516365Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=jupusdt@kline_1m/jupusdt@kline_5m/jupusdt@kline_15m/jupusdt@kline_1h/omusdt@kline_1m/omusdt@kline_5m/omusdt@kline_15m/omusdt@kline_1h/tonusdt@kline_1m/tonusdt@kline_5m/tonusdt@kline_15m/tonusdt@kline_1h/enausdt@kline_1m/enausdt@kline_5m/enausdt@kline_15m/enausdt@kline_1h/taousdt@kline_1m/taousdt@kline_5m/taousdt@kline_15m/taousdt@kline_1h
+[2m2026-02-21T20:09:29.516089Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=tiausdt@kline_1m/tiausdt@kline_5m/tiausdt@kline_15m/tiausdt@kline_1h/1000bonkusdt@kline_1m/1000bonkusdt@kline_5m/1000bonkusdt@kline_15m/1000bonkusdt@kline_1h/jtousdt@kline_1m/jtousdt@kline_5m/jtousdt@kline_15m/jtousdt@kline_1h/wifusdt@kline_1m/wifusdt@kline_5m/wifusdt@kline_15m/wifusdt@kline_1h/ondousdt@kline_1m/ondousdt@kline_5m/ondousdt@kline_15m/ondousdt@kline_1h
+[2m2026-02-21T20:09:29.516484Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=btcusdt@kline_1m/btcusdt@kline_5m/btcusdt@kline_15m/btcusdt@kline_1h/ethusdt@kline_1m/ethusdt@kline_5m/ethusdt@kline_15m/ethusdt@kline_1h/bchusdt@kline_1m/bchusdt@kline_5m/bchusdt@kline_15m/bchusdt@kline_1h/xrpusdt@kline_1m/xrpusdt@kline_5m/xrpusdt@kline_15m/xrpusdt@kline_1h/ltcusdt@kline_1m/ltcusdt@kline_5m/ltcusdt@kline_15m/ltcusdt@kline_1h
+[2m2026-02-21T20:09:29.516538Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #22 streams=12
+[2m2026-02-21T20:09:29.517221Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=roseusdt@kline_1m/roseusdt@kline_5m/roseusdt@kline_15m/roseusdt@kline_1h/duskusdt@kline_1m/duskusdt@kline_5m/duskusdt@kline_15m/duskusdt@kline_1h/opusdt@kline_1m/opusdt@kline_5m/opusdt@kline_15m/opusdt@kline_1h/injusdt@kline_1m/injusdt@kline_5m/injusdt@kline_15m/injusdt@kline_1h/stgusdt@kline_1m/stgusdt@kline_5m/stgusdt@kline_15m/stgusdt@kline_1h
+[2m2026-02-21T20:09:29.517397Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=penguusdt@kline_1m/penguusdt@kline_5m/penguusdt@kline_15m/penguusdt@kline_1h/fartcoinusdt@kline_1m/fartcoinusdt@kline_5m/fartcoinusdt@kline_15m/fartcoinusdt@kline_1h/biousdt@kline_1m/biousdt@kline_5m/biousdt@kline_15m/biousdt@kline_1h/arcusdt@kline_1m/arcusdt@kline_5m/arcusdt@kline_15m/arcusdt@kline_1h/trumpusdt@kline_1m/trumpusdt@kline_5m/trumpusdt@kline_15m/trumpusdt@kline_1h
+[2m2026-02-21T20:09:29.517680Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m WS worker #8 streams=20
+[2m2026-02-21T20:09:29.517849Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=solusdt@kline_1m/solusdt@kline_5m/solusdt@kline_15m/solusdt@kline_1h/uniusdt@kline_1m/uniusdt@kline_5m/uniusdt@kline_15m/uniusdt@kline_1h/avaxusdt@kline_1m/avaxusdt@kline_5m/avaxusdt@kline_15m/avaxusdt@kline_1h/ksmusdt@kline_1m/ksmusdt@kline_5m/ksmusdt@kline_15m/ksmusdt@kline_1h/nearusdt@kline_1m/nearusdt@kline_5m/nearusdt@kline_15m/nearusdt@kline_1h
+[2m2026-02-21T20:09:29.517857Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=aaveusdt@kline_1m/aaveusdt@kline_5m/aaveusdt@kline_15m/aaveusdt@kline_1h/filusdt@kline_1m/filusdt@kline_5m/filusdt@kline_15m/filusdt@kline_1h/axsusdt@kline_1m/axsusdt@kline_5m/axsusdt@kline_15m/axsusdt@kline_1h/grtusdt@kline_1m/grtusdt@kline_5m/grtusdt@kline_15m/grtusdt@kline_1h/chzusdt@kline_1m/chzusdt@kline_5m/chzusdt@kline_15m/chzusdt@kline_1h
+[2m2026-02-21T20:09:29.518192Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=trxusdt@kline_1m/trxusdt@kline_5m/trxusdt@kline_15m/trxusdt@kline_1h/etcusdt@kline_1m/etcusdt@kline_5m/etcusdt@kline_15m/etcusdt@kline_1h/linkusdt@kline_1m/linkusdt@kline_5m/linkusdt@kline_15m/linkusdt@kline_1h/xlmusdt@kline_1m/xlmusdt@kline_5m/xlmusdt@kline_15m/xlmusdt@kline_1h/adausdt@kline_1m/adausdt@kline_5m/adausdt@kline_15m/adausdt@kline_1h
+[2m2026-02-21T20:09:29.518196Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=collectusdt@kline_1m/collectusdt@kline_5m/collectusdt@kline_15m/collectusdt@kline_1h/zamausdt@kline_1m/zamausdt@kline_5m/zamausdt@kline_15m/zamausdt@kline_1h/fogousdt@kline_1m/fogousdt@kline_5m/fogousdt@kline_15m/fogousdt@kline_1h/acuusdt@kline_1m/acuusdt@kline_5m/acuusdt@kline_15m/acuusdt@kline_1h/spaceusdt@kline_1m/spaceusdt@kline_5m/spaceusdt@kline_15m/spaceusdt@kline_1h
+[2m2026-02-21T20:09:29.518221Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=sentusdt@kline_1m/sentusdt@kline_5m/sentusdt@kline_15m/sentusdt@kline_1h/powerusdt@kline_1m/powerusdt@kline_5m/powerusdt@kline_15m/powerusdt@kline_1h/raveusdt@kline_1m/raveusdt@kline_5m/raveusdt@kline_15m/raveusdt@kline_1h/litusdt@kline_1m/litusdt@kline_5m/litusdt@kline_15m/litusdt@kline_1h/brevusdt@kline_1m/brevusdt@kline_5m/brevusdt@kline_15m/brevusdt@kline_1h
+[2m2026-02-21T20:09:29.518422Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=riverusdt@kline_1m/riverusdt@kline_5m/riverusdt@kline_15m/riverusdt@kline_1h/kiteusdt@kline_1m/kiteusdt@kline_5m/kiteusdt@kline_15m/kiteusdt@kline_1h/stableusdt@kline_1m/stableusdt@kline_5m/stableusdt@kline_15m/stableusdt@kline_1h/allousdt@kline_1m/allousdt@kline_5m/allousdt@kline_15m/allousdt@kline_1h/beatusdt@kline_1m/beatusdt@kline_5m/beatusdt@kline_15m/beatusdt@kline_1h
+[2m2026-02-21T20:09:29.518705Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=espusdt@kline_1m/espusdt@kline_5m/espusdt@kline_15m/espusdt@kline_1h/aztecusdt@kline_1m/aztecusdt@kline_5m/aztecusdt@kline_15m/aztecusdt@kline_1h/opnusdt@kline_1m/opnusdt@kline_5m/opnusdt@kline_15m/opnusdt@kline_1h
+[2m2026-02-21T20:09:29.519020Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=xplusdt@kline_1m/xplusdt@kline_5m/xplusdt@kline_15m/xplusdt@kline_1h/wlfiusdt@kline_1m/wlfiusdt@kline_5m/wlfiusdt@kline_15m/wlfiusdt@kline_1h/btrusdt@kline_1m/btrusdt@kline_5m/btrusdt@kline_15m/btrusdt@kline_1h/0gusdt@kline_1m/0gusdt@kline_5m/0gusdt@kline_15m/0gusdt@kline_1h/asterusdt@kline_1m/asterusdt@kline_5m/asterusdt@kline_15m/asterusdt@kline_1h
+[2m2026-02-21T20:09:29.519313Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=pippinusdt@kline_1m/pippinusdt@kline_5m/pippinusdt@kline_15m/pippinusdt@kline_1h/vvvusdt@kline_1m/vvvusdt@kline_5m/vvvusdt@kline_15m/vvvusdt@kline_1h/berausdt@kline_1m/berausdt@kline_5m/berausdt@kline_15m/berausdt@kline_1h/sirenusdt@kline_1m/sirenusdt@kline_5m/sirenusdt@kline_15m/sirenusdt@kline_1h/initusdt@kline_1m/initusdt@kline_5m/initusdt@kline_15m/initusdt@kline_1h
+[2m2026-02-21T20:09:29.519334Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=nomusdt@kline_1m/nomusdt@kline_5m/nomusdt@kline_15m/nomusdt@kline_1h/truthusdt@kline_1m/truthusdt@kline_5m/truthusdt@kline_15m/truthusdt@kline_1h/lynusdt@kline_1m/lynusdt@kline_5m/lynusdt@kline_15m/lynusdt@kline_1h/eulusdt@kline_1m/eulusdt@kline_5m/eulusdt@kline_15m/eulusdt@kline_1h/ensousdt@kline_1m/ensousdt@kline_5m/ensousdt@kline_15m/ensousdt@kline_1h
+[2m2026-02-21T20:09:29.519793Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=icpusdt@kline_1m/icpusdt@kline_5m/icpusdt@kline_15m/icpusdt@kline_1h/aptusdt@kline_1m/aptusdt@kline_5m/aptusdt@kline_15m/aptusdt@kline_1h/arbusdt@kline_1m/arbusdt@kline_5m/arbusdt@kline_15m/arbusdt@kline_1h/suiusdt@kline_1m/suiusdt@kline_5m/suiusdt@kline_15m/suiusdt@kline_1h/1000pepeusdt@kline_1m/1000pepeusdt@kline_5m/1000pepeusdt@kline_15m/1000pepeusdt@kline_1h
+[2m2026-02-21T20:09:29.520169Z[0m [32m INFO[0m [2mingestor::market::candles::candle_ws[0m[2m:[0m WS connect: wss://fstream.binance.com/stream?streams=hbarusdt@kline_1m/hbarusdt@kline_5m/hbarusdt@kline_15m/hbarusdt@kline_1h/1000shibusdt@kline_1m/1000shibusdt@kline_5m/1000shibusdt@kline_15m/1000shibusdt@kline_1h/galausdt@kline_1m/galausdt@kline_5m/galausdt@kline_15m/galausdt@kline_1h/ctsiusdt@kline_1m/ctsiusdt@kline_5m/ctsiusdt@kline_15m/ctsiusdt@kline_1h/ensusdt@kline_1m/ensusdt@kline_5m/ensusdt@kline_15m/ensusdt@kline_1h
+[2m2026-02-21T20:09:46.410088Z[0m [31mERROR[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Live candle pipeline failed: WebSocket message error
+
+Caused by:
+    0: WebSocket protocol error: Connection reset without closing handshake
+    1: Connection reset without closing handshake
+[2m2026-02-21T20:10:00.154517Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 2
+[2m2026-02-21T20:10:00.155906Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 2
+[2m2026-02-21T20:10:02.199390Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 99
+[2m2026-02-21T20:10:02.199450Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 99
+[2m2026-02-21T20:11:00.204331Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 115
+[2m2026-02-21T20:11:02.249848Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 211
+[2m2026-02-21T20:12:00.154001Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 227
+[2m2026-02-21T20:12:02.199040Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 319
+[2m2026-02-21T20:13:00.199259Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 345
+[2m2026-02-21T20:13:02.199506Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 428
+[2m2026-02-21T20:14:00.202792Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 460
+[2m2026-02-21T20:14:02.899439Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 564
+[2m2026-02-21T20:15:00.149920Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 566
+[2m2026-02-21T20:15:00.154463Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 114
+[2m2026-02-21T20:15:00.156325Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 1
+[2m2026-02-21T20:15:02.199002Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 663
+[2m2026-02-21T20:15:02.199217Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 211
+[2m2026-02-21T20:15:02.200289Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 99
+[2m2026-02-21T20:16:00.149053Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 679
+[2m2026-02-21T20:16:02.249077Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 782
+[2m2026-02-21T20:17:00.149438Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 792
+[2m2026-02-21T20:17:02.398902Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 888
+[2m2026-02-21T20:18:00.199948Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 909
+[2m2026-02-21T20:18:02.249287Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 996
+[2m2026-02-21T20:19:00.149041Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 1018
+[2m2026-02-21T20:20:00.199916Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 6 WS rows, total 232
+[2m2026-02-21T20:20:00.200128Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 1136
+[2m2026-02-21T20:20:02.549883Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 327
+[2m2026-02-21T20:20:02.549921Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 1231
+[2m2026-02-21T20:21:00.199706Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 1246
+[2m2026-02-21T20:21:02.299136Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 1329
+[2m2026-02-21T20:22:00.199012Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 1361
+[2m2026-02-21T20:22:02.199819Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 1456
+[2m2026-02-21T20:23:00.200133Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 1473
+[2m2026-02-21T20:23:02.249388Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 1565
+[2m2026-02-21T20:24:00.149365Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 1585
+[2m2026-02-21T20:24:02.249774Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 1690
+[2m2026-02-21T20:25:00.199828Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 374
+[2m2026-02-21T20:25:00.200005Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 1730
+[2m2026-02-21T20:25:02.248823Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 443
+[2m2026-02-21T20:25:02.248911Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 1799
+[2m2026-02-21T20:26:00.199105Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 1811
+[2m2026-02-21T20:26:02.199661Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 1895
+[2m2026-02-21T20:27:00.199087Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 1924
+[2m2026-02-21T20:27:02.299311Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2024
+[2m2026-02-21T20:28:00.149422Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2035
+[2m2026-02-21T20:28:02.199294Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 2122
+[2m2026-02-21T20:29:00.201263Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 2151
+[2m2026-02-21T20:29:02.249218Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2245
+[2m2026-02-21T20:30:00.149693Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 2262
+[2m2026-02-21T20:30:00.150513Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 454
+[2m2026-02-21T20:30:00.150676Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 115
+[2m2026-02-21T20:30:02.199528Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2356
+[2m2026-02-21T20:30:02.199726Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 548
+[2m2026-02-21T20:30:02.200474Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 209
+[2m2026-02-21T20:31:00.200030Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 2378
+[2m2026-02-21T20:31:02.249849Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2468
+[2m2026-02-21T20:32:00.149270Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2487
+[2m2026-02-21T20:32:02.298946Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2579
+[2m2026-02-21T20:33:00.199305Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 2602
+[2m2026-02-21T20:33:02.199351Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 2684
+[2m2026-02-21T20:34:00.199883Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 2717
+[2m2026-02-21T20:34:02.299851Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2802
+[2m2026-02-21T20:35:00.149041Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 566
+[2m2026-02-21T20:35:00.149099Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 2826
+[2m2026-02-21T20:35:02.198920Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 643
+[2m2026-02-21T20:35:02.199014Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 2903
+[2m2026-02-21T20:36:00.200160Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 2945
+[2m2026-02-21T20:36:02.248937Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3030
+[2m2026-02-21T20:37:00.199143Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 3055
+[2m2026-02-21T20:37:02.199619Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 3142
+[2m2026-02-21T20:38:00.299480Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 9 WS rows, total 3193
+[2m2026-02-21T20:38:02.349574Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3270
+[2m2026-02-21T20:39:00.200466Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 3281
+[2m2026-02-21T20:39:02.249347Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3372
+[2m2026-02-21T20:40:00.149107Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 679
+[2m2026-02-21T20:40:00.149174Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3391
+[2m2026-02-21T20:40:02.149511Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 774
+[2m2026-02-21T20:40:02.149566Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3486
+[2m2026-02-21T20:41:00.199395Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 3506
+[2m2026-02-21T20:41:02.199863Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 3607
+[2m2026-02-21T20:42:00.149917Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3617
+[2m2026-02-21T20:42:02.199376Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 3714
+[2m2026-02-21T20:43:00.199687Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 3732
+[2m2026-02-21T20:43:02.398912Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3822
+[2m2026-02-21T20:44:00.150248Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 3843
+[2m2026-02-21T20:44:02.200260Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 3938
+[2m2026-02-21T20:45:00.200035Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 3960
+[2m2026-02-21T20:45:00.201302Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 796
+[2m2026-02-21T20:45:00.201676Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 5 WS rows, total 231
+[2m2026-02-21T20:45:02.249705Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 4057
+[2m2026-02-21T20:45:02.250161Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 328
+[2m2026-02-21T20:45:02.250344Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 893
+[2m2026-02-21T20:46:00.199439Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 4070
+[2m2026-02-21T20:46:02.299481Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 4172
+[2m2026-02-21T20:47:00.199623Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 4187
+[2m2026-02-21T20:47:02.249502Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4272
+[2m2026-02-21T20:48:00.149534Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4295
+[2m2026-02-21T20:48:02.149681Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4384
+[2m2026-02-21T20:49:00.149907Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4408
+[2m2026-02-21T20:49:02.199884Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 4506
+[2m2026-02-21T20:50:00.148957Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 906
+[2m2026-02-21T20:50:00.149008Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4521
+[2m2026-02-21T20:50:02.249467Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 1002
+[2m2026-02-21T20:50:02.249510Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4618
+[2m2026-02-21T20:51:00.149954Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4634
+[2m2026-02-21T20:51:02.249867Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 4723
+[2m2026-02-21T20:52:00.150128Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 4748
+[2m2026-02-21T20:52:02.199953Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 4839
+[2m2026-02-21T20:53:00.199483Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 4863
+[2m2026-02-21T20:53:02.498929Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 4968
+[2m2026-02-21T20:54:00.149697Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 4974
+[2m2026-02-21T20:54:02.199452Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5061
+[2m2026-02-21T20:55:00.199724Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 7 WS rows, total 1024
+[2m2026-02-21T20:55:00.200094Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 5092
+[2m2026-02-21T20:55:02.349576Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 1124
+[2m2026-02-21T20:55:02.349670Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5192
+[2m2026-02-21T20:56:00.199370Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 5204
+[2m2026-02-21T20:56:02.249088Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 5293
+[2m2026-02-21T20:57:00.149743Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 5313
+[2m2026-02-21T20:57:02.298970Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5411
+[2m2026-02-21T20:58:00.149169Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5425
+[2m2026-02-21T20:58:02.149727Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 5518
+[2m2026-02-21T20:59:00.150907Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5538
+[2m2026-02-21T20:59:02.199625Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5628
+[2m2026-02-21T21:00:00.149783Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 5652
+[2m2026-02-21T21:00:00.150603Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 1132
+[2m2026-02-21T21:00:00.150719Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 341
+[2m2026-02-21T21:00:00.159148Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 3 WS rows, total 3
+[2m2026-02-21T21:00:02.452927Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 1 WS rows, total 108
+[2m2026-02-21T21:00:02.499586Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 5759
+[2m2026-02-21T21:00:02.499987Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 1239
+[2m2026-02-21T21:00:02.500539Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 448
+[2m2026-02-21T21:01:00.150044Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 5770
+[2m2026-02-21T21:01:03.149982Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5875
+[2m2026-02-21T21:02:00.149468Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5877
+[2m2026-02-21T21:02:02.199601Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 5974
+[2m2026-02-21T21:03:00.199245Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 5994
+[2m2026-02-21T21:03:02.298883Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6081
+[2m2026-02-21T21:04:00.198990Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 6108
+[2m2026-02-21T21:04:02.549886Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6207
+[2m2026-02-21T21:05:00.199559Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 7 WS rows, total 1250
+[2m2026-02-21T21:05:00.199697Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 6222
+[2m2026-02-21T21:05:02.199927Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 1337
+[2m2026-02-21T21:05:02.200056Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6309
+[2m2026-02-21T21:06:00.199336Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 6335
+[2m2026-02-21T21:06:02.399061Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6434
+[2m2026-02-21T21:07:00.149198Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6442
+[2m2026-02-21T21:07:02.149786Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 6537
+[2m2026-02-21T21:08:00.199758Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 6556
+[2m2026-02-21T21:08:03.099272Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6664
+[2m2026-02-21T21:09:00.200015Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 6671
+[2m2026-02-21T21:09:02.299228Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6766
+[2m2026-02-21T21:10:00.199521Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 1367
+[2m2026-02-21T21:10:00.199558Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6791
+[2m2026-02-21T21:10:02.298894Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 1454
+[2m2026-02-21T21:10:02.298927Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6878
+[2m2026-02-21T21:11:00.199412Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 6900
+[2m2026-02-21T21:11:02.199665Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 6992
+[2m2026-02-21T21:12:00.199395Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 7009
+[2m2026-02-21T21:12:02.199625Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 7104
+[2m2026-02-21T21:13:00.199878Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 7123
+[2m2026-02-21T21:13:02.349892Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 7213
+[2m2026-02-21T21:14:00.251443Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 7248
+[2m2026-02-21T21:14:02.399286Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 7320
+[2m2026-02-21T21:15:00.199547Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 7347
+[2m2026-02-21T21:15:00.200316Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 1471
+[2m2026-02-21T21:15:00.200898Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 454
+[2m2026-02-21T21:15:02.199828Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 7438
+[2m2026-02-21T21:15:02.299949Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 1564
+[2m2026-02-21T21:15:02.300412Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 547
+[2m2026-02-21T21:16:00.249155Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 7462
+[2m2026-02-21T21:16:02.250106Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 7550
+[2m2026-02-21T21:17:00.149354Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 7572
+[2m2026-02-21T21:17:02.199453Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 7663
+[2m2026-02-21T21:18:00.200126Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 7691
+[2m2026-02-21T21:18:02.249295Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 7784
+[2m2026-02-21T21:19:00.149319Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 7798
+[2m2026-02-21T21:19:02.198955Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 7900
+[2m2026-02-21T21:20:00.198910Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 1585
+[2m2026-02-21T21:20:00.199086Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 7913
+[2m2026-02-21T21:20:02.199573Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 1676
+[2m2026-02-21T21:20:02.199630Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 8004
+[2m2026-02-21T21:21:00.198966Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 8029
+[2m2026-02-21T21:21:02.199560Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8111
+[2m2026-02-21T21:22:00.199936Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 8139
+[2m2026-02-21T21:22:02.299016Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 8233
+[2m2026-02-21T21:23:00.199369Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 8264
+[2m2026-02-21T21:23:02.299812Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8347
+[2m2026-02-21T21:24:00.199717Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 8367
+[2m2026-02-21T21:24:02.248837Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 8463
+[2m2026-02-21T21:25:00.198944Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 1707
+[2m2026-02-21T21:25:00.199001Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8487
+[2m2026-02-21T21:25:02.249736Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 1786
+[2m2026-02-21T21:25:02.249784Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8566
+[2m2026-02-21T21:26:00.199556Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 8593
+[2m2026-02-21T21:26:02.249613Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8692
+[2m2026-02-21T21:27:00.199256Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8703
+[2m2026-02-21T21:27:02.449733Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 8798
+[2m2026-02-21T21:28:00.199584Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8816
+[2m2026-02-21T21:28:02.199811Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 8902
+[2m2026-02-21T21:29:00.201249Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 8931
+[2m2026-02-21T21:29:02.300365Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 9014
+[2m2026-02-21T21:30:00.199039Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 9044
+[2m2026-02-21T21:30:00.200651Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 4 WS rows, total 1812
+[2m2026-02-21T21:30:00.202484Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 4 WS rows, total 569
+[2m2026-02-21T21:30:02.249421Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 9132
+[2m2026-02-21T21:30:02.249779Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 1900
+[2m2026-02-21T21:30:02.250376Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 657
+[2m2026-02-21T21:31:00.199619Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 9159
+[2m2026-02-21T21:31:02.249472Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 9243
+[2m2026-02-21T21:32:00.199430Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 9273
+[2m2026-02-21T21:32:02.299075Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 9370
+[2m2026-02-21T21:33:00.199538Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 9382
+[2m2026-02-21T21:33:02.199657Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 9465
+[2m2026-02-21T21:34:00.199335Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 9499
+[2m2026-02-21T21:34:02.299524Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 9588
+[2m2026-02-21T21:35:00.199203Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 7 WS rows, total 1928
+[2m2026-02-21T21:35:00.199293Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 9612
+[2m2026-02-21T21:35:02.199721Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 2011
+[2m2026-02-21T21:35:02.199756Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 9695
+[2m2026-02-21T21:36:00.149729Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 9719
+[2m2026-02-21T21:36:02.200040Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 9806
+[2m2026-02-21T21:37:00.199365Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 9832
+[2m2026-02-21T21:37:02.249133Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 9919
+[2m2026-02-21T21:38:00.199670Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 9947
+[2m2026-02-21T21:38:02.249705Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 10048
+[2m2026-02-21T21:39:00.199729Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 10060
+[2m2026-02-21T21:39:02.349525Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 10149
+[2m2026-02-21T21:40:00.199218Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 7 WS rows, total 2041
+[2m2026-02-21T21:40:00.199244Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 10177
+[2m2026-02-21T21:40:02.299023Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 2113
+[2m2026-02-21T21:40:02.299064Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 10249
+[2m2026-02-21T21:41:00.199986Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 10287
+[2m2026-02-21T21:41:02.249246Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 10364
+[2m2026-02-21T21:42:00.199893Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 10401
+[2m2026-02-21T21:42:02.299828Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 10479
+[2m2026-02-21T21:43:00.249484Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 10514
+[2m2026-02-21T21:43:02.249546Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 10596
+[2m2026-02-21T21:44:00.200960Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 10625
+[2m2026-02-21T21:44:02.201168Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 10716
+[2m2026-02-21T21:45:00.199476Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 10737
+[2m2026-02-21T21:45:00.200111Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 2149
+[2m2026-02-21T21:45:00.200969Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 680
+[2m2026-02-21T21:45:02.249117Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 10836
+[2m2026-02-21T21:45:02.249244Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 2248
+[2m2026-02-21T21:45:02.249949Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 779
+[2m2026-02-21T21:46:00.199729Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 10854
+[2m2026-02-21T21:46:02.299204Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 10937
+[2m2026-02-21T21:47:00.149927Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 10962
+[2m2026-02-21T21:47:02.199061Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 11051
+[2m2026-02-21T21:48:00.149297Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 11075
+[2m2026-02-21T21:48:02.199403Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 11161
+[2m2026-02-21T21:49:00.149275Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 11188
+[2m2026-02-21T21:49:02.349733Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 11289
+[2m2026-02-21T21:50:00.199901Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 7 WS rows, total 2277
+[2m2026-02-21T21:50:00.200139Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 11317
+[2m2026-02-21T21:50:02.299945Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 2363
+[2m2026-02-21T21:50:02.299994Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 11403
+[2m2026-02-21T21:51:00.199677Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 11416
+[2m2026-02-21T21:51:02.299676Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 11503
+[2m2026-02-21T21:52:00.199857Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 11529
+[2m2026-02-21T21:52:02.299100Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 11629
+[2m2026-02-21T21:53:00.199597Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 11643
+[2m2026-02-21T21:53:02.399660Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 11728
+[2m2026-02-21T21:54:00.200063Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 11755
+[2m2026-02-21T21:54:02.299014Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 11844
+[2m2026-02-21T21:55:00.199137Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 6 WS rows, total 2379
+[2m2026-02-21T21:55:00.199252Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 11871
+[2m2026-02-21T21:55:02.199782Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 2457
+[2m2026-02-21T21:55:02.199875Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 11949
+[2m2026-02-21T21:56:00.199312Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 11983
+[2m2026-02-21T21:56:02.199692Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 12066
+[2m2026-02-21T21:57:00.199590Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 12097
+[2m2026-02-21T21:57:02.249421Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 12172
+[2m2026-02-21T21:58:00.199837Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 12210
+[2m2026-02-21T21:58:02.349524Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 12290
+[2m2026-02-21T21:59:00.201658Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 12321
+[2m2026-02-21T21:59:02.249968Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 12410
+[2m2026-02-21T22:00:00.149256Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 12433
+[2m2026-02-21T22:00:00.150717Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 2489
+[2m2026-02-21T22:00:00.151015Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 3 WS rows, total 794
+[2m2026-02-21T22:00:00.154435Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 3 WS rows, total 116
+[2m2026-02-21T22:00:02.349860Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 12534
+[2m2026-02-21T22:00:02.350180Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 895
+[2m2026-02-21T22:00:02.350255Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 2590
+[2m2026-02-21T22:00:02.357391Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 1 WS rows, total 217
+[2m2026-02-21T22:01:00.200031Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 12547
+[2m2026-02-21T22:01:02.249405Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 12637
+[2m2026-02-21T22:02:00.149677Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 12658
+[2m2026-02-21T22:02:03.149181Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 12766
+[2m2026-02-21T22:03:00.149499Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 12770
+[2m2026-02-21T22:03:02.249123Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 12867
+[2m2026-02-21T22:04:00.199732Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 12890
+[2m2026-02-21T22:04:02.298906Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 12981
+[2m2026-02-21T22:05:00.199512Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 13008
+[2m2026-02-21T22:05:00.199512Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 2612
+[2m2026-02-21T22:05:02.199740Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 4 WS rows, total 2687
+[2m2026-02-21T22:05:02.199984Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 13083
+[2m2026-02-21T22:06:00.199664Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 13116
+[2m2026-02-21T22:06:02.299291Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 13206
+[2m2026-02-21T22:07:00.200045Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 13227
+[2m2026-02-21T22:07:02.248962Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13320
+[2m2026-02-21T22:08:00.199792Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13335
+[2m2026-02-21T22:08:02.249748Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13435
+[2m2026-02-21T22:09:00.199366Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 13454
+[2m2026-02-21T22:09:02.199515Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13543
+[2m2026-02-21T22:10:00.199012Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 6 WS rows, total 2718
+[2m2026-02-21T22:10:00.199272Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 13566
+[2m2026-02-21T22:10:02.249521Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 2803
+[2m2026-02-21T22:10:02.249592Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13651
+[2m2026-02-21T22:11:00.149119Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 13675
+[2m2026-02-21T22:11:02.199769Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13762
+[2m2026-02-21T22:12:00.149081Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13787
+[2m2026-02-21T22:12:02.199735Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 13880
+[2m2026-02-21T22:13:00.149187Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 13905
+[2m2026-02-21T22:13:03.248939Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14012
+[2m2026-02-21T22:14:00.201698Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 14016
+[2m2026-02-21T22:14:02.300038Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14110
+[2m2026-02-21T22:15:00.149980Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14126
+[2m2026-02-21T22:15:00.150406Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 905
+[2m2026-02-21T22:15:00.150533Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 2826
+[2m2026-02-21T22:15:02.199593Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14232
+[2m2026-02-21T22:15:02.199757Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 2932
+[2m2026-02-21T22:15:02.199984Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 1011
+[2m2026-02-21T22:16:00.149765Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14239
+[2m2026-02-21T22:16:02.199167Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14333
+[2m2026-02-21T22:17:00.149905Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14352
+[2m2026-02-21T22:17:02.199830Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 14447
+[2m2026-02-21T22:18:00.199508Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 14469
+[2m2026-02-21T22:18:02.249764Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 14547
+[2m2026-02-21T22:19:00.199131Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 14580
+[2m2026-02-21T22:19:02.248931Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 14671
+[2m2026-02-21T22:20:00.199282Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 2940
+[2m2026-02-21T22:20:00.199367Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 14692
+[2m2026-02-21T22:20:02.249670Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 3026
+[2m2026-02-21T22:20:02.249732Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 14778
+[2m2026-02-21T22:21:00.249555Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 14811
+[2m2026-02-21T22:21:02.499384Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 14895
+[2m2026-02-21T22:22:00.199390Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 14920
+[2m2026-02-21T22:22:02.249779Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 15001
+[2m2026-02-21T22:23:00.250003Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 15035
+[2m2026-02-21T22:23:02.299167Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 15119
+[2m2026-02-21T22:24:00.199717Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 9 WS rows, total 15151
+[2m2026-02-21T22:24:02.249850Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 15235
+[2m2026-02-21T22:25:00.199227Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 3086
+[2m2026-02-21T22:25:00.199311Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 15290
+[2m2026-02-21T22:25:02.249375Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 3150
+[2m2026-02-21T22:25:02.249390Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 15354
+[2m2026-02-21T22:26:00.249544Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 15376
+[2m2026-02-21T22:26:02.299799Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 15461
+[2m2026-02-21T22:27:00.199345Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 15485
+[2m2026-02-21T22:27:02.199806Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 15566
+[2m2026-02-21T22:28:00.198957Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 15595
+[2m2026-02-21T22:28:02.199043Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 15687
+[2m2026-02-21T22:29:00.200699Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 15708
+[2m2026-02-21T22:29:02.249416Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 15809
+[2m2026-02-21T22:30:00.199792Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 15825
+[2m2026-02-21T22:30:00.200857Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 3169
+[2m2026-02-21T22:30:00.201861Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 5 WS rows, total 1022
+[2m2026-02-21T22:30:02.249119Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 15916
+[2m2026-02-21T22:30:02.249270Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 3260
+[2m2026-02-21T22:30:02.250043Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 1113
+[2m2026-02-21T22:31:00.199388Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 15937
+[2m2026-02-21T22:31:02.298934Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 16023
+[2m2026-02-21T22:32:00.199203Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 16049
+[2m2026-02-21T22:32:02.249416Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 16147
+[2m2026-02-21T22:33:00.149742Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 16160
+[2m2026-02-21T22:33:02.199940Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 16242
+[2m2026-02-21T22:34:00.199423Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 16275
+[2m2026-02-21T22:34:02.249113Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 16368
+[2m2026-02-21T22:35:00.198844Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 3280
+[2m2026-02-21T22:35:00.198904Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 16388
+[2m2026-02-21T22:35:02.249439Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 4 WS rows, total 3369
+[2m2026-02-21T22:35:02.249558Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 16477
+[2m2026-02-21T22:36:00.199338Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 16501
+[2m2026-02-21T22:36:02.199757Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 16589
+[2m2026-02-21T22:37:00.148991Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 16612
+[2m2026-02-21T22:37:02.149607Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 16697
+[2m2026-02-21T22:38:00.149639Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 16725
+[2m2026-02-21T22:38:02.249762Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 16830
+[2m2026-02-21T22:39:00.199822Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 16843
+[2m2026-02-21T22:39:02.299113Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 16928
+[2m2026-02-21T22:40:00.148995Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 3393
+[2m2026-02-21T22:40:00.149103Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 16953
+[2m2026-02-21T22:40:02.298802Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 3503
+[2m2026-02-21T22:40:02.298837Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17063
+[2m2026-02-21T22:41:00.199108Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 17068
+[2m2026-02-21T22:41:02.249231Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17146
+[2m2026-02-21T22:42:00.199849Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17177
+[2m2026-02-21T22:42:02.249227Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 17261
+[2m2026-02-21T22:43:00.199440Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 17291
+[2m2026-02-21T22:43:02.199851Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 17382
+[2m2026-02-21T22:44:00.201546Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 17406
+[2m2026-02-21T22:44:02.249749Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17498
+[2m2026-02-21T22:45:00.199711Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 17518
+[2m2026-02-21T22:45:00.200215Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 3506
+[2m2026-02-21T22:45:00.200937Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 3 WS rows, total 1133
+[2m2026-02-21T22:45:02.249737Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17609
+[2m2026-02-21T22:45:02.249920Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 3597
+[2m2026-02-21T22:45:02.250182Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 1224
+[2m2026-02-21T22:46:00.149000Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17629
+[2m2026-02-21T22:46:02.149542Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 17717
+[2m2026-02-21T22:47:00.199906Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 17744
+[2m2026-02-21T22:47:02.249447Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17834
+[2m2026-02-21T22:48:00.149628Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17855
+[2m2026-02-21T22:48:02.299328Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17943
+[2m2026-02-21T22:49:00.149071Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 17968
+[2m2026-02-21T22:49:02.199233Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18056
+[2m2026-02-21T22:50:00.198927Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 4 WS rows, total 3620
+[2m2026-02-21T22:50:00.199105Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 18084
+[2m2026-02-21T22:50:02.299071Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 3697
+[2m2026-02-21T22:50:02.299112Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 18161
+[2m2026-02-21T22:51:00.199967Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 18199
+[2m2026-02-21T22:51:02.249860Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18295
+[2m2026-02-21T22:52:00.199017Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 18310
+[2m2026-02-21T22:52:02.199511Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18402
+[2m2026-02-21T22:53:00.199716Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 18421
+[2m2026-02-21T22:53:02.299478Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18511
+[2m2026-02-21T22:54:00.149719Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18533
+[2m2026-02-21T22:54:02.199330Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18624
+[2m2026-02-21T22:55:00.199132Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 7 WS rows, total 3736
+[2m2026-02-21T22:55:00.199424Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 18652
+[2m2026-02-21T22:55:02.249673Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 3824
+[2m2026-02-21T22:55:02.249706Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18740
+[2m2026-02-21T22:56:00.199587Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18759
+[2m2026-02-21T22:56:02.249431Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18854
+[2m2026-02-21T22:57:00.150064Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18872
+[2m2026-02-21T22:57:02.199788Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 18956
+[2m2026-02-21T22:58:00.198965Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 18986
+[2m2026-02-21T22:58:02.249611Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 19075
+[2m2026-02-21T22:59:00.200093Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 19099
+[2m2026-02-21T22:59:02.299940Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 19195
+[2m2026-02-21T23:00:00.158279Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 2 WS rows, total 228
+[2m2026-02-21T23:00:00.199940Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 19224
+[2m2026-02-21T23:00:00.200868Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 4 WS rows, total 3856
+[2m2026-02-21T23:00:00.200944Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 4 WS rows, total 1257
+[2m2026-02-21T23:00:02.399275Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 19317
+[2m2026-02-21T23:00:02.399479Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 3949
+[2m2026-02-21T23:00:02.400461Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 1350
+[2m2026-02-21T23:00:02.408070Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 2 WS rows, total 333
+[2m2026-02-21T23:01:00.199477Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 19331
+[2m2026-02-21T23:01:02.199718Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 19427
+[2m2026-02-21T23:02:00.200209Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 19444
+[2m2026-02-21T23:02:02.249202Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 19533
+[2m2026-02-21T23:03:00.149869Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 19551
+[2m2026-02-21T23:03:02.198938Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 19653
+[2m2026-02-21T23:04:00.200212Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 19669
+[2m2026-02-21T23:04:02.249371Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 19762
+[2m2026-02-21T23:05:00.149334Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 3957
+[2m2026-02-21T23:05:00.149396Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 19777
+[2m2026-02-21T23:05:02.298925Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 4057
+[2m2026-02-21T23:05:02.298963Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 19877
+[2m2026-02-21T23:06:00.149823Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 19889
+[2m2026-02-21T23:06:02.199654Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 19990
+[2m2026-02-21T23:07:00.199592Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 20004
+[2m2026-02-21T23:07:02.299111Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 20105
+[2m2026-02-21T23:08:00.199677Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 20117
+[2m2026-02-21T23:08:02.449259Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 20209
+[2m2026-02-21T23:09:00.199830Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 20233
+[2m2026-02-21T23:09:02.349525Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 20329
+[2m2026-02-21T23:10:00.199944Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 4071
+[2m2026-02-21T23:10:00.199973Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 20343
+[2m2026-02-21T23:10:02.249789Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 4164
+[2m2026-02-21T23:10:02.249828Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 20436
+[2m2026-02-21T23:11:00.149136Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 20454
+[2m2026-02-21T23:11:02.149833Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 20557
+[2m2026-02-21T23:12:00.199515Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 20569
+[2m2026-02-21T23:12:02.249700Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 20656
+[2m2026-02-21T23:13:00.199309Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 20684
+[2m2026-02-21T23:13:02.199416Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 20771
+[2m2026-02-21T23:14:00.201162Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 20797
+[2m2026-02-21T23:14:02.300172Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 20882
+[2m2026-02-21T23:15:00.200009Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 9 WS rows, total 20914
+[2m2026-02-21T23:15:00.202425Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 9 WS rows, total 4190
+[2m2026-02-21T23:15:00.257038Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 6 WS rows, total 1372
+[2m2026-02-21T23:15:02.249258Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21008
+[2m2026-02-21T23:15:02.249304Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 4283
+[2m2026-02-21T23:15:02.405350Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 1460
+[2m2026-02-21T23:16:00.149269Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21019
+[2m2026-02-21T23:16:02.299489Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21112
+[2m2026-02-21T23:17:00.148968Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 21133
+[2m2026-02-21T23:17:02.149356Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21229
+[2m2026-02-21T23:18:00.199417Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 21247
+[2m2026-02-21T23:18:02.249067Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 21342
+[2m2026-02-21T23:19:00.199464Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 21362
+[2m2026-02-21T23:19:02.199639Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 21448
+[2m2026-02-21T23:20:00.199024Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 9 WS rows, total 4303
+[2m2026-02-21T23:20:00.199224Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 9 WS rows, total 21479
+[2m2026-02-21T23:20:02.199136Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 4386
+[2m2026-02-21T23:20:02.299007Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 21564
+[2m2026-02-21T23:21:00.199244Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 21589
+[2m2026-02-21T23:21:02.299860Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21690
+[2m2026-02-21T23:22:00.149720Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21697
+[2m2026-02-21T23:22:02.199713Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 21785
+[2m2026-02-21T23:23:00.199565Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 21813
+[2m2026-02-21T23:23:02.299653Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21901
+[2m2026-02-21T23:24:00.149105Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 21923
+[2m2026-02-21T23:24:02.199556Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22012
+[2m2026-02-21T23:25:00.199268Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 4410
+[2m2026-02-21T23:25:00.199368Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 22038
+[2m2026-02-21T23:25:02.199344Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 4500
+[2m2026-02-21T23:25:02.199476Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 22128
+[2m2026-02-21T23:26:00.199938Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 22152
+[2m2026-02-21T23:26:02.249585Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22242
+[2m2026-02-21T23:27:00.199235Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 22264
+[2m2026-02-21T23:27:02.499548Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22361
+[2m2026-02-21T23:28:00.149015Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22375
+[2m2026-02-21T23:28:02.149058Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 22470
+[2m2026-02-21T23:29:00.200823Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 22490
+[2m2026-02-21T23:29:02.299848Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 22593
+[2m2026-02-21T23:30:00.156121Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 1471
+[2m2026-02-21T23:30:00.199418Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 9 WS rows, total 22609
+[2m2026-02-21T23:30:00.201085Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 9 WS rows, total 4529
+[2m2026-02-21T23:30:02.199593Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22701
+[2m2026-02-21T23:30:02.205671Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 1570
+[2m2026-02-21T23:30:02.299529Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 4622
+[2m2026-02-21T23:31:00.199127Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 22718
+[2m2026-02-21T23:31:02.199514Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22805
+[2m2026-02-21T23:32:00.199694Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 22833
+[2m2026-02-21T23:32:02.249624Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22920
+[2m2026-02-21T23:33:00.149109Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 22940
+[2m2026-02-21T23:33:02.149864Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 23031
+[2m2026-02-21T23:34:00.149547Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23053
+[2m2026-02-21T23:34:02.199837Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23135
+[2m2026-02-21T23:35:00.199788Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 23168
+[2m2026-02-21T23:35:00.199832Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 4636
+[2m2026-02-21T23:35:02.249122Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 4732
+[2m2026-02-21T23:35:02.249151Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23264
+[2m2026-02-21T23:36:00.199282Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 23280
+[2m2026-02-21T23:36:02.249527Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23374
+[2m2026-02-21T23:37:00.199151Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 23396
+[2m2026-02-21T23:37:02.249502Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23496
+[2m2026-02-21T23:38:00.149340Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23505
+[2m2026-02-21T23:38:02.149789Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23591
+[2m2026-02-21T23:39:00.200029Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 23624
+[2m2026-02-21T23:39:02.249073Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23710
+[2m2026-02-21T23:40:00.199942Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 4771
+[2m2026-02-21T23:40:00.200224Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 23755
+[2m2026-02-21T23:40:03.149529Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 4857
+[2m2026-02-21T23:40:03.149604Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 23841
+[2m2026-02-21T23:41:00.149810Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23844
+[2m2026-02-21T23:41:02.199396Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 23939
+[2m2026-02-21T23:42:00.148945Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 23957
+[2m2026-02-21T23:42:02.149741Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 24050
+[2m2026-02-21T23:43:00.199681Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 24072
+[2m2026-02-21T23:43:02.249515Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 24164
+[2m2026-02-21T23:44:00.201394Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 24188
+[2m2026-02-21T23:44:02.399877Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 24282
+[2m2026-02-21T23:45:00.199691Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 24300
+[2m2026-02-21T23:45:00.200827Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 4864
+[2m2026-02-21T23:45:00.208139Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 7 WS rows, total 1589
+[2m2026-02-21T23:45:02.249056Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 24385
+[2m2026-02-21T23:45:02.249298Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 4949
+[2m2026-02-21T23:45:02.255606Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 1672
+[2m2026-02-21T23:46:00.199385Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 24413
+[2m2026-02-21T23:46:02.248900Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 24511
+[2m2026-02-21T23:47:00.149602Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 24522
+[2m2026-02-21T23:47:02.199103Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 24620
+[2m2026-02-21T23:48:00.199077Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 24636
+[2m2026-02-21T23:48:02.199495Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 24728
+[2m2026-02-21T23:49:00.199787Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 24749
+[2m2026-02-21T23:49:02.199845Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 24851
+[2m2026-02-21T23:50:00.199588Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 4977
+[2m2026-02-21T23:50:00.199742Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 24865
+[2m2026-02-21T23:50:02.349464Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5068
+[2m2026-02-21T23:50:02.349511Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 24956
+[2m2026-02-21T23:51:00.199743Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 24977
+[2m2026-02-21T23:51:02.349073Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 25067
+[2m2026-02-21T23:52:00.199585Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 25091
+[2m2026-02-21T23:52:02.249529Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 25184
+[2m2026-02-21T23:53:00.199535Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 25203
+[2m2026-02-21T23:53:02.199822Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 25294
+[2m2026-02-21T23:54:00.149762Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 25313
+[2m2026-02-21T23:54:02.199719Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 25411
+[2m2026-02-21T23:55:00.149873Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5086
+[2m2026-02-21T23:55:00.149920Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 25426
+[2m2026-02-21T23:55:02.199756Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 5183
+[2m2026-02-21T23:55:02.199895Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 25523
+[2m2026-02-21T23:56:00.199398Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 25542
+[2m2026-02-21T23:56:02.249441Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 25631
+[2m2026-02-21T23:57:00.198866Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 25665
+[2m2026-02-21T23:57:02.248936Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 25763
+[2m2026-02-21T23:58:00.199390Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 25766
+[2m2026-02-21T23:58:02.199808Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 25856
+[2m2026-02-21T23:59:00.200341Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 25880
+[2m2026-02-21T23:59:02.249244Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 25978
+[2m2026-02-22T00:00:00.149182Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 25994
+[2m2026-02-22T00:00:00.150214Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 4 WS rows, total 5202
+[2m2026-02-22T00:00:00.157233Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 7 WS rows, total 1702
+[2m2026-02-22T00:00:00.210224Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 8 WS rows, total 367
+[2m2026-02-22T00:00:02.349673Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26089
+[2m2026-02-22T00:00:02.349759Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5297
+[2m2026-02-22T00:00:02.355315Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 1794
+[2m2026-02-22T00:00:02.357133Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 1 WS rows, total 438
+[2m2026-02-22T00:01:00.237418Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 26111
+[2m2026-02-22T00:01:02.349553Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26206
+[2m2026-02-22T00:02:00.149384Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26217
+[2m2026-02-22T00:03:00.149531Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26330
+[2m2026-02-22T00:03:02.199388Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26432
+[2m2026-02-22T00:04:00.249335Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26463
+[2m2026-02-22T00:04:02.298981Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 26550
+[2m2026-02-22T00:05:00.199782Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 26561
+[2m2026-02-22T00:05:00.229988Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 6 WS rows, total 5317
+[2m2026-02-22T00:05:02.199894Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 26662
+[2m2026-02-22T00:05:02.299321Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5419
+[2m2026-02-22T00:06:00.150229Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 26670
+[2m2026-02-22T00:06:02.198844Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26777
+[2m2026-02-22T00:07:00.150125Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 26786
+[2m2026-02-22T00:07:02.499413Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 26894
+[2m2026-02-22T00:08:00.199487Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 26899
+[2m2026-02-22T00:08:02.299444Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27000
+[2m2026-02-22T00:09:00.149825Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 27010
+[2m2026-02-22T00:09:02.248962Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 27113
+[2m2026-02-22T00:10:00.199158Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 9 WS rows, total 5443
+[2m2026-02-22T00:10:00.199463Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 9 WS rows, total 27139
+[2m2026-02-22T00:10:02.399568Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27230
+[2m2026-02-22T00:10:02.399615Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5534
+[2m2026-02-22T00:11:00.149591Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 27235
+[2m2026-02-22T00:11:02.199210Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27335
+[2m2026-02-22T00:12:00.199370Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 27353
+[2m2026-02-22T00:12:03.149093Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27457
+[2m2026-02-22T00:13:00.149761Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27460
+[2m2026-02-22T00:13:02.149863Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27566
+[2m2026-02-22T00:14:00.200447Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 9 WS rows, total 27581
+[2m2026-02-22T00:14:02.299128Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 27666
+[2m2026-02-22T00:15:00.150231Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27686
+[2m2026-02-22T00:15:00.150551Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5538
+[2m2026-02-22T00:15:00.156251Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 1810
+[2m2026-02-22T00:15:02.249905Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5643
+[2m2026-02-22T00:15:02.249967Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27791
+[2m2026-02-22T00:15:02.255916Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 2 WS rows, total 1915
+[2m2026-02-22T00:16:00.149026Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27799
+[2m2026-02-22T00:16:02.248777Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 27899
+[2m2026-02-22T00:17:00.199871Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 7 WS rows, total 27918
+[2m2026-02-22T00:17:02.349072Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28016
+[2m2026-02-22T00:18:00.198933Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 28026
+[2m2026-02-22T00:18:03.148882Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28136
+[2m2026-02-22T00:19:00.149759Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28138
+[2m2026-02-22T00:19:02.199412Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28241
+[2m2026-02-22T00:20:00.199778Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 28252
+[2m2026-02-22T00:20:00.199970Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 5652
+[2m2026-02-22T00:20:02.299370Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 2 WS rows, total 5741
+[2m2026-02-22T00:20:02.299433Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 28341
+[2m2026-02-22T00:21:00.149029Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28364
+[2m2026-02-22T00:21:02.249057Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28473
+[2m2026-02-22T00:22:00.149387Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28477
+[2m2026-02-22T00:22:02.199619Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28582
+[2m2026-02-22T00:23:00.148918Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28590
+[2m2026-02-22T00:23:02.249406Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28689
+[2m2026-02-22T00:24:00.149517Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28703
+[2m2026-02-22T00:24:02.299739Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28806
+[2m2026-02-22T00:25:00.149476Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 5766
+[2m2026-02-22T00:25:00.149581Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 28818
+[2m2026-02-22T00:25:02.399800Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 5863
+[2m2026-02-22T00:25:02.399842Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 28915
+[2m2026-02-22T00:26:00.200111Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 28932
+[2m2026-02-22T00:26:02.599280Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 29041
+[2m2026-02-22T00:27:00.149038Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 29042
+[2m2026-02-22T00:27:02.149467Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 29139
+[2m2026-02-22T00:28:00.149869Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 29156
+[2m2026-02-22T00:28:02.299593Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 29257
+[2m2026-02-22T00:29:00.200234Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 29270
+[2m2026-02-22T00:29:02.348842Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 29369
+[2m2026-02-22T00:30:00.198878Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 29383
+[2m2026-02-22T00:30:00.199833Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 5879
+[2m2026-02-22T00:30:00.205959Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 3 WS rows, total 1924
+[2m2026-02-22T00:30:02.549647Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 5985
+[2m2026-02-22T00:30:02.549753Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 29489
+[2m2026-02-22T00:30:02.555539Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 3 WS rows, total 2030
+[2m2026-02-22T00:31:00.149845Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 29495
+[2m2026-02-22T00:31:02.299123Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 29593
+[2m2026-02-22T00:32:00.199583Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 29611
+[2m2026-02-22T00:32:02.248883Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 29709
+[2m2026-02-22T00:33:00.199361Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 8 WS rows, total 29727
+[2m2026-02-22T00:33:02.249966Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 29814
+[2m2026-02-22T00:34:00.149151Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 29833
+[2m2026-02-22T00:34:02.249861Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 29936
+[2m2026-02-22T00:35:00.199493Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 3 WS rows, total 6002
+[2m2026-02-22T00:35:00.199547Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 29958
+[2m2026-02-22T00:35:02.299743Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 6092
+[2m2026-02-22T00:35:02.299749Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30048
+[2m2026-02-22T00:36:00.199724Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 30063
+[2m2026-02-22T00:36:02.249465Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30156
+[2m2026-02-22T00:37:00.199297Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 30175
+[2m2026-02-22T00:37:02.199391Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30270
+[2m2026-02-22T00:38:00.199996Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 6 WS rows, total 30290
+[2m2026-02-22T00:38:02.249507Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30392
+[2m2026-02-22T00:39:00.148951Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30398
+[2m2026-02-22T00:39:02.199246Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 2 WS rows, total 30504
+[2m2026-02-22T00:40:00.199255Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 5 WS rows, total 6107
+[2m2026-02-22T00:40:00.199379Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 5 WS rows, total 30515
+[2m2026-02-22T00:40:02.249488Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30610
+[2m2026-02-22T00:40:02.249514Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 6202
+[2m2026-02-22T00:41:00.149285Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30624
+[2m2026-02-22T00:41:02.149565Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30722
+[2m2026-02-22T00:42:00.149387Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30737
+[2m2026-02-22T00:42:02.198856Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30844
+[2m2026-02-22T00:43:00.149743Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30850
+[2m2026-02-22T00:43:02.649040Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30962
+[2m2026-02-22T00:44:00.150442Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 30963
+[2m2026-02-22T00:44:02.299298Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 31064
+[2m2026-02-22T00:45:00.198749Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 4 WS rows, total 6229
+[2m2026-02-22T00:45:00.198892Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 31089
+[2m2026-02-22T00:45:00.207561Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 5 WS rows, total 2049
+[2m2026-02-22T00:45:02.349635Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 1 WS rows, total 6324
+[2m2026-02-22T00:45:02.349689Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 31184
+[2m2026-02-22T00:45:02.355225Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 1 WS rows, total 2143
+[2m2026-02-22T00:46:00.199168Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 4 WS rows, total 31192
+[2m2026-02-22T00:46:02.199532Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 31287
+[2m2026-02-22T00:47:00.199203Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 3 WS rows, total 31304
+[2m2026-02-22T00:47:02.199575Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 1 WS rows, total 31410
+[2m2026-02-22T00:47:15.122271Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Shutdown sig...
+[2m2026-02-22T00:47:15.122473Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h) channel closed. inserted_total=452
+[2m2026-02-22T00:47:15.122589Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m) channel closed. inserted_total=31414
+[2m2026-02-22T00:47:15.122614Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m) channel closed. inserted_total=2147
+[2m2026-02-22T00:47:15.122592Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(4h) channel closed. inserted_total=0
+[2m2026-02-22T00:47:15.122788Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m) channel closed. inserted_total=6328
+[2m2026-02-22T00:47:15.123885Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Pair refresh task shutting down
+[2m2026-02-22T00:47:15.198684Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1d) channel closed. inserted_total=0
