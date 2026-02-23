@@ -1,0 +1,17 @@
+===========================================
+STOP @ Mon 23 Feb 2026 04:25:35 AM MSK
+ROOT: /home/anton/Desktop/Rust_trader
+LOG : /home/anton/Desktop/Rust_trader/logs/stop_20260223_042535.log
+===========================================
+Loading env: /home/anton/Desktop/Rust_trader/.env
+Stopping connections (pid 1841631)...
+Stopping ingestor service (pid 1841659)...
+--- Stopping by pidfiles in /home/anton/Desktop/Rust_trader/run ---
+Stopping compute_history pid=1841686 (TERM)...
+Stopped: compute_history
+Stopping compute_realtime pid=1841713 (TERM)...
+Stopped: compute_realtime
+Stopping order_manager pid=1841784 (TERM)...
+Stopped: order_manager
+--- Killing leftover processes that belong to this repo only (cmdline contains ROOT_DIR) ---
+TERM leftover: pid=1845283 cmd=tee -a /home/anton/Desktop/Rust_trader/logs/stop_20260223_042535.log

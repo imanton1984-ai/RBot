@@ -4291,3 +4291,25 @@ Received candle close event: ORCAUSDT 1m at 1771797839999
 Processing feature batch for ORCAUSDT on 1m, bars=499, cols=23, realtime: true
   Persisting 46 indicator records for ORCAUSDT on 1m (bars 497..498, skipped 497 warmup bars)
   Persisting 7 raw signals for ORCAUSDT on 1m (filtered from 1377 total)
+[2m2026-02-23T01:23:13.533300Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: ACTIVE_STRATEGY = super_entry
+[2m2026-02-23T01:23:13.533335Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: Skipping predictors pipeline (strategy: super_entry)
+[2m2026-02-23T01:23:13.555081Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m there is already a transaction in progress
+[2m2026-02-23T01:23:13.556176Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m there is no transaction in progress
+[2m2026-02-23T01:23:13.586017Z[0m [33m WARN[0m [2mdatabase_lib::init_db[0m[2m:[0m DDL file #6 error (may be safe to ignore if objects already exist): error returned from database: cache lookup failed for relation 2082621
+[2m2026-02-23T01:23:13.681248Z[0m [33m WARN[0m [2mdatabase_lib::init_db[0m[2m:[0m DDL file #9 error (may be safe to ignore if objects already exist): error returned from database: trigger "trg_sync_final_signals" for relation "final_signals" already exists
+[2m2026-02-23T01:23:13.693055Z[0m [33m WARN[0m [2mdatabase_lib::init_db[0m[2m:[0m DDL file #10 error (may be safe to ignore if objects already exist): error returned from database: constraint "chk_final_tf" for relation "final_signals" already exists
+[2m2026-02-23T01:23:13.710419Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "indicators_wide"
+[2m2026-02-23T01:23:13.748851Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: Setting up Super Entry stage for realtime signals
+[2m2026-02-23T01:23:13.931484Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: ✅ Super Entry realtime stage spawned
+Started Kafka consumer, listening on topic: candles.close
+[2m2026-02-23T01:31:12.020766Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: ACTIVE_STRATEGY = super_entry
+[2m2026-02-23T01:31:12.020796Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: Skipping predictors pipeline (strategy: super_entry)
+[2m2026-02-23T01:31:12.043752Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m there is already a transaction in progress
+[2m2026-02-23T01:31:12.044684Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m there is no transaction in progress
+[2m2026-02-23T01:31:12.086133Z[0m [33m WARN[0m [2mdatabase_lib::init_db[0m[2m:[0m DDL file #6 error (may be safe to ignore if objects already exist): error returned from database: cache lookup failed for relation 2083231
+[2m2026-02-23T01:31:12.198329Z[0m [33m WARN[0m [2mdatabase_lib::init_db[0m[2m:[0m DDL file #9 error (may be safe to ignore if objects already exist): error returned from database: trigger "trg_sync_final_signals" for relation "final_signals" already exists
+[2m2026-02-23T01:31:12.210641Z[0m [33m WARN[0m [2mdatabase_lib::init_db[0m[2m:[0m DDL file #10 error (may be safe to ignore if objects already exist): error returned from database: constraint "chk_final_tf" for relation "final_signals" already exists
+[2m2026-02-23T01:31:12.223877Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m compression policy already exists for hypertable "indicators_wide"
+[2m2026-02-23T01:31:12.264886Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: Setting up Super Entry stage for realtime signals
+[2m2026-02-23T01:31:12.465618Z[0m [32m INFO[0m [2mcompute_realtime[0m[2m:[0m compute_realtime: ✅ Super Entry realtime stage spawned
+Started Kafka consumer, listening on topic: candles.close

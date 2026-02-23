@@ -4847,3 +4847,75 @@
 [2m2026-02-22T22:03:47.400448Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.69 USDT
 [2m2026-02-22T22:04:00.176987Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 10 (1h=7, 4h=2, 15m=1) | Total unPnL: 1.58 USDT
 [2m2026-02-22T22:04:00.639519Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:23:13.596254Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:23:13.596276Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-02-23T01:23:13.596282Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:23:13.596338Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:23:13.596353Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:23:13.596371Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Score range: [0.69, 0.81], max_drift: 0.25%
+[2m2026-02-23T01:23:13.596410Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-02-23T01:23:13.596420Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-02-23T01:23:13.596431Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=10x, trade_size=10 USDT (percent_depo), strategy=ml_super_entry
+[2m2026-02-23T01:23:13.596437Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m 🤖 Trading mode: AUTO — bot will automatically open and manage positions!
+[2m2026-02-23T01:23:13.602978Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-02-23T01:23:15.048466Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 140.44 | Positions: 0
+[2m2026-02-23T01:23:15.055750Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-02-23T01:23:15.057655Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-02-23T01:23:15.927125Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 684 symbols
+[2m2026-02-23T01:23:15.927338Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 597 active symbols
+[2m2026-02-23T01:23:15.927368Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 597 symbols
+[2m2026-02-23T01:23:15.933541Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-02-23T01:23:15.933558Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-02-23T01:23:15.933566Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-02-23T01:23:15.933578Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:23:15.933585Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-02-23T01:23:15.933591Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:23:15.933642Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:23:15.933974Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-02-23T01:23:15.939065Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:23:15.944668Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-23T01:23:45.945792Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:23:45.946161Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:23:45.947407Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-23T01:24:15.948426Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:24:15.948778Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:24:15.949898Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-23T01:24:45.951020Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:24:45.951403Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:24:45.952190Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-23T01:25:15.953075Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:25:15.953509Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:25:15.954452Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-23T01:31:12.083999Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:31:12.084022Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-02-23T01:31:12.084029Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:31:12.084094Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:31:12.084111Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:31:12.084118Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Score range: [0.69, 0.81], max_drift: 0.25%
+[2m2026-02-23T01:31:12.084162Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-02-23T01:31:12.084174Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-02-23T01:31:12.084181Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=10x, trade_size=10 USDT (percent_depo), strategy=ml_super_entry
+[2m2026-02-23T01:31:12.084188Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m 🤖 Trading mode: AUTO — bot will automatically open and manage positions!
+[2m2026-02-23T01:31:12.089898Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-02-23T01:31:13.458939Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 140.44 | Positions: 0
+[2m2026-02-23T01:31:13.466035Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-02-23T01:31:13.467795Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-02-23T01:31:14.279413Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 684 symbols
+[2m2026-02-23T01:31:14.279723Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 597 active symbols
+[2m2026-02-23T01:31:14.279748Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 597 symbols
+[2m2026-02-23T01:31:14.286805Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-02-23T01:31:14.286824Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-02-23T01:31:14.286832Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-02-23T01:31:14.286843Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:31:14.286849Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-02-23T01:31:14.286854Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-23T01:31:14.286919Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:31:14.287249Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-02-23T01:31:14.293027Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:31:14.298860Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-23T01:31:44.300018Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:31:44.300391Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (15, 1)]
+[2m2026-02-23T01:31:44.301680Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-23T01:32:14.302542Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-23T01:32:14.302638Z[0m [32m INFO[0m [2msqlx_core::pool::inner[0m[2m:[0m ping on idle connection returned error [3merror[0m[2m=[0merror returned from database: terminating connection due to administrator command
+[2m2026-02-23T01:32:14.306711Z[0m [31mERROR[0m [2morder_manager[0m[2m:[0m Scanner cycle error: error returned from database: relation "trade.positions" does not exist
