@@ -13924,6 +13924,19 @@ fn candle_table(tf: i32) -> &'static str {
     }
 }
 
+/// Map tf_minutes → timeframe string used in market.candles_live
+fn tf_live_label(tf: i32) -> &'static str {
+    match tf {
+        1    => "1m",
+        5    => "5m",
+        15   => "15m",
+        60   => "1h",
+        240  => "4h",
+        1440 => "1d",
+        _    => "1m",
+    }
+}
+
 // ─── GET /api/pairs ────────────────────────────────────────────────────
 pub async fn get_pairs(
     Query(query): Query<PairsQuery>,
@@ -14038,7 +14051,7 @@ pub async fn get_candles(
         .await
         .map_err(|e| { tracing::error!("Candles error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
 
-    let candles: Vec<CandleResponse> = rows.iter().rev().map(|r| CandleResponse {
+    let mut candles: Vec<CandleResponse> = rows.iter().rev().map(|r| CandleResponse {
         t: r.get("t"),
         o: r.get("o"),
         h: r.get("h"),
@@ -14046,6 +14059,96 @@ pub async fn get_candles(
         c: r.get("c"),
         v: r.get("v"),
     }).collect();
+
+    // FIX #4: Append/update the current FORMING candle from market.candles_live.
+    // The ingestor writes forming candles to candles_live via WebSocket UPSERT.
+    //
+    // IMPORTANT: Per runtime.toml, only 1m/5m/15m/1h have WS streams.
+    // 4h and 1d use poll-on-close (no intra-candle updates in candles_live).
+    // Fallback for 4h/1d: use the latest 1m live candle's close as current price
+    // and update the last candle in the chart.
+    //
+    // KEY: candles_live stores `open_time_ms` while candles_1h stores `time_ms` (close time).
+    // We convert open_time → close_time for consistent chart x-axis.
+    {
+        let tf_label = tf_live_label(query.tf);
+        let tf_ms = query.tf as i64 * 60_000;
+
+        // Try the exact TF from candles_live first
+        let live_result = sqlx::query(
+            "SELECT open_time_ms,
+                    open as o, high as h, low as l, close as close_val, volume as v
+             FROM market.candles_live
+             WHERE symbol = $1 AND timeframe = $2
+             ORDER BY open_time_ms DESC
+             LIMIT 1"
+        )
+        .bind(&query.pair)
+        .bind(tf_label)
+        .fetch_optional(&state.db_pool)
+        .await;
+
+        // Extract live OHLCV data
+        let live_data: Option<(i64, f64, f64, f64, f64, f64)> = match &live_result {
+            Ok(Some(r)) => {
+                let open_time_ms: i64 = r.get("open_time_ms");
+                let live_t = open_time_ms + tf_ms;
+                Some((live_t, r.get("o"), r.get("h"), r.get("l"), r.get("close_val"), r.get("v")))
+            }
+            _ => None,
+        };
+
+        // For 4h/1d (no WS stream), fallback: get current price from 1m candles_live
+        // and just update the close of the last chart candle
+        let fallback_price: Option<f64> = if live_data.is_none() && query.tf > 60 {
+            sqlx::query(
+                "SELECT close as close_val FROM market.candles_live
+                 WHERE symbol = $1 AND timeframe = '1m'
+                 ORDER BY open_time_ms DESC LIMIT 1"
+            )
+            .bind(&query.pair)
+            .fetch_optional(&state.db_pool)
+            .await
+            .ok()
+            .flatten()
+            .map(|r| r.get::<f64, _>("close_val"))
+        } else {
+            None
+        };
+
+        if let Some((live_t, live_o, live_h, live_l, live_c, live_v)) = live_data {
+            if live_o > 0.0 && live_c > 0.0 {
+                if let Some(last) = candles.last_mut() {
+                    if last.t == live_t {
+                        // Same candle period — update OHLCV with live data
+                        last.h = live_h.max(last.h);
+                        last.l = if last.l > 0.0 { live_l.min(last.l) } else { live_l };
+                        last.c = live_c;
+                        last.v = live_v;
+                    } else if live_t > last.t {
+                        // New forming candle — append
+                        candles.push(CandleResponse {
+                            t: live_t, o: live_o, h: live_h, l: live_l, c: live_c, v: live_v,
+                        });
+                    }
+                } else {
+                    candles.push(CandleResponse {
+                        t: live_t, o: live_o, h: live_h, l: live_l, c: live_c, v: live_v,
+                    });
+                }
+            }
+        } else if let Some(current_price) = fallback_price {
+            // Fallback for 4h/1d: update close of the last candle with current 1m price
+            if current_price > 0.0 {
+                if let Some(last) = candles.last_mut() {
+                    last.c = current_price;
+                    // Also update high/low if current price extends the range
+                    if current_price > last.h { last.h = current_price; }
+                    if current_price < last.l { last.l = current_price; }
+                }
+            }
+        }
+    }
 
     Ok(Json(candles))
 }
@@ -14155,23 +14258,44 @@ pub async fn get_signals(
 pub async fn get_open_positions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PositionRow>>, StatusCode> {
+    // FIX #6: Calculate pnl_pct dynamically.
+    // Use candles_live as fallback for current_price when position_tracker
+    // hasn't written to DB yet (e.g. right after opening, or DB write fails).
     let rows = sqlx::query(
         "SELECT p.id,
                 COALESCE(p.symbol, mp.symbol) as pair,
                 CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
                 p.qty,
                 p.entry_price,
-                COALESCE(p.current_price, p.entry_price, 0) as current_price,
+                COALESCE(
+                    NULLIF(p.current_price, p.entry_price),
+                    cl.close,
+                    p.current_price,
+                    p.entry_price,
+                    0
+                ) as current_price,
                 COALESCE(p.sl_price, 0) as stop_loss,
                 COALESCE(p.tp_price, 0) as take_profit,
                 COALESCE(p.unrealized_pnl, 0) as pnl_usdt,
-                0::double precision as pnl_pct,
+                CASE
+                    WHEN p.entry_price > 0 AND p.qty > 0 THEN
+                        CASE WHEN p.side = 1
+                            THEN (COALESCE(NULLIF(p.current_price, p.entry_price), cl.close, p.entry_price) - p.entry_price) / p.entry_price * 100.0
+                            ELSE (p.entry_price - COALESCE(NULLIF(p.current_price, p.entry_price), cl.close, p.entry_price)) / p.entry_price * 100.0
+                        END
+                    ELSE 0
+                END::double precision as pnl_pct,
                 COALESCE(p.candles_left, 0)::smallint as candles_left,
                 COALESCE(p.leverage, 10)::smallint as leverage,
                 COALESCE(p.tf_minutes, 60)::smallint as tf_minutes,
                 p.opened_at as open_time
          FROM trade.positions p
          JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+         LEFT JOIN LATERAL (
+             SELECT close FROM market.candles_live
+             WHERE symbol = COALESCE(p.symbol, mp.symbol) AND timeframe = '1m'
+             ORDER BY open_time_ms DESC LIMIT 1
+         ) cl ON true
          WHERE p.status = 1
          ORDER BY p.opened_at DESC"
     )
@@ -15418,6 +15542,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { ChevronDown, LineChart, LayoutGrid, Settings2 } from 'lucide-react';
 import type { Position } from '../types';
+import { formatPrice } from '../utils/format';
 
 const TIMEFRAMES = [
   { label: '1m', value: 1 },
@@ -15471,15 +15596,15 @@ function PositionsGridView() {
                 <div className="space-y-0.5 text-xs">
                   <div className="flex justify-between">
                     <span className="text-textSecondary">Entry</span>
-                    <span className="text-textPrimary">${pos.entry_price?.toFixed(2)}</span>
+                    <span className="text-textPrimary">${formatPrice(pos.entry_price)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-textSecondary">Current</span>
-                    <span className="text-textPrimary">${pos.current_price?.toFixed(2)}</span>
+                    <span className="text-textPrimary">${formatPrice(pos.current_price)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-textSecondary">SL</span>
-                    <span className="text-bear">${pos.stop_loss?.toFixed(2)}</span>
+                    <span className="text-bear">${formatPrice(pos.stop_loss)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-textSecondary">Bars Left</span>
@@ -15521,12 +15646,14 @@ export default function ChartPanel() {
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [chartReady, setChartReady] = useState(false);
 
-  // Load candles
+  // Load candles — FIX #4: reduced interval from 15s → 5s for near-real-time chart updates.
+  // Candles come from DB (ingestor writes them). For the current (forming) candle,
+  // the ingestor updates it every few seconds, so 5s poll gives smooth updates.
   const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
     queryFn: () => apiService.getCandles(currentPair, currentTf, 500),
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 5000,
+    staleTime: 3000,
     retry: 1,
   });
 
@@ -15617,6 +15744,25 @@ export default function ChartPanel() {
     if (!candleData || candleData.length === 0) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
+    // FIX #8: Dynamic price precision for the right price axis.
+    // Determine precision from the latest close price so low-price coins
+    // (e.g., DOGE at 0.10234) show enough decimals instead of "0.10".
+    const lastClose = candleData[candleData.length - 1]?.c || 0;
+    let precision = 2;
+    let minMove = 0.01;
+    if (lastClose > 0 && lastClose < 1) { precision = 5; minMove = 0.00001; }
+    if (lastClose > 0 && lastClose < 0.1) { precision = 6; minMove = 0.000001; }
+    if (lastClose > 0 && lastClose < 0.01) { precision = 7; minMove = 0.0000001; }
+    if (lastClose > 0 && lastClose < 0.001) { precision = 8; minMove = 0.00000001; }
+
+    candleSeriesRef.current.applyOptions({
+      priceFormat: {
+        type: 'price',
+        precision,
+        minMove,
+      },
+    });
+
     const candles = candleData.map((c: any) => ({
       time: Math.floor(c.t / 1000) as any,
       open: c.o,
@@ -15631,23 +15777,9 @@ export default function ChartPanel() {
       color: c.c >= c.o ? 'rgba(14, 203, 129, 0.3)' : 'rgba(246, 70, 93, 0.3)',
     }));
 
-    // Add whitespace bars into the future for bars_left markers.
-    // Whitespace = data points with only `time`, no OHLC, so lightweight-charts
-    // extends the time axis without drawing actual candles.
-    // We calculate how many chart-timeframe bars we need based on positions.
-    const maxWhitespace = 60; // never add more than 60 whitespace bars
-    let neededWhitespace = 10; // default: a small buffer
-
-    if (currentPairPositions.length > 0) {
-      for (const pos of currentPairPositions) {
-        if (pos.candles_left > 0) {
-          const posTf = pos.tf_minutes || currentTf;
-          const chartBars = Math.round((pos.candles_left * posTf) / currentTf);
-          neededWhitespace = Math.max(neededWhitespace, chartBars + 2);
-        }
-      }
-    }
-    const whitespaceBars = Math.min(neededWhitespace, maxWhitespace);
+    // FIX #10: Since markers are now on the open bar (not in the future),
+    // we only need a small whitespace buffer for visual padding.
+    const whitespaceBars = 5;
 
     const lastCandle = candleData[candleData.length - 1];
     const lastTimeSec = Math.floor(lastCandle.t / 1000);
@@ -15705,29 +15837,33 @@ export default function ChartPanel() {
       }
     });
 
-    // 4. Add Candles Left markers on whitespace data points
+    // FIX #10: Orange circle placed on the bar where the order was OPENED (not in the future).
+    // FIX #9: Show real bars_left countdown value in the marker text.
+    // Size reduced by 25% from 3 → 2.
     if (candleData && candleData.length > 0 && currentPairPositions.length > 0) {
       const markers: any[] = [];
-      const lastCandleIdx = candleData.length - 1;
-      const lastTime = Math.floor(candleData[lastCandleIdx].t / 1000);
       const chartTfSeconds = currentTf * 60;
 
       currentPairPositions.forEach((pos: Position) => {
-        if (pos.candles_left > 0) {
+        // FIX #10: Place marker on the bar where the order was opened
+        if (pos.open_time) {
+          const openTimeSec = Math.floor(new Date(pos.open_time).getTime() / 1000);
+          // Snap to nearest chart-timeframe bar boundary
+          const snappedTime = Math.floor(openTimeSec / chartTfSeconds) * chartTfSeconds;
+
+          // FIX #9: Show bars_left countdown value
           const posTfMinutes = pos.tf_minutes || currentTf;
-          const barsOnChart = Math.round(
-            (pos.candles_left * posTfMinutes) / currentTf
-          );
-          const clampedBars = Math.min(barsOnChart, 60);
-          const markerTime = lastTime + clampedBars * chartTfSeconds;
+          const barsLeftText = pos.candles_left > 0
+            ? `📊 ${pos.candles_left} bars (${posTfMinutes}m)`
+            : '⏰ Expired';
 
           markers.push({
-            time: markerTime as any,
+            time: snappedTime as any,
             position: 'inBar',
             color: '#F0B90B',
             shape: 'circle',
-            size: 3,
-            text: `⏳ ${pos.candles_left}×${posTfMinutes}m`,
+            size: 2,  // FIX #10: reduced by 25% from 3 → 2
+            text: barsLeftText,
           });
         }
       });
@@ -16009,13 +16145,15 @@ export default function PnlWidget() {
 # webui/src/components/PositionsPanel.tsx
 
 import { useEffect } from 'react';
-import { useUiStore, useDataStore } from '../store';
+import { useUiStore, useDataStore, useTradingStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { X } from 'lucide-react';
+import { formatPrice, formatQty, formatTf } from '../utils/format';
 
 export default function PositionsPanel() {
-  const { positionsView, setPositionsView } = useUiStore();
+  const { positionsView, setPositionsView, setChartView } = useUiStore();
+  const { setCurrentPair, setCurrentTf } = useTradingStore();
   const positions = useDataStore((s) => s.positions);
   const setPositions = useDataStore((s) => s.setPositions);
 
@@ -16055,6 +16193,19 @@ export default function PositionsPanel() {
         console.error('Failed to close position:', error);
       }
     }
+  };
+
+  const handleOpenInChart = (pos: any) => {
+    if (!pos?.pair) return;
+
+    setCurrentPair(pos.pair);
+
+    // For open positions, use tf_minutes
+    if (pos.tf_minutes) {
+      setCurrentTf(Number(pos.tf_minutes));
+    }
+
+    setChartView('chart');
   };
 
   return (
@@ -16119,6 +16270,8 @@ export default function PositionsPanel() {
                 <tr
                   key={pos.id || idx}
                   className="border-t border-border hover:bg-panelAlt transition-colors"
+                  onDoubleClick={() => positionsView === 'open' && handleOpenInChart(pos)}
+                  title={positionsView === 'open' ? 'Double-click to open chart' : undefined}
                 >
                   {positionsView === 'open' ? (
                     <>
@@ -16126,11 +16279,15 @@ export default function PositionsPanel() {
                       <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
                         {pos.side}
                       </td>
-                      <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.current_price?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-bear">${pos.stop_loss?.toFixed(2) || '-'}</td>
-                      <td className="px-4 py-2 text-bull">${pos.take_profit?.toFixed(2) || '-'}</td>
+                      <td className="px-4 py-2 text-textPrimary">{formatQty(pos.qty)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.entry_price)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.current_price)}</td>
+                      <td className="px-4 py-2 text-bear">
+                        {pos.stop_loss && pos.stop_loss > 0 ? `$${formatPrice(pos.stop_loss)}` : '-'}
+                      </td>
+                      <td className="px-4 py-2 text-bull">
+                        {pos.take_profit && pos.take_profit > 0 ? `$${formatPrice(pos.take_profit)}` : '-'}
+                      </td>
                       <td className={`px-4 py-2 ${pos.pnl_usdt >= 0 ? 'text-bull' : 'text-bear'}`}>
                         {pos.pnl_usdt >= 0 ? '+' : ''}${pos.pnl_usdt?.toFixed(2)}
                       </td>
@@ -16140,18 +16297,18 @@ export default function PositionsPanel() {
                       <td className="px-4 py-2">
                         <button
                           className="text-bear hover:text-bear/80 transition-colors"
-                          onClick={() => handleClosePosition(pos.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClosePosition(pos.id);
+                          }}
+                          onDoubleClick={(e) => e.stopPropagation()}
                           title="Close position"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </td>
                       <td className="px-4 py-2 text-textSecondary font-medium">
-                        {pos.tf_minutes ? (
-                          pos.tf_minutes >= 1440 ? `${pos.tf_minutes / 1440}d` :
-                            pos.tf_minutes >= 60 ? `${pos.tf_minutes / 60}h` :
-                              `${pos.tf_minutes}m`
-                        ) : '-'}
+                        {formatTf(pos.tf_minutes)}
                       </td>
                     </>
                   ) : (
@@ -16160,9 +16317,9 @@ export default function PositionsPanel() {
                       <td className={`px-4 py-2 ${pos.side === 'LONG' ? 'text-bull' : 'text-bear'}`}>
                         {pos.side}
                       </td>
-                      <td className="px-4 py-2 text-textPrimary">{pos.qty?.toFixed(4)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.entry_price?.toFixed(2)}</td>
-                      <td className="px-4 py-2 text-textPrimary">${pos.close_price?.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-textPrimary">{formatQty(pos.qty)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.entry_price)}</td>
+                      <td className="px-4 py-2 text-textPrimary">${formatPrice(pos.close_price)}</td>
                       <td className="px-4 py-2">
                         <span className={`px-1.5 py-0.5 rounded text-xs ${pos.close_type === 'tp_hit' ? 'bg-bull/20 text-bull' :
                           pos.close_type === 'sl_hit' ? 'bg-bear/20 text-bear' :
@@ -16318,6 +16475,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { ChevronDown, Bell, Settings, Grid3x3, User, SquareTerminal } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { formatPrice } from '../utils/format';
 
 export default function TopBar() {
   const { currentPair, setCurrentPair } = useTradingStore();
@@ -16427,7 +16585,7 @@ export default function TopBar() {
               )}
             </div>
             <div className={`text-sm ${change24h >= 0 ? 'text-bull' : 'text-bear'}`}>
-              ${price?.toFixed(2)}
+              ${formatPrice(price)}
             </div>
           </div>
         </div>
@@ -16447,11 +16605,11 @@ export default function TopBar() {
           </div>
           <div>
             <div className="text-textSecondary">High (24h)</div>
-            <div className="text-textPrimary">${(summary?.high_24h || high24h || 0).toFixed(2)}</div>
+            <div className="text-textPrimary">${formatPrice(summary?.high_24h || high24h || 0)}</div>
           </div>
           <div>
             <div className="text-textSecondary">Low (24h)</div>
-            <div className="text-textPrimary">${(summary?.low_24h || low24h || 0).toFixed(2)}</div>
+            <div className="text-textPrimary">${formatPrice(summary?.low_24h || low24h || 0)}</div>
           </div>
         </div>
       </div>
@@ -16955,6 +17113,7 @@ import { useUiStore, useTradingStore } from '../../store';
 import { X, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../../api';
+import { formatPrice } from '../../utils/format';
 
 export default function SignalsModal() {
   const { signalsModalOpen, setSignalsModalOpen } = useUiStore();
@@ -17032,9 +17191,9 @@ export default function SignalsModal() {
                   <td className="px-3 py-2 text-textSecondary">{signal.tf >= 1440 ? `${signal.tf/1440}d` : signal.tf >= 60 ? `${signal.tf/60}h` : `${signal.tf}m`}</td>
                   <td className={`px-3 py-2 ${signal.side === 1 ? 'text-bull' : 'text-bear'}`}>{signal.side === 1 ? 'LONG' : 'SHORT'}</td>
                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${signal.score >= 0.8 ? 'bg-bull text-white' : 'bg-border text-textSecondary'}`}>{signal.score.toFixed(2)}</span></td>
-                  <td className="px-3 py-2 text-textPrimary">${signal.entry_price?.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-textSecondary">${signal.sl_price?.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-textPrimary">${signal.tp_price?.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-textPrimary">${formatPrice(signal.entry_price)}</td>
+                  <td className="px-3 py-2 text-textSecondary">${formatPrice(signal.sl_price)}</td>
+                  <td className="px-3 py-2 text-textPrimary">${formatPrice(signal.tp_price)}</td>
                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${signal.status === 'active' ? 'bg-bull text-white' : 'bg-panelAlt text-textSecondary'}`}>{signal.status}</span></td>
                 </tr>
               ))}
@@ -17402,6 +17561,44 @@ fn create_app(state: AppState, cors: CorsLayer) -> Router {
 
 async fn ws_route(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws_handler(ws, State(state)).await
+}
+
+
+
+# webui/src/utils/format.ts
+
+export function formatPrice(value?: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '-';
+
+  const v = Number(value);
+  if (v === 0) return '0';
+
+  // Dynamic precision based on price magnitude
+  let decimals = 2;
+
+  if (Math.abs(v) < 1) decimals = 6;
+  if (Math.abs(v) < 0.1) decimals = 7;
+  if (Math.abs(v) < 0.01) decimals = 8;
+  if (Math.abs(v) < 0.001) decimals = 9;
+
+  // Remove trailing zeros
+  return v.toFixed(decimals).replace(/\.?0+$/, '');
+}
+
+export function formatQty(value?: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '-';
+
+  const v = Number(value);
+  if (Math.abs(v) >= 1000) return v.toFixed(0);
+  if (Math.abs(v) >= 1) return v.toFixed(4).replace(/\.?0+$/, '');
+  return v.toFixed(8).replace(/\.?0+$/, '');
+}
+
+export function formatTf(tf?: number | null): string {
+  if (!tf) return '-';
+  if (tf >= 1440) return `${tf / 1440}d`;
+  if (tf >= 60) return `${tf / 60}h`;
+  return `${tf}m`;
 }
 
 
@@ -29077,11 +29274,11 @@ kafka_group_id = "order-manager"
 leverage = 10
 max_hold_bars = 25
 max_orders_at_a_time = 10
-max_price_drift_pct = 0.2
+max_price_drift_pct = 0.25
 order_type = "futures_oco"
 scan_interval_secs = 30
-signal_score_max = 0.8
-signal_score_min = 0.7
+signal_score_max = 0.81
+signal_score_min = 0.69
 strategy_type = "ml_super_entry"
 tf_15m_pct = 10
 tf_1h_pct = 70
@@ -29089,7 +29286,7 @@ tf_4h_pct = 20
 topic_orders_cmd = "orders.cmd"
 topic_positions = "positions.updates"
 tracker_interval_secs = 10
-trade_size_type = "fixed_usdt"
+trade_size_type = "percent_depo"
 trade_size_value = 10.0
 trading_mode = "off"
 
@@ -33571,6 +33768,7 @@ pub use position_tracker::PositionTracker;
 // или SL/TP hit — Tracker инициирует закрытие через Executor.
 
 use anyhow::Result;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -33754,17 +33952,21 @@ async fn main() -> Result<()> {
         })
     };
 
+    // FIX #2: Shared retry counter for close failures
+    let close_retries: Arc<Mutex<CloseRetryMap>> = Arc::new(Mutex::new(HashMap::new()));
+
     // Task 2: Position Tracker loop
     let tracker_handle = {
         let tracker = tracker.clone();
         let executor = executor.clone();
         let config = config.clone();
         let redpanda = redpanda.clone();
+        let close_retries = close_retries.clone();
 
         tokio::spawn(async move {
             loop {
                 if let Err(e) =
-                    run_tracker_cycle(&tracker, &executor, &redpanda, &config).await
+                    run_tracker_cycle(&tracker, &executor, &redpanda, &config, &close_retries).await
                 {
                     error!("Tracker cycle error: {}", e);
                 }
@@ -33844,8 +34046,31 @@ async fn run_scanner_cycle(
         return Ok(());
     }
 
+    // FIX #1: Track symbols opened during THIS cycle to prevent duplicate
+    // orders for the same symbol on different timeframes within a single batch.
+    // The DB check in scan_for_signals catches existing positions, but during
+    // the same cycle, two signals (e.g., BREVUSDT 1h + BREVUSDT 4h) could slip through.
+    let mut opened_symbols_this_cycle: HashSet<String> = HashSet::new();
+
+    // Also pre-populate with symbols already in the tracker (in-memory, fresher than DB)
+    {
+        let tracker_lock = tracker.lock().await;
+        for pos in tracker_lock.open_positions() {
+            opened_symbols_this_cycle.insert(pos.symbol.clone());
+        }
+    }
+
     // 3. Открыть позиции для найденных сигналов
     for signal in &signals {
+        // FIX #1: Skip if symbol already opened in this cycle or in tracker
+        if opened_symbols_this_cycle.contains(&signal.symbol) {
+            info!(
+                "⚠️ Skipping {} tf={}m — symbol already has open position (anti-duplicate guard)",
+                signal.symbol, signal.tf_minutes
+            );
+            continue;
+        }
+
         // Проверяем, не заполнились ли слоты за время цикла
         let tracker_lock = tracker.lock().await;
         let current_tf_count = tracker_lock.count_by_tf(signal.tf_minutes);
@@ -33863,6 +34088,9 @@ async fn run_scanner_cycle(
         // Открыть позицию
         match executor.open_position(signal).await {
             Ok(managed_pos) => {
+                // FIX #1: Mark symbol as opened to prevent duplicates in this batch
+                opened_symbols_this_cycle.insert(managed_pos.symbol.clone());
+
                 // Отправить событие в WebUI
                 let event = PositionUpdateEvent {
                     event_type: "position_opened".to_string(),
@@ -33914,11 +34142,20 @@ async fn run_scanner_cycle(
 // TRACKER CYCLE
 // ═══════════════════════════════════════════════════════════
 
+/// FIX #2: Track close retry attempts to prevent infinite error loops.
+/// After MAX_CLOSE_RETRIES, force-close the position in DB and remove from tracker.
+const MAX_CLOSE_RETRIES: u32 = 5;
+
+/// Shared retry counter for positions that failed to close on Binance.
+/// Key = position_id, Value = retry count.
+type CloseRetryMap = HashMap<i64, u32>;
+
 async fn run_tracker_cycle(
     tracker: &Arc<Mutex<PositionTracker>>,
     executor: &OrderExecutor,
     redpanda: &RedpandaConnection,
     config: &OrderManagerConfig,
+    close_retries: &Arc<Mutex<CloseRetryMap>>,
 ) -> Result<()> {
     let (events, to_close) = {
         let mut tracker_lock = tracker.lock().await;
@@ -33932,6 +34169,46 @@ async fn run_tracker_cycle(
 
     // Закрыть позиции, которые требуют закрытия
     for (position_id, reason) in &to_close {
+        // FIX #2: Check if this position is already being retried too many times
+        let retry_count = {
+            let retries = close_retries.lock().await;
+            retries.get(position_id).copied().unwrap_or(0)
+        };
+
+        if retry_count >= MAX_CLOSE_RETRIES {
+            warn!(
+                "🔴 Position #{} failed to close {} times. Force-closing in DB and removing from tracker.",
+                position_id, retry_count
+            );
+
+            // FIX #2 + #7: Force-close in DB so it appears in history
+            let pos = {
+                let tracker_lock = tracker.lock().await;
+                tracker_lock.get_position(*position_id).cloned()
+            };
+
+            if let Some(pos) = pos {
+                // Try to mark as closed in DB with whatever info we have
+                if let Err(e) = executor.force_close_in_db(&pos, *reason).await {
+                    error!(
+                        "❌ Failed to force-close position #{} in DB: {}",
+                        position_id, e
+                    );
+                }
+            }
+
+            // Remove from tracker and retry map regardless
+            {
+                let mut tracker_lock = tracker.lock().await;
+                tracker_lock.remove_position(*position_id);
+            }
+            {
+                let mut retries = close_retries.lock().await;
+                retries.remove(position_id);
+            }
+            continue;
+        }
+
         let pos = {
             let tracker_lock = tracker.lock().await;
             tracker_lock.get_position(*position_id).cloned()
@@ -33944,11 +34221,19 @@ async fn run_tracker_cycle(
 
                     let mut tracker_lock = tracker.lock().await;
                     tracker_lock.remove_position(*position_id);
+
+                    // Clean up retry counter on success
+                    let mut retries = close_retries.lock().await;
+                    retries.remove(position_id);
                 }
                 Err(e) => {
+                    // FIX #2: Increment retry counter instead of infinite loop
+                    let mut retries = close_retries.lock().await;
+                    let count = retries.entry(*position_id).or_insert(0);
+                    *count += 1;
                     error!(
-                        "❌ Failed to close position #{}: {}",
-                        position_id, e
+                        "❌ Failed to close position #{} (attempt {}/{}): {}",
+                        position_id, count, MAX_CLOSE_RETRIES, e
                     );
                 }
             }
@@ -34314,17 +34599,65 @@ impl OrderExecutor {
             warn!("Failed to cancel orders for {} (position #{}): {}", symbol, pos.position_id, e);
         }
 
-        // 2. Close position
-        let close_order = self
-            .client
-            .close_position(symbol, pos.side.as_str(), pos.qty)
-            .await
-            .context("Failed to place close market order")?;
+        // FIX #2: Check if position actually exists on Binance before trying to close.
+        // It might have been closed by exchange TP/SL order already.
+        let binance_position_exists = match self.client.open_positions().await {
+            Ok(positions) => {
+                positions.iter().any(|p| {
+                    p.symbol == *symbol
+                        && p.position_amt.parse::<f64>().unwrap_or(0.0).abs() > 0.001
+                })
+            }
+            Err(e) => {
+                debug!("Could not check Binance positions (will try close anyway): {}", e);
+                true // Assume it exists if we can't check
+            }
+        };
 
-        // Wait for FILLED to get real exit price
-        let (exit_price, _) = self
-            .wait_for_fill(symbol, &close_order, current_price, pos.qty)
-            .await;
+        let exit_price;
+
+        if !binance_position_exists {
+            // FIX #2: Position already closed on Binance (e.g. TP/SL triggered on exchange).
+            // Use current_price as approximate exit price.
+            warn!(
+                "📋 Position #{} {} no longer exists on Binance — already closed by exchange. Using current_price={:.8}",
+                pos.position_id, symbol, current_price
+            );
+            exit_price = current_price;
+        } else {
+            // 2. Close position on Binance
+            let close_result = self
+                .client
+                .close_position(symbol, pos.side.as_str(), pos.qty)
+                .await;
+
+            match close_result {
+                Ok(close_order) => {
+                    // Wait for FILLED to get real exit price
+                    let (filled_price, _) = self
+                        .wait_for_fill(symbol, &close_order, current_price, pos.qty)
+                        .await;
+                    exit_price = filled_price;
+                }
+                Err(e) => {
+                    let err_str = format!("{}", e);
+                    // FIX #2: Handle "ReduceOnly cannot be sent" or "insufficient position"
+                    // errors as "position already closed on exchange"
+                    if err_str.contains("-2022") || err_str.contains("ReduceOnly")
+                        || err_str.contains("-2018") || err_str.contains("insufficient")
+                        || err_str.contains("-4131")
+                    {
+                        warn!(
+                            "📋 Position #{} {} close rejected ({}). Position likely already closed on Binance.",
+                            pos.position_id, symbol, err_str
+                        );
+                        exit_price = current_price;
+                    } else {
+                        return Err(e.context("Failed to place close market order"));
+                    }
+                }
+            }
+        }
 
         // 3. Рассчитать PnL
         let direction = match pos.side {
@@ -34364,6 +34697,44 @@ impl OrderExecutor {
         event.closed_at = Some(Utc::now().to_rfc3339());
 
         Ok(event)
+    }
+
+    /// FIX #2 + #7: Force-close a position in DB when Binance close fails after MAX_CLOSE_RETRIES.
+    /// Records position in history with approximate PnL so it appears in UI history.
+    pub async fn force_close_in_db(
+        &self,
+        pos: &ManagedPosition,
+        reason: CloseReason,
+    ) -> Result<()> {
+        let exit_price = pos.current_price; // Best approximation we have
+
+        let direction = match pos.side {
+            Side::Long => 1.0,
+            Side::Short => -1.0,
+        };
+        let realized_pnl = direction * (exit_price - pos.entry_price) * pos.qty;
+        let realized_pnl_pct = direction * (exit_price - pos.entry_price) / pos.entry_price * 100.0;
+
+        let taker_fee_pct = 0.04;
+        let fees_total = (pos.entry_price * pos.qty + exit_price * pos.qty) * taker_fee_pct / 100.0;
+        let bars_lived = pos.max_hold_bars - pos.candles_left;
+
+        warn!(
+            "🔴 Force-closing position #{} {} {} in DB: exit≈{:.4} PnL≈{:.4} USDT",
+            pos.position_id, pos.symbol, pos.side, exit_price, realized_pnl
+        );
+
+        // Update trade.positions
+        self.update_position_closed(pos.position_id, exit_price, realized_pnl, realized_pnl_pct, fees_total, reason)
+            .await
+            .ok(); // Don't fail even if DB update fails
+
+        // Insert into trade.position_history
+        self.insert_position_history(pos, exit_price, realized_pnl, realized_pnl_pct, fees_total, reason, bars_lived)
+            .await
+            .ok(); // Don't fail even if DB insert fails
+
+        Ok(())
     }
 
     /// Wait for a market order to be FILLED.
@@ -34633,8 +35004,7 @@ impl OrderExecutor {
                 realized_pnl_pct = $4,
                 fees_total = $5,
                 close_reason = $6,
-                closed_at = now(),
-                updated_at = now()
+                closed_at = now()
             WHERE id = $7
             "#,
         )
@@ -34991,8 +35361,8 @@ impl PositionTracker {
             pos.unrealized_pnl = pnl;
             pos.unrealized_pnl_pct = pnl_pct;
 
-            // Обновить в БД (не критично при ошибке)
-            Self::update_position_pnl_static(
+            // Обновить в БД — CRITICAL for WebUI to show current_price and PnL
+            match Self::update_position_pnl_static(
                 &self.pool,
                 pos.position_id,
                 pos.unrealized_pnl,
@@ -35000,11 +35370,22 @@ impl PositionTracker {
                 pos.current_price,
             )
             .await
-            .ok();
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    warn!(
+                        "⚠️ Failed to update position #{} {} in DB: {} (current_price={:.6}, pnl={:.4})",
+                        pos.position_id, pos.symbol, e, pos.current_price, pos.unrealized_pnl
+                    );
+                }
+            }
         }
     }
 
-    /// Проверить новые свечи и декрементировать candles_left.
+    /// FIX #9: Improved candles_left countdown.
+    /// Two strategies:
+    ///   1. DB candle-time based (accurate when ingestor is running)
+    ///   2. Time-based fallback (calculates from opened_at, never misses a bar)
     async fn check_new_candles(&mut self) {
         // Собираем уникальные (symbol, tf_minutes)
         let pairs: Vec<(String, i16)> = self
@@ -35055,6 +35436,36 @@ impl PositionTracker {
             }
 
             self.last_candle_times.insert(key, latest_candle_ms);
+        }
+
+        // FIX #9: Time-based fallback — recalculate candles_left from opened_at.
+        // This ensures bars_left is always accurate even if DB candles are delayed.
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        for pos in &mut self.positions {
+            let elapsed_ms = now_ms - pos.opened_at.timestamp_millis();
+            let tf_ms = pos.tf_minutes as i64 * 60_000;
+            if tf_ms <= 0 {
+                continue;
+            }
+            let bars_elapsed = (elapsed_ms / tf_ms) as i16;
+            let time_based_candles_left = (pos.max_hold_bars - bars_elapsed).max(0);
+
+            // Use the MINIMUM of DB-based and time-based countdown (most conservative)
+            if time_based_candles_left < pos.candles_left {
+                debug!(
+                    "🕐 Position #{} {} time-based candles_left correction: {} → {}",
+                    pos.position_id, pos.symbol, pos.candles_left, time_based_candles_left
+                );
+                pos.candles_left = time_based_candles_left;
+
+                Self::update_candles_left_static(
+                    &self.pool,
+                    pos.position_id,
+                    pos.candles_left,
+                )
+                .await
+                .ok();
+            }
         }
     }
 
@@ -35147,6 +35558,7 @@ impl PositionTracker {
     }
 
     /// Статический метод: обновить pnl и current_price в БД
+    /// FIX #3 + #6: Also writes current_price to DB so WebUI can read fresh prices.
     async fn update_position_pnl_static(
         pool: &PgPool,
         position_id: i64,
@@ -35155,7 +35567,7 @@ impl PositionTracker {
         current_price: f64,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE trade.positions SET unrealized_pnl = $1, candles_left = $2, current_price = $3, updated_at = now() WHERE id = $4",
+            "UPDATE trade.positions SET unrealized_pnl = $1, candles_left = $2, current_price = $3 WHERE id = $4",
         )
         .bind(unrealized_pnl)
         .bind(candles_left)
@@ -35173,7 +35585,7 @@ impl PositionTracker {
         candles_left: i16,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE trade.positions SET candles_left = $1, updated_at = now() WHERE id = $2",
+            "UPDATE trade.positions SET candles_left = $1 WHERE id = $2",
         )
         .bind(candles_left)
         .bind(position_id)
@@ -36106,7 +36518,7 @@ mod synthetic_futures_tests {
     #[test]
     fn test_timeframe_allocation_custom() {
         let mut config = OrderManagerConfig::default();
-        config.max_open_positions = 20;
+        config.max_orders_at_a_time = 20;
         // 70% 1h = 14, 20% 4h = 4, 10% 15m = 2
         let alloc = config.timeframe_allocation();
         assert_eq!(alloc.slots_for_tf(60), 14);
