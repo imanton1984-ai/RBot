@@ -183,12 +183,11 @@ pub async fn rest_backfill_one(
     limiter: Option<WeightLimiter>,
 ) -> Result<()> {
     let interval = tf.as_str();
-    // Делаем limit <= 500 => weight=2 вместо weight=5 (если 700).
-    // Это обычно выгоднее по "весу на свечу" и снижает вероятность 429.
-    // Use env override BACKFILL_CANDLES if set, otherwise config value. Max 1500 (Binance API limit)
+    // Per-TF backfill limit: check env override, then per-TF config, then global default.
+    // Max 1500 per single Binance API request (API limit), but we loop for more.
     let backfill: usize = std::env::var("BACKFILL_CANDLES")
         .ok().and_then(|v| v.parse().ok())
-        .unwrap_or(cfg.runtime.backfill_candles);
+        .unwrap_or_else(|| cfg.runtime.backfill_for_tf(tf.as_str()));
     let limit = backfill.min(1500).max(1);
 
     let max_loops: usize = std::env::var("INGEST_BACKFILL_MAX_LOOPS")
@@ -199,10 +198,10 @@ pub async fn rest_backfill_one(
     // Всегда задаём startTime:
     // - если last_ms есть: догоняем с last_ms+1
     // - если last_ms нет/0: берём окно "последние backfill_candles"
-    // плюс cap: даже если база отстала на недели — не пытаемся одним запуском догнать всё.
+    // Use per-TF backfill depth for cap calculation (how far back in time to look).
     let now_ms = Utc::now().timestamp_millis();
     let tf_ms = (tf.to_minutes() as i64) * 60_000;
-    let cap_start = now_ms - (cfg.runtime.backfill_candles as i64) * tf_ms;
+    let cap_start = now_ms - (backfill as i64) * tf_ms;
     let mut start = if last_ms > 0 {
         (last_ms + 1).max(cap_start)
     } else {

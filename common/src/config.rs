@@ -84,6 +84,11 @@ pub struct RuntimeConfig {
     pub timeframes: Vec<String>, // ["1m","5m","..."]
     pub backfill_candles: usize,
 
+    /// Per-TF backfill limits: "1m" = 1000, "1h" = 12000, etc.
+    /// Overrides backfill_candles for specific TFs.
+    #[serde(default)]
+    pub backfill_candles_per_tf: std::collections::HashMap<String, usize>,
+
     pub realtime_ws_timeframes: Vec<String>,   // для WS
     pub realtime_poll_timeframes: Vec<String>, // для poll/on-close
     pub poll_on_close_interval_sec: u64,
@@ -96,6 +101,17 @@ pub struct RuntimeConfig {
     pub persist_live_candle_every_ms: u64,
 
     pub intra_update_sampling_ms: u64,
+}
+
+impl RuntimeConfig {
+    /// Get backfill candle count for a specific timeframe string (e.g. "1h").
+    /// Falls back to global backfill_candles if per-TF not configured.
+    pub fn backfill_for_tf(&self, tf_str: &str) -> usize {
+        self.backfill_candles_per_tf
+            .get(tf_str)
+            .copied()
+            .unwrap_or(self.backfill_candles)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

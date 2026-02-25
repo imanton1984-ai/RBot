@@ -292,3 +292,9 @@ pub struct CandlesLeftUpdateRequest {
     pub position_id: i64,
     pub candles_left: i16,
 }
+
+/// Close position request (from WebUI Action button)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClosePositionRequest {
+    pub position_id: i64,
+}

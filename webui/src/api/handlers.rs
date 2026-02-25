@@ -1054,11 +1054,120 @@ pub async fn place_order(
 
 // ─── POST /api/trade/close ────────────────────────────────────────────
 pub async fn close_position(
-    _state: State<AppState>,
-    Json(request): Json<crate::state::CandlesLeftUpdateRequest>,
+    State(state): State<AppState>,
+    Json(request): Json<crate::state::ClosePositionRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    tracing::info!("Close position: {}", request.position_id);
-    // TODO: implement via BinanceFuturesClient
+    tracing::info!("Close position request: id={}", request.position_id);
+
+    // 1. Fetch position details from DB
+    let row = sqlx::query(
+        "SELECT p.id, COALESCE(p.symbol, mp.symbol) as pair,
+                CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
+                p.qty, p.symbol_id
+         FROM trade.positions p
+         JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+         WHERE p.id = $1 AND p.status = 1"
+    )
+    .bind(request.position_id)
+    .fetch_optional(&state.db_pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to query position {}: {}", request.position_id, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let row = match row {
+        Some(r) => r,
+        None => {
+            tracing::warn!("Position {} not found or already closed", request.position_id);
+            return Err(StatusCode::NOT_FOUND);
+        }
+    };
+
+    let pair: String = row.get("pair");
+    let side: String = row.get("side");
+    let qty: f64 = row.get("qty");
+
+    // 2. Load Binance client
+    let exchange_settings = settings::ExchangeSettings::load()
+        .map_err(|e| {
+            tracing::error!("Cannot load exchange settings for close: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exchange_settings.has_credentials() {
+        tracing::error!("No API credentials for closing position");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    let testnet = std::env::var("BINANCE_TESTNET")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    let client = connections_lib::BinanceFuturesClient::new(
+        exchange_settings.api_key(),
+        exchange_settings.api_secret(),
+        testnet,
+    ).map_err(|e| {
+        tracing::error!("Failed to create Binance client for close: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // 3. Cancel any open SL/TP orders for this symbol
+    if let Err(e) = client.cancel_all_orders(&pair).await {
+        tracing::warn!("Failed to cancel orders for {} (may be none): {}", pair, e);
+    }
+
+    // 4. Close position via market order
+    if qty > 0.0 {
+        match client.close_position(&pair, &side, qty).await {
+            Ok(order) => {
+                tracing::info!(
+                    "Position #{} {} {} closed → orderId={}, status={}",
+                    request.position_id, pair, side, order.order_id, order.status
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to close position #{} {} {}: {}",
+                    request.position_id, pair, side, e
+                );
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    }
+
+    // 5. Update DB status
+    let _ = sqlx::query(
+        "UPDATE trade.positions SET status = 2, close_reason = 'manual_webui', closed_at = now() WHERE id = $1"
+    )
+    .bind(request.position_id)
+    .execute(&state.db_pool)
+    .await;
+
+    // 6. Record in position_history
+    let _ = sqlx::query(
+        "INSERT INTO trade.position_history (position_id, symbol, symbol_id, side, qty, entry_price, exit_price, close_reason, realized_pnl, realized_pnl_pct, opened_at, closed_at, leverage, tf_minutes)
+         SELECT id, COALESCE(symbol, ''), symbol_id, side, qty, entry_price,
+                COALESCE(current_price, entry_price), 'manual_webui',
+                COALESCE(unrealized_pnl, 0),
+                CASE WHEN entry_price > 0 THEN
+                    CASE WHEN side = 1
+                        THEN (COALESCE(current_price, entry_price) - entry_price) / entry_price * 100.0
+                        ELSE (entry_price - COALESCE(current_price, entry_price)) / entry_price * 100.0
+                    END
+                ELSE 0 END,
+                opened_at, now(), COALESCE(leverage, 10), COALESCE(tf_minutes, 60)
+         FROM trade.positions WHERE id = $1"
+    )
+    .bind(request.position_id)
+    .execute(&state.db_pool)
+    .await;
+
+    // 7. Broadcast update
+    state.broadcast(crate::state::WsMessage::OptionsUpdated);
+
+    tracing::info!("✅ Position #{} closed successfully via WebUI", request.position_id);
     Ok(StatusCode::OK)
 }
 

@@ -2,7 +2,7 @@
 # Таймфреймы которые ДОЛЖНЫ существовать везде (backfill + compute)
 timeframes = ["1m","5m","15m","1h","4h","1d"]
 
-# Сколько свечей на backfill для каждого TF
+# Default candle count for backfill (used as fallback if per-TF not set)
 backfill_candles = 1000
 
 # Реалтайм стратегия:
@@ -29,3 +29,15 @@ intra_update_sampling_ms = 200
 # Note: Binance Futures allows 2400 weight/min. With 50 concurrent requests,
 # the rate limiter still controls actual throughput. Safe to go to 50-80.
 http_concurrency = 70
+
+# Per-TF backfill candle limits (overrides backfill_candles for specific TFs)
+# For ML model training (super_entry) we need deeper history on key TFs.
+# 1m/5m: 1000 (default), 15m/1h/4h: 12000, 1d: 3700
+# NOTE: This sub-table MUST be at the end of [runtime] section (TOML rule).
+[runtime.backfill_candles_per_tf]
+"1m" = 1000
+"5m" = 1000
+"15m" = 12000
+"1h" = 12000
+"4h" = 12000
+"1d" = 3700

@@ -208,6 +208,18 @@ impl OrderManagerConfig {
         if self.trade_size_value <= 0.0 {
             anyhow::bail!("trade_size_value must be > 0");
         }
+        if self.trade_size_type != "fixed_usdt" && self.trade_size_type != "percent_depo" {
+            anyhow::bail!(
+                "trade_size_type must be 'fixed_usdt' or 'percent_depo', got '{}'",
+                self.trade_size_type
+            );
+        }
+        if self.trade_size_type == "percent_depo" && self.trade_size_value > 100.0 {
+            anyhow::bail!(
+                "trade_size_value in percent_depo mode must be <= 100, got {}",
+                self.trade_size_value
+            );
+        }
         if self.max_hold_bars <= 0 {
             anyhow::bail!("max_hold_bars must be > 0");
         }

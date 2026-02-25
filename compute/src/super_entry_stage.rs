@@ -24,6 +24,7 @@ use ml_entry_strategy::{
     SuperEntryPipeline,
     dataset::CandleWithIndicators,
 };
+// SuperEntryConfig::timeframes() used to filter production TFs in the run loop
 use crate::predictors::pipeline::FeatureSnapshot;
 
 /// Parse timeframe string to minutes. Returns None on failure.
@@ -141,6 +142,13 @@ impl SuperEntryStage {
                     continue;
                 }
             };
+
+            // Filter: only production timeframes (15m, 1h, 4h).
+            // 1m/5m too noisy, 1d has 99.7% super rate — useless for signals.
+            let production_tfs = SuperEntryConfig::timeframes();
+            if !production_tfs.contains(&tf_minutes) {
+                continue;
+            }
 
             // Check if we have a model for this TF
             if !self.pipeline.has_models() {

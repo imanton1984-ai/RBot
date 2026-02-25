@@ -453,13 +453,85 @@ impl OrderExecutor {
     }
 
     /// Рассчитать количество базового актива.
-    /// qty = trade_size_usdt * leverage / current_price
+    ///
+    /// Режимы:
+    ///   - `"fixed_usdt"`: margin = trade_size_value (фиксированная сумма USDT)
+    ///   - `"percent_depo"`: margin = total_wallet_balance × trade_size_value / 100
+    ///     Для последнего ордера (когда available < target из-за комиссий):
+    ///     если available ≥ target − 1% от total → используется available_balance.
+    ///
+    /// qty = margin × leverage / current_price
     /// Количество округляется по stepSize из Exchange Info.
     async fn calculate_quantity(&self, current_price: f64, symbol: &str) -> Result<f64> {
         if current_price <= 0.0 {
             anyhow::bail!("Invalid price: {}", current_price);
         }
-        let notional = self.config.trade_size_value * self.config.leverage as f64;
+
+        let trade_size_usdt = if self.config.trade_size_type == "percent_depo" {
+            // Получаем account_info одним запросом — и total, и available балансы
+            let account = self.client.account_info().await
+                .context("Failed to fetch account info for percent_depo calculation")?;
+
+            let total_wallet: f64 = account.total_wallet_balance
+                .parse()
+                .unwrap_or(0.0);
+
+            let available: f64 = account.assets
+                .iter()
+                .find(|a| a.asset == "USDT")
+                .map(|a| a.available_balance.parse::<f64>().unwrap_or(0.0))
+                .unwrap_or(0.0);
+
+            if total_wallet <= 0.0 {
+                anyhow::bail!(
+                    "Cannot calculate percent_depo: total_wallet_balance is {:.4} (must be > 0)",
+                    total_wallet
+                );
+            }
+
+            // Стандартный размер ордера: total_wallet × percent / 100
+            let target_size = total_wallet * self.config.trade_size_value / 100.0;
+
+            // Порог для последнего ордера: target − 1% от общего баланса.
+            // Пример: total=140, percent=10% → target=14, threshold=12.6 (14 − 1.4)
+            // Если available=13.2 (> 12.6) → используем 13.2 (последний ордер)
+            let one_pct_of_total = total_wallet / 100.0;
+            let min_acceptable = target_size - one_pct_of_total;
+
+            let size = if available >= target_size {
+                // Хватает на полный ордер — берём стандартный размер
+                info!(
+                    "📐 percent_depo: total_wallet={:.2}, available={:.2}, \
+                     {:.1}% = {:.2} USDT per order",
+                    total_wallet, available, self.config.trade_size_value, target_size
+                );
+                target_size
+            } else if available >= min_acceptable && min_acceptable > 0.0 {
+                // Последний ордер: available немного меньше target из-за комиссий.
+                // Используем весь доступный остаток.
+                warn!(
+                    "📐 percent_depo (last order): total_wallet={:.2}, available={:.2}, \
+                     target={:.2} → using available {:.2} USDT (fees ate {:.2})",
+                    total_wallet, available, target_size, available,
+                    target_size - available
+                );
+                available
+            } else {
+                // Не хватает даже на урезанный ордер
+                anyhow::bail!(
+                    "Insufficient available balance for percent_depo: \
+                     total_wallet={:.2}, available={:.2}, target={:.2}, min_acceptable={:.2}",
+                    total_wallet, available, target_size, min_acceptable
+                );
+            };
+
+            size
+        } else {
+            // fixed_usdt — используем значение как есть
+            self.config.trade_size_value
+        };
+
+        let notional = trade_size_usdt * self.config.leverage as f64;
         let raw_qty = notional / current_price;
 
         // Округление по Exchange Info (stepSize)

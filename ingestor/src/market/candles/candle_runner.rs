@@ -251,14 +251,14 @@ pub async fn run_candles_ingest() -> Result<()> {
             cfg.binance.rate_limit_soft_burst,
         );
 
-        // Log effective request rate based on the limit and weight
+        // Log effective request rate based on the default limit and weight
         let backfill_override: Option<usize> = std::env::var("BACKFILL_CANDLES").ok().and_then(|v| v.parse().ok());
-        let limit = backfill_override.unwrap_or(cfg.runtime.backfill_candles).min(1500).max(1);
-        let weight = klines_weight(limit);
+        let default_limit = backfill_override.unwrap_or(cfg.runtime.backfill_candles).min(1500).max(1);
+        let weight = klines_weight(default_limit);
         let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
         tracing::info!(
-            "Rate limiting configured: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
-            weight_per_sec, limit, weight, effective_req_per_sec
+            "Rate limiting configured: {} weight/sec, default_limit={}, weight={}, effective ~{:.1} req/sec",
+            weight_per_sec, default_limit, weight, effective_req_per_sec
         );
 
         // Create a mapping of TimeFrame to collected candles
@@ -286,47 +286,65 @@ pub async fn run_candles_ingest() -> Result<()> {
                     // Acquire a permit from the concurrency semaphore
                     let _permit = semaphore_clone.acquire().await.unwrap();
 
-                    // Use a smaller limit (500 instead of 700) to reduce weight from 5 to 2
-                    // This allows more requests per second within the same weight budget
-                    let limit = backfill_override.unwrap_or(cfg_clone.runtime.backfill_candles).min(1500).max(1);
-                    let bytes = crate::market::candles::candle_rest::rest_fetch_klines_bytes(
-                        &http_clone,
-                        &cfg_clone,
-                        &pair_clone.symbol,
-                        tf.as_str(),
-                        None, // No start time - get most recent
-                        limit,
-                        Some(&limiter_clone),
-                    ).await?;
-
-                    // Parse the JSON response into kline structures
-                    let klines: Vec<RestKline> = serde_json::from_slice(&bytes).context("parse REST klines failed")?;
-
-                    // Convert klines to CandleRow structures for database insertion
-                    let mut results = Vec::new();
+                    // Per-TF backfill target (may exceed 1500 — Binance API limit per call)
+                    let target_candles = backfill_override
+                        .unwrap_or_else(|| cfg_clone.runtime.backfill_for_tf(tf.as_str()));
+                    let api_limit = 1500usize; // Max candles per Binance API call
+                    let tf_ms = (tf.to_minutes() as i64) * 60_000;
                     let now = Utc::now().timestamp_millis();
 
-                    for k in &klines {
-                        // If the close time of the candle is in the future (or is the current second),
-                        // it means the candle is not closed. We don't save it to the history table.
-                        if k.6 >= now {
-                            continue;
-                        }
+                    let mut all_results: Vec<CandleRow> = Vec::new();
 
-                        results.push(CandleRow {
-                            time_ms: k.6, // close_time
-                            symbol_id: pair_clone.symbol_id,
-                            symbol: pair_clone.symbol.clone(),
-                            open: str_f64(k.1.as_ref()),
-                            high: str_f64(k.2.as_ref()),
-                            low: str_f64(k.3.as_ref()),
-                            close: str_f64(k.4.as_ref()),
-                            volume: str_f64(k.5.as_ref()),
-                        });
+                    if target_candles <= api_limit {
+                        // Single request — fast path for small limits
+                        let bytes = crate::market::candles::candle_rest::rest_fetch_klines_bytes(
+                            &http_clone, &cfg_clone, &pair_clone.symbol,
+                            tf.as_str(), None, target_candles,
+                            Some(&limiter_clone),
+                        ).await?;
+                        let klines: Vec<RestKline> = serde_json::from_slice(&bytes)
+                            .context("parse REST klines failed")?;
+                        for k in &klines {
+                            if k.6 >= now { continue; }
+                            all_results.push(CandleRow {
+                                time_ms: k.6, symbol_id: pair_clone.symbol_id,
+                                symbol: pair_clone.symbol.clone(),
+                                open: str_f64(k.1.as_ref()), high: str_f64(k.2.as_ref()),
+                                low: str_f64(k.3.as_ref()), close: str_f64(k.4.as_ref()),
+                                volume: str_f64(k.5.as_ref()),
+                            });
+                        }
+                    } else {
+                        // Paginated fetch — start from deep history, move forward
+                        let mut start_ms = now - (target_candles as i64) * tf_ms;
+                        let max_pages = (target_candles / api_limit) + 2;
+                        for _page in 0..max_pages {
+                            let bytes = crate::market::candles::candle_rest::rest_fetch_klines_bytes(
+                                &http_clone, &cfg_clone, &pair_clone.symbol,
+                                tf.as_str(), Some(start_ms), api_limit,
+                                Some(&limiter_clone),
+                            ).await?;
+                            let klines: Vec<RestKline> = serde_json::from_slice(&bytes)
+                                .context("parse REST klines (paginated) failed")?;
+                            if klines.is_empty() { break; }
+                            let mut max_close = start_ms;
+                            for k in &klines {
+                                if k.6 >= now { continue; }
+                                if k.6 > max_close { max_close = k.6; }
+                                all_results.push(CandleRow {
+                                    time_ms: k.6, symbol_id: pair_clone.symbol_id,
+                                    symbol: pair_clone.symbol.clone(),
+                                    open: str_f64(k.1.as_ref()), high: str_f64(k.2.as_ref()),
+                                    low: str_f64(k.3.as_ref()), close: str_f64(k.4.as_ref()),
+                                    volume: str_f64(k.5.as_ref()),
+                                });
+                            }
+                            if klines.len() < api_limit { break; }
+                            start_ms = max_close + 1;
+                        }
                     }
 
-                    // Return both the timeframe and the rows to fix the buffer_unordered issue
-                    Ok::<(TimeFrame, Vec<CandleRow>), anyhow::Error>((*tf, results))
+                    Ok::<(TimeFrame, Vec<CandleRow>), anyhow::Error>((*tf, all_results))
                 });
             }
         }
@@ -391,12 +409,12 @@ pub async fn run_candles_ingest() -> Result<()> {
         ));
 
         let backfill_override: Option<usize> = std::env::var("BACKFILL_CANDLES").ok().and_then(|v| v.parse().ok());
-        let limit = backfill_override.unwrap_or(cfg.runtime.backfill_candles).min(1500).max(1);
-        let weight = klines_weight(limit);
+        let default_limit = backfill_override.unwrap_or(cfg.runtime.backfill_candles).min(1500).max(1);
+        let weight = klines_weight(default_limit);
         let effective_req_per_sec = weight_per_sec as f64 / weight as f64;
         tracing::info!(
-            "Backfill rate limiting: {} weight/sec, limit={}, weight={}, effective ~{:.1} req/sec",
-            weight_per_sec, limit, weight, effective_req_per_sec
+            "Backfill rate limiting: {} weight/sec, default_limit={}, weight={}, effective ~{:.1} req/sec. Per-TF limits: {:?}",
+            weight_per_sec, default_limit, weight, effective_req_per_sec, cfg.runtime.backfill_candles_per_tf
         );
 
         let mut jobs = Vec::new();

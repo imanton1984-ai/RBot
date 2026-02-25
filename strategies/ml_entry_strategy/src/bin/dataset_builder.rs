@@ -11,9 +11,9 @@
 //   super_entry_dataset.csv — features + labels for all (symbol, tf) pairs
 //
 // WORKFLOW:
-//   1. Fetch 1000 candles per (symbol, tf) from DB
+//   1. Fetch candles per (symbol, tf) from DB (up to 12000 for key TFs)
 //   2. Use first 300 as warmup (for indicator computation)
-//   3. Label candles 301..980 with lookahead=20
+//   3. Label remaining candles with lookahead=20
 //   4. Export to CSV for Python trainer
 
 use anyhow::Result;
@@ -62,15 +62,30 @@ async fn main() -> Result<()> {
 
     let mut stats_by_tf: std::collections::HashMap<i32, (usize, usize)> = std::collections::HashMap::new();
 
+    // Per-TF candle limits for dataset building — more candles = better model.
+    // Must match what's available in DB (after running fill_candles.sh).
+    let dataset_limit_per_tf = |tf_minutes: i32| -> usize {
+        match tf_minutes {
+            1 => 1000,     // 1m: as-is
+            5 => 1000,     // 5m: as-is
+            15 => 12000,   // 15m: deep history
+            60 => 12000,   // 1h: deep history
+            240 => 12000,  // 4h: deep history
+            1440 => 3700,  // 1d: 10+ years
+            _ => 1000,
+        }
+    };
+
     for &tf in timeframes {
         let target_pct = config.target_pct_for_tf(tf);
-        info!("Processing TF {}m (target_move={}%)", tf, target_pct);
+        let limit = dataset_limit_per_tf(tf);
+        info!("Processing TF {}m (target_move={}%, limit={})", tf, target_pct, limit);
 
         let mut tf_total = 0;
         let mut tf_super = 0;
 
         for symbol in &symbols {
-            let candles = fetch_candles_with_indicators(&pool, symbol, tf, 1000).await?;
+            let candles = fetch_candles_with_indicators(&pool, symbol, tf, limit).await?;
 
             if candles.len() < config.warmup_bars + config.lookahead_bars + 1 {
                 continue;

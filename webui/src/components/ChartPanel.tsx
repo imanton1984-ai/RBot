@@ -114,7 +114,7 @@ export default function ChartPanel() {
   // the ingestor updates it every few seconds, so 5s poll gives smooth updates.
   const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
-    queryFn: () => apiService.getCandles(currentPair, currentTf, 500),
+    queryFn: () => apiService.getCandles(currentPair, currentTf, 2000),
     refetchInterval: 5000,
     staleTime: 3000,
     retry: 1,

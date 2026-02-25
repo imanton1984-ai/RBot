@@ -18,9 +18,25 @@ pub struct ResultProcessor {
     raw_signal_persistor_rt: Option<Arc<RawSignalPersistor>>,
     raw_signal_processor: Arc<RawSignalProcessor>,
     feature_tx: mpsc::UnboundedSender<FeatureSnapshot>,
+    /// When true, raw_signals processing & persistence is skipped.
+    /// Set based on ACTIVE_STRATEGY: super_entry doesn't use raw_signals table.
+    skip_raw_signals: bool,
 }
 
 impl ResultProcessor {
+    /// Check if ACTIVE_STRATEGY is "super_entry" — in that case raw_signals are unused.
+    fn should_skip_raw_signals() -> bool {
+        let strategy = std::env::var("ACTIVE_STRATEGY").unwrap_or_else(|_| "level".to_string());
+        let skip = strategy == "super_entry";
+        if skip {
+            tracing::info!(
+                "ACTIVE_STRATEGY={} — raw_signals processing DISABLED (not used by super_entry)",
+                strategy
+            );
+        }
+        skip
+    }
+
     /// Create a single-mode ResultProcessor (used by compute_history.rs, compute_realtime.rs)
     pub fn new(
         indicator_persistor: Arc<IndicatorPersistor>,
@@ -35,6 +51,7 @@ impl ResultProcessor {
             raw_signal_persistor_rt: None,
             raw_signal_processor,
             feature_tx,
+            skip_raw_signals: Self::should_skip_raw_signals(),
         }
     }
 
@@ -54,6 +71,7 @@ impl ResultProcessor {
             raw_signal_persistor_rt: Some(raw_signal_persistor_rt),
             raw_signal_processor,
             feature_tx,
+            skip_raw_signals: Self::should_skip_raw_signals(),
         }
     }
 
@@ -209,36 +227,39 @@ impl ResultProcessor {
             }
 
             // 3. Process & Persist Raw Signals
-            let all_raw_signals = self.raw_signal_processor.process_feature_window(&feature_window);
-            let all_raw_signals_count = all_raw_signals.len();
-            
-            let min_valid_timestamp = if start_idx < n {
-                feature_window.batch.timestamps[start_idx]
-            } else {
-                i64::MAX
-            };
+            //    Skip entirely when ACTIVE_STRATEGY=super_entry (raw_signals not consumed).
+            if !self.skip_raw_signals {
+                let all_raw_signals = self.raw_signal_processor.process_feature_window(&feature_window);
+                let all_raw_signals_count = all_raw_signals.len();
+                
+                let min_valid_timestamp = if start_idx < n {
+                    feature_window.batch.timestamps[start_idx]
+                } else {
+                    i64::MAX
+                };
 
-            let signals_to_persist = if feature_window.is_realtime {
-                let last_timestamps: Vec<i64> = feature_window.batch.timestamps.iter().rev().take(2).cloned().collect();
-                all_raw_signals.into_iter()
-                    .filter(|s| last_timestamps.contains(&s.timestamp))
-                    .collect::<Vec<_>>()
-            } else {
-                all_raw_signals.into_iter()
-                    .filter(|s| s.timestamp >= min_valid_timestamp)
-                    .collect::<Vec<_>>()
-            };
+                let signals_to_persist = if feature_window.is_realtime {
+                    let last_timestamps: Vec<i64> = feature_window.batch.timestamps.iter().rev().take(2).cloned().collect();
+                    all_raw_signals.into_iter()
+                        .filter(|s| last_timestamps.contains(&s.timestamp))
+                        .collect::<Vec<_>>()
+                } else {
+                    all_raw_signals.into_iter()
+                        .filter(|s| s.timestamp >= min_valid_timestamp)
+                        .collect::<Vec<_>>()
+                };
 
-            if !signals_to_persist.is_empty() {
-                println!(
-                    "  Persisting {} raw signals for {} on {} (filtered from {} total)",
-                    signals_to_persist.len(),
-                    feature_window.symbol,
-                    feature_window.timeframe,
-                    all_raw_signals_count
-                );
-                total_raw_signals_persisted += signals_to_persist.len() as u64;
-                selected_raw_signal_persistor.queue_records(signals_to_persist).await;
+                if !signals_to_persist.is_empty() {
+                    println!(
+                        "  Persisting {} raw signals for {} on {} (filtered from {} total)",
+                        signals_to_persist.len(),
+                        feature_window.symbol,
+                        feature_window.timeframe,
+                        all_raw_signals_count
+                    );
+                    total_raw_signals_persisted += signals_to_persist.len() as u64;
+                    selected_raw_signal_persistor.queue_records(signals_to_persist).await;
+                }
             }
 
             // 4. Send Snapshot to downstream consumer (PredictorsPipeline or SuperEntryStage)
