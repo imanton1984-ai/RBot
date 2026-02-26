@@ -26,7 +26,10 @@ pub fn create_api_router() -> Router<AppState> {
         // Positions
         .route("/positions/open", get(get_open_positions))
         .route("/positions/history", get(get_positions_history))
-        
+
+        // Statistics
+        .route("/statistics", get(get_statistics))
+
         // PnL and balance
         .route("/pnl/overview", get(get_pnl_overview))
         .route("/balance", get(get_balance))

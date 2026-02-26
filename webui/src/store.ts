@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Balance, PnlOverview, Position, Alert, Strategy, Candle, Indicator, Signal, ConnectionStatus, TradingOptions, AutoTradingState } from './types';
+import type { Balance, PnlOverview, Position, Alert, Strategy, Candle, Indicator, Signal, ConnectionStatus, TradingOptions, AutoTradingState, FullStatistics } from './types';
 import type { TerminalLog } from './components/TerminalWidget';
 
 interface WsState {
@@ -38,11 +38,15 @@ interface UiState {
   tradingOptionsModalOpen: boolean;
   orderOptionsModalOpen: boolean;
   signalsModalOpen: boolean;
+  statisticsModalOpen: boolean;
+  statistics: FullStatistics | null;
   setPositionsView: (view: 'open' | 'history') => void;
   setChartView: (view: 'chart' | 'positions') => void;
   setTradingOptionsModalOpen: (open: boolean) => void;
   setOrderOptionsModalOpen: (open: boolean) => void;
   setSignalsModalOpen: (open: boolean) => void;
+  setStatisticsModalOpen: (open: boolean) => void;
+  setStatistics: (stats: FullStatistics | null) => void;
 }
 
 interface DataState {
@@ -92,11 +96,15 @@ export const useUiStore = create<UiState>((set) => ({
   tradingOptionsModalOpen: false,
   orderOptionsModalOpen: false,
   signalsModalOpen: false,
+  statisticsModalOpen: false,
+  statistics: null,
   setPositionsView: (view) => set({ positionsView: view }),
   setChartView: (view) => set({ chartView: view }),
   setTradingOptionsModalOpen: (open) => set({ tradingOptionsModalOpen: open }),
   setOrderOptionsModalOpen: (open) => set({ orderOptionsModalOpen: open }),
   setSignalsModalOpen: (open) => set({ signalsModalOpen: open }),
+  setStatisticsModalOpen: (open) => set({ statisticsModalOpen: open }),
+  setStatistics: (stats) => set({ statistics: stats }),
 }));
 
 export const useDataStore = create<DataState>((set) => ({

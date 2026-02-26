@@ -201,3 +201,109 @@ export interface WebUiSettings {
   order_timeout_bars: number;
   ws_update_rate_ms: number;
 }
+
+// ─── Statistics Types ──────────────────────────────────────
+export interface StatsSummary {
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_win: number;
+  avg_loss: number;
+  profit_factor: number;
+  best_trade: number;
+  worst_trade: number;
+  avg_trade_duration_hours: number;
+  max_consecutive_wins: number;
+  max_consecutive_losses: number;
+}
+
+export interface PnlTimePoint {
+  t: number;
+  cumulative_pnl: number;
+  balance: number;
+}
+
+export interface PnlTimeline {
+  points: PnlTimePoint[];
+  start_date: string;
+  end_date: string;
+}
+
+export interface TradeDistribution {
+  by_pair: PairStats[];
+  by_timeframe: TfStats[];
+  by_close_type: CloseTypeStats[];
+  by_side: SideStats[];
+}
+
+export interface PairStats {
+  pair: string;
+  trades: number;
+  wins: number;
+  pnl: number;
+  win_rate: number;
+}
+
+export interface TfStats {
+  tf: number;
+  trades: number;
+  wins: number;
+  pnl: number;
+  win_rate: number;
+}
+
+export interface CloseTypeStats {
+  close_type: string;
+  count: number;
+  pnl: number;
+  win_rate: number;
+}
+
+export interface SideStats {
+  side: string;
+  trades: number;
+  wins: number;
+  pnl: number;
+  win_rate: number;
+}
+
+export interface BestWorstTrades {
+  best: HistoryPosition[];
+  worst: HistoryPosition[];
+}
+
+export interface TimeSlotStats {
+  label: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  pnl: number;
+  win_rate: number;
+  avg_pnl: number;
+}
+
+export interface TimeBasedStats {
+  period: string;
+  data: TimeSlotStats[];
+}
+
+export interface MonthlyStats {
+  month: string;
+  trades: number;
+  wins: number;
+  pnl: number;
+  win_rate: number;
+}
+
+export interface FullStatistics {
+  summary: StatsSummary;
+  timeline: PnlTimeline;
+  distribution: TradeDistribution;
+  best_worst: BestWorstTrades;
+  hourly: TimeBasedStats;
+  daily: TimeBasedStats;
+  weekly: TimeBasedStats;
+  monthly: MonthlyStats[];
+}

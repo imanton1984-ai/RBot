@@ -45,6 +45,12 @@ pub struct AlertsQuery { pub limit: Option<i64> }
 #[derive(Debug, Deserialize)]
 pub struct PnlQuery { pub range: Option<String> }
 
+#[derive(Debug, Deserialize)]
+pub struct StatsQuery {
+    pub range: Option<String>,
+    pub interval: Option<String>,
+}
+
 // ─── Response types ────────────────────────────────────────────────────
 #[derive(Debug, Serialize)]
 pub struct PairInfo { pub symbol: String, pub symbol_id: i64 }
@@ -113,6 +119,125 @@ pub struct HistoryRow {
     pub pnl_pct: f64,
     pub open_time: String,
     pub close_time: String,
+}
+
+// ─── Statistics Response Types ────────────────────────────────────────
+#[derive(Debug, Serialize)]
+pub struct StatsSummary {
+    pub total_trades: i64,
+    pub winning_trades: i64,
+    pub losing_trades: i64,
+    pub win_rate: f64,
+    pub total_pnl: f64,
+    pub avg_win: f64,
+    pub avg_loss: f64,
+    pub profit_factor: f64,
+    pub best_trade: f64,
+    pub worst_trade: f64,
+    pub avg_trade_duration_hours: f64,
+    pub max_consecutive_wins: i64,
+    pub max_consecutive_losses: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PnlTimePoint {
+    pub t: i64,
+    pub cumulative_pnl: f64,
+    pub balance: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PnlTimeline {
+    pub points: Vec<PnlTimePoint>,
+    pub start_date: String,
+    pub end_date: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TradeDistribution {
+    pub by_pair: Vec<PairStats>,
+    pub by_timeframe: Vec<TfStats>,
+    pub by_close_type: Vec<CloseTypeStats>,
+    pub by_side: Vec<SideStats>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PairStats {
+    pub pair: String,
+    pub trades: i64,
+    pub wins: i64,
+    pub pnl: f64,
+    pub win_rate: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TfStats {
+    pub tf: i16,
+    pub trades: i64,
+    pub wins: i64,
+    pub pnl: f64,
+    pub win_rate: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CloseTypeStats {
+    pub close_type: String,
+    pub count: i64,
+    pub pnl: f64,
+    pub win_rate: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SideStats {
+    pub side: String,
+    pub trades: i64,
+    pub wins: i64,
+    pub pnl: f64,
+    pub win_rate: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BestWorstTrades {
+    pub best: Vec<HistoryRow>,
+    pub worst: Vec<HistoryRow>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TimeBasedStats {
+    pub period: String,
+    pub data: Vec<TimeSlotStats>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TimeSlotStats {
+    pub label: String,
+    pub trades: i64,
+    pub wins: i64,
+    pub losses: i64,
+    pub pnl: f64,
+    pub win_rate: f64,
+    pub avg_pnl: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MonthlyStats {
+    pub month: String,
+    pub trades: i64,
+    pub wins: i64,
+    pub pnl: f64,
+    pub win_rate: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FullStatistics {
+    pub summary: StatsSummary,
+    pub timeline: PnlTimeline,
+    pub distribution: TradeDistribution,
+    pub best_worst: BestWorstTrades,
+    pub hourly: TimeBasedStats,
+    pub daily: TimeBasedStats,
+    pub weekly: TimeBasedStats,
+    pub monthly: Vec<MonthlyStats>,
 }
 
 #[derive(Debug, Serialize)]
@@ -481,7 +606,7 @@ pub async fn get_open_positions(
     // hasn't written to DB yet (e.g. right after opening, or DB write fails).
     let rows = sqlx::query(
         "SELECT p.id,
-                COALESCE(p.symbol, mp.symbol) as pair,
+                mp.symbol as pair,
                 CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
                 p.qty,
                 p.entry_price,
@@ -511,7 +636,7 @@ pub async fn get_open_positions(
          JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
          LEFT JOIN LATERAL (
              SELECT close FROM market.candles_live
-             WHERE symbol = COALESCE(p.symbol, mp.symbol) AND timeframe = '1m'
+             WHERE market.candles_live.symbol = mp.symbol AND timeframe = '1m'
              ORDER BY open_time_ms DESC LIMIT 1
          ) cl ON true
          WHERE p.status = 1
@@ -586,6 +711,685 @@ pub async fn get_positions_history(
     }).collect();
 
     Ok(Json(history))
+}
+
+// ─── GET /api/statistics ──────────────────────────────────────────────
+pub async fn get_statistics(
+    Query(query): Query<StatsQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<FullStatistics>, StatusCode> {
+    let range = query.range.as_deref().unwrap_or("30d");
+    let interval = query.interval.as_deref().unwrap_or("daily");
+
+    // Build date range
+    let (start_date, end_date) = match range {
+        "24h" => ("NOW() - INTERVAL '24 hours'", "NOW()"),
+        "7d" => ("NOW() - INTERVAL '7 days'", "NOW()"),
+        "30d" => ("NOW() - INTERVAL '30 days'", "NOW()"),
+        "90d" => ("NOW() - INTERVAL '90 days'", "NOW()"),
+        "all" => ("'2024-01-01'::timestamptz", "NOW()"),
+        _ => ("NOW() - INTERVAL '30 days'", "NOW()"),
+    };
+
+    // Use position_history if available, fallback to closed positions from trade.positions
+    // This ensures we get data from both sources
+    let history_table = format!(
+        "(SELECT id, position_id, symbol, symbol_id, side, qty, entry_price, exit_price,
+                leverage, tf_minutes, sl_price, tp_price, realized_pnl, realized_pnl_pct,
+                combined_score, p_super, close_reason, opened_at, closed_at
+         FROM trade.position_history
+         WHERE closed_at BETWEEN {} AND {}
+         UNION ALL
+         SELECT id, id as position_id, mp.symbol as symbol, p.symbol_id, side, qty,
+                entry_price, COALESCE(exit_price, current_price) as exit_price,
+                leverage, tf_minutes, sl_price, tp_price,
+                COALESCE(realized_pnl, unrealized_pnl, 0) as realized_pnl,
+                COALESCE(realized_pnl_pct, 0) as realized_pnl_pct,
+                combined_score, p_super, COALESCE(close_reason, 'manual') as close_reason,
+                opened_at, COALESCE(closed_at, now()) as closed_at
+         FROM trade.positions p
+         JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+         WHERE p.status = 2 AND COALESCE(closed_at, now()) BETWEEN {} AND {}
+           AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+        ) as history_data",
+        start_date, end_date, start_date, end_date
+    );
+
+    // ─── SUMMARY STATISTICS ────────────────────────────────────────────
+    let summary_row = sqlx::query(&format!(
+        "SELECT
+            COUNT(*) as total_trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as winning_trades,
+            COUNT(*) FILTER (WHERE realized_pnl <= 0) as losing_trades,
+            COALESCE(SUM(realized_pnl), 0) as total_pnl,
+            COALESCE(AVG(realized_pnl) FILTER (WHERE realized_pnl > 0), 0) as avg_win,
+            COALESCE(AVG(realized_pnl) FILTER (WHERE realized_pnl <= 0), 0) as avg_loss,
+            COALESCE(MAX(realized_pnl), 0) as best_trade,
+            COALESCE(MIN(realized_pnl), 0) as worst_trade,
+            COALESCE(AVG(EXTRACT(EPOCH FROM (closed_at - opened_at)) / 3600)::float8, 0) as avg_duration_hours
+         FROM {}
+         WHERE closed_at BETWEEN {} AND {}",
+        history_table, start_date, end_date
+    ))
+    .fetch_one(&state.db_pool)
+    .await
+    .map_err(|e| { tracing::error!("Stats summary error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let total_trades: i64 = summary_row.get("total_trades");
+    let winning_trades: i64 = summary_row.get("winning_trades");
+    let losing_trades: i64 = summary_row.get("losing_trades");
+    let total_pnl: f64 = summary_row.get("total_pnl");
+    let avg_win: f64 = summary_row.get("avg_win");
+    let avg_loss: f64 = summary_row.get("avg_loss");
+    let best_trade: f64 = summary_row.get("best_trade");
+    let worst_trade: f64 = summary_row.get("worst_trade");
+    let avg_duration_hours: f64 = summary_row.get("avg_duration_hours");
+    
+    let win_rate = if total_trades > 0 { (winning_trades as f64 / total_trades as f64) * 100.0 } else { 0.0 };
+    let gross_profit = if winning_trades > 0 { avg_win * winning_trades as f64 } else { 0.0 };
+    let gross_loss = if losing_trades > 0 { avg_loss.abs() * losing_trades as f64 } else { 0.0 };
+    let profit_factor = if gross_loss > 0.0 { gross_profit / gross_loss } else { if gross_profit > 0.0 { f64::INFINITY } else { 0.0 } };
+
+    // Calculate max consecutive wins/losses
+    let (max_consecutive_wins, max_consecutive_losses) = calculate_consecutive(&state.db_pool, start_date, end_date).await.unwrap_or((0, 0));
+
+    let summary = StatsSummary {
+        total_trades,
+        winning_trades,
+        losing_trades,
+        win_rate,
+        total_pnl,
+        avg_win,
+        avg_loss,
+        profit_factor,
+        best_trade,
+        worst_trade,
+        avg_trade_duration_hours: avg_duration_hours,
+        max_consecutive_wins,
+        max_consecutive_losses,
+    };
+
+    // ─── PNL TIMELINE ──────────────────────────────────────────────────
+    let timeline = calculate_pnl_timeline(&state.db_pool, start_date, end_date, interval).await?;
+
+    // ─── DISTRIBUTION ──────────────────────────────────────────────────
+    let distribution = calculate_distribution(&state.db_pool, start_date, end_date).await?;
+
+    // ─── BEST/WORST TRADES ─────────────────────────────────────────────
+    let best_worst = calculate_best_worst(&state.db_pool, start_date, end_date).await?;
+
+    // ─── TIME-BASED STATS (hourly, daily, weekly) ──────────────────────
+    let hourly = calculate_hourly_stats(&state.db_pool, start_date, end_date).await?;
+    let daily = calculate_daily_stats(&state.db_pool, start_date, end_date).await?;
+    let weekly = calculate_weekly_stats(&state.db_pool, start_date, end_date).await?;
+    let monthly = calculate_monthly_stats(&state.db_pool, start_date, end_date).await?;
+
+    Ok(Json(FullStatistics {
+        summary,
+        timeline,
+        distribution,
+        best_worst,
+        hourly,
+        daily,
+        weekly,
+        monthly,
+    }))
+}
+
+async fn calculate_consecutive(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<(i64, i64), StatusCode> {
+    let rows = sqlx::query(&format!(
+        "SELECT CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END as is_win
+         FROM (
+           SELECT realized_pnl, closed_at FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT COALESCE(realized_pnl, unrealized_pnl, 0) as realized_pnl, COALESCE(closed_at, now()) as closed_at
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         ORDER BY closed_at ASC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Consecutive error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let mut max_wins = 0i64;
+    let mut max_losses = 0i64;
+    let mut cur_wins = 0i64;
+    let mut cur_losses = 0i64;
+
+    for row in rows {
+        let is_win: i32 = row.get("is_win");
+        if is_win == 1 {
+            cur_wins += 1;
+            cur_losses = 0;
+            max_wins = max_wins.max(cur_wins);
+        } else {
+            cur_losses += 1;
+            cur_wins = 0;
+            max_losses = max_losses.max(cur_losses);
+        }
+    }
+
+    Ok((max_wins, max_losses))
+}
+
+async fn calculate_pnl_timeline(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+    interval: &str,
+) -> Result<PnlTimeline, StatusCode> {
+    let date_trunc = match interval {
+        "hourly" => "hour",
+        "daily" => "day",
+        "weekly" => "week",
+        _ => "day",
+    };
+
+    let rows = sqlx::query(&format!(
+        "SELECT
+            DATE_TRUNC('{}', closed_at) as period,
+            COALESCE(SUM(realized_pnl), 0) as period_pnl,
+            COALESCE(SUM(SUM(realized_pnl)) OVER (ORDER BY DATE_TRUNC('{}', closed_at)), 0) as cumulative_pnl
+         FROM (
+           SELECT realized_pnl, closed_at FROM trade.position_history WHERE closed_at BETWEEN {} AND {}
+           UNION ALL
+           SELECT COALESCE(realized_pnl, unrealized_pnl, 0) as realized_pnl, COALESCE(closed_at, now()) as closed_at
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(closed_at, now()) BETWEEN {} AND {}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY DATE_TRUNC('{}', closed_at)
+         ORDER BY period ASC",
+        date_trunc, date_trunc, start_date, end_date, start_date, end_date, date_trunc
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Timeline error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let mut points = Vec::new();
+    let mut cumulative = 0.0;
+    let mut start_str = String::new();
+    let mut end_str = String::new();
+
+    for row in rows {
+        let period: chrono::DateTime<chrono::Utc> = row.get("period");
+        let period_pnl: f64 = row.get("period_pnl");
+        cumulative += period_pnl;
+        
+        if start_str.is_empty() {
+            start_str = period.to_rfc3339();
+        }
+        end_str = period.to_rfc3339();
+
+        points.push(PnlTimePoint {
+            t: period.timestamp_millis(),
+            cumulative_pnl: cumulative,
+            balance: cumulative,
+        });
+    }
+
+    Ok(PnlTimeline {
+        points,
+        start_date: start_str,
+        end_date: end_str,
+    })
+}
+
+async fn calculate_distribution(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<TradeDistribution, StatusCode> {
+    // By pair
+    let pair_rows = sqlx::query(&format!(
+        "SELECT
+            pair,
+            COUNT(*) as trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+            COALESCE(SUM(realized_pnl), 0) as pnl
+         FROM (
+           SELECT symbol as pair, realized_pnl FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT mp.symbol as pair, COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY pair
+         ORDER BY pnl DESC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Pair stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let by_pair: Vec<PairStats> = pair_rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        PairStats {
+            pair: r.get("pair"),
+            trades,
+            wins,
+            pnl: r.get("pnl"),
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+        }
+    }).collect();
+
+    // By timeframe
+    let tf_rows = sqlx::query(&format!(
+        "SELECT
+            tf,
+            COUNT(*) as trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+            COALESCE(SUM(realized_pnl), 0) as pnl
+         FROM (
+           SELECT tf_minutes as tf, realized_pnl FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT p.tf_minutes as tf, COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY tf
+         ORDER BY tf ASC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("TF stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let by_timeframe: Vec<TfStats> = tf_rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        TfStats {
+            tf: r.get("tf"),
+            trades,
+            wins,
+            pnl: r.get("pnl"),
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+        }
+    }).collect();
+
+    // By close type
+    let close_type_rows = sqlx::query(&format!(
+        "SELECT
+            close_type,
+            COUNT(*) as count,
+            COALESCE(SUM(realized_pnl), 0) as pnl,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins
+         FROM (
+           SELECT close_reason as close_type, realized_pnl FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT COALESCE(p.close_reason, 'manual') as close_type, COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY close_type
+         ORDER BY count DESC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Close type stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let by_close_type: Vec<CloseTypeStats> = close_type_rows.iter().map(|r| {
+        let count: i64 = r.get("count");
+        let wins: i64 = r.get("wins");
+        CloseTypeStats {
+            close_type: r.get("close_type"),
+            count,
+            pnl: r.get("pnl"),
+            win_rate: if count > 0 { (wins as f64 / count as f64) * 100.0 } else { 0.0 },
+        }
+    }).collect();
+
+    // By side
+    let side_rows = sqlx::query(&format!(
+        "SELECT
+            side,
+            COUNT(*) as trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+            COALESCE(SUM(realized_pnl), 0) as pnl
+         FROM (
+           SELECT CASE WHEN side = 1 THEN 'LONG' ELSE 'SHORT' END as side, realized_pnl FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side, COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY side
+         ORDER BY pnl DESC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Side stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let by_side: Vec<SideStats> = side_rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        SideStats {
+            side: r.get("side"),
+            trades,
+            wins,
+            pnl: r.get("pnl"),
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+        }
+    }).collect();
+
+    Ok(TradeDistribution {
+        by_pair,
+        by_timeframe,
+        by_close_type,
+        by_side,
+    })
+}
+
+async fn calculate_best_worst(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<BestWorstTrades, StatusCode> {
+    let best_rows = sqlx::query(&format!(
+        "SELECT id, position_id, symbol, side, qty, entry_price,
+                COALESCE(exit_price, entry_price) as close_price,
+                COALESCE(close_reason, 'manual') as close_type,
+                COALESCE(realized_pnl, 0) as pnl_usdt,
+                COALESCE(realized_pnl_pct, 0) as pnl_pct,
+                opened_at as open_time,
+                closed_at as close_time
+         FROM (
+           SELECT id, position_id, symbol, side, qty, entry_price, exit_price, close_reason, realized_pnl, realized_pnl_pct, opened_at, closed_at
+           FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT p.id, p.id as position_id, mp.symbol as symbol, p.side, p.qty, p.entry_price,
+                  COALESCE(p.exit_price, p.current_price) as exit_price,
+                  COALESCE(p.close_reason, 'manual') as close_type,
+                  COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as pnl_usdt,
+                  COALESCE(p.realized_pnl_pct, 0) as pnl_pct,
+                  p.opened_at, COALESCE(p.closed_at, now()) as close_time
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         ORDER BY pnl_usdt DESC
+         LIMIT 5",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Best trades error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let worst_rows = sqlx::query(&format!(
+        "SELECT id, position_id, symbol, side, qty, entry_price,
+                COALESCE(exit_price, entry_price) as close_price,
+                COALESCE(close_reason, 'manual') as close_type,
+                COALESCE(realized_pnl, 0) as pnl_usdt,
+                COALESCE(realized_pnl_pct, 0) as pnl_pct,
+                opened_at as open_time,
+                closed_at as close_time
+         FROM (
+           SELECT id, position_id, symbol, side, qty, entry_price, exit_price, close_reason, realized_pnl, realized_pnl_pct, opened_at, closed_at
+           FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT p.id, p.id as position_id, mp.symbol as symbol, p.side, p.qty, p.entry_price,
+                  COALESCE(p.exit_price, p.current_price) as exit_price,
+                  COALESCE(p.close_reason, 'manual') as close_type,
+                  COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as pnl_usdt,
+                  COALESCE(p.realized_pnl_pct, 0) as pnl_pct,
+                  p.opened_at, COALESCE(p.closed_at, now()) as close_time
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         ORDER BY pnl_usdt ASC
+         LIMIT 5",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Worst trades error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let parse_row = |r: &sqlx::postgres::PgRow| -> HistoryRow {
+        let open_time: chrono::DateTime<chrono::Utc> = r.get("open_time");
+        let close_time: chrono::DateTime<chrono::Utc> = r.get("close_time");
+        let side_i16: i16 = r.get("side");
+        HistoryRow {
+            id: r.get("id"),
+            pair: r.get("symbol"),
+            side: if side_i16 == 1 { "LONG".to_string() } else { "SHORT".to_string() },
+            qty: r.get("qty"),
+            entry_price: r.get("entry_price"),
+            close_price: r.get("close_price"),
+            close_type: r.get("close_type"),
+            pnl_usdt: r.get("pnl_usdt"),
+            pnl_pct: r.get("pnl_pct"),
+            open_time: open_time.to_rfc3339(),
+            close_time: close_time.to_rfc3339(),
+        }
+    };
+
+    Ok(BestWorstTrades {
+        best: best_rows.iter().map(parse_row).collect(),
+        worst: worst_rows.iter().map(parse_row).collect(),
+    })
+}
+
+async fn calculate_hourly_stats(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<TimeBasedStats, StatusCode> {
+    let rows = sqlx::query(&format!(
+        "SELECT
+            EXTRACT(HOUR FROM closed_at)::bigint as hour,
+            COUNT(*) as trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+            COUNT(*) FILTER (WHERE realized_pnl <= 0) as losses,
+            COALESCE(SUM(realized_pnl), 0) as pnl,
+            COALESCE(AVG(realized_pnl), 0) as avg_pnl
+         FROM (
+           SELECT realized_pnl, closed_at FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl, COALESCE(p.closed_at, now()) as closed_at
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY EXTRACT(HOUR FROM closed_at)
+         ORDER BY hour ASC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Hourly stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let data: Vec<TimeSlotStats> = rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        let losses: i64 = r.get("losses");
+        let hour: i64 = r.get("hour");
+        TimeSlotStats {
+            label: format!("{:02}:00", hour),
+            trades,
+            wins,
+            losses,
+            pnl: r.get("pnl"),
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+            avg_pnl: r.get("avg_pnl"),
+        }
+    }).collect();
+
+    Ok(TimeBasedStats {
+        period: "hourly".to_string(),
+        data,
+    })
+}
+
+async fn calculate_daily_stats(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<TimeBasedStats, StatusCode> {
+    let rows = sqlx::query(&format!(
+        "SELECT
+            TO_CHAR(closed_at, 'Day') as day_name,
+            EXTRACT(DOW FROM closed_at)::bigint as day_num,
+            COUNT(*) as trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+            COUNT(*) FILTER (WHERE realized_pnl <= 0) as losses,
+            COALESCE(SUM(realized_pnl), 0) as pnl,
+            COALESCE(AVG(realized_pnl), 0) as avg_pnl
+         FROM (
+           SELECT realized_pnl, closed_at FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl, COALESCE(p.closed_at, now()) as closed_at
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY EXTRACT(DOW FROM closed_at), TO_CHAR(closed_at, 'Day')
+         ORDER BY day_num ASC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Daily stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let data: Vec<TimeSlotStats> = rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        let losses: i64 = r.get("losses");
+        let day_name: String = r.get("day_name");
+        TimeSlotStats {
+            label: day_name.trim().to_string(),
+            trades,
+            wins,
+            losses,
+            pnl: r.get("pnl"),
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+            avg_pnl: r.get("avg_pnl"),
+        }
+    }).collect();
+
+    Ok(TimeBasedStats {
+        period: "daily".to_string(),
+        data,
+    })
+}
+
+async fn calculate_weekly_stats(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<TimeBasedStats, StatusCode> {
+    let rows = sqlx::query(&format!(
+        "SELECT
+            TO_CHAR(closed_at, 'IYYY-IW') as week,
+            COUNT(*) as trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+            COUNT(*) FILTER (WHERE realized_pnl <= 0) as losses,
+            COALESCE(SUM(realized_pnl), 0) as pnl,
+            COALESCE(AVG(realized_pnl), 0) as avg_pnl
+         FROM (
+           SELECT realized_pnl, closed_at FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl, COALESCE(p.closed_at, now()) as closed_at
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY TO_CHAR(closed_at, 'IYYY-IW')
+         ORDER BY week ASC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Weekly stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let data: Vec<TimeSlotStats> = rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        let losses: i64 = r.get("losses");
+        let week: String = r.get("week");
+        TimeSlotStats {
+            label: format!("Week {}", week),
+            trades,
+            wins,
+            losses,
+            pnl: r.get("pnl"),
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+            avg_pnl: r.get("avg_pnl"),
+        }
+    }).collect();
+
+    Ok(TimeBasedStats {
+        period: "weekly".to_string(),
+        data,
+    })
+}
+
+async fn calculate_monthly_stats(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Vec<MonthlyStats>, StatusCode> {
+    let rows = sqlx::query(&format!(
+        "SELECT
+            TO_CHAR(closed_at, 'YYYY-MM') as month,
+            COUNT(*) as trades,
+            COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+            COALESCE(SUM(realized_pnl), 0) as pnl
+         FROM (
+           SELECT realized_pnl, closed_at FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT COALESCE(realized_pnl, unrealized_pnl, 0) as realized_pnl, COALESCE(closed_at, now()) as closed_at
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history
+         GROUP BY TO_CHAR(closed_at, 'YYYY-MM')
+         ORDER BY month DESC",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Monthly stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let monthly: Vec<MonthlyStats> = rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        MonthlyStats {
+            month: r.get("month"),
+            trades,
+            wins,
+            pnl: r.get("pnl"),
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+        }
+    }).collect();
+
+    Ok(monthly)
 }
 
 // ─── GET /api/pnl/overview ─────────────────────────────────────────────
@@ -1143,7 +1947,7 @@ pub async fn close_position(
 
     // 1. Fetch position details from DB
     let row = sqlx::query(
-        "SELECT p.id, COALESCE(p.symbol, mp.symbol) as pair,
+        "SELECT p.id, mp.symbol as pair,
                 CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
                 p.qty, p.symbol_id
          FROM trade.positions p
@@ -1343,7 +2147,7 @@ async fn emergency_close_all_positions(pool: &sqlx::PgPool) -> Result<usize, Sta
 
     // Query open positions from DB
     let rows = sqlx::query(
-        "SELECT p.id, COALESCE(p.symbol, mp.symbol) as pair,
+        "SELECT p.id, mp.symbol as pair,
                 CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
                 p.qty
          FROM trade.positions p

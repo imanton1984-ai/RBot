@@ -3,6 +3,7 @@ import type {
   Candle, Indicator, Pair, MarketSummary, Position, Signal, Balance,
   PnlOverview, Alert, ConnectionStatus, TradingOptions,
   OrderOptions, ManualOrderRequest, AutoTradingState,
+  FullStatistics,
 } from './types';
 
 const api = axios.create({
@@ -72,6 +73,15 @@ export const apiService = {
     if (pair) params.append('pair', pair);
     if (closeType) params.append('close_type', closeType);
     const { data } = await api.get<any[]>('/positions/history', { params });
+    return data;
+  },
+
+  // ─── Statistics ───────────────────────────────────────────
+  getStatistics: async (range?: string, interval?: string): Promise<FullStatistics> => {
+    const params = new URLSearchParams();
+    if (range) params.append('range', range);
+    if (interval) params.append('interval', interval);
+    const { data } = await api.get<FullStatistics>('/statistics', { params });
     return data;
   },
 
