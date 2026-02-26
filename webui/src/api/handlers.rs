@@ -602,8 +602,10 @@ pub async fn get_open_positions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PositionRow>>, StatusCode> {
     // FIX #6: Calculate pnl_pct dynamically.
-    // Use candles_live as fallback for current_price when position_tracker
-    // hasn't written to DB yet (e.g. right after opening, or DB write fails).
+    // FIX #11: Priority for current_price:
+    //   1. candles_live (real-time from WebSocket, updated every ~200ms)
+    //   2. positions.current_price (from position_tracker, updated every 3s)
+    //   3. entry_price (fallback)
     let rows = sqlx::query(
         "SELECT p.id,
                 mp.symbol as pair,
@@ -611,8 +613,8 @@ pub async fn get_open_positions(
                 p.qty,
                 p.entry_price,
                 COALESCE(
-                    NULLIF(p.current_price, p.entry_price),
                     cl.close,
+                    NULLIF(p.current_price, p.entry_price),
                     p.current_price,
                     p.entry_price,
                     0
@@ -623,8 +625,8 @@ pub async fn get_open_positions(
                 CASE
                     WHEN p.entry_price > 0 AND p.qty > 0 THEN
                         CASE WHEN p.side = 1
-                            THEN (COALESCE(NULLIF(p.current_price, p.entry_price), cl.close, p.entry_price) - p.entry_price) / p.entry_price * 100.0
-                            ELSE (p.entry_price - COALESCE(NULLIF(p.current_price, p.entry_price), cl.close, p.entry_price)) / p.entry_price * 100.0
+                            THEN (COALESCE(cl.close, NULLIF(p.current_price, p.entry_price), p.entry_price) - p.entry_price) / p.entry_price * 100.0
+                            ELSE (p.entry_price - COALESCE(cl.close, NULLIF(p.current_price, p.entry_price), p.entry_price)) / p.entry_price * 100.0
                         END
                     ELSE 0
                 END::double precision as pnl_pct,

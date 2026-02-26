@@ -19,7 +19,7 @@ enable_intra_candle_updates = true
 
 # Persist незакрытой свечи (чтобы рестарт не давал дырки)
 persist_live_candle = true
-persist_live_candle_every_ms = 1500
+persist_live_candle_every_ms = 500
 
 # Защита от перегруза: sampling внутрисвечных обновлений
 # (close всегда обязателен, sampling касается только intra)

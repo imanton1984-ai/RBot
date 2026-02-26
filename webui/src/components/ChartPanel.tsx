@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { useTradingStore, useUiStore, useDataStore } from '../store';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { ChevronDown, LineChart, LayoutGrid, Settings2 } from 'lucide-react';
 import type { Position } from '../types';
@@ -100,6 +100,7 @@ export default function ChartPanel() {
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const priceLinesRef = useRef<any[]>([]);
 
+  const queryClient = useQueryClient();
   const { currentPair, currentTf, setCurrentTf } = useTradingStore();
   const chartView = useUiStore((s) => s.chartView);
   const setChartView = useUiStore((s) => s.setChartView);
@@ -109,23 +110,36 @@ export default function ChartPanel() {
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [chartReady, setChartReady] = useState(false);
 
-  // Load candles — FIX #4: reduced interval from 15s → 5s for near-real-time chart updates.
+  // Invalidate candle query when timeframe or pair changes to ensure fresh data
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ['candles', currentPair, currentTf] });
+  }, [currentPair, currentTf, queryClient]);
+
+  // Load candles — FIX #4: reduced interval from 15s → 3s for near-real-time chart updates.
   // Candles come from DB (ingestor writes them). For the current (forming) candle,
-  // the ingestor updates it every few seconds, so 5s poll gives smooth updates.
+  // the ingestor updates it every few seconds, so 3s poll gives smooth updates.
+  // NOTE: 1m/5m/15m/1h have WebSocket streams (live updates in candles_live).
+  // 4h/1d use poll-on-close (no intra-candle updates), but we still poll frequently
+  // to catch the moment when the candle closes and new data appears.
   const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
     queryFn: () => apiService.getCandles(currentPair, currentTf, 2000),
-    refetchInterval: 5000,
-    staleTime: 3000,
+    refetchInterval: 3000,
+    staleTime: 2000,
     retry: 1,
+    // Refetch on window focus to ensure fresh data when switching back to chart
+    refetchOnWindowFocus: true,
   });
 
   // Load open positions for current pair (for TP/SL lines)
+  // Refresh every 2s for smooth PnL and price updates
   const { data: openPositions } = useQuery({
     queryKey: ['positions-open'],
     queryFn: () => apiService.getOpenPositions(),
-    refetchInterval: 5000,
-    staleTime: 3000,
+    refetchInterval: 2000,
+    staleTime: 1500,
+    retry: 1,
+    refetchOnWindowFocus: true,
   });
 
   // Find position for current pair

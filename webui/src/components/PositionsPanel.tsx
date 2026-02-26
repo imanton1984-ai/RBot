@@ -11,14 +11,17 @@ export default function PositionsPanel() {
   const positions = useDataStore((s) => s.positions);
   const setPositions = useDataStore((s) => s.setPositions);
 
-  // Open positions — refresh every 3s (websocket-like frequency)
+  // Open positions — refresh every 2s for near-real-time PnL updates
+  // Position tracker updates DB every 3s, so 2s polling gives smooth updates
   const { data: openPositions } = useQuery({
     queryKey: ['positions-open'],
     queryFn: () => apiService.getOpenPositions(),
-    refetchInterval: 3000,
-    staleTime: 2000,
+    refetchInterval: 2000,
+    staleTime: 1500,
     enabled: positionsView === 'open',
     retry: 1,
+    // Refetch on window focus to ensure fresh data when switching back
+    refetchOnWindowFocus: true,
   });
 
   // History — from DB, refresh less frequently
