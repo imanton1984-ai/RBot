@@ -104,6 +104,8 @@ pub enum CloseReason {
     RiskManager,
     /// Ручное закрытие оператором
     Manual,
+    /// Emergency stop - принудительное закрытие всех позиций
+    EmerClosed,
 }
 
 impl CloseReason {
@@ -114,6 +116,7 @@ impl CloseReason {
             Self::MaxBars => "max_bars",
             Self::RiskManager => "risk_manager",
             Self::Manual => "manual",
+            Self::EmerClosed => "emer_closed",
         }
     }
 }

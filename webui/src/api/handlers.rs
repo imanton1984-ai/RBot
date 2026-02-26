@@ -1379,7 +1379,26 @@ async fn emergency_close_all_positions(pool: &sqlx::PgPool) -> Result<usize, Sta
             );
             // Mark as closed in DB so it doesn't show up anymore
             let _ = sqlx::query(
-                "UPDATE trade.positions SET status = 2, close_reason = 'emergency', closed_at = now() WHERE id = $1"
+                "UPDATE trade.positions SET status = 2, close_reason = 'emer_closed', closed_at = now() WHERE id = $1"
+            )
+            .bind(position_id)
+            .execute(pool)
+            .await;
+            // Record in position_history even for qty=0 positions
+            let _ = sqlx::query(
+                "INSERT INTO trade.position_history (position_id, symbol, symbol_id, side, qty, entry_price, exit_price, close_reason, realized_pnl, realized_pnl_pct, opened_at, closed_at, leverage, tf_minutes, combined_score, p_super)
+                 SELECT id, COALESCE(symbol, ''), symbol_id, side, qty, entry_price,
+                        entry_price, 'emer_closed',
+                        COALESCE(unrealized_pnl, 0),
+                        CASE WHEN entry_price > 0 THEN
+                            CASE WHEN side = 1
+                                THEN (entry_price - entry_price) / entry_price * 100.0
+                                ELSE (entry_price - entry_price) / entry_price * 100.0
+                            END
+                        ELSE 0 END,
+                        opened_at, now(), COALESCE(leverage, 10), COALESCE(tf_minutes, 60),
+                        combined_score, p_super
+                 FROM trade.positions WHERE id = $1"
             )
             .bind(position_id)
             .execute(pool)
@@ -1399,7 +1418,27 @@ async fn emergency_close_all_positions(pool: &sqlx::PgPool) -> Result<usize, Sta
 
                 // Update DB status
                 let _ = sqlx::query(
-                    "UPDATE trade.positions SET status = 2, close_reason = 'emergency', closed_at = now() WHERE id = $1"
+                    "UPDATE trade.positions SET status = 2, close_reason = 'emer_closed', closed_at = now() WHERE id = $1"
+                )
+                .bind(position_id)
+                .execute(pool)
+                .await;
+
+                // Record in position_history with pnl and all details
+                let _ = sqlx::query(
+                    "INSERT INTO trade.position_history (position_id, symbol, symbol_id, side, qty, entry_price, exit_price, close_reason, realized_pnl, realized_pnl_pct, opened_at, closed_at, leverage, tf_minutes, combined_score, p_super)
+                     SELECT id, COALESCE(symbol, ''), symbol_id, side, qty, entry_price,
+                            COALESCE(current_price, entry_price), 'emer_closed',
+                            COALESCE(unrealized_pnl, 0),
+                            CASE WHEN entry_price > 0 THEN
+                                CASE WHEN side = 1
+                                    THEN (COALESCE(current_price, entry_price) - entry_price) / entry_price * 100.0
+                                    ELSE (entry_price - COALESCE(current_price, entry_price)) / entry_price * 100.0
+                                END
+                            ELSE 0 END,
+                            opened_at, now(), COALESCE(leverage, 10), COALESCE(tf_minutes, 60),
+                            combined_score, p_super
+                     FROM trade.positions WHERE id = $1"
                 )
                 .bind(position_id)
                 .execute(pool)

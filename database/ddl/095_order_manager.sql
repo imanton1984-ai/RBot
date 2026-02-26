@@ -25,7 +25,7 @@ ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS tp_price DOUBLE PRECISION;
 -- Actual exit price (filled on close)
 ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS current_price DOUBLE PRECISION;
 ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS exit_price DOUBLE PRECISION;
--- Why the position was closed: tp_hit | sl_hit | max_bars | risk_manager | manual
+-- Why the position was closed: tp_hit | sl_hit | max_bars | risk_manager | manual | emer_closed
 ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS close_reason TEXT;
 -- ML combined score of the triggering signal
 ALTER TABLE trade.positions ADD COLUMN IF NOT EXISTS combined_score REAL;
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS trade.position_history (
     fees_total      DOUBLE PRECISION DEFAULT 0,
     combined_score  REAL,                    -- ML signal quality at entry
     p_super         REAL,
-    close_reason    TEXT,                    -- tp_hit | sl_hit | max_bars | risk_manager | manual
+    close_reason    TEXT,                    -- tp_hit | sl_hit | max_bars | risk_manager | manual | emer_closed
     opened_at       TIMESTAMPTZ NOT NULL,
     closed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     duration_bars   SMALLINT,               -- how many bars the position lived
@@ -130,4 +130,4 @@ COMMENT ON COLUMN trade.positions.candles_left IS
     'decremented every new candle of the position timeframe.';
 
 COMMENT ON COLUMN trade.positions.close_reason IS
-    'Reason the position was closed: tp_hit, sl_hit, max_bars, risk_manager, manual';
+    'Reason the position was closed: tp_hit, sl_hit, max_bars, risk_manager, manual, emer_closed';
