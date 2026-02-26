@@ -39,11 +39,31 @@ pub struct OrderManagerConfig {
     #[serde(default = "default_trading_mode")]
     pub trading_mode: String,
 
-    // ─── Signal Scanner ────────────────────────────────────
-    /// Минимальный combined_score для сигнала (inclusive)
-    pub signal_score_min: f32,
-    /// Максимальный combined_score для сигнала (inclusive)
-    pub signal_score_max: f32,
+    // ─── Signal Scanner (per-timeframe score ranges) ────────────────────────────────────
+    /// Минимальный combined_score для 1m сигнала (inclusive)
+    pub signal_score_min_1m: f32,
+    /// Максимальный combined_score для 1m сигнала (inclusive)
+    pub signal_score_max_1m: f32,
+    /// Минимальный combined_score для 5m сигнала (inclusive)
+    pub signal_score_min_5m: f32,
+    /// Максимальный combined_score для 5m сигнала (inclusive)
+    pub signal_score_max_5m: f32,
+    /// Минимальный combined_score для 15m сигнала (inclusive)
+    pub signal_score_min_15m: f32,
+    /// Максимальный combined_score для 15m сигнала (inclusive)
+    pub signal_score_max_15m: f32,
+    /// Минимальный combined_score для 1h сигнала (inclusive)
+    pub signal_score_min_1h: f32,
+    /// Максимальный combined_score для 1h сигнала (inclusive)
+    pub signal_score_max_1h: f32,
+    /// Минимальный combined_score для 4h сигнала (inclusive)
+    pub signal_score_min_4h: f32,
+    /// Максимальный combined_score для 4h сигнала (inclusive)
+    pub signal_score_max_4h: f32,
+    /// Минимальный combined_score для 1d сигнала (inclusive)
+    pub signal_score_min_1d: f32,
+    /// Максимальный combined_score для 1d сигнала (inclusive)
+    pub signal_score_max_1d: f32,
     /// Максимальный дрифт цены (%), чтобы сигнал считался актуальным
     pub max_price_drift_pct: f64,
     /// Интервал сканирования сигналов (секунды)
@@ -53,12 +73,18 @@ pub struct OrderManagerConfig {
     /// Максимальное количество баров удержания позиции
     pub max_hold_bars: i16,
 
+    /// Пропорция слотов для 1m (процент, напр. 0 = 0%)
+    pub tf_1m_pct: u16,
+    /// Пропорция слотов для 5m (процент, напр. 0 = 0%)
+    pub tf_5m_pct: u16,
+    /// Пропорция слотов для 15m (процент, напр. 10 = 10%)
+    pub tf_15m_pct: u16,
     /// Пропорция слотов для 1h (процент, напр. 70 = 70%)
     pub tf_1h_pct: u16,
     /// Пропорция слотов для 4h (процент, напр. 20 = 20%)
     pub tf_4h_pct: u16,
-    /// Пропорция слотов для 15m (процент, напр. 10 = 10%)
-    pub tf_15m_pct: u16,
+    /// Пропорция слотов для 1d (процент, напр. 0 = 0%)
+    pub tf_1d_pct: u16,
 
     // ─── Position Tracker ──────────────────────────────────
     /// Интервал обновления позиций / PnL (секунды)
@@ -96,17 +122,30 @@ impl Default for OrderManagerConfig {
             order_type: "futures_oco".to_string(),
             trading_mode: "off".to_string(),
 
-            // Scanner
-            signal_score_min: 0.70,
-            signal_score_max: 0.80,
+            // Scanner (per-timeframe score ranges)
+            signal_score_min_1m: 0.70,
+            signal_score_max_1m: 0.80,
+            signal_score_min_5m: 0.70,
+            signal_score_max_5m: 0.80,
+            signal_score_min_15m: 0.70,
+            signal_score_max_15m: 0.80,
+            signal_score_min_1h: 0.70,
+            signal_score_max_1h: 0.80,
+            signal_score_min_4h: 0.70,
+            signal_score_max_4h: 0.80,
+            signal_score_min_1d: 0.70,
+            signal_score_max_1d: 0.80,
             max_price_drift_pct: 0.2,
             scan_interval_secs: 30,
 
             // Executor
             max_hold_bars: 25,
+            tf_1m_pct: 0,
+            tf_5m_pct: 0,
+            tf_15m_pct: 10,
             tf_1h_pct: 70,
             tf_4h_pct: 20,
-            tf_15m_pct: 10,
+            tf_1d_pct: 0,
 
             // Tracker
             tracker_interval_secs: 10,
@@ -152,11 +191,24 @@ impl OrderManagerConfig {
     pub fn load_with_env() -> anyhow::Result<Self> {
         let mut cfg = Self::load()?;
 
-        if let Ok(v) = std::env::var("OM_SCORE_MIN") {
-            if let Ok(n) = v.parse() { cfg.signal_score_min = n; }
+        // Per-timeframe score overrides (optional)
+        if let Ok(v) = std::env::var("OM_SCORE_MIN_1H") {
+            if let Ok(n) = v.parse() { cfg.signal_score_min_1h = n; }
         }
-        if let Ok(v) = std::env::var("OM_SCORE_MAX") {
-            if let Ok(n) = v.parse() { cfg.signal_score_max = n; }
+        if let Ok(v) = std::env::var("OM_SCORE_MAX_1H") {
+            if let Ok(n) = v.parse() { cfg.signal_score_max_1h = n; }
+        }
+        if let Ok(v) = std::env::var("OM_SCORE_MIN_4H") {
+            if let Ok(n) = v.parse() { cfg.signal_score_min_4h = n; }
+        }
+        if let Ok(v) = std::env::var("OM_SCORE_MAX_4H") {
+            if let Ok(n) = v.parse() { cfg.signal_score_max_4h = n; }
+        }
+        if let Ok(v) = std::env::var("OM_SCORE_MIN_15M") {
+            if let Ok(n) = v.parse() { cfg.signal_score_min_15m = n; }
+        }
+        if let Ok(v) = std::env::var("OM_SCORE_MAX_15M") {
+            if let Ok(n) = v.parse() { cfg.signal_score_max_15m = n; }
         }
         if let Ok(v) = std::env::var("OM_PRICE_DRIFT_PCT") {
             if let Ok(n) = v.parse() { cfg.max_price_drift_pct = n; }
@@ -192,11 +244,47 @@ impl OrderManagerConfig {
 
     /// Валидация конфигурации
     pub fn validate(&self) -> anyhow::Result<()> {
-        if self.signal_score_min >= self.signal_score_max {
+        // Validate per-timeframe score ranges
+        if self.signal_score_min_1m >= self.signal_score_max_1m {
             anyhow::bail!(
-                "signal_score_min ({}) must be < signal_score_max ({})",
-                self.signal_score_min,
-                self.signal_score_max
+                "signal_score_min_1m ({}) must be < signal_score_max_1m ({})",
+                self.signal_score_min_1m,
+                self.signal_score_max_1m
+            );
+        }
+        if self.signal_score_min_5m >= self.signal_score_max_5m {
+            anyhow::bail!(
+                "signal_score_min_5m ({}) must be < signal_score_max_5m ({})",
+                self.signal_score_min_5m,
+                self.signal_score_max_5m
+            );
+        }
+        if self.signal_score_min_15m >= self.signal_score_max_15m {
+            anyhow::bail!(
+                "signal_score_min_15m ({}) must be < signal_score_max_15m ({})",
+                self.signal_score_min_15m,
+                self.signal_score_max_15m
+            );
+        }
+        if self.signal_score_min_1h >= self.signal_score_max_1h {
+            anyhow::bail!(
+                "signal_score_min_1h ({}) must be < signal_score_max_1h ({})",
+                self.signal_score_min_1h,
+                self.signal_score_max_1h
+            );
+        }
+        if self.signal_score_min_4h >= self.signal_score_max_4h {
+            anyhow::bail!(
+                "signal_score_min_4h ({}) must be < signal_score_max_4h ({})",
+                self.signal_score_min_4h,
+                self.signal_score_max_4h
+            );
+        }
+        if self.signal_score_min_1d >= self.signal_score_max_1d {
+            anyhow::bail!(
+                "signal_score_min_1d ({}) must be < signal_score_max_1d ({})",
+                self.signal_score_min_1d,
+                self.signal_score_max_1d
             );
         }
         if self.max_orders_at_a_time == 0 {
@@ -223,14 +311,17 @@ impl OrderManagerConfig {
         if self.max_hold_bars <= 0 {
             anyhow::bail!("max_hold_bars must be > 0");
         }
-        let total_pct = self.tf_1h_pct + self.tf_4h_pct + self.tf_15m_pct;
+        let total_pct = self.tf_1m_pct + self.tf_5m_pct + self.tf_15m_pct + self.tf_1h_pct + self.tf_4h_pct + self.tf_1d_pct;
         if total_pct != 100 {
             anyhow::bail!(
-                "Timeframe percentages must sum to 100, got {} (1h={}%, 4h={}%, 15m={}%)",
+                "Timeframe percentages must sum to 100, got {} (1m={}%, 5m={}%, 15m={}%, 1h={}%, 4h={}%, 1d={}%)",
                 total_pct,
+                self.tf_1m_pct,
+                self.tf_5m_pct,
+                self.tf_15m_pct,
                 self.tf_1h_pct,
                 self.tf_4h_pct,
-                self.tf_15m_pct
+                self.tf_1d_pct
             );
         }
         Ok(())
@@ -239,16 +330,27 @@ impl OrderManagerConfig {
     /// Вычислить распределение слотов по таймфреймам
     pub fn timeframe_allocation(&self) -> TimeframeAllocation {
         let total = self.max_orders_at_a_time;
-        // Рассчитываем слоты: 15m получает floor, 4h получает floor, 1h — остаток
+        // Рассчитываем слоты: каждый таймфрейм получает floor, 1h — остаток
+        let slots_1m = (total as f64 * self.tf_1m_pct as f64 / 100.0).floor() as u16;
+        let slots_5m = (total as f64 * self.tf_5m_pct as f64 / 100.0).floor() as u16;
         let slots_15m = (total as f64 * self.tf_15m_pct as f64 / 100.0).floor() as u16;
         let slots_4h = (total as f64 * self.tf_4h_pct as f64 / 100.0).floor() as u16;
-        let slots_1h = total.saturating_sub(slots_15m).saturating_sub(slots_4h);
+        let slots_1d = (total as f64 * self.tf_1d_pct as f64 / 100.0).floor() as u16;
+        let slots_1h = total
+            .saturating_sub(slots_1m)
+            .saturating_sub(slots_5m)
+            .saturating_sub(slots_15m)
+            .saturating_sub(slots_4h)
+            .saturating_sub(slots_1d);
 
         TimeframeAllocation {
             slots: vec![
+                (1, slots_1m),
+                (5, slots_5m),
+                (15, slots_15m),
                 (60, slots_1h),
                 (240, slots_4h),
-                (15, slots_15m),
+                (1440, slots_1d),
             ],
             total,
         }
@@ -285,16 +387,19 @@ mod tests {
         let cfg = OrderManagerConfig::default();
         let alloc = cfg.timeframe_allocation();
         assert_eq!(alloc.total, 10);
-        assert_eq!(alloc.slots_for_tf(60), 7);
-        assert_eq!(alloc.slots_for_tf(240), 2);
-        assert_eq!(alloc.slots_for_tf(15), 1);
+        assert_eq!(alloc.slots_for_tf(1), 0);   // 1m: 0%
+        assert_eq!(alloc.slots_for_tf(5), 0);   // 5m: 0%
+        assert_eq!(alloc.slots_for_tf(15), 1);  // 15m: 10%
+        assert_eq!(alloc.slots_for_tf(60), 7);  // 1h: 70%
+        assert_eq!(alloc.slots_for_tf(240), 2); // 4h: 20%
+        assert_eq!(alloc.slots_for_tf(1440), 0); // 1d: 0%
     }
 
     #[test]
-    fn test_invalid_score_range() {
+    fn test_invalid_score_range_1h() {
         let mut cfg = OrderManagerConfig::default();
-        cfg.signal_score_min = 0.9;
-        cfg.signal_score_max = 0.8;
+        cfg.signal_score_min_1h = 0.9;
+        cfg.signal_score_max_1h = 0.8;
         assert!(cfg.validate().is_err());
     }
 
@@ -304,6 +409,9 @@ mod tests {
         cfg.tf_1h_pct = 50;
         cfg.tf_4h_pct = 20;
         cfg.tf_15m_pct = 10;
+        cfg.tf_1m_pct = 0;
+        cfg.tf_5m_pct = 0;
+        cfg.tf_1d_pct = 0;
         assert!(cfg.validate().is_err()); // sum = 80 ≠ 100
     }
 
@@ -312,7 +420,7 @@ mod tests {
         let cfg = OrderManagerConfig::default();
         let toml_str = toml::to_string_pretty(&cfg).unwrap();
         let deserialized: OrderManagerConfig = toml::from_str(&toml_str).unwrap();
-        assert!((deserialized.signal_score_min - cfg.signal_score_min).abs() < 1e-6);
+        assert!((deserialized.signal_score_min_1h - cfg.signal_score_min_1h).abs() < 1e-6);
         assert_eq!(deserialized.max_orders_at_a_time, cfg.max_orders_at_a_time);
     }
 }

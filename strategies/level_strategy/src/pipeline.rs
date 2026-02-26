@@ -66,7 +66,7 @@ impl LevelStrategyPipeline {
     ///
     /// This processes all symbols and timeframes from the database
     /// and generates predictions and trade signals.
-    pub async fn run_history(&self, pool: &PgPool) -> Result<usize> {
+    pub async fn run_history(&self, _pool: &PgPool) -> Result<usize> {
         info!("Level Strategy: running history pipeline");
 
         if !self.has_models() {
@@ -83,7 +83,7 @@ impl LevelStrategyPipeline {
     /// Run the pipeline in realtime mode
     ///
     /// This processes incoming candles and generates predictions/signals
-    pub async fn run_realtime(&self, pool: &PgPool) -> Result<usize> {
+    pub async fn run_realtime(&self, _pool: &PgPool) -> Result<usize> {
         info!("Level Strategy: running realtime pipeline");
 
         if !self.has_models() {

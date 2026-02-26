@@ -922,12 +922,25 @@ pub async fn get_order_options(
 
     Ok(Json(crate::state::OrderOptionsPayload {
         order_manager: crate::state::OrderManagerOptionsPayload {
-            signal_score_min: om.0,
-            signal_score_max: om.1,
-            max_hold_bars: om.2,
-            tf_1h_pct: om.3,
-            tf_4h_pct: om.4,
-            tf_15m_pct: om.5,
+            signal_score_min_1m: om.score_min_1m,
+            signal_score_max_1m: om.score_max_1m,
+            signal_score_min_5m: om.score_min_5m,
+            signal_score_max_5m: om.score_max_5m,
+            signal_score_min_15m: om.score_min_15m,
+            signal_score_max_15m: om.score_max_15m,
+            signal_score_min_1h: om.score_min_1h,
+            signal_score_max_1h: om.score_max_1h,
+            signal_score_min_4h: om.score_min_4h,
+            signal_score_max_4h: om.score_max_4h,
+            signal_score_min_1d: om.score_min_1d,
+            signal_score_max_1d: om.score_max_1d,
+            max_hold_bars: om.max_hold,
+            tf_1m_pct: om.tf_1m,
+            tf_5m_pct: om.tf_5m,
+            tf_15m_pct: om.tf_15m,
+            tf_1h_pct: om.tf_1h,
+            tf_4h_pct: om.tf_4h,
+            tf_1d_pct: om.tf_1d,
         },
         risk_manager: crate::state::RiskManagerOptionsPayload {
             btc_alert_threshold_pct: rm.0,
@@ -937,20 +950,73 @@ pub async fn get_order_options(
     }))
 }
 
-fn load_order_manager_toml() -> (f64, f64, i32, u16, u16, u16) {
+struct OrderManagerSubset {
+    score_min_1m: f64,
+    score_max_1m: f64,
+    score_min_5m: f64,
+    score_max_5m: f64,
+    score_min_15m: f64,
+    score_max_15m: f64,
+    score_min_1h: f64,
+    score_max_1h: f64,
+    score_min_4h: f64,
+    score_max_4h: f64,
+    score_min_1d: f64,
+    score_max_1d: f64,
+    max_hold: i32,
+    tf_1m: u16,
+    tf_5m: u16,
+    tf_15m: u16,
+    tf_1h: u16,
+    tf_4h: u16,
+    tf_1d: u16,
+}
+
+fn load_order_manager_toml() -> OrderManagerSubset {
     let path = "config/order_manager.toml";
     if let Ok(content) = std::fs::read_to_string(path) {
         if let Ok(val) = content.parse::<toml::Value>() {
-            let score_min = val.get("signal_score_min").and_then(|v| v.as_float()).unwrap_or(0.70);
-            let score_max = val.get("signal_score_max").and_then(|v| v.as_float()).unwrap_or(0.80);
+            let score_min_1m = val.get("signal_score_min_1m").and_then(|v| v.as_float()).unwrap_or(0.70);
+            let score_max_1m = val.get("signal_score_max_1m").and_then(|v| v.as_float()).unwrap_or(0.80);
+            let score_min_5m = val.get("signal_score_min_5m").and_then(|v| v.as_float()).unwrap_or(0.70);
+            let score_max_5m = val.get("signal_score_max_5m").and_then(|v| v.as_float()).unwrap_or(0.80);
+            let score_min_15m = val.get("signal_score_min_15m").and_then(|v| v.as_float()).unwrap_or(0.70);
+            let score_max_15m = val.get("signal_score_max_15m").and_then(|v| v.as_float()).unwrap_or(0.80);
+            let score_min_1h = val.get("signal_score_min_1h").and_then(|v| v.as_float()).unwrap_or(0.70);
+            let score_max_1h = val.get("signal_score_max_1h").and_then(|v| v.as_float()).unwrap_or(0.80);
+            let score_min_4h = val.get("signal_score_min_4h").and_then(|v| v.as_float()).unwrap_or(0.70);
+            let score_max_4h = val.get("signal_score_max_4h").and_then(|v| v.as_float()).unwrap_or(0.80);
+            let score_min_1d = val.get("signal_score_min_1d").and_then(|v| v.as_float()).unwrap_or(0.70);
+            let score_max_1d = val.get("signal_score_max_1d").and_then(|v| v.as_float()).unwrap_or(0.80);
             let max_hold = val.get("max_hold_bars").and_then(|v| v.as_integer()).unwrap_or(25) as i32;
+            let tf_1m = val.get("tf_1m_pct").and_then(|v| v.as_integer()).unwrap_or(0) as u16;
+            let tf_5m = val.get("tf_5m_pct").and_then(|v| v.as_integer()).unwrap_or(0) as u16;
+            let tf_15m = val.get("tf_15m_pct").and_then(|v| v.as_integer()).unwrap_or(10) as u16;
             let tf_1h = val.get("tf_1h_pct").and_then(|v| v.as_integer()).unwrap_or(70) as u16;
             let tf_4h = val.get("tf_4h_pct").and_then(|v| v.as_integer()).unwrap_or(20) as u16;
-            let tf_15m = val.get("tf_15m_pct").and_then(|v| v.as_integer()).unwrap_or(10) as u16;
-            return (score_min, score_max, max_hold, tf_1h, tf_4h, tf_15m);
+            let tf_1d = val.get("tf_1d_pct").and_then(|v| v.as_integer()).unwrap_or(0) as u16;
+            return OrderManagerSubset {
+                score_min_1m, score_max_1m,
+                score_min_5m, score_max_5m,
+                score_min_15m, score_max_15m,
+                score_min_1h, score_max_1h,
+                score_min_4h, score_max_4h,
+                score_min_1d, score_max_1d,
+                max_hold,
+                tf_1m, tf_5m, tf_15m, tf_1h, tf_4h, tf_1d,
+            };
         }
     }
-    (0.70, 0.80, 25, 70, 20, 10)
+    OrderManagerSubset {
+        score_min_1m: 0.70, score_max_1m: 0.80,
+        score_min_5m: 0.70, score_max_5m: 0.80,
+        score_min_15m: 0.70, score_max_15m: 0.80,
+        score_min_1h: 0.70, score_max_1h: 0.80,
+        score_min_4h: 0.70, score_max_4h: 0.80,
+        score_min_1d: 0.70, score_max_1d: 0.80,
+        max_hold: 25,
+        tf_1m: 0, tf_5m: 0, tf_15m: 10, tf_1h: 70, tf_4h: 20, tf_1d: 0,
+    }
 }
 
 fn load_risk_manager_toml() -> (f64, f64, f64) {
@@ -996,12 +1062,28 @@ fn save_order_manager_subset(opts: &crate::state::OrderManagerOptionsPayload) ->
     let mut val: toml::Value = content.parse().unwrap_or(toml::Value::Table(Default::default()));
 
     if let Some(table) = val.as_table_mut() {
-        table.insert("signal_score_min".to_string(), toml::Value::Float(opts.signal_score_min));
-        table.insert("signal_score_max".to_string(), toml::Value::Float(opts.signal_score_max));
+        // Per-timeframe score ranges
+        table.insert("signal_score_min_1m".to_string(), toml::Value::Float(opts.signal_score_min_1m));
+        table.insert("signal_score_max_1m".to_string(), toml::Value::Float(opts.signal_score_max_1m));
+        table.insert("signal_score_min_5m".to_string(), toml::Value::Float(opts.signal_score_min_5m));
+        table.insert("signal_score_max_5m".to_string(), toml::Value::Float(opts.signal_score_max_5m));
+        table.insert("signal_score_min_15m".to_string(), toml::Value::Float(opts.signal_score_min_15m));
+        table.insert("signal_score_max_15m".to_string(), toml::Value::Float(opts.signal_score_max_15m));
+        table.insert("signal_score_min_1h".to_string(), toml::Value::Float(opts.signal_score_min_1h));
+        table.insert("signal_score_max_1h".to_string(), toml::Value::Float(opts.signal_score_max_1h));
+        table.insert("signal_score_min_4h".to_string(), toml::Value::Float(opts.signal_score_min_4h));
+        table.insert("signal_score_max_4h".to_string(), toml::Value::Float(opts.signal_score_max_4h));
+        table.insert("signal_score_min_1d".to_string(), toml::Value::Float(opts.signal_score_min_1d));
+        table.insert("signal_score_max_1d".to_string(), toml::Value::Float(opts.signal_score_max_1d));
+        // Max hold bars
         table.insert("max_hold_bars".to_string(), toml::Value::Integer(opts.max_hold_bars as i64));
+        // Timeframe percentages
+        table.insert("tf_1m_pct".to_string(), toml::Value::Integer(opts.tf_1m_pct as i64));
+        table.insert("tf_5m_pct".to_string(), toml::Value::Integer(opts.tf_5m_pct as i64));
+        table.insert("tf_15m_pct".to_string(), toml::Value::Integer(opts.tf_15m_pct as i64));
         table.insert("tf_1h_pct".to_string(), toml::Value::Integer(opts.tf_1h_pct as i64));
         table.insert("tf_4h_pct".to_string(), toml::Value::Integer(opts.tf_4h_pct as i64));
-        table.insert("tf_15m_pct".to_string(), toml::Value::Integer(opts.tf_15m_pct as i64));
+        table.insert("tf_1d_pct".to_string(), toml::Value::Integer(opts.tf_1d_pct as i64));
     }
 
     std::fs::write(path, toml::to_string_pretty(&val)?)?;

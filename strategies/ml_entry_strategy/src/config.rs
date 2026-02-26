@@ -21,7 +21,7 @@ pub fn tf_target_move_pct() -> HashMap<i32, f64> {
     let mut m = HashMap::new();
     m.insert(1, 0.95);     // 1m:  1.0%
     m.insert(5, 2.2);    // 5m:  1.75%
-    m.insert(15, 3.6);   // 15m: 2.75%
+    m.insert(15, 3.0);   // 15m: 2.75%
     m.insert(60, 4.4);   // 1h:  3.75%
     m.insert(240, 6.0);  // 4h:  4.75%
     m.insert(1440, 8.0); // 1d:  5.75%

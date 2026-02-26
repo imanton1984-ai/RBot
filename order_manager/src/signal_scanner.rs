@@ -4,8 +4,8 @@
 // квалифицированных сигналов для открытия позиций.
 //
 // Логика фильтрации:
-//   1. combined_score в диапазоне [signal_score_min, signal_score_max] (0.70..0.80)
-//   2. Только таймфреймы 15m, 1h, 4h
+//   1. combined_score в диапазоне [signal_score_min_X, signal_score_max_X] для каждого таймфрейма
+//   2. Таймфреймы: 1m, 5m, 15m, 1h, 4h, 1d
 //   3. Только сигналы в окне lookback (для 4h смотрим -4ч от текущего времени)
 //   4. Проверка дрифта цены: |current_price - entry_price| / entry_price <= max_price_drift_pct
 //   5. Не используем сигнал, если для него уже открыта позиция
@@ -186,6 +186,9 @@ impl SignalScanner {
         lookback_minutes: i64,
         limit: u16,
     ) -> Result<Vec<RawSignalRow>> {
+        // Get per-timeframe score range
+        let (score_min, score_max) = self.get_score_range_for_tf(tf_minutes);
+
         let rows = sqlx::query(
             r#"
             SELECT
@@ -202,8 +205,8 @@ impl SignalScanner {
             "#,
         )
         .bind(tf_minutes)
-        .bind(self.config.signal_score_min)
-        .bind(self.config.signal_score_max)
+        .bind(score_min)
+        .bind(score_max)
         .bind(lookback_minutes as i32)
         .bind(limit as i64)
         .fetch_all(&self.pool)
@@ -227,6 +230,19 @@ impl SignalScanner {
             .collect();
 
         Ok(signals)
+    }
+
+    /// Get per-timeframe score range from config
+    fn get_score_range_for_tf(&self, tf_minutes: i16) -> (f32, f32) {
+        match tf_minutes {
+            1 => (self.config.signal_score_min_1m, self.config.signal_score_max_1m),
+            5 => (self.config.signal_score_min_5m, self.config.signal_score_max_5m),
+            15 => (self.config.signal_score_min_15m, self.config.signal_score_max_15m),
+            60 => (self.config.signal_score_min_1h, self.config.signal_score_max_1h),
+            240 => (self.config.signal_score_min_4h, self.config.signal_score_max_4h),
+            1440 => (self.config.signal_score_min_1d, self.config.signal_score_max_1d),
+            _ => (0.70, 0.80), // default fallback
+        }
     }
 
     /// Получить все символы, для которых уже есть ОТКРЫТАЯ позиция (на ЛЮБОМ TF).

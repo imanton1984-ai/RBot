@@ -51,8 +51,14 @@ async fn main() -> Result<()> {
     let allocation = config.timeframe_allocation();
 
     info!("Allocation: {:?}", allocation.slots);
-    info!("Score range: [{}, {}], max_drift: {}%",
-        config.signal_score_min, config.signal_score_max, config.max_price_drift_pct);
+    info!("Score ranges: 1m=[{}, {}], 5m=[{}, {}], 15m=[{}, {}], 1h=[{}, {}], 4h=[{}, {}], 1d=[{}, {}]",
+        config.signal_score_min_1m, config.signal_score_max_1m,
+        config.signal_score_min_5m, config.signal_score_max_5m,
+        config.signal_score_min_15m, config.signal_score_max_15m,
+        config.signal_score_min_1h, config.signal_score_max_1h,
+        config.signal_score_min_4h, config.signal_score_max_4h,
+        config.signal_score_min_1d, config.signal_score_max_1d);
+    info!("Max drift: {}%", config.max_price_drift_pct);
 
     // Load exchange credentials (retry-friendly — don't crash on failure)
     let exchange_settings = match settings_lib::ExchangeSettings::load_with_env() {

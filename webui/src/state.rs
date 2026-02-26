@@ -205,12 +205,25 @@ pub struct TradingOptionsPayload {
 /// Order Manager Options (maps to subset of config/order_manager.toml)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderManagerOptionsPayload {
-    pub signal_score_min: f64,
-    pub signal_score_max: f64,
+    pub signal_score_min_1m: f64,
+    pub signal_score_max_1m: f64,
+    pub signal_score_min_5m: f64,
+    pub signal_score_max_5m: f64,
+    pub signal_score_min_15m: f64,
+    pub signal_score_max_15m: f64,
+    pub signal_score_min_1h: f64,
+    pub signal_score_max_1h: f64,
+    pub signal_score_min_4h: f64,
+    pub signal_score_max_4h: f64,
+    pub signal_score_min_1d: f64,
+    pub signal_score_max_1d: f64,
     pub max_hold_bars: i32,
+    pub tf_1m_pct: u16,
+    pub tf_5m_pct: u16,
+    pub tf_15m_pct: u16,
     pub tf_1h_pct: u16,
     pub tf_4h_pct: u16,
-    pub tf_15m_pct: u16,
+    pub tf_1d_pct: u16,
 }
 
 /// Risk Manager Options (subset of config/risk_manager.toml)

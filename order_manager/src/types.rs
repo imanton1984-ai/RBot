@@ -318,9 +318,12 @@ impl TimeframeAllocation {
     pub fn default_10() -> Self {
         Self {
             slots: vec![
+                (1, 0),    // 1m: 0%
+                (5, 0),    // 5m: 0%
+                (15, 1),   // 15m: 10%
                 (60, 7),   // 1h: 70%
                 (240, 2),  // 4h: 20%
-                (15, 1),   // 15m: 10%
+                (1440, 0), // 1d: 0%
             ],
             total: 10,
         }

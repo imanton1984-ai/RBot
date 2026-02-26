@@ -4,8 +4,6 @@
 //
 // Generates trade signals from predictions
 
-use anyhow::Result;
-
 /// Level Strategy Trade Signal
 #[derive(Debug, Clone)]
 pub struct LevelStrategySignal {
@@ -23,12 +21,12 @@ pub struct LevelStrategySignal {
 
 /// Level Strategy Signal Generator
 pub struct SignalGenerator {
-    config: crate::config::LevelStrategyConfig,
+    _config: crate::config::LevelStrategyConfig,
 }
 
 impl SignalGenerator {
     pub fn new(config: crate::config::LevelStrategyConfig) -> Self {
-        Self { config }
+        Self { _config: config }
     }
 
     /// Generate a trade signal from predictions

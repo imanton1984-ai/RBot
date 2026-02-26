@@ -9,9 +9,19 @@
 //   3. PositionTracker — отслеживает PnL, candles_left, отправляет в WebUI
 //
 // Пропорции одновременных позиций (при 10 ордерах):
+//   - 1m:  0% → 0 слотов
+//   - 5m:  0% → 0 слотов
+//   - 15m: 10% → 1 слот
 //   - 1h:  70% → 7 слотов
 //   - 4h:  20% → 2 слота
-//   - 15m: 10% → 1 слот
+//   - 1d:  0% → 0 слотов
+
+pub use types::*;
+pub use config::OrderManagerConfig;
+pub use exchange_info::ExchangeInfoCache;
+pub use signal_scanner::SignalScanner;
+pub use order_executor::OrderExecutor;
+pub use position_tracker::PositionTracker;
 
 pub mod types;
 pub mod config;
@@ -22,10 +32,3 @@ pub mod position_tracker;
 
 #[cfg(test)]
 mod tests_synthetic;
-
-pub use types::*;
-pub use config::OrderManagerConfig;
-pub use exchange_info::ExchangeInfoCache;
-pub use signal_scanner::SignalScanner;
-pub use order_executor::OrderExecutor;
-pub use position_tracker::PositionTracker;

@@ -493,15 +493,15 @@ mod synthetic_futures_tests {
     fn test_signal_score_in_range() {
         let config = OrderManagerConfig::default();
         let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.75);
-        assert!(signal.combined_score >= config.signal_score_min);
-        assert!(signal.combined_score <= config.signal_score_max);
+        assert!(signal.combined_score >= config.signal_score_min_1h);
+        assert!(signal.combined_score <= config.signal_score_max_1h);
     }
 
     #[test]
     fn test_signal_score_below_range() {
         let config = OrderManagerConfig::default();
         let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.60);
-        assert!(signal.combined_score < config.signal_score_min,
+        assert!(signal.combined_score < config.signal_score_min_1h,
             "Signal with score 0.60 should be below min threshold 0.70");
     }
 
@@ -509,7 +509,7 @@ mod synthetic_futures_tests {
     fn test_signal_score_above_range() {
         let config = OrderManagerConfig::default();
         let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.90);
-        assert!(signal.combined_score > config.signal_score_max,
+        assert!(signal.combined_score > config.signal_score_max_1h,
             "Signal with score 0.90 should be above max threshold 0.80");
     }
 
@@ -670,8 +670,8 @@ mod synthetic_futures_tests {
     #[test]
     fn test_config_invalid_score_range() {
         let mut config = OrderManagerConfig::default();
-        config.signal_score_min = 0.9;
-        config.signal_score_max = 0.8;
+        config.signal_score_min_1h = 0.9;
+        config.signal_score_max_1h = 0.8;
         assert!(config.validate().is_err(), "min > max should fail validation");
     }
 

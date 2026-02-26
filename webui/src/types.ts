@@ -139,12 +139,25 @@ export interface TradingOptions {
 
 // ─── Order Manager Options (order_manager.toml) ────────────
 export interface OrderManagerOptions {
-  signal_score_min: number;
-  signal_score_max: number;
+  signal_score_min_1m: number;
+  signal_score_max_1m: number;
+  signal_score_min_5m: number;
+  signal_score_max_5m: number;
+  signal_score_min_15m: number;
+  signal_score_max_15m: number;
+  signal_score_min_1h: number;
+  signal_score_max_1h: number;
+  signal_score_min_4h: number;
+  signal_score_max_4h: number;
+  signal_score_min_1d: number;
+  signal_score_max_1d: number;
   max_hold_bars: number;
+  tf_1m_pct: number;
+  tf_5m_pct: number;
+  tf_15m_pct: number;
   tf_1h_pct: number;
   tf_4h_pct: number;
-  tf_15m_pct: number;
+  tf_1d_pct: number;
 }
 
 // ─── Risk Manager Options (subset of risk_manager.toml) ────
