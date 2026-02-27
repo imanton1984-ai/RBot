@@ -57,7 +57,10 @@ export function useWebSocket() {
             wsState.setLow24h(message.low_24h);
             break;
           case 'candle_update':
-            dataState.updateCandle({
+            // Store the raw candle update with pair+tf so ChartPanel can filter
+            dataState.setLastCandleUpdate({
+              pair: message.pair,
+              tf: message.tf,
               t: message.t,
               o: message.o,
               h: message.h,

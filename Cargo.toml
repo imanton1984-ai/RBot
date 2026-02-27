@@ -11,6 +11,7 @@ members = [
   "orderflow",        # <-- модуль order flow метрик
   "backtester",       # <-- бэктестер для оценки сигналов
   "strategies/ml_entry_strategy", # <-- ML Entry Strategy (Super Entry)
+  "strategies/ewmac_strategy",   # <-- EWMAC Strategy (Trend-Following)
   "strategies/level_strategy",    # <-- Level Strategy (базовая стратегия)
   "settings",                     # <-- Настройки ордеров и биржи
   "risk_manager",                 # <-- Risk Manager (мониторинг рисков)

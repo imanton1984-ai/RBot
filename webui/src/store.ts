@@ -49,6 +49,18 @@ interface UiState {
   setStatistics: (stats: FullStatistics | null) => void;
 }
 
+/** Candle update from WebSocket with pair+tf metadata */
+export interface WsCandleUpdate {
+  pair: string;
+  tf: number;
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
 interface DataState {
   candles: Candle[];
   indicators: Record<string, Indicator[]>;
@@ -61,6 +73,7 @@ interface DataState {
   connections: ConnectionStatus | null;
   tradingOptions: TradingOptions | null;
   terminalLogs: TerminalLog[];
+  lastCandleUpdate: WsCandleUpdate | null;
   setCandles: (candles: Candle[]) => void;
   setIndicators: (type: string, data: Indicator[]) => void;
   setPositions: (positions: Position[]) => void;
@@ -75,6 +88,7 @@ interface DataState {
   clearTerminalLogs: () => void;
   updateCandle: (candle: Candle) => void;
   updatePosition: (position: Position) => void;
+  setLastCandleUpdate: (update: WsCandleUpdate) => void;
 }
 
 export const useTradingStore = create<TradingState>((set) => ({
@@ -136,8 +150,10 @@ export const useDataStore = create<DataState>((set) => ({
     return { terminalLogs: [...state.terminalLogs.slice(-99), log] }; // Keep max 100
   }),
   clearTerminalLogs: () => set({ terminalLogs: [] }),
+  lastCandleUpdate: null,
   updateCandle: (candle) => set((state) => ({ candles: state.candles.length > 0 ? [...state.candles.slice(0, -1), candle] : [candle] })),
   updatePosition: (position) => set((state) => ({ positions: state.positions.map(p => p.id === position.id ? position : p) })),
+  setLastCandleUpdate: (update) => set({ lastCandleUpdate: update }),
 }));
 
 export const useWsStore = create<WsState>((set) => ({

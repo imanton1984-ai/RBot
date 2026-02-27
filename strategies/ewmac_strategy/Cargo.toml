@@ -1,0 +1,32 @@
+[package]
+name = "ewmac_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ewmac_backtest"
+path = "src/bin/backtest.rs"
+
+[[bin]]
+name = "ewmac_service"
+path = "src/bin/service.rs"
+
+[dependencies]
+# Workspace deps
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true, features = ["derive"] }
+dotenvy = { workspace = true }
+
+# Local crates
+common = { path = "../../common" }
+
+# Extra
+csv = "1.3"

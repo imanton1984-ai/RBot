@@ -23,7 +23,19 @@ async fn main() -> anyhow::Result<()> {
     let pool = PgPoolOptions::new().max_connections(20).connect(&database_url).await?;
     tracing::info!("Connected to database");
 
-    let state = AppState::new(pool, webui::state::WebUiSettings::default());
+    // Spawn signal archiver background task (moves signals >24h old, hourly)
+    let archiver_pool = pool.clone();
+    tokio::spawn(async move {
+        database_lib::run_signal_archiver_loop(archiver_pool).await;
+    });
+    tracing::info!("Signal archiver background task spawned");
+
+    let state = AppState::new(pool.clone(), webui::state::WebUiSettings::default());
+
+    // Spawn candle broadcaster: polls candles_live every 5s → broadcasts via WebSocket
+    webui::candle_broadcaster::spawn_candle_broadcaster(pool.clone(), state.ws_sender.clone());
+    tracing::info!("Candle broadcaster background task spawned");
+
     let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
     let app = create_app(state.clone(), cors);
 

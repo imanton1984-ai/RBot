@@ -129,14 +129,21 @@ pub struct StatsSummary {
     pub losing_trades: i64,
     pub win_rate: f64,
     pub total_pnl: f64,
+    pub total_pnl_pct: f64,       // PnL as % of balance
     pub avg_win: f64,
+    pub avg_win_pct: f64,         // avg win as %
     pub avg_loss: f64,
+    pub avg_loss_pct: f64,        // avg loss as %
     pub profit_factor: f64,
     pub best_trade: f64,
+    pub best_trade_pct: f64,
     pub worst_trade: f64,
+    pub worst_trade_pct: f64,
     pub avg_trade_duration_hours: f64,
     pub max_consecutive_wins: i64,
     pub max_consecutive_losses: i64,
+    pub expectancy: f64,          // (win_rate * avg_win + (1-win_rate) * avg_loss)
+    pub sharpe_approx: f64,       // rough Sharpe ratio approximation
 }
 
 #[derive(Debug, Serialize)]
@@ -229,6 +236,21 @@ pub struct MonthlyStats {
 }
 
 #[derive(Debug, Serialize)]
+pub struct DayPartStats {
+    pub bucket: String,      // "Morning", "Day", "Evening", "Night"
+    pub hours: String,        // "06:00–12:00"
+    pub trades: i64,
+    pub wins: i64,
+    pub losses: i64,
+    pub pnl: f64,
+    pub pnl_pct: f64,       // PnL as % of balance
+    pub win_rate: f64,
+    pub avg_pnl: f64,
+    pub best_trade: f64,
+    pub worst_trade: f64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct FullStatistics {
     pub summary: StatsSummary,
     pub timeline: PnlTimeline,
@@ -238,6 +260,7 @@ pub struct FullStatistics {
     pub daily: TimeBasedStats,
     pub weekly: TimeBasedStats,
     pub monthly: Vec<MonthlyStats>,
+    pub day_parts: Vec<DayPartStats>,
 }
 
 #[derive(Debug, Serialize)]
@@ -603,9 +626,11 @@ pub async fn get_open_positions(
 ) -> Result<Json<Vec<PositionRow>>, StatusCode> {
     // FIX #6: Calculate pnl_pct dynamically.
     // FIX #11: Priority for current_price:
-    //   1. candles_live (real-time from WebSocket, updated every ~200ms)
-    //   2. positions.current_price (from position_tracker, updated every 3s)
-    //   3. entry_price (fallback)
+    //   1. candles_live (real-time from WebSocket ingestor, updated every ~200ms)
+    //   2. positions.current_price (from position_tracker, updated every 2-3s)
+    //   3. entry_price (fallback — only if nothing else available)
+    // NOTE: Removed NULLIF(current_price, entry_price) — it was incorrectly hiding
+    // valid current_price values when they equaled entry_price (e.g., just opened).
     let rows = sqlx::query(
         "SELECT p.id,
                 mp.symbol as pair,
@@ -614,7 +639,6 @@ pub async fn get_open_positions(
                 p.entry_price,
                 COALESCE(
                     cl.close,
-                    NULLIF(p.current_price, p.entry_price),
                     p.current_price,
                     p.entry_price,
                     0
@@ -625,8 +649,8 @@ pub async fn get_open_positions(
                 CASE
                     WHEN p.entry_price > 0 AND p.qty > 0 THEN
                         CASE WHEN p.side = 1
-                            THEN (COALESCE(cl.close, NULLIF(p.current_price, p.entry_price), p.entry_price) - p.entry_price) / p.entry_price * 100.0
-                            ELSE (p.entry_price - COALESCE(cl.close, NULLIF(p.current_price, p.entry_price), p.entry_price)) / p.entry_price * 100.0
+                            THEN (COALESCE(cl.close, p.current_price, p.entry_price) - p.entry_price) / p.entry_price * 100.0
+                            ELSE (p.entry_price - COALESCE(cl.close, p.current_price, p.entry_price)) / p.entry_price * 100.0
                         END
                     ELSE 0
                 END::double precision as pnl_pct,
@@ -792,6 +816,22 @@ pub async fn get_statistics(
     let gross_loss = if losing_trades > 0 { avg_loss.abs() * losing_trades as f64 } else { 0.0 };
     let profit_factor = if gross_loss > 0.0 { gross_profit / gross_loss } else { if gross_profit > 0.0 { f64::INFINITY } else { 0.0 } };
 
+    // Get balance for % calculations
+    let balance_for_pct = get_binance_balance_internal().await.wallet_balance.max(1.0);
+
+    // % calculations
+    let total_pnl_pct = (total_pnl / balance_for_pct) * 100.0;
+    let avg_win_pct = (avg_win / balance_for_pct) * 100.0;
+    let avg_loss_pct = (avg_loss / balance_for_pct) * 100.0;
+    let best_trade_pct = (best_trade / balance_for_pct) * 100.0;
+    let worst_trade_pct = (worst_trade / balance_for_pct) * 100.0;
+
+    // Expectancy = (win_rate/100 * avg_win) + ((1 - win_rate/100) * avg_loss)
+    let expectancy = (win_rate / 100.0) * avg_win + (1.0 - win_rate / 100.0) * avg_loss;
+
+    // Rough Sharpe approximation: expectancy / stddev(trade_pnl)
+    let sharpe_approx = calculate_sharpe_approx(&state.db_pool, start_date, end_date, expectancy).await.unwrap_or(0.0);
+
     // Calculate max consecutive wins/losses
     let (max_consecutive_wins, max_consecutive_losses) = calculate_consecutive(&state.db_pool, start_date, end_date).await.unwrap_or((0, 0));
 
@@ -801,14 +841,21 @@ pub async fn get_statistics(
         losing_trades,
         win_rate,
         total_pnl,
+        total_pnl_pct,
         avg_win,
+        avg_win_pct,
         avg_loss,
+        avg_loss_pct,
         profit_factor,
         best_trade,
+        best_trade_pct,
         worst_trade,
+        worst_trade_pct,
         avg_trade_duration_hours: avg_duration_hours,
         max_consecutive_wins,
         max_consecutive_losses,
+        expectancy,
+        sharpe_approx,
     };
 
     // ─── PNL TIMELINE ──────────────────────────────────────────────────
@@ -826,6 +873,9 @@ pub async fn get_statistics(
     let weekly = calculate_weekly_stats(&state.db_pool, start_date, end_date).await?;
     let monthly = calculate_monthly_stats(&state.db_pool, start_date, end_date).await?;
 
+    // ─── DAY PART STATS (Morning/Day/Evening/Night) ────────────────────
+    let day_parts = calculate_day_part_stats(&state.db_pool, start_date, end_date, balance_for_pct).await?;
+
     Ok(Json(FullStatistics {
         summary,
         timeline,
@@ -835,6 +885,7 @@ pub async fn get_statistics(
         daily,
         weekly,
         monthly,
+        day_parts,
     }))
 }
 
@@ -1392,6 +1443,117 @@ async fn calculate_monthly_stats(
     }).collect();
 
     Ok(monthly)
+}
+
+/// Calculate day-part (Morning/Day/Evening/Night) statistics.
+/// Buckets: Morning=06-12, Day=12-18, Evening=18-00, Night=00-06 (UTC).
+async fn calculate_day_part_stats(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+    balance: f64,
+) -> Result<Vec<DayPartStats>, StatusCode> {
+    let rows = sqlx::query(&format!(
+        "SELECT * FROM (
+            SELECT
+                CASE
+                    WHEN EXTRACT(HOUR FROM closed_at) >= 6  AND EXTRACT(HOUR FROM closed_at) < 12 THEN 'Morning'
+                    WHEN EXTRACT(HOUR FROM closed_at) >= 12 AND EXTRACT(HOUR FROM closed_at) < 18 THEN 'Day'
+                    WHEN EXTRACT(HOUR FROM closed_at) >= 18 THEN 'Evening'
+                    ELSE 'Night'
+                END as bucket,
+                COUNT(*) as trades,
+                COUNT(*) FILTER (WHERE realized_pnl > 0) as wins,
+                COUNT(*) FILTER (WHERE realized_pnl <= 0) as losses,
+                COALESCE(SUM(realized_pnl), 0) as pnl,
+                COALESCE(AVG(realized_pnl), 0) as avg_pnl,
+                COALESCE(MAX(realized_pnl), 0) as best_trade,
+                COALESCE(MIN(realized_pnl), 0) as worst_trade
+             FROM (
+               SELECT realized_pnl, closed_at FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+               UNION ALL
+               SELECT COALESCE(p.realized_pnl, p.unrealized_pnl, 0) as realized_pnl, COALESCE(p.closed_at, now()) as closed_at
+               FROM trade.positions p
+               JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+               WHERE p.status = 2 AND COALESCE(p.closed_at, now()) BETWEEN {0} AND {1}
+                 AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+             ) as all_history
+             GROUP BY 1
+        ) sub
+        ORDER BY
+            CASE sub.bucket
+                WHEN 'Morning' THEN 1
+                WHEN 'Day' THEN 2
+                WHEN 'Evening' THEN 3
+                WHEN 'Night' THEN 4
+            END",
+        start_date, end_date
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(|e| { tracing::error!("Day part stats error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let hours_map: std::collections::HashMap<&str, &str> = [
+        ("Morning", "06:00–12:00"),
+        ("Day", "12:00–18:00"),
+        ("Evening", "18:00–00:00"),
+        ("Night", "00:00–06:00"),
+    ].into_iter().collect();
+
+    let data: Vec<DayPartStats> = rows.iter().map(|r| {
+        let trades: i64 = r.get("trades");
+        let wins: i64 = r.get("wins");
+        let losses: i64 = r.get("losses");
+        let pnl: f64 = r.get("pnl");
+        let bucket: String = r.get("bucket");
+        DayPartStats {
+            hours: hours_map.get(bucket.as_str()).unwrap_or(&"").to_string(),
+            bucket,
+            trades,
+            wins,
+            losses,
+            pnl,
+            pnl_pct: if balance > 0.0 { (pnl / balance) * 100.0 } else { 0.0 },
+            win_rate: if trades > 0 { (wins as f64 / trades as f64) * 100.0 } else { 0.0 },
+            avg_pnl: r.get("avg_pnl"),
+            best_trade: r.get("best_trade"),
+            worst_trade: r.get("worst_trade"),
+        }
+    }).collect();
+
+    Ok(data)
+}
+
+/// Calculate rough Sharpe ratio approximation: expectancy / stddev(trade_pnl).
+async fn calculate_sharpe_approx(
+    pool: &sqlx::PgPool,
+    start_date: &str,
+    end_date: &str,
+    expectancy: f64,
+) -> Result<f64, StatusCode> {
+    let row = sqlx::query(&format!(
+        "SELECT COALESCE(STDDEV(realized_pnl), 0) as stddev_pnl
+         FROM (
+           SELECT realized_pnl FROM trade.position_history WHERE closed_at BETWEEN {0} AND {1}
+           UNION ALL
+           SELECT COALESCE(realized_pnl, unrealized_pnl, 0) as realized_pnl
+           FROM trade.positions p
+           JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
+           WHERE p.status = 2 AND COALESCE(closed_at, now()) BETWEEN {0} AND {1}
+             AND NOT EXISTS (SELECT 1 FROM trade.position_history ph WHERE ph.position_id = p.id)
+         ) as all_history",
+        start_date, end_date
+    ))
+    .fetch_one(pool)
+    .await
+    .map_err(|e| { tracing::error!("Sharpe error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let stddev: f64 = row.get("stddev_pnl");
+    if stddev > 0.0 {
+        Ok(expectancy / stddev)
+    } else {
+        Ok(0.0)
+    }
 }
 
 // ─── GET /api/pnl/overview ─────────────────────────────────────────────

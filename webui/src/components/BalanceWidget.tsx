@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useDataStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
@@ -6,18 +6,26 @@ import { Wallet } from 'lucide-react';
 
 export default function BalanceWidget() {
   const { balance, setBalance } = useDataStore();
+  const positions = useDataStore((s) => s.positions);
 
   const { data } = useQuery({
     queryKey: ['balance'],
     queryFn: () => apiService.getBalance(),
-    refetchInterval: 30000,
+    refetchInterval: 15000,
+    staleTime: 10000,
   });
 
   useEffect(() => {
     if (data) setBalance(data);
-  }, [data]);
+  }, [data, setBalance]);
 
   const bal = balance || data || { overall: 0, in_orders: 0, available: 0, wallet_balance: 0, unrealized_pnl: 0 };
+
+  // Derive live unrealized PnL from open positions (updates every 2s) — synced with PositionsPanel
+  const liveUnrealizedPnl = useMemo(() => {
+    if (!positions || positions.length === 0) return bal.unrealized_pnl ?? 0;
+    return positions.reduce((sum: number, pos: any) => sum + (pos.pnl_usdt ?? 0), 0);
+  }, [positions, bal.unrealized_pnl]);
 
   return (
     <div className="card m-3 mb-0">
@@ -53,11 +61,16 @@ export default function BalanceWidget() {
             <span className="text-textSecondary">Available</span>
             <span className="text-textPrimary">${bal.available?.toFixed(2) ?? '0.00'}</span>
           </div>
-          {/* Unrealized PnL */}
+          {/* Unrealized PnL — synced with Open Positions (fastest source) */}
           <div className="flex justify-between items-center text-xs">
             <span className="text-textSecondary">Unrealized PnL</span>
-            <span className={bal.unrealized_pnl >= 0 ? 'text-bull' : 'text-bear'}>
-              {bal.unrealized_pnl >= 0 ? '+' : ''}${bal.unrealized_pnl?.toFixed(2) ?? '0.00'}
+            <span className={liveUnrealizedPnl >= 0 ? 'text-bull' : 'text-bear'}>
+              {liveUnrealizedPnl >= 0 ? '+' : ''}${liveUnrealizedPnl.toFixed(2)}
+              {bal.wallet_balance > 0 && (
+                <span className="text-[10px] ml-1 opacity-70">
+                  ({liveUnrealizedPnl >= 0 ? '+' : ''}{((liveUnrealizedPnl / bal.wallet_balance) * 100).toFixed(2)}%)
+                </span>
+              )}
             </span>
           </div>
         </div>

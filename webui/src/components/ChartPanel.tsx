@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
-import { useTradingStore, useUiStore, useDataStore } from '../store';
+import { useTradingStore, useUiStore, useDataStore, useWsStore } from '../store';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../api';
 import { ChevronDown, LineChart, LayoutGrid, Settings2 } from 'lucide-react';
@@ -99,6 +99,8 @@ export default function ChartPanel() {
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const priceLinesRef = useRef<any[]>([]);
+  // Track whether initial fitContent has been done for this pair/tf combo
+  const initialFitDoneRef = useRef<string>('');
 
   const queryClient = useQueryClient();
   const { currentPair, currentTf, setCurrentTf } = useTradingStore();
@@ -115,19 +117,15 @@ export default function ChartPanel() {
     queryClient.invalidateQueries({ queryKey: ['candles', currentPair, currentTf] });
   }, [currentPair, currentTf, queryClient]);
 
-  // Load candles — FIX #4: reduced interval from 15s → 3s for near-real-time chart updates.
-  // Candles come from DB (ingestor writes them). For the current (forming) candle,
-  // the ingestor updates it every few seconds, so 3s poll gives smooth updates.
-  // NOTE: 1m/5m/15m/1h have WebSocket streams (live updates in candles_live).
-  // 4h/1d use poll-on-close (no intra-candle updates), but we still poll frequently
-  // to catch the moment when the candle closes and new data appears.
+  // Load candles via HTTP — serves as initial load & periodic full sync.
+  // Real-time updates come via WebSocket (candle_update) every 5s from candle_broadcaster.
+  // HTTP poll every 30s is a fallback to catch any missed WS messages or closed candles.
   const { data: candleData, isLoading } = useQuery({
     queryKey: ['candles', currentPair, currentTf],
-    queryFn: () => apiService.getCandles(currentPair, currentTf, 2000),
-    refetchInterval: 3000,
-    staleTime: 2000,
+    queryFn: () => apiService.getCandles(currentPair, currentTf, 5000),
+    refetchInterval: 30000,
+    staleTime: 10000,
     retry: 1,
-    // Refetch on window focus to ensure fresh data when switching back to chart
     refetchOnWindowFocus: true,
   });
 
@@ -173,6 +171,10 @@ export default function ChartPanel() {
         borderColor: 'rgba(255,255,255,0.06)',
         timeVisible: true,
         secondsVisible: false,
+        // Right offset: ~40px ≈ 1cm+ gap from right edge of chart area
+        rightOffset: 12,
+        // Don't shift to bar edge automatically
+        shiftVisibleRangeOnNewBar: true,
       },
       rightPriceScale: {
         borderColor: 'rgba(255,255,255,0.06)',
@@ -205,6 +207,9 @@ export default function ChartPanel() {
     candleSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
     setChartReady(true);
+
+    // Reset initialFitDone when chart is recreated
+    initialFitDoneRef.current = '';
 
     return () => {
       chart.remove();
@@ -254,9 +259,8 @@ export default function ChartPanel() {
       color: c.c >= c.o ? 'rgba(14, 203, 129, 0.3)' : 'rgba(246, 70, 93, 0.3)',
     }));
 
-    // FIX #10: Since markers are now on the open bar (not in the future),
-    // we only need a small whitespace buffer for visual padding.
-    const whitespaceBars = 5;
+    // Whitespace bars for right-side padding (rightOffset handles visual gap)
+    const whitespaceBars = 3;
 
     const lastCandle = candleData[candleData.length - 1];
     const lastTimeSec = Math.floor(lastCandle.t / 1000);
@@ -269,8 +273,19 @@ export default function ChartPanel() {
     candleSeriesRef.current.setData([...candles, ...whitespace]);
     volumeSeriesRef.current.setData(volume);
     setCandles(candleData);
-    chartRef.current?.timeScale().fitContent();
-  }, [candleData, chartReady, currentPair, currentTf, setCandles, currentPairPositions]);
+
+    // Only fitContent on FIRST load for this pair/tf combo.
+    // On subsequent updates (new candles), just let the chart scroll naturally
+    // via shiftVisibleRangeOnNewBar. This prevents annoying auto-zoom.
+    const fitKey = `${currentPair}:${currentTf}`;
+    if (initialFitDoneRef.current !== fitKey) {
+      chartRef.current?.timeScale().fitContent();
+      initialFitDoneRef.current = fitKey;
+    } else {
+      // Scroll to show the latest candle without changing zoom level
+      chartRef.current?.timeScale().scrollToRealTime();
+    }
+  }, [candleData, chartReady, currentPair, currentTf, setCandles]);
 
   // Draw TP/SL lines and Candles Left marker for active positions
   useEffect(() => {
@@ -362,6 +377,40 @@ export default function ChartPanel() {
       }
     };
   }, [chartReady, currentPairPositions, candleData, currentTf]);
+
+  // ─── WebSocket real-time candle update (every ~5s from candle_broadcaster) ───
+  // Subscribes to lastCandleUpdate from the store. When a candle_update arrives
+  // matching the current pair+tf, directly updates the chart via .update()
+  // for smooth, near-real-time rendering without full HTTP refetch.
+  const lastCandleUpdate = useDataStore((s) => s.lastCandleUpdate);
+
+  useEffect(() => {
+    if (!chartReady || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+    if (!lastCandleUpdate) return;
+
+    // Only process updates for the currently viewed pair+tf
+    if (lastCandleUpdate.pair !== currentPair || lastCandleUpdate.tf !== currentTf) return;
+
+    const timeSec = Math.floor(lastCandleUpdate.t / 1000) as any;
+
+    // Update candlestick series
+    candleSeriesRef.current.update({
+      time: timeSec,
+      open: lastCandleUpdate.o,
+      high: lastCandleUpdate.h,
+      low: lastCandleUpdate.l,
+      close: lastCandleUpdate.c,
+    });
+
+    // Update volume series
+    volumeSeriesRef.current.update({
+      time: timeSec,
+      value: lastCandleUpdate.v,
+      color: lastCandleUpdate.c >= lastCandleUpdate.o
+        ? 'rgba(14, 203, 129, 0.3)'
+        : 'rgba(246, 70, 93, 0.3)',
+    });
+  }, [lastCandleUpdate, chartReady, currentPair, currentTf]);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">

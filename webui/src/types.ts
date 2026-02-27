@@ -209,14 +209,35 @@ export interface StatsSummary {
   losing_trades: number;
   win_rate: number;
   total_pnl: number;
+  total_pnl_pct: number;
   avg_win: number;
+  avg_win_pct: number;
   avg_loss: number;
+  avg_loss_pct: number;
   profit_factor: number;
   best_trade: number;
+  best_trade_pct: number;
   worst_trade: number;
+  worst_trade_pct: number;
   avg_trade_duration_hours: number;
   max_consecutive_wins: number;
   max_consecutive_losses: number;
+  expectancy: number;
+  sharpe_approx: number;
+}
+
+export interface DayPartStats {
+  bucket: string;
+  hours: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  pnl: number;
+  pnl_pct: number;
+  win_rate: number;
+  avg_pnl: number;
+  best_trade: number;
+  worst_trade: number;
 }
 
 export interface PnlTimePoint {
@@ -306,4 +327,5 @@ export interface FullStatistics {
   daily: TimeBasedStats;
   weekly: TimeBasedStats;
   monthly: MonthlyStats[];
+  day_parts: DayPartStats[];
 }

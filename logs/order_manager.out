@@ -1,0 +1,396 @@
+[2m2026-02-27T10:27:58.165953Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-27T10:27:58.165991Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-02-27T10:27:58.166001Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-27T10:27:58.166108Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:27:58.166128Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(1, 0), (5, 0), (15, 0), (60, 7), (240, 3), (1440, 0)]
+[2m2026-02-27T10:27:58.166142Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Score ranges: 1m=[0.55, 0.89], 5m=[0.8, 0.9], 15m=[0.55, 0.89], 1h=[0.55, 0.89], 4h=[0.55, 0.89], 1d=[0.55, 0.89]
+[2m2026-02-27T10:27:58.166151Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Max drift: 0.25%
+[2m2026-02-27T10:27:58.166208Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-02-27T10:27:58.166219Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-02-27T10:27:58.166224Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=10x, trade_size=10 USDT (percent_depo), strategy=ml_super_entry
+[2m2026-02-27T10:27:58.166230Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m ⚠️ Trading mode is OFF — order_manager will run but NOT scan or trade.
+[2m2026-02-27T10:27:58.166234Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m   Click START TRADING in WebUI or set trading_mode = "auto" in order_manager.toml
+[2m2026-02-27T10:27:58.172197Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-02-27T10:27:59.388809Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 130.24 | Positions: 0
+[2m2026-02-27T10:27:59.396709Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-02-27T10:27:59.398597Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-02-27T10:27:59.924050Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 685 symbols
+[2m2026-02-27T10:27:59.924150Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 597 active symbols
+[2m2026-02-27T10:27:59.924159Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 597 symbols
+[2m2026-02-27T10:27:59.930963Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-02-27T10:27:59.930988Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-02-27T10:27:59.930995Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-02-27T10:27:59.931008Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-27T10:27:59.931013Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-02-27T10:27:59.931018Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-02-27T10:27:59.931092Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:27:59.931416Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-02-27T10:27:59.937167Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:27:59.942408Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:28:29.943179Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:28:29.944382Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:28:29.945113Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:28:59.946701Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:28:59.947108Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:28:59.947966Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:29:29.949295Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:29:29.949624Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:29:29.950429Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:29:59.952066Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:29:59.952466Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:29:59.953307Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:30:29.954206Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:30:29.954680Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:30:29.955593Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:30:59.956154Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:30:59.956460Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:30:59.956869Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:31:29.957137Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:31:29.957477Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:31:29.957936Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:31:59.958184Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:31:59.958487Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:31:59.958917Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:32:29.960085Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:32:29.960420Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:32:29.960819Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:32:59.961798Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:32:59.962147Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:32:59.962576Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:33:29.963121Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:33:29.963477Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:33:29.963903Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:33:59.964115Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:33:59.964444Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:33:59.964899Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:34:29.965121Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:34:29.965518Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:34:29.966012Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:34:59.967124Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:34:59.967466Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:34:59.967877Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:35:29.968704Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:35:29.969071Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:35:29.969539Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:35:59.970299Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:35:59.970652Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:35:59.971136Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:36:29.973125Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:36:29.973489Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:36:29.973946Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:36:59.974678Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:36:59.975068Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:36:59.975549Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:37:29.976904Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:37:29.977514Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:37:29.977996Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:37:59.979679Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:37:59.980072Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:37:59.980535Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:38:29.982028Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:38:29.982429Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:38:29.982949Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:38:59.983869Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:38:59.984244Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:38:59.984728Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:39:29.985887Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:39:29.986252Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:39:29.986779Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:39:59.987362Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:39:59.988560Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:39:59.989136Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:40:29.990245Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:40:29.990588Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:40:29.991061Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:40:59.992116Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:40:59.992481Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:40:59.992920Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:41:29.993862Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:41:29.994239Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:41:29.994717Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:41:59.995161Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:41:59.995681Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:41:59.999735Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:42:30.000121Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:42:30.000508Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:42:30.004134Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:43:00.005905Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:43:00.006267Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:43:00.009515Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:43:30.010126Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:43:30.014903Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:43:30.030353Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:43:30.030380Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:44:00.031824Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:44:00.036121Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:44:00.067577Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:44:00.067602Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:44:30.068772Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:44:30.073660Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:44:30.105281Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:44:30.105313Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:45:00.106112Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:45:00.107787Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:45:00.114555Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:45:00.114570Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:45:30.115878Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:45:30.116283Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:45:30.122095Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:45:30.122131Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:46:00.123677Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:46:00.124129Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:46:00.130090Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:46:00.130110Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:46:30.131758Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:46:30.132149Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:46:30.138212Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:46:30.138236Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:47:00.140130Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:47:00.140485Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:47:00.145751Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:47:00.145766Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:47:30.146628Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:47:30.146981Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:47:30.152140Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:47:30.152159Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:48:00.153338Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:48:00.153651Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:48:00.158863Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:48:00.158883Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:48:30.159118Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:48:30.159488Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:48:30.164568Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:48:30.164590Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:49:00.165514Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:49:00.165847Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:49:00.169137Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:49:00.169150Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:49:30.170448Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:49:30.170785Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:49:30.172494Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:50:00.173683Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:50:00.174028Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:50:00.175831Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:50:30.176953Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:50:30.177346Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:50:30.186622Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 6 qualified signals across timeframes
+[2m2026-02-27T10:50:30.186641Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 6 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:51:00.187114Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:51:00.187423Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:51:00.195015Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 6 qualified signals across timeframes
+[2m2026-02-27T10:51:00.195034Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 6 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:51:30.196303Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:51:30.196663Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:51:30.206417Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 3 qualified signals across timeframes
+[2m2026-02-27T10:51:30.206434Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 3 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:52:00.207327Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:52:00.207613Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:52:00.218508Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 3 qualified signals across timeframes
+[2m2026-02-27T10:52:00.218523Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 3 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:52:30.219119Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:52:30.219529Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:52:30.229608Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 4 qualified signals across timeframes
+[2m2026-02-27T10:52:30.229625Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 4 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:53:00.230732Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:53:00.231087Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:53:00.242140Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 4 qualified signals across timeframes
+[2m2026-02-27T10:53:00.242167Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 4 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:53:30.243665Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:53:30.244054Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:53:30.253697Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 3 qualified signals across timeframes
+[2m2026-02-27T10:53:30.253716Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 3 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:54:00.254598Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:54:00.254848Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:54:00.264790Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 3 qualified signals across timeframes
+[2m2026-02-27T10:54:00.264803Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 3 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:54:30.266121Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:54:30.266485Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:54:30.277086Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:54:30.277107Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:55:00.278185Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:55:00.278526Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:55:00.288373Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T10:55:00.288388Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T10:55:30.289480Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:55:30.289864Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:55:30.301963Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:56:00.303112Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:56:00.303362Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:56:00.313630Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:56:30.314390Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:56:30.314768Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:56:30.324671Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:57:00.325109Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:57:00.325364Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:57:00.337026Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:57:30.339117Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:57:30.339465Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:57:30.350085Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:58:00.351879Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:58:00.358263Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:58:00.387908Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:58:30.388125Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:58:30.389197Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:58:30.397158Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:59:00.398120Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:59:00.398455Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:59:00.406366Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T10:59:30.407528Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T10:59:30.407859Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T10:59:30.415075Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:00:00.416134Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:00:00.416479Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:00:00.420095Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:00:30.421611Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:00:30.421917Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:00:30.442241Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 3 qualified signals across timeframes
+[2m2026-02-27T11:00:30.442265Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 3 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:01:00.443122Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:01:00.443402Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:01:00.452561Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:01:00.452577Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:01:30.454568Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:01:30.454996Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:01:30.461694Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:01:30.461716Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:02:00.462152Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:02:00.462449Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:02:00.469834Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:02:00.469853Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:02:30.471121Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:02:30.471467Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:02:30.479199Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:02:30.479216Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:03:00.480574Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:03:00.480878Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:03:00.487734Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:03:00.487749Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:03:30.489113Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:03:30.489451Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:03:30.496801Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:03:30.496820Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:04:00.497143Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:04:00.497440Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:04:00.505747Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 3 qualified signals across timeframes
+[2m2026-02-27T11:04:00.505766Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 3 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:04:30.506516Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:04:30.506850Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:04:30.513954Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:04:30.513978Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:05:00.515130Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:05:00.515472Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:05:00.523264Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:05:00.523282Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:05:30.525026Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:05:30.525339Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:05:30.532367Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:05:30.532385Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:06:00.534066Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:06:00.534364Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:06:00.541548Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:06:00.541563Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:06:30.542905Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:06:30.543263Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:06:30.550518Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:06:30.550537Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:07:00.551121Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:07:00.551422Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:07:00.559694Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:07:00.559711Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:07:30.560110Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:07:30.560422Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:07:30.567692Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:07:30.567711Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:08:00.569107Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:08:00.569407Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:08:00.576948Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:08:00.576963Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:08:30.579115Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:08:30.579468Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:08:30.586293Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:08:30.586309Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:09:00.587245Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:09:00.587537Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:09:00.595789Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:09:30.596414Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:09:30.596753Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:09:30.604036Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:10:00.605345Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:10:00.605671Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:10:00.613056Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:10:30.614448Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:10:30.614746Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:10:30.621789Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:11:00.622131Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:11:00.622494Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:11:00.630313Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:11:30.631344Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:11:30.631703Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:11:30.639138Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:12:00.640680Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:12:00.641491Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:12:00.669098Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-02-27T11:12:30.670177Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:12:30.671446Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:12:30.681844Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:12:30.681885Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:13:00.682942Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:13:00.686205Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:13:00.731979Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:13:00.732006Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:13:30.733191Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:13:30.736427Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:13:30.753555Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:13:30.753602Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:14:00.754113Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:14:00.755213Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:14:00.764699Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:14:00.764714Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:14:30.765112Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:14:30.766236Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:14:30.772458Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:14:30.772472Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:15:00.773778Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:15:00.774069Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:15:00.781028Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:15:00.781045Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:15:30.782634Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:15:30.782989Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:15:30.788455Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:15:30.788472Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:16:00.790238Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:16:00.790534Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:16:00.798354Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:16:00.798370Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:16:30.800046Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:16:30.800430Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:16:30.807654Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:16:30.807672Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:17:00.809117Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:17:00.809436Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:17:00.813899Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:17:00.813914Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:17:30.814118Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:17:30.814477Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:17:30.818742Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:17:30.818755Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:18:00.819390Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:18:00.819692Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:18:00.834697Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:18:00.834714Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:18:30.835763Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:18:30.836107Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:18:30.843401Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:18:30.843418Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:19:00.844114Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:19:00.844424Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:19:00.851615Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:19:00.851630Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:19:30.852505Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:19:30.852864Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:19:30.865867Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 2 qualified signals across timeframes
+[2m2026-02-27T11:19:30.865888Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 2 signals but mode=MANUAL, not opening
+[2m2026-02-27T11:20:00.866086Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-02-27T11:20:00.866386Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 3)]
+[2m2026-02-27T11:20:00.879573Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-02-27T11:20:00.879593Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: found 1 signals but mode=MANUAL, not opening
