@@ -302,8 +302,11 @@ async fn main() -> Result<()> {
 
                 match gap {
                     Ok(Some(gap_info)) => {
-                        if gap_info.candle_count < 15 {
-                            // Not enough data for ATR etc.
+                        if gap_info.candle_count < 25 {
+                            // Need at least 25 candles: 19 warmup bars for indicators
+                            // + minimum 6 valid output bars. Without this, the gap
+                            // persists forever (indicators skip but gap_candles > 0),
+                            // preventing compute_history from ever exiting.
                             continue;
                         }
 
