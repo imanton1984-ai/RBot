@@ -143,8 +143,8 @@ impl SuperEntryStage {
                 }
             };
 
-            // Filter: only production timeframes (15m, 1h, 4h).
-            // 1m/5m too noisy, 1d has 99.7% super rate — useless for signals.
+            // Filter: only production timeframes from SUPER_ENTRY_TIMEFRAMES env var.
+            // Default: 15m, 1h, 4h, 1d. Configurable via SUPER_ENTRY_TIMEFRAMES="15,60,240,1440"
             let production_tfs = SuperEntryConfig::timeframes();
             if !production_tfs.contains(&tf_minutes) {
                 continue;

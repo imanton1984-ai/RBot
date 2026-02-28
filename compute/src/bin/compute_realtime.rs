@@ -22,6 +22,15 @@ fn should_run_predictors() -> bool {
     strategy == "level" || strategy == "default"
 }
 
+/// Check if this is super_entry strategy (for TF filtering)
+fn is_super_entry_strategy() -> bool {
+    let strategy = get_active_strategy();
+    let explicit = std::env::var("SUPER_ENTRY_ENABLED")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+    strategy == "super_entry" || strategy == "combined" || explicit
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
@@ -259,6 +268,20 @@ async fn run_realtime_consumer(
                                                     continue;
                                                 }
                                             };
+
+                                            // ── TF filter for super_entry strategy ──
+                                            // Skip indicator computation for TFs not in SUPER_ENTRY_TIMEFRAMES.
+                                            // Candles still loaded by ingestor — we only skip compute.
+                                            if is_super_entry_strategy() {
+                                                use ml_entry_strategy::config::SuperEntryConfig;
+                                                if !SuperEntryConfig::is_tf_active(timeframe.to_minutes() as i32) {
+                                                    // Still commit offset so Kafka doesn't re-deliver
+                                                    if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
+                                                        eprintln!("Failed to commit Kafka offset: {}", e);
+                                                    }
+                                                    continue;
+                                                }
+                                            }
 
                                             let tf_ms = timeframe.to_minutes() as i64 * 60_000;
                                             let window_end = event.close_time;

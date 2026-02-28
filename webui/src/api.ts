@@ -3,7 +3,7 @@ import type {
   Candle, Indicator, Pair, MarketSummary, Position, Signal, Balance,
   PnlOverview, Alert, ConnectionStatus, TradingOptions,
   OrderOptions, ManualOrderRequest, AutoTradingState,
-  FullStatistics,
+  FullStatistics, AccountBalances, TransferRequest, TransferResponse,
 } from './types';
 
 const api = axios.create({
@@ -163,6 +163,17 @@ export const apiService = {
 
   getAutoTradingState: async (): Promise<AutoTradingState> => {
     const { data } = await api.get<AutoTradingState>('/control/trading_state');
+    return data;
+  },
+
+  // ─── Account (Spot/Futures) ──────────────────────────────
+  getAccountBalances: async (): Promise<AccountBalances> => {
+    const { data } = await api.get<AccountBalances>('/account/balances');
+    return data;
+  },
+
+  transferBetweenAccounts: async (request: TransferRequest): Promise<TransferResponse> => {
+    const { data } = await api.post<TransferResponse>('/account/transfer', request);
     return data;
   },
 };

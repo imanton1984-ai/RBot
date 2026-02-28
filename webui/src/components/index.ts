@@ -11,3 +11,4 @@ export { default as BottomBar } from './BottomBar';
 export { default as TradingOptionsModal } from './modals/TradingOptionsModal';
 export { default as OrderOptionsModal } from './modals/OrderOptionsModal';
 export { default as SignalsModal } from './modals/SignalsModal';
+export { default as AccountModal } from './AccountModal';

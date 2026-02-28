@@ -51,12 +51,17 @@ done
 # Export strategy for downstream scripts
 export ACTIVE_STRATEGY="$STRATEGY"
 export SUPER_ENTRY_ENABLED="$RUN_SUPER_ENTRY"
+# Configurable: which timeframes to compute indicators/signals for (super_entry only).
+# Default: "15,60,240,1440" (15m, 1h, 4h, 1d). Set to e.g. "15,60,240" to drop 1d.
+# Candle loading is NOT affected — all TFs still load candles.
+export SUPER_ENTRY_TIMEFRAMES="${SUPER_ENTRY_TIMEFRAMES:-15,60,240,1440}"
 
 log "ROOT:     ${C_BOLD}$ROOT_DIR${C_RESET}"
 log "LOG :     ${C_BOLD}$START_LOG${C_RESET}"
 log "STRATEGY: ${C_BOLD}$STRATEGY${C_RESET}"
 if [ "$RUN_SUPER_ENTRY" = true ]; then
     log "SUPER ENTRY: ${C_GREEN}ENABLED${C_RESET}"
+    log "SUPER_ENTRY_TIMEFRAMES: ${C_BOLD}$SUPER_ENTRY_TIMEFRAMES${C_RESET}"
 fi
 
 # 1. System Check

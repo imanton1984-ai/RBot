@@ -1,15 +1,15 @@
 ===========================================
-STOP @ Sat 28 Feb 2026 12:58:13 PM MSK
+STOP @ Sat 28 Feb 2026 02:32:14 PM MSK
 ROOT: /home/anton/Desktop/Rust_trader
-LOG : /home/anton/Desktop/Rust_trader/logs/stop_20260228_125813.log
+LOG : /home/anton/Desktop/Rust_trader/logs/stop_20260228_143214.log
 ===========================================
 Loading env: /home/anton/Desktop/Rust_trader/.env
 --- Stopping by pidfiles in /home/anton/Desktop/Rust_trader/run ---
-Stopping compute_history pid=122805 (TERM)...
+Stopping compute_history pid=104232 (TERM)...
 Stopped: compute_history
-Stopping compute_realtime pid=122828 (TERM)...
+Stopping compute_realtime pid=104245 (TERM)...
 Stopped: compute_realtime
-Stopping order_manager pid=122929 (TERM)...
+Stopping order_manager pid=104344 (TERM)...
 Stopped: order_manager
 --- Killing leftover processes that belong to this repo only (cmdline contains ROOT_DIR) ---
-TERM leftover: pid=1562749 cmd=tee -a /home/anton/Desktop/Rust_trader/logs/stop_20260228_125813.log
+TERM leftover: pid=115314 cmd=tee -a /home/anton/Desktop/Rust_trader/logs/stop_20260228_143214.log

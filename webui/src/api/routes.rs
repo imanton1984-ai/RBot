@@ -8,6 +8,7 @@ use axum::{
 };
 use crate::state::AppState;
 use super::handlers::*;
+use super::account;
 
 /// Create API router with all endpoints
 pub fn create_api_router() -> Router<AppState> {
@@ -62,4 +63,8 @@ pub fn create_api_router() -> Router<AppState> {
         .route("/control/start_trading", post(start_trading))
         .route("/control/stop_trading", post(stop_trading))
         .route("/control/trading_state", get(get_trading_state))
+        
+        // Account (spot/futures balances, transfers)
+        .route("/account/balances", get(account::get_account_balances))
+        .route("/account/transfer", post(account::transfer_between_accounts))
 }

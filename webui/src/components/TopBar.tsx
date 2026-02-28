@@ -1,13 +1,13 @@
 import { useTradingStore, useUiStore, useDataStore, useWsStore } from '../store';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../api';
-import { ChevronDown, Bell, Settings, User, SquareTerminal, BarChart3 } from 'lucide-react';
+import { ChevronDown, Wallet, Settings, User, SquareTerminal, BarChart3 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { formatPrice } from '../utils/format';
 
 export default function TopBar() {
   const { currentPair, setCurrentPair } = useTradingStore();
-  const { setTradingOptionsModalOpen, setOrderOptionsModalOpen, setSignalsModalOpen, setStatisticsModalOpen } = useUiStore();
+  const { setTradingOptionsModalOpen, setOrderOptionsModalOpen, setSignalsModalOpen, setStatisticsModalOpen, setWalletModalOpen } = useUiStore();
   const connections = useDataStore((s) => s.connections);
   const { connected, lastPrice, priceChange24h, priceChange1h, volume24h, high24h, low24h } = useWsStore();
   const [pairSearchOpen, setPairSearchOpen] = useState(false);
@@ -161,14 +161,20 @@ export default function TopBar() {
           <div className={`w-2 h-2 rounded-full ${getConnectionColor()}`} />
           <span className="text-xs text-textSecondary">{getConnectionLabel()}</span>
         </div>
-        <button 
+        <button
           className="p-2 hover:bg-panelAlt rounded-lg"
           onClick={() => setStatisticsModalOpen(true)}
           title="View Statistics"
         >
           <BarChart3 className="w-5 h-5 text-binanceYellow" />
         </button>
-        <button className="p-2 hover:bg-panelAlt rounded-lg"><Bell className="w-4 h-4 text-textSecondary" /></button>
+        <button
+          className="p-2 hover:bg-panelAlt rounded-lg"
+          onClick={() => setWalletModalOpen(true)}
+          title="Account Balance"
+        >
+          <Wallet className="w-5 h-5 text-binanceYellow" />
+        </button>
         <button className="p-2 hover:bg-panelAlt rounded-lg"><Settings className="w-4 h-4 text-textSecondary" /></button>
         <button className="p-2 hover:bg-panelAlt rounded-lg"><User className="w-4 h-4 text-textSecondary" /></button>
       </div>

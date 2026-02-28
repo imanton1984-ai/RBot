@@ -329,3 +329,24 @@ export interface FullStatistics {
   monthly: MonthlyStats[];
   day_parts: DayPartStats[];
 }
+
+// ─── Account (Spot/Futures Balances & Transfers) ──────────
+export interface AccountBalances {
+  spot_usdt: number;
+  spot_available: number;
+  futures_usdt: number;
+  futures_available: number;
+  futures_unrealized_pnl: number;
+  total_usdt: number;
+}
+
+export interface TransferRequest {
+  direction: 'SPOT_TO_FUTURES' | 'FUTURES_TO_SPOT';
+  amount: number;
+}
+
+export interface TransferResponse {
+  success: boolean;
+  tran_id: number | null;
+  message: string;
+}

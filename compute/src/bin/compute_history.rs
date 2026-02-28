@@ -202,7 +202,11 @@ async fn main() -> Result<()> {
             max_idle_cycles, poll_interval_secs, initial_wait_secs);
     }
 
-    let timeframes = [
+    // ─── Timeframe selection ───────────────────────────────────────────
+    // When ACTIVE_STRATEGY=super_entry, compute indicators ONLY for TFs
+    // configured in SUPER_ENTRY_TIMEFRAMES (default: 15m,1h,4h,1d).
+    // Candles still load for ALL TFs — only indicator computation is skipped.
+    let all_timeframes = [
         Timeframe::M1,
         Timeframe::M5,
         Timeframe::M15,
@@ -210,6 +214,22 @@ async fn main() -> Result<()> {
         Timeframe::H4,
         Timeframe::D1,
     ];
+
+    let timeframes: Vec<Timeframe> = if is_super {
+        use ml_entry_strategy::config::SuperEntryConfig;
+        let active_tfs = SuperEntryConfig::timeframes();
+        let filtered: Vec<Timeframe> = all_timeframes.iter()
+            .filter(|tf| active_tfs.contains(&(tf.to_minutes() as i32)))
+            .copied()
+            .collect();
+        tracing::info!(
+            "compute_history (super_entry): FILTERED timeframes for indicator compute: {:?} (from SUPER_ENTRY_TIMEFRAMES)",
+            filtered.iter().map(|tf| tf.as_str()).collect::<Vec<_>>()
+        );
+        filtered
+    } else {
+        all_timeframes.to_vec()
+    };
 
     tracing::info!(
         "Waiting {}s for ingestor to populate candle data...",

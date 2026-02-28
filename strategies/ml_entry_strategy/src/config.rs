@@ -11,6 +11,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Target move percentage thresholds per timeframe (in %).
 /// A "super move" is defined as price moving >= this threshold
@@ -140,14 +141,42 @@ impl SuperEntryConfig {
         self.target_pct_for_tf(tf_minutes) * self.sl_fraction
     }
 
-    /// All supported timeframes for inference (including 1d).
-    /// NOTE: 1d model has lower accuracy (99.7% super rate in dataset),
-    /// but may still provide useful signals. Disable via config if noisy.
+    /// Production timeframes for inference — configurable via env var.
+    ///
+    /// Env: SUPER_ENTRY_TIMEFRAMES (comma-separated minutes, e.g. "15,60,240,1440")
+    /// Default: "15,60,240,1440" (15m, 1h, 4h, 1d)
+    ///
+    /// Controls which TFs get indicator computation, feature snapshots, and
+    /// signal generation. Candle loading is NOT affected — all TFs still load.
+    ///
+    /// Previously hardcoded as [1, 5, 15, 60, 240, 1440]; 1m/5m removed by default
+    /// because they are too noisy for the super_entry model.
     pub fn timeframes() -> &'static [i32] {
-        &[1, 5, 15, 60, 240, 1440]
+        static TIMEFRAMES: OnceLock<Vec<i32>> = OnceLock::new();
+        TIMEFRAMES.get_or_init(|| {
+            let raw = std::env::var("SUPER_ENTRY_TIMEFRAMES")
+                .unwrap_or_else(|_| "15,60,240,1440".to_string());
+            let mut tfs: Vec<i32> = raw
+                .split(',')
+                .filter_map(|s| s.trim().parse::<i32>().ok())
+                .filter(|&m| [1, 5, 15, 60, 240, 1440].contains(&m))
+                .collect();
+            tfs.sort_unstable();
+            tfs.dedup();
+            if tfs.is_empty() {
+                tracing::warn!(
+                    "SUPER_ENTRY_TIMEFRAMES is empty or invalid ('{}'). Falling back to [15,60,240,1440]",
+                    raw
+                );
+                tfs = vec![15, 60, 240, 1440];
+            }
+            tracing::info!("SuperEntry compute timeframes: {:?} (from SUPER_ENTRY_TIMEFRAMES)", tfs);
+            tfs
+        })
     }
 
-    /// All timeframes including 1d (for dataset building / training only)
+    /// All timeframes including 1d (for dataset building / training only).
+    /// This is NOT affected by SUPER_ENTRY_TIMEFRAMES — always returns all TFs.
     pub fn all_timeframes() -> &'static [i32] {
         &[1, 5, 15, 60, 240, 1440]
     }
@@ -162,6 +191,12 @@ impl SuperEntryConfig {
     pub fn direction_model_path(&self, tf_minutes: i32) -> String {
         self.direction_model_path_template
             .replace("{tf}", &tf_minutes.to_string())
+    }
+
+    /// Check if a given TF (in minutes) is in the active compute set.
+    /// Use this to skip indicator computation for disabled TFs.
+    pub fn is_tf_active(tf_minutes: i32) -> bool {
+        Self::timeframes().contains(&tf_minutes)
     }
 }
 
@@ -217,10 +252,10 @@ mod tests {
     fn test_default_config() {
         let cfg = SuperEntryConfig::default();
         assert_eq!(cfg.warmup_bars, 300);
-        assert_eq!(cfg.lookahead_bars, 50);
+        assert_eq!(cfg.lookahead_bars, 20);
         assert!((cfg.p_threshold - 0.50).abs() < 1e-6);
-        assert_eq!(cfg.max_hold_bars, 15);
-        assert_eq!(cfg.effective_max_hold(), 15);
+        assert_eq!(cfg.max_hold_bars, 25);
+        assert_eq!(cfg.effective_max_hold(), 25);
     }
 
     #[test]

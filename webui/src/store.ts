@@ -39,6 +39,7 @@ interface UiState {
   orderOptionsModalOpen: boolean;
   signalsModalOpen: boolean;
   statisticsModalOpen: boolean;
+  walletModalOpen: boolean;
   statistics: FullStatistics | null;
   setPositionsView: (view: 'open' | 'history') => void;
   setChartView: (view: 'chart' | 'positions') => void;
@@ -46,6 +47,7 @@ interface UiState {
   setOrderOptionsModalOpen: (open: boolean) => void;
   setSignalsModalOpen: (open: boolean) => void;
   setStatisticsModalOpen: (open: boolean) => void;
+  setWalletModalOpen: (open: boolean) => void;
   setStatistics: (stats: FullStatistics | null) => void;
 }
 
@@ -111,6 +113,7 @@ export const useUiStore = create<UiState>((set) => ({
   orderOptionsModalOpen: false,
   signalsModalOpen: false,
   statisticsModalOpen: false,
+  walletModalOpen: false,
   statistics: null,
   setPositionsView: (view) => set({ positionsView: view }),
   setChartView: (view) => set({ chartView: view }),
@@ -118,6 +121,7 @@ export const useUiStore = create<UiState>((set) => ({
   setOrderOptionsModalOpen: (open) => set({ orderOptionsModalOpen: open }),
   setSignalsModalOpen: (open) => set({ signalsModalOpen: open }),
   setStatisticsModalOpen: (open) => set({ statisticsModalOpen: open }),
+  setWalletModalOpen: (open) => set({ walletModalOpen: open }),
   setStatistics: (stats) => set({ statistics: stats }),
 }));
 

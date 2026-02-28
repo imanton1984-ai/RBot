@@ -15,6 +15,7 @@ import TradingOptionsModal from './components/modals/TradingOptionsModal';
 import OrderOptionsModal from './components/modals/OrderOptionsModal';
 import SignalsModal from './components/modals/SignalsModal';
 import StatisticsPanel from './components/StatisticsPanel';
+import AccountModal from './components/AccountModal';
 import { useEffect } from 'react';
 
 function App() {
@@ -103,6 +104,7 @@ function App() {
       <OrderOptionsModal />
       <SignalsModal />
       <StatisticsPanel />
+      <AccountModal />
     </div>
   );
 }
