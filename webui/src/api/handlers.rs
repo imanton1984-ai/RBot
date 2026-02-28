@@ -629,16 +629,23 @@ pub async fn get_open_positions(
     //   1. candles_live (real-time from WebSocket ingestor, updated every ~200ms)
     //   2. positions.current_price (from position_tracker, updated every 2-3s)
     //   3. entry_price (fallback — only if nothing else available)
-    // NOTE: Removed NULLIF(current_price, entry_price) — it was incorrectly hiding
-    // valid current_price values when they equaled entry_price (e.g., just opened).
+    //
+    // PERF: Replaced LEFT JOIN LATERAL (N+1 subqueries) with a single CTE
+    // that uses DISTINCT ON to get the latest 1m candle per symbol in one pass.
     let rows = sqlx::query(
-        "SELECT p.id,
+        "WITH latest_prices AS (
+             SELECT DISTINCT ON (symbol) symbol, close
+             FROM market.candles_live
+             WHERE timeframe = '1m'
+             ORDER BY symbol, open_time_ms DESC
+         )
+         SELECT p.id,
                 mp.symbol as pair,
                 CASE WHEN p.side = 1 THEN 'LONG' ELSE 'SHORT' END as side,
                 p.qty,
                 p.entry_price,
                 COALESCE(
-                    cl.close,
+                    lp.close,
                     p.current_price,
                     p.entry_price,
                     0
@@ -649,8 +656,8 @@ pub async fn get_open_positions(
                 CASE
                     WHEN p.entry_price > 0 AND p.qty > 0 THEN
                         CASE WHEN p.side = 1
-                            THEN (COALESCE(cl.close, p.current_price, p.entry_price) - p.entry_price) / p.entry_price * 100.0
-                            ELSE (p.entry_price - COALESCE(cl.close, p.current_price, p.entry_price)) / p.entry_price * 100.0
+                            THEN (COALESCE(lp.close, p.current_price, p.entry_price) - p.entry_price) / p.entry_price * 100.0
+                            ELSE (p.entry_price - COALESCE(lp.close, p.current_price, p.entry_price)) / p.entry_price * 100.0
                         END
                     ELSE 0
                 END::double precision as pnl_pct,
@@ -660,11 +667,7 @@ pub async fn get_open_positions(
                 p.opened_at as open_time
          FROM trade.positions p
          JOIN market.pairs mp ON p.symbol_id = mp.symbol_id
-         LEFT JOIN LATERAL (
-             SELECT close FROM market.candles_live
-             WHERE market.candles_live.symbol = mp.symbol AND timeframe = '1m'
-             ORDER BY open_time_ms DESC LIMIT 1
-         ) cl ON true
+         LEFT JOIN latest_prices lp ON lp.symbol = mp.symbol
          WHERE p.status = 1
          ORDER BY p.opened_at DESC"
     )

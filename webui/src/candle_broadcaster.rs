@@ -173,15 +173,19 @@ async fn run_db_poll_loop(pool: PgPool, ws_sender: broadcast::Sender<WsMessage>)
     // Track last known candle state to avoid broadcasting unchanged data
     let mut last_state: HashMap<(String, String), (f64, f64, f64, f64)> = HashMap::new();
 
+    // Pre-compute a fixed cutoff in ms to avoid per-query computation.
+    // We only need the latest candle per (symbol, timeframe) — use DISTINCT ON.
     loop {
-        // Query all recently updated candles from candles_live
-        // Only fetch candles updated in the last 30 seconds to limit scope
+        // PERF: Use DISTINCT ON to get only the latest candle per (symbol, timeframe).
+        // This avoids scanning the entire candles_live table every 5 seconds.
+        // The index candles_live_symbol_tf_time_idx supports this efficiently.
         let rows = sqlx::query(
-            "SELECT symbol, timeframe, open_time_ms,
+            "SELECT DISTINCT ON (symbol, timeframe)
+                    symbol, timeframe, open_time_ms,
                     open, high, low, close, volume
              FROM market.candles_live
-             WHERE open_time_ms > (EXTRACT(EPOCH FROM now()) * 1000 - 120000)::bigint
-             ORDER BY open_time_ms DESC"
+             WHERE timeframe IN ('1m', '5m', '15m', '1h')
+             ORDER BY symbol, timeframe, open_time_ms DESC"
         )
         .fetch_all(&pool)
         .await;
