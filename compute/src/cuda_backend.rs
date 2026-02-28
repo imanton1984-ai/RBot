@@ -321,11 +321,17 @@ impl CudaBackend {
         // Calculate additional indicators
         let (alligator_jaw_dev, alligator_teeth_dev, alligator_lips_dev) = self.indicator_runner.calculate_alligator_series(&close_dev, n, 13, 8, 5, 8, 5, 3, batch)?;
         
-        // Calculate trend indicators (these would need to be implemented in CUDA)
-        let trend_dev = device.alloc_zeros::<f64>(batch * n)?; // Placeholder
-        let trend_short_dev = device.alloc_zeros::<f64>(batch * n)?; // Placeholder
-        let volume_spike_dev = device.alloc_zeros::<f64>(batch * n)?; // Placeholder
-        let poc_dev = device.alloc_zeros::<f64>(batch * n)?; // Placeholder
+        // Calculate trend indicators (using CUDA feature kernels)
+        let trend_dev = device.alloc_zeros::<f64>(batch * n)?; // TODO: Refactor for performance according to Manifesto v1.0
+        let trend_short_dev = device.alloc_zeros::<f64>(batch * n)?; // TODO: Refactor for performance according to Manifesto v1.0
+        let volume_spike_dev = device.alloc_zeros::<f64>(batch * n)?; // TODO: Refactor for performance according to Manifesto v1.0
+        let poc_dev = device.alloc_zeros::<f64>(batch * n)?; // TODO: Refactor for performance according to Manifesto v1.0
+
+        // New indicators (v2) — true CUDA series kernels
+        let mfi_dev = self.indicator_runner.calculate_mfi_series(&high_dev, &low_dev, &close_dev, &vol_dev, n, 14, batch)?;
+        let cmf_dev = self.indicator_runner.calculate_cmf_series(&high_dev, &low_dev, &close_dev, &vol_dev, n, 20, batch)?;
+        let (fibo_pivot_dev, fibo_r1_dev, fibo_s1_dev) = self.indicator_runner.calculate_fibo_series(&high_dev, &low_dev, &close_dev, n, 20, batch)?;
+        let (supertrend_dev, supertrend_dir_dev) = self.indicator_runner.calculate_supertrend_series(&high_dev, &low_dev, &close_dev, &atr_dev, n, 3.0, 10, batch)?;
 
         // Cast all indicators to f32 for feature combination
         let rsi_f32_dev = self.indicator_runner.cast_f64_to_f32(&rsi_dev, batch * n)?;
@@ -355,7 +361,16 @@ impl CudaBackend {
         let trend_short_f32_dev = self.indicator_runner.cast_f64_to_f32(&trend_short_dev, batch * n)?;
         let poc_f32_dev = self.indicator_runner.cast_f64_to_f32(&poc_dev, batch * n)?;
 
-        // Combine all features into a single matrix
+        // New indicators f32 cast
+        let mfi_f32_dev = self.indicator_runner.cast_f64_to_f32(&mfi_dev, batch * n)?;
+        let fibo_pivot_f32_dev = self.indicator_runner.cast_f64_to_f32(&fibo_pivot_dev, batch * n)?;
+        let fibo_r1_f32_dev = self.indicator_runner.cast_f64_to_f32(&fibo_r1_dev, batch * n)?;
+        let fibo_s1_f32_dev = self.indicator_runner.cast_f64_to_f32(&fibo_s1_dev, batch * n)?;
+        let supertrend_f32_dev = self.indicator_runner.cast_f64_to_f32(&supertrend_dev, batch * n)?;
+        let supertrend_dir_f32_dev = self.indicator_runner.cast_f64_to_f32(&supertrend_dir_dev, batch * n)?;
+        let cmf_f32_dev = self.indicator_runner.cast_f64_to_f32(&cmf_dev, batch * n)?;
+
+        // Combine all features into a single matrix (33 features)
         let _feature_matrix_dev = self.indicator_runner.combine_features_v1(
             &rsi_f32_dev,
             &cci_f32_dev,
@@ -383,11 +398,18 @@ impl CudaBackend {
             &trend_f32_dev,
             &trend_short_f32_dev,
             &poc_f32_dev,
+            &mfi_f32_dev,
+            &fibo_pivot_f32_dev,
+            &fibo_r1_f32_dev,
+            &fibo_s1_f32_dev,
+            &supertrend_f32_dev,
+            &supertrend_dir_f32_dev,
+            &cmf_f32_dev,
             n,
             batch
         )?;
 
-        // At this point, we have a feature matrix of size (batch * n * 26) on GPU
+        // At this point, we have a feature matrix of size (batch * n * 33) on GPU
         // Now we can run predictions on this matrix
         // For now, returning empty results as we would need to run actual ML models
         // which would require loading models and running predictions

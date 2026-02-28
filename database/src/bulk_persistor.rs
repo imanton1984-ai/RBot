@@ -855,6 +855,15 @@ async fn flush_wide_indicators_chunk(
     let mut trend_short: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
     let mut poc: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
 
+    // New indicators (v2)
+    let mut mfi: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut fibo_pivot: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut fibo_r1: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut fibo_s1: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut supertrend: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+    let mut supertrend_dir: Vec<Option<i16>> = Vec::with_capacity(chunk.len());
+    let mut cmf: Vec<Option<f32>> = Vec::with_capacity(chunk.len());
+
     let mut sr_levels: Vec<Option<Json<Value>>> = Vec::with_capacity(chunk.len());
 
     let mut candle_is_final: Vec<bool> = Vec::with_capacity(chunk.len());
@@ -903,6 +912,15 @@ async fn flush_wide_indicators_chunk(
         trend.push(extract_i16(&indicators, "trend"));
         trend_short.push(extract_i16(&indicators, "trend_short"));
         poc.push(extract_f32(&indicators, "poc"));
+
+        // New indicators (v2)
+        mfi.push(extract_f32(&indicators, "mfi"));
+        fibo_pivot.push(extract_f32(&indicators, "fibo_pivot"));
+        fibo_r1.push(extract_f32(&indicators, "fibo_r1"));
+        fibo_s1.push(extract_f32(&indicators, "fibo_s1"));
+        supertrend.push(extract_f32(&indicators, "supertrend"));
+        supertrend_dir.push(extract_i16(&indicators, "supertrend_dir"));
+        cmf.push(extract_f32(&indicators, "cmf"));
 
         if skip_json {
             sr_levels.push(None);
@@ -960,6 +978,13 @@ async fn flush_wide_indicators_chunk(
         .bind(trend)
         .bind(trend_short)
         .bind(poc)
+        .bind(mfi)
+        .bind(fibo_pivot)
+        .bind(fibo_r1)
+        .bind(fibo_s1)
+        .bind(supertrend)
+        .bind(supertrend_dir)
+        .bind(cmf)
         .bind(sr_levels)
         .bind(candle_is_final)
         .bind(calc_source)
@@ -1086,6 +1111,7 @@ fn wide_sql_realtime() -> &'static str {
      obv, vwap, volume_spike,
      alligator_jaw, alligator_teeth, alligator_lips,
      trend, trend_short, poc,
+     mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf,
      sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
     SELECT * FROM UNNEST(
         $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
@@ -1095,7 +1121,8 @@ fn wide_sql_realtime() -> &'static str {
         $23::double precision[], $24::double precision[], $25::real[],
         $26::real[], $27::real[], $28::real[],
         $29::smallint[], $30::smallint[], $31::real[],
-        $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
+        $32::real[], $33::real[], $34::real[], $35::real[], $36::real[], $37::smallint[], $38::real[],
+        $39::jsonb[], $40::boolean[], $41::smallint[], $42::bigint[], $43::timestamptz[], $44::timestamptz[]
     )
     ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
         rsi = COALESCE(EXCLUDED.rsi, market.indicators_wide.rsi),
@@ -1124,6 +1151,13 @@ fn wide_sql_realtime() -> &'static str {
         trend = COALESCE(EXCLUDED.trend, market.indicators_wide.trend),
         trend_short = COALESCE(EXCLUDED.trend_short, market.indicators_wide.trend_short),
         poc = COALESCE(EXCLUDED.poc, market.indicators_wide.poc),
+        mfi = COALESCE(EXCLUDED.mfi, market.indicators_wide.mfi),
+        fibo_pivot = COALESCE(EXCLUDED.fibo_pivot, market.indicators_wide.fibo_pivot),
+        fibo_r1 = COALESCE(EXCLUDED.fibo_r1, market.indicators_wide.fibo_r1),
+        fibo_s1 = COALESCE(EXCLUDED.fibo_s1, market.indicators_wide.fibo_s1),
+        supertrend = COALESCE(EXCLUDED.supertrend, market.indicators_wide.supertrend),
+        supertrend_dir = COALESCE(EXCLUDED.supertrend_dir, market.indicators_wide.supertrend_dir),
+        cmf = COALESCE(EXCLUDED.cmf, market.indicators_wide.cmf),
         sr_levels = COALESCE(EXCLUDED.sr_levels, market.indicators_wide.sr_levels),
         candle_is_final = EXCLUDED.candle_is_final,
         calc_source = EXCLUDED.calc_source,
@@ -1143,6 +1177,7 @@ fn wide_sql_history_append() -> &'static str {
      obv, vwap, volume_spike,
      alligator_jaw, alligator_teeth, alligator_lips,
      trend, trend_short, poc,
+     mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf,
      sr_levels, candle_is_final, calc_source, event_time_ms, created_at, updated_at)
     SELECT * FROM UNNEST(
         $1::timestamptz[], $2::bigint[], $3::bigint[], $4::text[], $5::smallint[],
@@ -1152,7 +1187,8 @@ fn wide_sql_history_append() -> &'static str {
         $23::double precision[], $24::double precision[], $25::real[],
         $26::real[], $27::real[], $28::real[],
         $29::smallint[], $30::smallint[], $31::real[],
-        $32::jsonb[], $33::boolean[], $34::smallint[], $35::bigint[], $36::timestamptz[], $37::timestamptz[]
+        $32::real[], $33::real[], $34::real[], $35::real[], $36::real[], $37::smallint[], $38::real[],
+        $39::jsonb[], $40::boolean[], $41::smallint[], $42::bigint[], $43::timestamptz[], $44::timestamptz[]
     )
     ON CONFLICT (symbol_id, tf_minutes, time) DO NOTHING
     "#

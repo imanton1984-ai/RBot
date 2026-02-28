@@ -26,6 +26,16 @@
     "trend",
     "trend_short",
     "poc",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "mfi",
+    "fibo_pivot",
+    "fibo_r1",
+    "fibo_s1",
+    "supertrend",
+    "supertrend_dir",
+    "cmf",
     "rsi_norm",
     "cci_norm",
     "stoch_norm",
@@ -40,16 +50,20 @@
     "price_vs_vwap",
     "macd_norm",
     "obv_change_pct",
-    "volume_spike_flag"
+    "volume_spike_flag",
+    "mfi_norm",
+    "price_vs_fibo_pivot",
+    "price_vs_supertrend",
+    "alligator_spread"
   ],
-  "n_features": 38,
+  "n_features": 52,
   "metrics": {
-    "auc": 0.8957885711938928,
-    "precision": 0.7118181818181818,
-    "recall": 0.7697853514664919
+    "auc": 0.8437355037365156,
+    "precision": 0.6540506059961727,
+    "recall": 0.6160624874824755
   },
-  "best_iteration": 223,
-  "n_trees": 224,
+  "best_iteration": 262,
+  "n_trees": 263,
   "strategy": "ml_entry_strategy",
-  "target_move_pct": 1.0
+  "target_move_pct": 0.95
 }

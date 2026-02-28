@@ -175,6 +175,9 @@ pub const INDICATOR_FEATURES: &[&str] = &[
     "bb_upper", "bb_mid", "bb_lower", "atr",
     "obv", "vwap", "volume_spike",
     "trend", "trend_short", "poc",
+    "alligator_jaw", "alligator_teeth", "alligator_lips",
+    "mfi", "fibo_pivot", "fibo_r1", "fibo_s1",
+    "supertrend", "supertrend_dir", "cmf",
 ];
 
 /// Derived features computed from raw indicators.
@@ -195,6 +198,10 @@ pub const DERIVED_FEATURES: &[&str] = &[
     "macd_norm",       // macd_hist / close * 1000
     "obv_change_pct",  // not available without history — set 0
     "volume_spike_flag", // volume_spike > 2.0
+    "mfi_norm",        // mfi / 100
+    "price_vs_fibo_pivot", // (close - fibo_pivot) / close * 100
+    "price_vs_supertrend", // (close - supertrend) / close * 100
+    "alligator_spread",    // (jaw - lips) / close * 100
 ];
 
 /// Total number of features = INDICATOR_FEATURES + DERIVED_FEATURES
@@ -250,8 +257,8 @@ mod tests {
 
     #[test]
     fn test_feature_count() {
-        assert_eq!(INDICATOR_FEATURES.len(), 23);
-        assert_eq!(DERIVED_FEATURES.len(), 15);
-        assert_eq!(total_feature_count(), 38);
+        assert_eq!(INDICATOR_FEATURES.len(), 33);
+        assert_eq!(DERIVED_FEATURES.len(), 19);
+        assert_eq!(total_feature_count(), 52);
     }
 }

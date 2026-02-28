@@ -277,6 +277,10 @@ async fn run_realtime_consumer(
                                                     "obv".to_string(), "rsi".to_string(), "sma".to_string(),
                                                     "stoch".to_string(), "vwap".to_string(), "williams".to_string(),
                                                     "alligator".to_string(), "sr_levels".to_string(),
+                                                    "volume_spike".to_string(), "trend".to_string(),
+                                                    "trend_short".to_string(), "poc".to_string(),
+                                                    "mfi".to_string(), "fibo".to_string(),
+                                                    "supertrend".to_string(), "cmf".to_string(),
                                                 ],
                                                 candle_window: None,
                                                 is_realtime: true, // Guarantee realtime = true

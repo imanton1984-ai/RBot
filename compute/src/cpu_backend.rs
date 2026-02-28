@@ -91,6 +91,22 @@ impl CpuBackend {
     ) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         compute_indicators::calculate_alligator(source, jaw_period, teeth_period, lips_period, jaw_offset, teeth_offset, lips_offset)
     }
+
+    pub fn calculate_mfi(high: &[f64], low: &[f64], close: &[f64], volume: &[f64], period: usize) -> Vec<f64> {
+        compute_indicators::calculate_mfi(high, low, close, volume, period)
+    }
+
+    pub fn calculate_fibo(high: &[f64], low: &[f64], close: &[f64], period: usize) -> compute_indicators::FiboLevels {
+        compute_indicators::calculate_fibo_levels(high, low, close, period)
+    }
+
+    pub fn calculate_supertrend(high: &[f64], low: &[f64], close: &[f64], period: usize, multiplier: f64) -> (Vec<f64>, Vec<f64>) {
+        compute_indicators::calculate_supertrend(high, low, close, period, multiplier)
+    }
+
+    pub fn calculate_cmf(high: &[f64], low: &[f64], close: &[f64], volume: &[f64], period: usize) -> Vec<f64> {
+        compute_indicators::calculate_cmf(high, low, close, volume, period)
+    }
 }
 
 #[async_trait::async_trait]
@@ -298,6 +314,29 @@ impl ComputeBackend for CpuBackend {
                             v.push(serde_json::to_value(levels).unwrap_or(serde_json::Value::Null));
                         }
                         batch.push_json("sr_levels", v);
+                    }
+
+                    "mfi" => {
+                        let v = Self::calculate_mfi(&candle_window.high, &candle_window.low, &candle_window.close, &candle_window.volume, 14);
+                        batch.push_f64("mfi", v);
+                    }
+
+                    "fibo" => {
+                        let fibo = Self::calculate_fibo(&candle_window.high, &candle_window.low, &candle_window.close, 20);
+                        if batch.get_f64("fibo_pivot").is_none() { batch.push_f64("fibo_pivot", fibo.pivot); }
+                        if batch.get_f64("fibo_r1").is_none() { batch.push_f64("fibo_r1", fibo.r1); }
+                        if batch.get_f64("fibo_s1").is_none() { batch.push_f64("fibo_s1", fibo.s1); }
+                    }
+
+                    "supertrend" => {
+                        let (st_values, st_dir) = Self::calculate_supertrend(&candle_window.high, &candle_window.low, &candle_window.close, 10, 3.0);
+                        if batch.get_f64("supertrend").is_none() { batch.push_f64("supertrend", st_values); }
+                        if batch.get_f64("supertrend_dir").is_none() { batch.push_f64("supertrend_dir", st_dir); }
+                    }
+
+                    "cmf" => {
+                        let v = Self::calculate_cmf(&candle_window.high, &candle_window.low, &candle_window.close, &candle_window.volume, 20);
+                        batch.push_f64("cmf", v);
                     }
 
                     _ => { /* unknown indicator — игнор */ }

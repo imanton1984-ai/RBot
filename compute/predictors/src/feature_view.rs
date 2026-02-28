@@ -46,6 +46,20 @@ pub struct IndicatorsWideRow {
     pub trend_long: f32,
     pub volume_sma: f32,
     pub volume_spike: f32,
+    // Alligator
+    pub alligator_jaw: f32,
+    pub alligator_teeth: f32,
+    pub alligator_lips: f32,
+    // POC
+    pub poc: f32,
+    // New indicators (v2)
+    pub mfi: f32,
+    pub fibo_pivot: f32,
+    pub fibo_r1: f32,
+    pub fibo_s1: f32,
+    pub supertrend: f32,
+    pub supertrend_dir: f32,
+    pub cmf: f32,
 }
 
 /// View for extracting features from indicators_wide and raw_signals
@@ -417,7 +431,7 @@ impl FeatureView {
             "open" => self.indicators.open,
             "volume" => self.indicators.volume,
             "rsi" => self.indicators.rsi,
-            "macd" => self.indicators.macd_line, // Assuming macd is macd_line
+            "macd" => self.indicators.macd_line,
             "macd_signal" => self.indicators.macd_signal,
             "macd_hist" => self.indicators.macd_histogram,
             "ema_20" => self.indicators.ema_20,
@@ -435,8 +449,20 @@ impl FeatureView {
             "stoch_k" => self.indicators.stoch_k,
             "stoch_d" => self.indicators.stoch_d,
             "williams" => self.indicators.williams_r,
-            "trend" => self.indicators.trend_medium, // Assuming trend is medium
+            "trend" => self.indicators.trend_medium,
             "trend_short" => self.indicators.trend_short,
+            "volume_spike" => self.indicators.volume_spike,
+            "poc" => self.indicators.poc,
+            "alligator_jaw" => self.indicators.alligator_jaw,
+            "alligator_teeth" => self.indicators.alligator_teeth,
+            "alligator_lips" => self.indicators.alligator_lips,
+            "mfi" => self.indicators.mfi,
+            "fibo_pivot" => self.indicators.fibo_pivot,
+            "fibo_r1" => self.indicators.fibo_r1,
+            "fibo_s1" => self.indicators.fibo_s1,
+            "supertrend" => self.indicators.supertrend,
+            "supertrend_dir" => self.indicators.supertrend_dir,
+            "cmf" => self.indicators.cmf,
             _ => 0.0,
         }
     }

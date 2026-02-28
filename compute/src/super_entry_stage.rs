@@ -335,7 +335,19 @@ fn snapshot_to_candle(snapshot: &FeatureSnapshot, symbol_id: i64) -> CandleWithI
         volume_spike: snapshot.indicators.volume_spike as f64,
         trend: snapshot.indicators.trend_medium as f64,
         trend_short: snapshot.indicators.trend_short as f64,
-        poc: 0.0, // Not in FeatureSnapshot — will be zero
+        poc: snapshot.indicators.poc as f64,
+        // Alligator
+        alligator_jaw: snapshot.indicators.alligator_jaw as f64,
+        alligator_teeth: snapshot.indicators.alligator_teeth as f64,
+        alligator_lips: snapshot.indicators.alligator_lips as f64,
+        // New indicators (v2)
+        mfi: snapshot.indicators.mfi as f64,
+        fibo_pivot: snapshot.indicators.fibo_pivot as f64,
+        fibo_r1: snapshot.indicators.fibo_r1 as f64,
+        fibo_s1: snapshot.indicators.fibo_s1 as f64,
+        supertrend: snapshot.indicators.supertrend as f64,
+        supertrend_dir: snapshot.indicators.supertrend_dir as f64,
+        cmf: snapshot.indicators.cmf as f64,
     }
 }
 

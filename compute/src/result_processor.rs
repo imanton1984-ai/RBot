@@ -314,6 +314,20 @@ impl ResultProcessor {
                         trend_long: get_f32("trend_long", 0.0),
                         volume_sma: get_f32("volume_sma", 0.0),
                         volume_spike: get_f32("volume_spike", 0.0),
+                        // Alligator
+                        alligator_jaw: get_f32("alligator_jaw", 0.0),
+                        alligator_teeth: get_f32("alligator_teeth", 0.0),
+                        alligator_lips: get_f32("alligator_lips", 0.0),
+                        // POC
+                        poc: get_f32("poc", 0.0),
+                        // New indicators (v2)
+                        mfi: get_f32("mfi", 50.0),
+                        fibo_pivot: get_f32("fibo_pivot", 0.0),
+                        fibo_r1: get_f32("fibo_r1", 0.0),
+                        fibo_s1: get_f32("fibo_s1", 0.0),
+                        supertrend: get_f32("supertrend", 0.0),
+                        supertrend_dir: get_f32("supertrend_dir", 0.0),
+                        cmf: get_f32("cmf", 0.0),
                     };
 
                     let sr_levels = feature_window.batch.get_json("sr_levels")

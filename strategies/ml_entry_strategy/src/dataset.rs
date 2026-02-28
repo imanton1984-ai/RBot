@@ -57,6 +57,18 @@ pub struct CandleWithIndicators {
     pub trend: f64,
     pub trend_short: f64,
     pub poc: f64,
+    // Alligator
+    pub alligator_jaw: f64,
+    pub alligator_teeth: f64,
+    pub alligator_lips: f64,
+    // New indicators (v2)
+    pub mfi: f64,
+    pub fibo_pivot: f64,
+    pub fibo_r1: f64,
+    pub fibo_s1: f64,
+    pub supertrend: f64,
+    pub supertrend_dir: f64,
+    pub cmf: f64,
 }
 
 impl CandleWithIndicators {
@@ -69,6 +81,9 @@ impl CandleWithIndicators {
             self.bb_upper, self.bb_mid, self.bb_lower, self.atr,
             self.obv, self.vwap, self.volume_spike,
             self.trend, self.trend_short, self.poc,
+            self.alligator_jaw, self.alligator_teeth, self.alligator_lips,
+            self.mfi, self.fibo_pivot, self.fibo_r1, self.fibo_s1,
+            self.supertrend, self.supertrend_dir, self.cmf,
         ]
     }
 
@@ -100,12 +115,21 @@ impl CandleWithIndicators {
         let obv_change_pct = 0.0; // Requires history; not available in single-row context
         let volume_spike_flag = if self.volume_spike > 2.0 { 1.0 } else { 0.0 };
 
+        // New derived features
+        let mfi_norm = self.mfi / 100.0;
+        let price_vs_fibo_pivot = safe_div(close - self.fibo_pivot, close) * 100.0;
+        let price_vs_supertrend = safe_div(close - self.supertrend, close) * 100.0;
+        // Alligator spread: jaw-lips difference normalized by price
+        let alligator_spread = safe_div(self.alligator_jaw - self.alligator_lips, close) * 100.0;
+
         vec![
             rsi_norm, cci_norm, stoch_norm, williams_norm,
             bb_position, bb_width_pct, atr_pct,
             price_vs_sma, price_vs_ema20, price_vs_ema50,
             price_vs_ema200, price_vs_vwap,
             macd_norm, obv_change_pct, volume_spike_flag,
+            mfi_norm, price_vs_fibo_pivot, price_vs_supertrend,
+            alligator_spread,
         ]
     }
 
@@ -261,7 +285,17 @@ pub async fn fetch_candles_with_indicators(
             COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,
             COALESCE(i.trend, 0.0)::FLOAT8 as trend,
             COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,
-            COALESCE(i.poc, c.close)::FLOAT8 as poc
+            COALESCE(i.poc, c.close)::FLOAT8 as poc,
+            COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,
+            COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,
+            COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,
+            COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,
+            COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,
+            COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,
+            COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,
+            COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,
+            COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,
+            COALESCE(i.cmf, 0.0)::FLOAT8 as cmf
         FROM {candle_table} c
         JOIN market.pairs p ON p.symbol = c.symbol
         LEFT JOIN market.indicators_wide i
@@ -313,6 +347,16 @@ pub async fn fetch_candles_with_indicators(
             trend: r.trend,
             trend_short: r.trend_short,
             poc: r.poc,
+            alligator_jaw: r.alligator_jaw,
+            alligator_teeth: r.alligator_teeth,
+            alligator_lips: r.alligator_lips,
+            mfi: r.mfi,
+            fibo_pivot: r.fibo_pivot,
+            fibo_r1: r.fibo_r1,
+            fibo_s1: r.fibo_s1,
+            supertrend: r.supertrend,
+            supertrend_dir: r.supertrend_dir,
+            cmf: r.cmf,
         })
         .collect();
 
@@ -353,6 +397,16 @@ struct CandleRow {
     trend: f64,
     trend_short: f64,
     poc: f64,
+    alligator_jaw: f64,
+    alligator_teeth: f64,
+    alligator_lips: f64,
+    mfi: f64,
+    fibo_pivot: f64,
+    fibo_r1: f64,
+    fibo_s1: f64,
+    supertrend: f64,
+    supertrend_dir: f64,
+    cmf: f64,
 }
 
 /// Bulk-fetch ALL candles with indicators for a given TF (all symbols at once).
@@ -402,6 +456,16 @@ pub async fn fetch_all_candles_for_tf(
                 COALESCE(i.trend, 0.0)::FLOAT8 as trend,
                 COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,
                 COALESCE(i.poc, c.close)::FLOAT8 as poc,
+                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,
+                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,
+                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,
+                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,
+                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,
+                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,
+                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,
+                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,
+                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,
+                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,
                 ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn
             FROM {candle_table} c
             JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true
@@ -411,7 +475,9 @@ pub async fn fetch_all_candles_for_tf(
         SELECT time, symbol, symbol_id, open, high, low, close, volume,
                rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,
                adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,
-               obv, vwap, volume_spike, trend, trend_short, poc
+               obv, vwap, volume_spike, trend, trend_short, poc,
+               alligator_jaw, alligator_teeth, alligator_lips,
+               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf
         FROM ranked
         WHERE rn <= $2
         ORDER BY symbol, time ASC
@@ -439,6 +505,10 @@ pub async fn fetch_all_candles_for_tf(
             bb_upper: r.bb_upper, bb_mid: r.bb_mid, bb_lower: r.bb_lower,
             atr: r.atr, obv: r.obv, vwap: r.vwap, volume_spike: r.volume_spike,
             trend: r.trend, trend_short: r.trend_short, poc: r.poc,
+            alligator_jaw: r.alligator_jaw, alligator_teeth: r.alligator_teeth,
+            alligator_lips: r.alligator_lips, mfi: r.mfi,
+            fibo_pivot: r.fibo_pivot, fibo_r1: r.fibo_r1, fibo_s1: r.fibo_s1,
+            supertrend: r.supertrend, supertrend_dir: r.supertrend_dir, cmf: r.cmf,
         };
         grouped.entry(r.symbol).or_default().push(candle);
     }
@@ -522,6 +592,9 @@ mod tests {
             bb_upper: close * 1.02, bb_mid: close, bb_lower: close * 0.98,
             atr: close * 0.01, obv: 0.0, vwap: close, volume_spike: 1.0,
             trend: 0.0, trend_short: 0.0, poc: close,
+            alligator_jaw: close, alligator_teeth: close, alligator_lips: close,
+            mfi: 50.0, fibo_pivot: close, fibo_r1: close * 1.01, fibo_s1: close * 0.99,
+            supertrend: close, supertrend_dir: 1.0, cmf: 0.0,
         }
     }
 

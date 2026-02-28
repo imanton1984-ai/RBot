@@ -639,6 +639,99 @@ impl IndicatorKernelRunner {
         Ok((jaw_dev, teeth_dev, lips_dev)) // Return CudaSlices, keeping data on GPU
     }
 
+    // New indicator series wrappers
+
+    pub fn calculate_mfi_series(
+        &self,
+        high: &CudaSlice<f64>,
+        low: &CudaSlice<f64>,
+        close: &CudaSlice<f64>,
+        volume: &CudaSlice<f64>,
+        n: usize,
+        period: usize,
+        batch: usize,
+    ) -> Result<CudaSlice<f64>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        let mut output_dev = device.alloc_zeros::<f64>(n * batch)?;
+        let cfg = LaunchConfig {
+            grid_dim: (batch as u32, 1, 1),
+            block_dim: (1, 1, 1),
+            shared_mem_bytes: 0,
+        };
+        let func = device.get_func("features", "mfi_series_kernel").unwrap();
+        unsafe { func.launch(cfg, (high, low, close, volume, &mut output_dev, n as i32, period as i32, batch as i32))? };
+        Ok(output_dev)
+    }
+
+    pub fn calculate_cmf_series(
+        &self,
+        high: &CudaSlice<f64>,
+        low: &CudaSlice<f64>,
+        close: &CudaSlice<f64>,
+        volume: &CudaSlice<f64>,
+        n: usize,
+        period: usize,
+        batch: usize,
+    ) -> Result<CudaSlice<f64>> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        let mut output_dev = device.alloc_zeros::<f64>(n * batch)?;
+        let cfg = LaunchConfig {
+            grid_dim: (batch as u32, 1, 1),
+            block_dim: (1, 1, 1),
+            shared_mem_bytes: 0,
+        };
+        let func = device.get_func("features", "cmf_series_kernel").unwrap();
+        unsafe { func.launch(cfg, (high, low, close, volume, &mut output_dev, n as i32, period as i32, batch as i32))? };
+        Ok(output_dev)
+    }
+
+    pub fn calculate_fibo_series(
+        &self,
+        high: &CudaSlice<f64>,
+        low: &CudaSlice<f64>,
+        close: &CudaSlice<f64>,
+        n: usize,
+        period: usize,
+        batch: usize,
+    ) -> Result<(CudaSlice<f64>, CudaSlice<f64>, CudaSlice<f64>)> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        let mut pivot_dev = device.alloc_zeros::<f64>(n * batch)?;
+        let mut r1_dev = device.alloc_zeros::<f64>(n * batch)?;
+        let mut s1_dev = device.alloc_zeros::<f64>(n * batch)?;
+        let cfg = LaunchConfig {
+            grid_dim: (batch as u32, 1, 1),
+            block_dim: (1, 1, 1),
+            shared_mem_bytes: 0,
+        };
+        let func = device.get_func("features", "fibo_series_kernel").unwrap();
+        unsafe { func.launch(cfg, (high, low, close, &mut pivot_dev, &mut r1_dev, &mut s1_dev, n as i32, period as i32, batch as i32))? };
+        Ok((pivot_dev, r1_dev, s1_dev))
+    }
+
+    pub fn calculate_supertrend_series(
+        &self,
+        high: &CudaSlice<f64>,
+        low: &CudaSlice<f64>,
+        close: &CudaSlice<f64>,
+        atr: &CudaSlice<f64>,
+        n: usize,
+        multiplier: f64,
+        atr_period: usize,
+        batch: usize,
+    ) -> Result<(CudaSlice<f64>, CudaSlice<f64>)> {
+        let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
+        let mut st_value_dev = device.alloc_zeros::<f64>(n * batch)?;
+        let mut st_dir_dev = device.alloc_zeros::<f64>(n * batch)?;
+        let cfg = LaunchConfig {
+            grid_dim: (batch as u32, 1, 1),
+            block_dim: (1, 1, 1),
+            shared_mem_bytes: 0,
+        };
+        let func = device.get_func("features", "supertrend_series_kernel").unwrap();
+        unsafe { func.launch(cfg, (high, low, close, atr, &mut st_value_dev, &mut st_dir_dev, n as i32, multiplier, atr_period as i32, batch as i32))? };
+        Ok((st_value_dev, st_dir_dev))
+    }
+
     // Features kernels
     pub fn combine_features_v1(
         &self,
@@ -668,13 +761,21 @@ impl IndicatorKernelRunner {
         trend: &CudaSlice<f32>,
         trend_short: &CudaSlice<f32>,
         poc: &CudaSlice<f32>,
+        mfi: &CudaSlice<f32>,
+        fibo_pivot: &CudaSlice<f32>,
+        fibo_r1: &CudaSlice<f32>,
+        fibo_s1: &CudaSlice<f32>,
+        supertrend: &CudaSlice<f32>,
+        supertrend_dir: &CudaSlice<f32>,
+        cmf: &CudaSlice<f32>,
         n: usize,
         batch: usize
     ) -> Result<CudaSlice<f32>> {
         let device = get_cuda_device().ok_or(anyhow::anyhow!("No CUDA device"))?;
 
+        let num_features: i32 = 33;
         // Prepare output buffer
-        let total_elements = n * batch * 26; // 26 features
+        let total_elements = n * batch * (num_features as usize);
         let output_dev = device.alloc_zeros::<f32>(total_elements)?;
 
         let total_items = n * batch;
@@ -694,45 +795,39 @@ impl IndicatorKernelRunner {
         // Use raw args approach to avoid tuple size limits
         use std::ffi::c_void;
 
-        // Order of arguments MUST match the kernel signature
+        // Build pointer array for all 33 features (kernel uses feature_ptrs)
+        let h_ptrs = [
+            *rsi.device_ptr(), *cci.device_ptr(), *stoch_k.device_ptr(),
+            *stoch_d.device_ptr(), *williams.device_ptr(), *macd.device_ptr(),
+            *macd_signal.device_ptr(), *macd_hist.device_ptr(), *adx.device_ptr(),
+            *sma.device_ptr(), *ema20.device_ptr(), *ema50.device_ptr(),
+            *ema200.device_ptr(), *bb_upper.device_ptr(), *bb_mid.device_ptr(),
+            *bb_lower.device_ptr(), *atr.device_ptr(), *obv.device_ptr(),
+            *vwap.device_ptr(), *volume_spike.device_ptr(),
+            *alligator_jaw.device_ptr(), *alligator_teeth.device_ptr(),
+            *alligator_lips.device_ptr(), *trend.device_ptr(),
+            *trend_short.device_ptr(), *poc.device_ptr(),
+            *mfi.device_ptr(), *fibo_pivot.device_ptr(),
+            *fibo_r1.device_ptr(), *fibo_s1.device_ptr(),
+            *supertrend.device_ptr(), *supertrend_dir.device_ptr(),
+            *cmf.device_ptr(),
+        ];
+
+        let d_ptrs = device.htod_copy(h_ptrs.to_vec())?;
+
         let mut args: Vec<*mut c_void> = vec![
-            rsi.device_ptr().as_kernel_param(),
-            cci.device_ptr().as_kernel_param(),
-            stoch_k.device_ptr().as_kernel_param(),
-            stoch_d.device_ptr().as_kernel_param(),
-            williams.device_ptr().as_kernel_param(),
-            macd.device_ptr().as_kernel_param(),
-            macd_signal.device_ptr().as_kernel_param(),
-            macd_hist.device_ptr().as_kernel_param(),
-            adx.device_ptr().as_kernel_param(),
-            sma.device_ptr().as_kernel_param(),
-            ema20.device_ptr().as_kernel_param(),
-            ema50.device_ptr().as_kernel_param(),
-            ema200.device_ptr().as_kernel_param(),
-            bb_upper.device_ptr().as_kernel_param(),
-            bb_mid.device_ptr().as_kernel_param(),
-            bb_lower.device_ptr().as_kernel_param(),
-            atr.device_ptr().as_kernel_param(),
-            obv.device_ptr().as_kernel_param(),
-            vwap.device_ptr().as_kernel_param(),
-            volume_spike.device_ptr().as_kernel_param(),
-            alligator_jaw.device_ptr().as_kernel_param(),
-            alligator_teeth.device_ptr().as_kernel_param(),
-            alligator_lips.device_ptr().as_kernel_param(),
-            trend.device_ptr().as_kernel_param(),
-            trend_short.device_ptr().as_kernel_param(),
-            poc.device_ptr().as_kernel_param(),
+            d_ptrs.device_ptr().as_kernel_param(),
             output_dev.device_ptr().as_kernel_param(),
             &n_i32 as *const _ as *mut c_void,
             &batch_i32 as *const _ as *mut c_void,
+            &num_features as *const _ as *mut c_void,
         ];
 
         unsafe {
-            // Launch using raw args to avoid tuple size limits
             func.launch(cfg, &mut args)?
         };
 
-        Ok(output_dev) // Return CudaSlice, keeping data on GPU
+        Ok(output_dev)
     }
 
     // Cast kernels

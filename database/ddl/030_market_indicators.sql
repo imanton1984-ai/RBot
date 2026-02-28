@@ -49,6 +49,15 @@ CREATE TABLE IF NOT EXISTS market.indicators_wide (
     trend_short     SMALLINT,
     poc             REAL,
     
+    -- New indicators (v2)
+    mfi             REAL,        -- Money Flow Index (0-100)
+    fibo_pivot      REAL,        -- Fibonacci Pivot
+    fibo_r1         REAL,        -- Fibonacci R1
+    fibo_s1         REAL,        -- Fibonacci S1
+    supertrend      REAL,        -- SuperTrend value
+    supertrend_dir  SMALLINT,    -- SuperTrend direction (1=bullish, -1=bearish)
+    cmf             REAL,        -- Chaikin Money Flow (-1 to +1)
+    
     -- Complex data
     sr_levels       JSONB,
     

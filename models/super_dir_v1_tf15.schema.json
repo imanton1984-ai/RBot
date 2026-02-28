@@ -1,5 +1,5 @@
 {
-  "schema_id": "122c377eb58431cdd2164aecc9dc71eea8a983403de8d6956d112ab7004e3989_tf15",
+  "schema_id": "ce6abfc7ea3627eb8a428ddfce0768c774e63c199c38353b8585c18514605c8f_tf15",
   "features": [
     "rsi",
     "cci",
@@ -24,6 +24,16 @@
     "trend",
     "trend_short",
     "poc",
+    "alligator_jaw",
+    "alligator_teeth",
+    "alligator_lips",
+    "mfi",
+    "fibo_pivot",
+    "fibo_r1",
+    "fibo_s1",
+    "supertrend",
+    "supertrend_dir",
+    "cmf",
     "rsi_norm",
     "cci_norm",
     "stoch_norm",
@@ -38,7 +48,11 @@
     "price_vs_vwap",
     "macd_norm",
     "obv_change_pct",
-    "volume_spike_flag"
+    "volume_spike_flag",
+    "mfi_norm",
+    "price_vs_fibo_pivot",
+    "price_vs_supertrend",
+    "alligator_spread"
   ],
   "task": "super_dir",
   "tf_minutes": 15,

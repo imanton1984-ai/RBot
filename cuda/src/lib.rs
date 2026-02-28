@@ -52,10 +52,14 @@ impl CudaContext {
             "features",
             &[
                 "combine_features_v1_kernel",
-                "cast_f64_to_f32_kernel", 
+                "cast_f64_to_f32_kernel",
                 "fill_const_f32_kernel",
                 "calculate_volume_spike_kernel",
                 "calculate_trend_kernel",
+                "mfi_series_kernel",
+                "cmf_series_kernel",
+                "fibo_series_kernel",
+                "supertrend_series_kernel",
             ]
         )?;
 

@@ -49,6 +49,11 @@ INDICATOR_FEATURES = [
     "bb_upper", "bb_mid", "bb_lower", "atr",
     "obv", "vwap", "volume_spike",
     "trend", "trend_short", "poc",
+    # Alligator (3 features)
+    "alligator_jaw", "alligator_teeth", "alligator_lips",
+    # New indicators v2 (7 features)
+    "mfi", "fibo_pivot", "fibo_r1", "fibo_s1",
+    "supertrend", "supertrend_dir", "cmf",
 ]
 
 # Derived features (must match Rust DERIVED_FEATURES order)
@@ -58,18 +63,21 @@ DERIVED_FEATURES = [
     "price_vs_sma", "price_vs_ema20", "price_vs_ema50",
     "price_vs_ema200", "price_vs_vwap",
     "macd_norm", "obv_change_pct", "volume_spike_flag",
+    # New derived v2 (4 features)
+    "mfi_norm", "price_vs_fibo_pivot", "price_vs_supertrend",
+    "alligator_spread",
 ]
 
 ALL_FEATURES = INDICATOR_FEATURES + DERIVED_FEATURES
 
-# TF target move percentages (must match Rust config)
+# TF target move percentages (must match Rust config::tf_target_move_pct)
 TF_TARGET_MOVE_PCT = {
-    1: 1.0,
-    5: 1.75,
-    15: 2.75,
-    60: 3.75,
-    240: 4.75,
-    1440: 5.75,
+    1: 0.95,
+    5: 2.2,
+    15: 3.0,
+    60: 4.4,
+    240: 6.0,
+    1440: 8.0,
 }
 
 TIMEFRAMES = [1, 5, 15, 60, 240, 1440]

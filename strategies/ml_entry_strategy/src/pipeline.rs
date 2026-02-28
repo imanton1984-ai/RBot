@@ -110,7 +110,7 @@ impl SuperEntryPipeline {
         for i in process_start..n {
             // Write indicator features directly as f32 (no intermediate Vec<f64>)
             let c = &candles[i];
-            // Raw indicators (23 features) — matches INDICATOR_FEATURES order
+            // Raw indicators (33 features) — matches INDICATOR_FEATURES order
             features_flat.push(c.rsi as f32);
             features_flat.push(c.cci as f32);
             features_flat.push(c.stoch_k as f32);
@@ -134,8 +134,20 @@ impl SuperEntryPipeline {
             features_flat.push(c.trend as f32);
             features_flat.push(c.trend_short as f32);
             features_flat.push(c.poc as f32);
+            // Alligator (3 features)
+            features_flat.push(c.alligator_jaw as f32);
+            features_flat.push(c.alligator_teeth as f32);
+            features_flat.push(c.alligator_lips as f32);
+            // New indicators (7 features)
+            features_flat.push(c.mfi as f32);
+            features_flat.push(c.fibo_pivot as f32);
+            features_flat.push(c.fibo_r1 as f32);
+            features_flat.push(c.fibo_s1 as f32);
+            features_flat.push(c.supertrend as f32);
+            features_flat.push(c.supertrend_dir as f32);
+            features_flat.push(c.cmf as f32);
 
-            // Derived features (15 features) — computed inline, no allocation
+            // Derived features (19 features) — computed inline, no allocation
             let close = c.close;
             let safe_div = |a: f64, b: f64| -> f32 {
                 if b.abs() > 1e-12 { (a / b) as f32 } else { 0.0f32 }
@@ -158,6 +170,11 @@ impl SuperEntryPipeline {
             features_flat.push(safe_div(c.macd_hist, close) * 1000.0);     // macd_norm
             features_flat.push(0.0f32);                                     // obv_change_pct (N/A)
             features_flat.push(if c.volume_spike > 2.0 { 1.0f32 } else { 0.0f32 }); // volume_spike_flag
+            // New derived features (4 features)
+            features_flat.push((c.mfi / 100.0) as f32);                    // mfi_norm
+            features_flat.push(safe_div(close - c.fibo_pivot, close) * 100.0); // price_vs_fibo_pivot
+            features_flat.push(safe_div(close - c.supertrend, close) * 100.0); // price_vs_supertrend
+            features_flat.push(safe_div(c.alligator_jaw - c.alligator_lips, close) * 100.0); // alligator_spread
         }
 
         // Batch inference
