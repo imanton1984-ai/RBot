@@ -1,0 +1,8 @@
+[2m2026-02-28T12:00:58.022066Z[0m [32m INFO[0m [2mwebui_server[0m[2m:[0m Starting WebUI server...
+[2m2026-02-28T12:00:58.026394Z[0m [32m INFO[0m [2mwebui_server[0m[2m:[0m Connected to database
+[2m2026-02-28T12:00:58.026414Z[0m [32m INFO[0m [2mwebui_server[0m[2m:[0m Signal archiver background task spawned
+[2m2026-02-28T12:00:58.026532Z[0m [32m INFO[0m [2mwebui_server[0m[2m:[0m Candle broadcaster background task spawned
+[2m2026-02-28T12:00:58.026547Z[0m [32m INFO[0m [2mwebui::candle_broadcaster[0m[2m:[0m 📡 Candle broadcaster started (5s poll interval)
+[2m2026-02-28T12:00:58.026750Z[0m [32m INFO[0m [2mwebui_server[0m[2m:[0m WebUI server listening on http://127.0.0.1:3000
+[2m2026-02-28T12:00:58.181767Z[0m [32m INFO[0m [2mwebui::candle_broadcaster[0m[2m:[0m 📡 Candle broadcaster: using DB polling fallback (Kafka unavailable)
+[2m2026-02-28T12:01:04.458097Z[0m [32m INFO[0m [2mwebui::ws[0m[2m:[0m Subscribed: [SubscriptionChannel { name: "ticker", pair: Some("BTCUSDT"), tf: None }, SubscriptionChannel { name: "candles_last", pair: Some("BTCUSDT"), tf: Some(60) }, SubscriptionChannel { name: "orders", pair: None, tf: None }, SubscriptionChannel { name: "positions", pair: None, tf: None }, SubscriptionChannel { name: "balance", pair: None, tf: None }, SubscriptionChannel { name: "alerts", pair: None, tf: None }, SubscriptionChannel { name: "pnl", pair: None, tf: None }, SubscriptionChannel { name: "connections", pair: None, tf: None }, SubscriptionChannel { name: "trading_state", pair: None, tf: None }]

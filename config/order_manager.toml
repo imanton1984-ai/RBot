@@ -32,4 +32,4 @@ topic_positions = "positions.updates"
 tracker_interval_secs = 2
 trade_size_type = "percent_depo"
 trade_size_value = 10.0
-trading_mode = "off"
+trading_mode = "auto"

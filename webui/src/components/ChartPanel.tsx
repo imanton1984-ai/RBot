@@ -382,6 +382,10 @@ export default function ChartPanel() {
   // Subscribes to lastCandleUpdate from the store. When a candle_update arrives
   // matching the current pair+tf, directly updates the chart via .update()
   // for smooth, near-real-time rendering without full HTTP refetch.
+  //
+  // PERF: Wrapped in try/catch to prevent lightweight-charts errors from
+  // crashing the entire React component tree (causes blank screen).
+  // Validates data before passing to chart to reject stale/invalid candles.
   const lastCandleUpdate = useDataStore((s) => s.lastCandleUpdate);
 
   useEffect(() => {
@@ -391,25 +395,38 @@ export default function ChartPanel() {
     // Only process updates for the currently viewed pair+tf
     if (lastCandleUpdate.pair !== currentPair || lastCandleUpdate.tf !== currentTf) return;
 
-    const timeSec = Math.floor(lastCandleUpdate.t / 1000) as any;
+    // Validate candle data: reject zero/NaN/undefined values
+    const { t, o, h, l, c, v } = lastCandleUpdate;
+    if (!t || !o || !c || t <= 0 || isNaN(o) || isNaN(c)) return;
 
-    // Update candlestick series
-    candleSeriesRef.current.update({
-      time: timeSec,
-      open: lastCandleUpdate.o,
-      high: lastCandleUpdate.h,
-      low: lastCandleUpdate.l,
-      close: lastCandleUpdate.c,
-    });
+    const timeSec = Math.floor(t / 1000) as any;
 
-    // Update volume series
-    volumeSeriesRef.current.update({
-      time: timeSec,
-      value: lastCandleUpdate.v,
-      color: lastCandleUpdate.c >= lastCandleUpdate.o
-        ? 'rgba(14, 203, 129, 0.3)'
-        : 'rgba(246, 70, 93, 0.3)',
-    });
+    // Reject timestamps in the distant past (before 2020) — stale data
+    if (timeSec < 1577836800) return; // 2020-01-01
+
+    try {
+      // Update candlestick series
+      candleSeriesRef.current.update({
+        time: timeSec,
+        open: o,
+        high: h || Math.max(o, c),
+        low: l || Math.min(o, c),
+        close: c,
+      });
+
+      // Update volume series
+      volumeSeriesRef.current.update({
+        time: timeSec,
+        value: v || 0,
+        color: c >= o
+          ? 'rgba(14, 203, 129, 0.3)'
+          : 'rgba(246, 70, 93, 0.3)',
+      });
+    } catch (err) {
+      // lightweight-charts can throw on invalid time sequences or data.
+      // Log but don't crash — the next HTTP poll will re-sync the full chart.
+      console.warn('[ChartPanel] candle update error (non-fatal):', err);
+    }
   }, [lastCandleUpdate, chartReady, currentPair, currentTf]);
 
   return (

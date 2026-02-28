@@ -16,7 +16,39 @@ import OrderOptionsModal from './components/modals/OrderOptionsModal';
 import SignalsModal from './components/modals/SignalsModal';
 import StatisticsPanel from './components/StatisticsPanel';
 import AccountModal from './components/AccountModal';
-import { useEffect } from 'react';
+import { Component, useEffect } from 'react';
+import type { ReactNode, ErrorInfo } from 'react';
+
+// ─── ErrorBoundary — prevents blank screen on unhandled React errors ───
+interface ErrorBoundaryState { hasError: boolean; error: Error | null }
+class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[ErrorBoundary] Caught rendering error:', error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen w-screen bg-background flex items-center justify-center flex-col gap-4">
+          <div className="text-xl text-red-400 font-bold">⚠️ UI Error</div>
+          <div className="text-sm text-textSecondary max-w-xl text-center">
+            {this.state.error?.message || 'Unknown rendering error'}
+          </div>
+          <button
+            className="px-4 py-2 bg-binanceYellow text-black rounded font-medium"
+            onClick={() => { this.setState({ hasError: false, error: null }); }}
+          >
+            Reload UI
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   useWebSocket();
@@ -109,4 +141,12 @@ function App() {
   );
 }
 
-export default App;
+function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
+
+export default AppWithErrorBoundary;

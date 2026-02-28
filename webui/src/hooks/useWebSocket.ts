@@ -1,9 +1,15 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useWsStore, useDataStore, useTradingStore } from '../store';
+import type { WsCandleUpdate } from '../store';
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  // Throttle candle updates: buffer the latest update per pair+tf
+  // and flush to React state at most once per animation frame (16ms).
+  // This prevents 150+ rapid-fire zustand updates from crashing React.
+  const candleBufferRef = useRef<WsCandleUpdate | null>(null);
+  const candleRafRef = useRef<number>(0);
 
   const connected = useWsStore((s) => s.connected);
 
@@ -56,9 +62,12 @@ export function useWebSocket() {
             wsState.setHigh24h(message.high_24h);
             wsState.setLow24h(message.low_24h);
             break;
-          case 'candle_update':
-            // Store the raw candle update with pair+tf so ChartPanel can filter
-            dataState.setLastCandleUpdate({
+          case 'candle_update': {
+            // PERF: Throttle candle updates via requestAnimationFrame.
+            // The broadcaster sends 150+ candle_update messages every 5s (one per symbol).
+            // Without throttling, each one triggers setState → React re-render → blank screen.
+            // We only keep the LAST update matching the current pair+tf and apply it once per frame.
+            const update: WsCandleUpdate = {
               pair: message.pair,
               tf: message.tf,
               t: message.t,
@@ -67,8 +76,27 @@ export function useWebSocket() {
               l: message.l,
               c: message.c,
               v: message.v,
-            });
+            };
+
+            // Only buffer updates that match the currently viewed pair+tf
+            const { currentPair, currentTf } = useTradingStore.getState();
+            if (update.pair !== currentPair || update.tf !== currentTf) break;
+
+            candleBufferRef.current = update;
+
+            // Schedule a single flush per animation frame
+            if (!candleRafRef.current) {
+              candleRafRef.current = requestAnimationFrame(() => {
+                candleRafRef.current = 0;
+                const buffered = candleBufferRef.current;
+                if (buffered) {
+                  candleBufferRef.current = null;
+                  useDataStore.getState().setLastCandleUpdate(buffered);
+                }
+              });
+            }
             break;
+          }
           case 'balance_update':
             dataState.setBalance({
               overall: message.overall,
@@ -114,6 +142,7 @@ export function useWebSocket() {
     connect();
     return () => {
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (candleRafRef.current) cancelAnimationFrame(candleRafRef.current);
       wsRef.current?.close();
     };
   }, [connect]);
