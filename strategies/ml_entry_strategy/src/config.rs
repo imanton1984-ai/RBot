@@ -155,7 +155,7 @@ impl SuperEntryConfig {
         static TIMEFRAMES: OnceLock<Vec<i32>> = OnceLock::new();
         TIMEFRAMES.get_or_init(|| {
             let raw = std::env::var("SUPER_ENTRY_TIMEFRAMES")
-                .unwrap_or_else(|_| "15,60,240,1440".to_string());
+                .unwrap_or_else(|_| "5,15,60,240,1440".to_string());
             let mut tfs: Vec<i32> = raw
                 .split(',')
                 .filter_map(|s| s.trim().parse::<i32>().ok())
@@ -168,7 +168,7 @@ impl SuperEntryConfig {
                     "SUPER_ENTRY_TIMEFRAMES is empty or invalid ('{}'). Falling back to [15,60,240,1440]",
                     raw
                 );
-                tfs = vec![15, 60, 240, 1440];
+                tfs = vec![5, 15, 60, 240, 1440];
             }
             tracing::info!("SuperEntry compute timeframes: {:?} (from SUPER_ENTRY_TIMEFRAMES)", tfs);
             tfs

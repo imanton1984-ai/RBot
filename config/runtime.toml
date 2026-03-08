@@ -31,13 +31,19 @@ intra_update_sampling_ms = 200
 http_concurrency = 30
 
 # Per-TF backfill candle limits (overrides backfill_candles for specific TFs)
-# For ML model training (super_entry) we need deeper history on key TFs.
-# 1m/5m: 1000 (default), 15m/1h/4h: 12000, 1d: 3700
+# For ML model training (super_entry) we need deep history on key TFs.
+# More data = better model quality. Binance Futures history:
+#   1m:  5000  = ~3.5 days  (noisy, but volume helps)
+#   5m:  12000 = ~41 days
+#   15m: 12000 = ~125 days
+#   1h:  12000 = ~500 days (~1.4 years)
+#   4h:  12000 = ~2000 days (~5.5 years)
+#   1d:  3700  = ~10 years
 # NOTE: This sub-table MUST be at the end of [runtime] section (TOML rule).
 [runtime.backfill_candles_per_tf]
 "1m" = 5000
 "5m" = 5000
-"15m" = 5000
-"1h" = 5000
-"4h" = 5000
-"1d" = 2000
+"15m" = 12000
+"1h" = 12000
+"4h" = 12000
+"1d" = 3700

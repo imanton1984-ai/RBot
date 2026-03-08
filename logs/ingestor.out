@@ -1,0 +1,114 @@
+[2m2026-03-08T16:54:30.376862Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Refreshing universe pairs...
+[2m2026-03-08T16:54:34.130509Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-03-08T16:54:34.130532Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-03-08T16:54:34.130543Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-03-08T16:54:34.130555Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-03-08T16:54:34.130559Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-03-08T16:54:34.130565Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-03-08T16:54:34.174904Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=117, active_cnt=117
+[2m2026-03-08T16:54:34.175072Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Universe pairs refreshed OK: selected=117, active=117
+[2m2026-03-08T16:54:34.175083Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Starting ingest (candles monolith)...
+[2m2026-03-08T16:54:34.191224Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Active pairs: 117
+[2m2026-03-08T16:54:36.732019Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1m: 136
+[2m2026-03-08T16:54:36.739071Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): synchronous_commit=OFF
+[2m2026-03-08T16:54:36.776474Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 5m: 136
+[2m2026-03-08T16:54:36.781584Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): synchronous_commit=OFF
+[2m2026-03-08T16:54:36.839200Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 15m: 136
+[2m2026-03-08T16:54:36.844424Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): synchronous_commit=OFF
+[2m2026-03-08T16:54:36.905682Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1h: 136
+[2m2026-03-08T16:54:36.910804Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): synchronous_commit=OFF
+[2m2026-03-08T16:54:36.983863Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 4h: 136
+[2m2026-03-08T16:54:36.989460Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(4h): synchronous_commit=OFF
+[2m2026-03-08T16:54:37.040522Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1d: 136
+[2m2026-03-08T16:54:37.040639Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Periodically refreshing universe pairs...
+[2m2026-03-08T16:54:37.045865Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1d): synchronous_commit=OFF
+[2m2026-03-08T16:54:40.257754Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-03-08T16:54:40.257782Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-03-08T16:54:40.257798Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-03-08T16:54:40.257814Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-03-08T16:54:40.257820Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-03-08T16:54:40.257829Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-03-08T16:54:40.294442Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=117, active_cnt=117
+[2m2026-03-08T16:54:40.294628Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Pairs refreshed: selected_cnt=117, active_cnt=117
+[2m2026-03-08T16:54:42.718983Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Non-empty database detected - performing incremental backfill
+[2m2026-03-08T16:54:42.719051Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m REST backfill: tfs=6, pairs=117, http_concurrency=30
+[2m2026-03-08T16:54:42.719079Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill rate limiting: 34 weight/sec, default_limit=1000, weight=5, effective ~6.8 req/sec. Per-TF limits: {"1h": 12000, "15m": 12000, "4h": 12000, "1d": 3700, "5m": 5000, "1m": 5000}
+[2m2026-03-08T16:54:42.765567Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 1m: existing_pairs=94 (incremental), new_pairs=23 (full fetch from cap_start)
+[2m2026-03-08T16:54:42.808275Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 5m: existing_pairs=94 (incremental), new_pairs=23 (full fetch from cap_start)
+[2m2026-03-08T16:54:42.857105Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 15m: existing_pairs=94 (incremental), new_pairs=23 (full fetch from cap_start)
+[2m2026-03-08T16:54:42.912100Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 1h: existing_pairs=94 (incremental), new_pairs=23 (full fetch from cap_start)
+[2m2026-03-08T16:54:42.954394Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 4h: existing_pairs=94 (incremental), new_pairs=23 (full fetch from cap_start)
+[2m2026-03-08T16:54:42.989134Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 1d: existing_pairs=94 (incremental), new_pairs=23 (full fetch from cap_start)
+[2m2026-03-08T16:54:45.717427Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 10500
+[2m2026-03-08T16:54:47.811885Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10545 REST rows, total 45045
+[2m2026-03-08T16:54:52.387594Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10255 REST rows, total 55300
+[2m2026-03-08T16:54:57.226239Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 11150 REST rows, total 66450
+[2m2026-03-08T16:54:59.649916Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 76950
+[2m2026-03-08T16:55:01.721480Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 87450
+[2m2026-03-08T16:55:03.940525Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 14016 REST rows, total 101466
+[2m2026-03-08T16:55:08.377801Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 11208 REST rows, total 112674
+[2m2026-03-08T16:55:13.660591Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 11724 REST rows, total 124398
+[2m2026-03-08T16:55:16.384400Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10032 REST rows, total 134430
+[2m2026-03-08T16:55:18.565606Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 144930
+[2m2026-03-08T16:55:21.064945Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 13500 REST rows, total 158430
+[2m2026-03-08T16:55:23.764548Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10596 REST rows, total 169026
+[2m2026-03-08T16:55:28.665290Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10224 REST rows, total 179250
+[2m2026-03-08T16:55:32.278779Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10128 REST rows, total 189378
+[2m2026-03-08T16:55:34.663657Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 199878
+[2m2026-03-08T16:55:38.650173Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10330 REST rows, total 220538
+[2m2026-03-08T16:55:41.952458Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 11064 REST rows, total 231602
+[2m2026-03-08T16:55:43.955498Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 242102
+[2m2026-03-08T16:55:46.775521Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 12000 REST rows, total 254102
+[2m2026-03-08T16:55:50.198098Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 264602
+[2m2026-03-08T16:55:54.663392Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 285602
+[2m2026-03-08T16:55:57.314119Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10500 REST rows, total 296102
+[2m2026-03-08T16:56:04.173811Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10494 REST rows, total 306596
+[2m2026-03-08T16:56:08.095348Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10504 REST rows, total 10504
+[2m2026-03-08T16:56:15.492957Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10100 REST rows, total 20604
+[2m2026-03-08T16:56:23.061382Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10504 REST rows, total 31108
+[2m2026-03-08T16:56:29.428333Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10792 REST rows, total 41900
+[2m2026-03-08T16:56:31.778541Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 12000 REST rows, total 53900
+[2m2026-03-08T16:56:34.145967Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 12000 REST rows, total 65900
+[2m2026-03-08T16:56:38.493602Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10500 REST rows, total 76400
+[2m2026-03-08T16:56:40.537342Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10500 REST rows, total 86900
+[2m2026-03-08T16:56:42.652068Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 12000 REST rows, total 98900
+[2m2026-03-08T16:56:47.207603Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 12000 REST rows, total 110900
+[2m2026-03-08T16:56:49.452401Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 12000 REST rows, total 122900
+[2m2026-03-08T16:56:52.095936Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10500 REST rows, total 133400
+[2m2026-03-08T16:56:55.735037Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): inserted 10497 REST rows, total 143897
+[2m2026-03-08T16:57:17.305795Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10050 REST rows, total 10050
+[2m2026-03-08T16:57:25.146226Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10354 REST rows, total 20404
+[2m2026-03-08T16:57:27.326785Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12000 REST rows, total 32404
+[2m2026-03-08T16:57:29.693527Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 42904
+[2m2026-03-08T16:57:33.529783Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 53404
+[2m2026-03-08T16:57:35.596166Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12000 REST rows, total 65404
+[2m2026-03-08T16:57:38.429489Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12000 REST rows, total 77404
+[2m2026-03-08T16:57:42.626346Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 87904
+[2m2026-03-08T16:57:44.714094Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12000 REST rows, total 99904
+[2m2026-03-08T16:57:46.746441Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 110404
+[2m2026-03-08T16:57:50.793308Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10244 REST rows, total 120648
+[2m2026-03-08T16:57:53.505541Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12000 REST rows, total 132648
+[2m2026-03-08T16:57:55.640753Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12000 REST rows, total 144648
+[2m2026-03-08T16:57:59.978590Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 155148
+[2m2026-03-08T16:58:02.407877Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 165648
+[2m2026-03-08T16:58:04.504887Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12000 REST rows, total 177648
+[2m2026-03-08T16:58:08.796004Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 188148
+[2m2026-03-08T16:58:10.823581Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 198648
+[2m2026-03-08T16:58:13.178963Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 209148
+[2m2026-03-08T16:58:17.604246Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 219648
+[2m2026-03-08T16:58:21.451812Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10500 REST rows, total 240648
+[2m2026-03-08T16:58:26.139087Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10958 REST rows, total 251606
+[2m2026-03-08T16:58:28.785869Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 12380 REST rows, total 263986
+[2m2026-03-08T16:58:31.357175Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): inserted 10493 REST rows, total 274479
+[2m2026-03-08T16:58:51.450595Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 12180 REST rows, total 12180
+[2m2026-03-08T16:58:54.144895Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 12000 REST rows, total 24180
+[2m2026-03-08T16:59:00.317386Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 14022 REST rows, total 48702
+[2m2026-03-08T16:59:02.647126Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 12000 REST rows, total 60702
+[2m2026-03-08T16:59:07.571573Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 10500 REST rows, total 71202
+[2m2026-03-08T16:59:10.398029Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 12000 REST rows, total 83202
+[2m2026-03-08T16:59:12.689690Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 10500 REST rows, total 93702
+[2m2026-03-08T16:59:18.174882Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 10760 REST rows, total 104462
+[2m2026-03-08T16:59:20.212167Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 10500 REST rows, total 114962
+[2m2026-03-08T16:59:27.042281Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 11284 REST rows, total 126246
+[2m2026-03-08T16:59:35.780430Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 10496 REST rows, total 148742
+[2m2026-03-08T16:59:37.887483Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): inserted 10307 REST rows, total 159049

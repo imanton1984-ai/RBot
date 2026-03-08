@@ -123,14 +123,23 @@ async fn main() -> Result<()> {
         let mut total_candles_processed = 0usize;
         let mut total_symbols_processed = 0usize;
 
+        // Per-TF candle limits — consistent with dataset_builder and backtest
+        let backfill_limit = |tf_minutes: i32| -> usize {
+            match tf_minutes {
+                1 => 5000, 5 => 12000, 15 => 12000, 60 => 12000,
+                240 => 12000, 1440 => 3700, _ => 5000,
+            }
+        };
+
         for &tf in SuperEntryConfig::timeframes() {
             let tf_t0 = Instant::now();
             let mut tf_signals: Vec<SuperEntrySignal> = Vec::new();
             let mut tf_candles = 0usize;
             let mut tf_symbols_ok = 0usize;
             let mut tf_symbols_empty = 0usize;
+            let limit = backfill_limit(tf);
 
-            info!(target: "super_entry", "Processing TF {}m for {} symbols...", tf, symbols.len());
+            info!(target: "super_entry", "Processing TF {}m for {} symbols (limit={})...", tf, symbols.len(), limit);
 
             // Concurrent fetch in batches of 20 symbols
             for chunk in symbols.chunks(20) {
@@ -140,7 +149,7 @@ async fn main() -> Result<()> {
                     let sym = symbol.clone();
                     handles.push(tokio::spawn(async move {
                         ml_entry_strategy::dataset::fetch_candles_with_indicators(
-                            &pool_c, &sym, tf, 1000
+                            &pool_c, &sym, tf, limit
                         ).await
                     }));
                 }

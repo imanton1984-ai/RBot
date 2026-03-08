@@ -63,16 +63,23 @@ async fn main() -> Result<()> {
     let mut stats_by_tf: std::collections::HashMap<i32, (usize, usize)> = std::collections::HashMap::new();
 
     // Per-TF candle limits for dataset building — more candles = better model.
-    // Must match what's available in DB (after running fill_candles.sh).
+    // Must match what's available in DB (runtime.toml backfill_candles_per_tf).
+    // After warmup (300) + lookahead (20), effective training examples = limit - 320.
+    //   1m:  5000  → 4680 examples/symbol  (~3.5 days)
+    //   5m:  12000 → 11680 examples/symbol (~41 days)
+    //   15m: 12000 → 11680 examples/symbol (~125 days)
+    //   1h:  12000 → 11680 examples/symbol (~500 days)
+    //   4h:  12000 → 11680 examples/symbol (~5.5 years)
+    //   1d:  3700  → 3380 examples/symbol  (~10 years)
     let dataset_limit_per_tf = |tf_minutes: i32| -> usize {
         match tf_minutes {
-            1 => 1000,     // 1m: as-is
-            5 => 1000,     // 5m: as-is
+            1 => 5000,     // 1m: all available from DB
+            5 => 12000,    // 5m: deep history
             15 => 12000,   // 15m: deep history
-            60 => 12000,   // 1h: deep history
+            60 => 12000,   // 1h: deep history (target TF)
             240 => 12000,  // 4h: deep history
             1440 => 3700,  // 1d: 10+ years
-            _ => 1000,
+            _ => 5000,
         }
     };
 

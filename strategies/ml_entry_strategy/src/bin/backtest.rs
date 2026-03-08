@@ -9,7 +9,7 @@
 //
 // WORKFLOW:
 //   1. Load models (super_entry + direction per TF)
-//   2. For each (symbol, tf), fetch 1000 candles
+//   2. For each (symbol, tf), fetch ALL available candles (matching dataset depth)
 //   3. Starting from candle 301, run the pipeline:
 //      - extract features → predict → score → generate signal
 //   4. For each signal, simulate trade:
@@ -267,11 +267,18 @@ async fn main() -> Result<()> {
     println!();
 
     for &tf in SuperEntryConfig::timeframes() {
+        let limit = match tf {
+            1 => 5000, 5 => 12000, 15 => 12000, 60 => 12000,
+            240 => 12000, 1440 => 3700, _ => 5000,
+        };
+        let effective = if limit > 320 { limit - 320 } else { 0 };
         println!(
-            "    TF {:>5}m:  TP={:.2}%  SL={:.2}%",
+            "    TF {:>5}m:  TP={:.2}%  SL={:.2}%  candles={:<6} effective={}",
             tf,
             config.target_pct_for_tf(tf),
-            config.sl_pct_for_tf(tf)
+            config.sl_pct_for_tf(tf),
+            limit,
+            effective
         );
     }
     println!();
@@ -299,19 +306,35 @@ async fn main() -> Result<()> {
     let mut metrics_by_tf: HashMap<i32, TfMetrics> = HashMap::new();
     let mut all_trades: Vec<TradeResult> = Vec::new();
 
+    // Per-TF candle limits for backtesting — MUST match dataset_builder limits
+    // so we evaluate the model on the same data depth it was trained on.
+    // More candles = more realistic backtest, less overfitting illusion.
+    let backtest_limit_per_tf = |tf_minutes: i32| -> usize {
+        match tf_minutes {
+            1 => 5000,     // 1m: ~3.5 days (4680 effective after warmup)
+            5 => 12000,    // 5m: ~41 days
+            15 => 12000,   // 15m: ~125 days
+            60 => 12000,   // 1h: ~500 days (target TF — max depth)
+            240 => 12000,  // 4h: ~5.5 years
+            1440 => 3700,  // 1d: ~10 years
+            _ => 5000,
+        }
+    };
+
     let t0_total = std::time::Instant::now();
 
     for &tf in SuperEntryConfig::timeframes() {
         let t0_tf = std::time::Instant::now();
         let target_pct = config.target_pct_for_tf(tf);
         let sl_pct = config.sl_pct_for_tf(tf);
+        let limit = backtest_limit_per_tf(tf);
 
         let mut tf_metrics = TfMetrics::default();
 
         // ── BATCH FETCH: single SQL query per TF (all symbols at once) ──
         // 6 batch queries instead of 133×6 = 798 individual queries.
         // Uses ROW_NUMBER window function — much faster than per-symbol fetches.
-        let grouped = match fetch_all_candles_for_tf(&pool, tf, 1000).await {
+        let grouped = match fetch_all_candles_for_tf(&pool, tf, limit).await {
             Ok(g) => g,
             Err(e) => {
                 eprintln!("Failed to fetch candles for TF {}m: {}", tf, e);
@@ -319,8 +342,8 @@ async fn main() -> Result<()> {
             }
         };
 
-        println!("  TF {:>5}m: fetched {} symbols in {:.1}s, processing...",
-            tf, grouped.len(), t0_tf.elapsed().as_secs_f64());
+        println!("  TF {:>5}m: fetched {} symbols (limit={}) in {:.1}s, processing...",
+            tf, grouped.len(), limit, t0_tf.elapsed().as_secs_f64());
 
         for (_symbol, candles) in &grouped {
             if candles.len() < config.warmup_bars + config.lookahead_bars + 1 {

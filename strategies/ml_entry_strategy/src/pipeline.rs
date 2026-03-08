@@ -310,6 +310,20 @@ impl SuperEntryPipeline {
         Ok(result)
     }
 
+    /// Per-TF candle limit for full pipeline run.
+    /// Must be consistent with dataset_builder and backtest.
+    fn candle_limit_for_tf(tf_minutes: i32) -> usize {
+        match tf_minutes {
+            1 => 5000,
+            5 => 12000,
+            15 => 12000,
+            60 => 12000,
+            240 => 12000,
+            1440 => 3700,
+            _ => 5000,
+        }
+    }
+
     /// Run the full pipeline for all symbols and timeframes.
     ///
     /// Fetches data from DB, processes each (symbol, tf) pair,
@@ -331,9 +345,10 @@ impl SuperEntryPipeline {
 
             let mut tf_signals = 0;
             let mut tf_total = 0;
+            let limit = Self::candle_limit_for_tf(tf);
 
             for symbol in &symbols {
-                let candles = fetch_candles_with_indicators(pool, symbol, tf, 1000).await?;
+                let candles = fetch_candles_with_indicators(pool, symbol, tf, limit).await?;
 
                 if candles.len() < self.config.warmup_bars + self.config.lookahead_bars {
                     continue;

@@ -588,16 +588,31 @@ async fn run_super_entry_backfill(pool: &PgPool, use_cuda: bool) -> Result<usize
         use_gpu
     );
 
+    // Per-TF candle limits — must match dataset_builder and backtest limits.
+    // More data = more signals = better coverage.
+    let backfill_limit_per_tf = |tf_minutes: i32| -> usize {
+        match tf_minutes {
+            1 => 5000,     // 1m: all available from DB
+            5 => 12000,    // 5m: deep history
+            15 => 12000,   // 15m: deep history
+            60 => 12000,   // 1h: deep history (target TF)
+            240 => 12000,  // 4h: deep history
+            1440 => 3700,  // 1d: 10+ years
+            _ => 5000,
+        }
+    };
+
     let t0 = std::time::Instant::now();
     let mut total_signals = 0usize;
     let mut total_candles_processed = 0usize;
 
     for &tf in SuperEntryConfig::timeframes() {
         let tf_t0 = std::time::Instant::now();
+        let limit = backfill_limit_per_tf(tf);
 
         // Single bulk query: fetch ALL symbols' candles+indicators for this TF
         // Uses window function (ROW_NUMBER) — much faster than N per-symbol queries
-        let grouped = match fetch_all_candles_for_tf(pool, tf, 1000).await {
+        let grouped = match fetch_all_candles_for_tf(pool, tf, limit).await {
             Ok(g) => g,
             Err(e) => {
                 tracing::warn!("Super Entry backfill: fetch_all TF {}m failed: {}", tf, e);
