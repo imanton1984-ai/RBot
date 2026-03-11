@@ -72,12 +72,12 @@ ALL_FEATURES = INDICATOR_FEATURES + DERIVED_FEATURES
 
 # TF target move percentages (must match Rust config::tf_target_move_pct)
 TF_TARGET_MOVE_PCT = {
-    1: 0.95,
-    5: 2.2,
-    15: 3.0,
-    60: 4.4,
-    240: 6.0,
-    1440: 8.0,
+    1: 1.2,
+    5: 2.8,
+    15: 3.5,
+    60: 5.0,
+    240: 7.5,
+    1440: 10.0,
 }
 
 TIMEFRAMES = [1, 5, 15, 60, 240, 1440]

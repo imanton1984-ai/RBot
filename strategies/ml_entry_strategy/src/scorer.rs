@@ -158,17 +158,14 @@ impl SuperEntryScorer {
             };
         }
 
-        // 3. Overheated filter (optional)
+        // 3. Overheated filter - ALWAYS APPLY IF ENABLED
         if self.config.enable_overheated_filter {
-            let is_marginal = (p_super as f64) < self.config.p_threshold + self.config.overheated_margin as f64;
-            if is_marginal {
-                if let Some(oh) = features {
-                    if oh.is_overheated(direction) {
-                        return SuperEntryDecision::NoSignal {
-                            reason: RejectReason::Overheated,
-                            p_super,
-                        };
-                    }
+            if let Some(oh) = features {
+                if oh.is_overheated(direction) {
+                    return SuperEntryDecision::NoSignal {
+                        reason: RejectReason::Overheated,
+                        p_super,
+                    };
                 }
             }
         }
@@ -341,7 +338,8 @@ mod tests {
             ..Default::default()
         });
 
-        // Strong p_super (0.80 > 0.55 + 0.05) — not marginal, so overheated filter skipped
+        // Strong p_super (0.80) with extreme indicators
+        // After removing is_marginal check, overheated filter is ALWAYS applied
         let pred = SuperEntryPrediction {
             p_super: 0.80,
             p_long: 0.85,
@@ -359,7 +357,13 @@ mod tests {
         };
 
         let decision = scorer.score(&pred, Some(&oh));
-        // Should still be super entry because p_super is not marginal
-        assert!(decision.is_super_entry());
+        // Now correctly fails the trade because overheated filter is ALWAYS applied
+        assert!(!decision.is_super_entry());
+        match decision {
+            SuperEntryDecision::NoSignal { reason, .. } => {
+                assert_eq!(reason, RejectReason::Overheated);
+            }
+            _ => panic!("Expected Overheated rejection"),
+        }
     }
 }

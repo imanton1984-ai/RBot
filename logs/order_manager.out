@@ -1,0 +1,29 @@
+[2m2026-03-11T14:53:04.522948Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-11T14:53:04.522971Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-03-11T14:53:04.522976Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-11T14:53:04.523502Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-11T14:53:04.523524Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(1, 0), (5, 0), (15, 0), (60, 7), (240, 2), (1440, 1)]
+[2m2026-03-11T14:53:04.523638Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Score ranges: 1m=[0.55, 0.89], 5m=[0.8, 0.9], 15m=[0.7, 0.9], 1h=[0.81, 1.9], 4h=[0.75, 1.9], 1d=[0.85, 1.9]
+[2m2026-03-11T14:53:04.523647Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Max drift: 0.25%
+[2m2026-03-11T14:53:04.524621Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-03-11T14:53:04.524634Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-03-11T14:53:04.524643Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=3x, trade_size=10 USDT (percent_depo), strategy=ml_super_entry
+[2m2026-03-11T14:53:04.524650Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m ⚠️ Trading mode is OFF — order_manager will run but NOT scan or trade.
+[2m2026-03-11T14:53:04.524656Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m   Click START TRADING in WebUI or set trading_mode = "auto" in order_manager.toml
+[2m2026-03-11T14:53:04.533889Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-03-11T14:53:07.344682Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 916.14 | Positions: 0
+[2m2026-03-11T14:53:07.353495Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-03-11T14:53:07.357278Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-03-11T14:53:08.813290Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 689 symbols
+[2m2026-03-11T14:53:08.813517Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 601 active symbols
+[2m2026-03-11T14:53:08.813527Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 601 symbols
+[2m2026-03-11T14:53:08.820661Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-03-11T14:53:08.820681Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-03-11T14:53:08.820688Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-03-11T14:53:08.820700Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-11T14:53:08.820705Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-03-11T14:53:08.820709Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-11T14:53:08.820949Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-11T14:53:08.821617Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-03-11T14:53:08.827792Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-11T14:53:08.834781Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found

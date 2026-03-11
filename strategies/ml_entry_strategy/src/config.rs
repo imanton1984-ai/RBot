@@ -17,15 +17,16 @@ use std::sync::OnceLock;
 /// A "super move" is defined as price moving >= this threshold
 /// within the lookahead window of 20 bars.
 ///
-/// These are based on realistic TP3 targets adjusted per TF volatility.
+/// These thresholds are set to achieve ~30% positive class balance.
+/// Higher thresholds = fewer "super" labels = more selective model.
 pub fn tf_target_move_pct() -> HashMap<i32, f64> {
     let mut m = HashMap::new();
-    m.insert(1, 0.95);     // 1m:  1.0%
-    m.insert(5, 2.0);    // 5m:  1.75%
-    m.insert(15, 2.1);   // 15m: 2.75%
-    m.insert(60, 3.2);   // 1h:  3.75%
-    m.insert(240, 4.3);  // 4h:  4.75%
-    m.insert(1440, 6.4); // 1d:  5.75%
+    m.insert(1, 1.2);     // 1m:  1.2% (was 0.95)
+    m.insert(5, 2.8);     // 5m:  2.8% (was 2.0)
+    m.insert(15, 3.5);    // 15m: 3.5% (was 2.1)
+    m.insert(60, 5.0);    // 1h:  5.0% (was 3.2)
+    m.insert(240, 7.5);   // 4h:  7.5% (was 4.3)
+    m.insert(1440, 10.0); // 1d:  10.0% (was 6.4)
     m
 }
 
@@ -252,8 +253,8 @@ mod tests {
     fn test_default_config() {
         let cfg = SuperEntryConfig::default();
         assert_eq!(cfg.warmup_bars, 300);
-        assert_eq!(cfg.lookahead_bars, 20);
-        assert!((cfg.p_threshold - 0.50).abs() < 1e-6);
+        assert_eq!(cfg.lookahead_bars, 25);
+        assert!((cfg.p_threshold - 0.55).abs() < 1e-6);
         assert_eq!(cfg.max_hold_bars, 25);
         assert_eq!(cfg.effective_max_hold(), 25);
     }
@@ -268,18 +269,18 @@ mod tests {
     #[test]
     fn test_target_move_pct() {
         let cfg = SuperEntryConfig::default();
-        assert!((cfg.target_pct_for_tf(1) - 0.95).abs() < 1e-6);
-        assert!((cfg.target_pct_for_tf(60) - 4.4).abs() < 1e-6);
-        assert!((cfg.target_pct_for_tf(1440) - 8.0).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(1) - 1.2).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(60) - 5.0).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(1440) - 10.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_sl_pct() {
         let cfg = SuperEntryConfig::default();
-        // SL = 75% of TP target
-        let expected_1m = 0.95 * 0.75;
+        // SL = 65% of TP target
+        let expected_1m = 1.2 * 0.65;
         assert!((cfg.sl_pct_for_tf(1) - expected_1m).abs() < 1e-6);
-        let expected_1h = 4.4 * 0.75;
+        let expected_1h = 5.0 * 0.65;
         assert!((cfg.sl_pct_for_tf(60) - expected_1h).abs() < 1e-6);
     }
 

@@ -103,6 +103,7 @@ async fn main() -> Result<()> {
                 config.warmup_bars,
                 config.lookahead_bars,
                 target_pct,
+                config.sl_fraction,
                 tf,
             );
 

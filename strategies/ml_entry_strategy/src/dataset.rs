@@ -159,12 +159,25 @@ pub struct SuperEntryExample {
 /// Build labels for a time series of candles starting from `start_idx`
 /// with `lookahead` bars look-forward.
 ///
+/// This function simulates the exact trade path candle-by-candle to determine
+/// if TP or SL is hit FIRST (First-Touch logic). If SL is hit before TP, the
+/// trade is a loss even if price eventually reaches TP.
+///
+/// # Arguments
+/// * `candles` - Price data with indicators
+/// * `start_idx` - Starting index for labeling (after warmup)
+/// * `lookahead` - Number of bars to look ahead
+/// * `target_move_pct` - Target TP move percentage
+/// * `sl_fraction` - SL as a fraction of target_move_pct (e.g., 0.5 = SL at 50% of TP)
+/// * `tf_minutes` - Timeframe in minutes
+///
 /// Returns labeled examples for candles [start_idx .. end_idx].
 pub fn build_labels(
     candles: &[CandleWithIndicators],
     start_idx: usize,
     lookahead: usize,
     target_move_pct: f64,
+    sl_fraction: f64,
     tf_minutes: i32,
 ) -> Vec<SuperEntryExample> {
     let n = candles.len();
@@ -181,37 +194,88 @@ pub fn build_labels(
             continue;
         }
 
-        // Look ahead window: [t+1 .. t+lookahead]
+        // Calculate TP and SL levels for LONG and SHORT
+        let tp_long = entry_price * (1.0 + target_move_pct / 100.0);
+        let sl_long = entry_price * (1.0 - (target_move_pct * sl_fraction) / 100.0);
+        
+        let tp_short = entry_price * (1.0 - target_move_pct / 100.0);
+        let sl_short = entry_price * (1.0 + (target_move_pct * sl_fraction) / 100.0);
+
+        // Track outcomes
+        let mut long_win = false;
+        let mut short_win = false;
+        
+        // Track absolute max moves for metadata and fallback
         let mut max_up: f64 = 0.0;
         let mut max_down: f64 = 0.0;
 
+        // Track active state for each direction
+        let mut long_active = true;
+        let mut short_active = true;
+
+        // Simulate trade path candle-by-candle
         for k in 1..=lookahead {
             let idx = t + k;
-            if idx >= n {
-                break;
-            }
+            if idx >= n { break; }
+            
             let high = candles[idx].high;
             let low = candles[idx].low;
 
+            // Update max absolute moves (for metadata)
             let up_move = (high - entry_price) / entry_price * 100.0;
             let down_move = (entry_price - low) / entry_price * 100.0;
+            if up_move > max_up { max_up = up_move; }
+            if down_move > max_down { max_down = down_move; }
 
-            if up_move > max_up {
-                max_up = up_move;
+            // LONG PATH SIMULATION
+            // Conservative rule: If low hits SL and high hits TP in same bar, assume SL hit first
+            if long_active {
+                if low <= sl_long {
+                    long_active = false; // Stopped out - SL hit first
+                } else if high >= tp_long {
+                    long_win = true; // TP hit before SL
+                    long_active = false;
+                }
             }
-            if down_move > max_down {
-                max_down = down_move;
+
+            // SHORT PATH SIMULATION
+            // Conservative rule: If high hits SL and low hits TP in same bar, assume SL hit first
+            if short_active {
+                if high >= sl_short {
+                    short_active = false; // Stopped out - SL hit first
+                } else if low <= tp_short {
+                    short_win = true; // TP hit before SL
+                    short_active = false;
+                }
             }
+
+            // Early exit if both outcomes are resolved
+            if !long_active && !short_active { break; }
         }
 
-        // Direction of best movement
-        let (direction, magnitude) = if max_up >= max_down {
-            (1i8, max_up)    // LONG
+        // Determine direction and if it's a "super" entry
+        let (is_super, direction, magnitude) = if long_win && !short_win {
+            // Only LONG won - clear super signal
+            (true, 1i8, target_move_pct)
+        } else if short_win && !long_win {
+            // Only SHORT won - clear super signal
+            (true, -1i8, target_move_pct)
+        } else if long_win && short_win {
+            // Both would have won - take the one with biggest absolute move
+            if max_up >= max_down {
+                (true, 1i8, max_up)
+            } else {
+                (true, -1i8, max_down)
+            }
         } else {
-            (-1i8, max_down) // SHORT
+            // Neither won (choppy or immediate stop loss)
+            // Provide fallback direction for the 'direction' model to learn from
+            if max_up >= max_down {
+                (false, 1i8, max_up)
+            } else {
+                (false, -1i8, max_down)
+            }
         };
-
-        let is_super = magnitude >= target_move_pct;
 
         // Future return at exactly lookahead bars
         let future_close_idx = (t + lookahead).min(n - 1);
@@ -608,7 +672,8 @@ mod tests {
         // Candle at index 5 has a spike up
         candles[5].high = 110.0;
 
-        let examples = build_labels(&candles, 0, 20, 5.0, 5);
+        // sl_fraction = 0.5 means SL is at 50% of target move
+        let examples = build_labels(&candles, 0, 20, 5.0, 0.5, 5);
 
         // We should get examples for indices 0..5 (since 25 - 20 = 5)
         assert_eq!(examples.len(), 5);
@@ -629,13 +694,34 @@ mod tests {
         // Candle at index 3 has a drop
         candles[3].low = 90.0;
 
-        let examples = build_labels(&candles, 0, 20, 5.0, 5);
+        let examples = build_labels(&candles, 0, 20, 5.0, 0.5, 5);
 
         // Example at t=0 should see the drop
         let ex0 = &examples[0];
         assert!(ex0.max_down_move_pct >= 9.0); // ~10%
         assert_eq!(ex0.direction, -1); // SHORT
         assert!(ex0.is_super);
+    }
+
+    #[test]
+    fn test_build_labels_first_touch_sl_hit_first() {
+        // Test First-Touch logic: SL hit before TP = not super
+        let mut candles: Vec<CandleWithIndicators> = (0..25)
+            .map(|_| make_test_candle(100.0, 101.0, 99.0))
+            .collect();
+
+        // Candle at index 3 drops 3% (hits SL at 2.5%), then candle 5 rises 10%
+        candles[3].low = 97.0;  // -3% drop (hits SL first)
+        candles[5].high = 110.0; // +10% rise (would hit TP, but SL already hit)
+
+        // target=5%, sl_fraction=0.5 -> SL at 2.5% down, TP at 5% up
+        let examples = build_labels(&candles, 0, 20, 5.0, 0.5, 5);
+
+        let ex0 = &examples[0];
+        // LONG would hit SL first (97 < 97.5), so long_win = false
+        // max_up is still 10%, but is_super should be false because SL hit first
+        assert!(ex0.max_up_move_pct >= 9.0);
+        assert!(!ex0.is_super); // SL hit before TP
     }
 
     #[test]

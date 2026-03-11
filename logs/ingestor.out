@@ -1,0 +1,44 @@
+[2m2026-03-11T14:53:04.441088Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Refreshing universe pairs...
+[2m2026-03-11T14:53:07.927992Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-03-11T14:53:07.928021Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-03-11T14:53:07.928033Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-03-11T14:53:07.928044Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-03-11T14:53:07.928048Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-03-11T14:53:07.928053Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-03-11T14:53:07.928082Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 龙虾USDT
+[2m2026-03-11T14:53:07.962092Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=133, active_cnt=133
+[2m2026-03-11T14:53:07.962302Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Universe pairs refreshed OK: selected=133, active=133
+[2m2026-03-11T14:53:07.962316Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Starting ingest (candles monolith)...
+[2m2026-03-11T14:53:07.980873Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Active pairs: 133
+[2m2026-03-11T14:53:08.021748Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1m: 134
+[2m2026-03-11T14:53:08.028012Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): synchronous_commit=OFF
+[2m2026-03-11T14:53:08.054473Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 5m: 134
+[2m2026-03-11T14:53:08.060896Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(5m): synchronous_commit=OFF
+[2m2026-03-11T14:53:08.116561Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 15m: 134
+[2m2026-03-11T14:53:08.122533Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(15m): synchronous_commit=OFF
+[2m2026-03-11T14:53:08.165379Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1h: 134
+[2m2026-03-11T14:53:08.171537Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1h): synchronous_commit=OFF
+[2m2026-03-11T14:53:08.221158Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 4h: 134
+[2m2026-03-11T14:53:08.227973Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(4h): synchronous_commit=OFF
+[2m2026-03-11T14:53:08.255182Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m last_seen loaded for 1d: 134
+[2m2026-03-11T14:53:08.256624Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Periodically refreshing universe pairs...
+[2m2026-03-11T14:53:08.263168Z[0m [33m WARN[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1d): synchronous_commit=OFF
+[2m2026-03-11T14:53:08.299017Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Non-empty database detected - performing incremental backfill
+[2m2026-03-11T14:53:08.299070Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m REST backfill: tfs=6, pairs=133, http_concurrency=30
+[2m2026-03-11T14:53:08.299094Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill rate limiting: 34 weight/sec, default_limit=1000, weight=5, effective ~6.8 req/sec. Per-TF limits: {"1h": 12000, "4h": 12000, "15m": 12000, "5m": 5000, "1m": 5000, "1d": 3700}
+[2m2026-03-11T14:53:08.348143Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 1m: existing_pairs=116 (incremental), new_pairs=17 (full fetch from cap_start)
+[2m2026-03-11T14:53:08.379373Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 5m: existing_pairs=116 (incremental), new_pairs=17 (full fetch from cap_start)
+[2m2026-03-11T14:53:08.429563Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 15m: existing_pairs=116 (incremental), new_pairs=17 (full fetch from cap_start)
+[2m2026-03-11T14:53:08.472949Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 1h: existing_pairs=116 (incremental), new_pairs=17 (full fetch from cap_start)
+[2m2026-03-11T14:53:08.505890Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 4h: existing_pairs=116 (incremental), new_pairs=17 (full fetch from cap_start)
+[2m2026-03-11T14:53:08.524892Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Backfill 1d: existing_pairs=116 (incremental), new_pairs=17 (full fetch from cap_start)
+[2m2026-03-11T14:53:13.198125Z[0m [32m INFO[0m [2mingestor::market::candles::candle_writer[0m[2m:[0m writer(1m): inserted 10540 REST rows, total 10540
+[2m2026-03-11T14:53:19.258595Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-03-11T14:53:19.258655Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-03-11T14:53:19.258675Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-03-11T14:53:19.258687Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-03-11T14:53:19.258691Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-03-11T14:53:19.258697Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-03-11T14:53:19.258726Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 龙虾USDT
+[2m2026-03-11T14:53:19.288723Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=133, active_cnt=133
+[2m2026-03-11T14:53:19.288846Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Pairs refreshed: selected_cnt=133, active_cnt=133
