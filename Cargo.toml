@@ -13,6 +13,7 @@ members = [
   "strategies/ml_entry_strategy", # <-- ML Entry Strategy (Super Entry)
   "strategies/ewmac_strategy",   # <-- EWMAC Strategy (Trend-Following)
   "strategies/level_strategy",    # <-- Level Strategy (базовая стратегия)
+  "strategies/super_level_strategy", # <-- Super Level Strategy (Level-First Sniper)
   "settings",                     # <-- Настройки ордеров и биржи
   "risk_manager",                 # <-- Risk Manager (мониторинг рисков)
   "order_manager",                # <-- Order Manager (ордера, позиции, PnL)

@@ -33,6 +33,8 @@ pub enum StrategyId {
     Level,
     /// Super Entry Strategy (ML-модель поиска супер-входов)
     SuperEntry,
+    /// Super Level Strategy (Level-First Sniper: уровни + ML + EWMAC + Entry Agent)
+    SuperLevel,
     /// Комбинированный режим: Level + SuperEntry фильтр
     Combined,
 }
@@ -43,6 +45,7 @@ impl StrategyId {
         match s.to_lowercase().as_str() {
             "level" | "default" | "main" | "base" => Some(Self::Level),
             "super_entry" | "super-entry" | "superentry" => Some(Self::SuperEntry),
+            "super_level" | "super-level" | "superlevel" | "sniper" => Some(Self::SuperLevel),
             "combined" | "both" | "all" => Some(Self::Combined),
             _ => None,
         }
@@ -53,6 +56,7 @@ impl StrategyId {
         match self {
             Self::Level => "level",
             Self::SuperEntry => "super_entry",
+            Self::SuperLevel => "super_level",
             Self::Combined => "combined",
         }
     }
@@ -62,6 +66,7 @@ impl StrategyId {
         match self {
             Self::Level => "Level Strategy: ML predictors + trade signals (базовая стратегия)",
             Self::SuperEntry => "Super Entry: ML-модель поиска точек с сильным движением",
+            Self::SuperLevel => "Super Level: Level-First Sniper (уровни → EWMAC → ML → Entry Agent → ATR Risk)",
             Self::Combined => "Комбинированный: Level + Super Entry фильтр качества",
         }
     }
@@ -120,6 +125,18 @@ impl StrategyConfig {
         }
     }
 
+    /// Конфиг для Super Level (Level-First Sniper)
+    pub fn super_level_default() -> Self {
+        Self {
+            id: StrategyId::SuperLevel,
+            enabled: false, // По умолчанию выключена (нужны super_entry модели)
+            priority: 0,    // Наивысший приоритет — снайперская стратегия
+            weight: 1.0,
+            timeframes: vec![5, 15, 60, 240],
+            params: HashMap::new(),
+        }
+    }
+
     /// Конфиг для Combined mode
     pub fn combined_default() -> Self {
         Self {
@@ -170,6 +187,7 @@ impl StrategySwitcher {
         let mut strategies = HashMap::new();
         strategies.insert(StrategyId::Level, StrategyConfig::default());
         strategies.insert(StrategyId::SuperEntry, StrategyConfig::super_entry_default());
+        strategies.insert(StrategyId::SuperLevel, StrategyConfig::super_level_default());
         strategies.insert(StrategyId::Combined, StrategyConfig::combined_default());
 
         Self {
@@ -335,6 +353,8 @@ mod tests {
         assert_eq!(StrategyId::from_str("default"), Some(StrategyId::Level));
         assert_eq!(StrategyId::from_str("super_entry"), Some(StrategyId::SuperEntry));
         assert_eq!(StrategyId::from_str("super-entry"), Some(StrategyId::SuperEntry));
+        assert_eq!(StrategyId::from_str("super_level"), Some(StrategyId::SuperLevel));
+        assert_eq!(StrategyId::from_str("sniper"), Some(StrategyId::SuperLevel));
         assert_eq!(StrategyId::from_str("combined"), Some(StrategyId::Combined));
         assert_eq!(StrategyId::from_str("unknown"), None);
     }
@@ -382,6 +402,6 @@ mod tests {
     fn test_summary() {
         let switcher = StrategySwitcher::new();
         let summary = switcher.summary();
-        assert_eq!(summary.len(), 3);
+        assert_eq!(summary.len(), 4);
     }
 }

@@ -1,560 +1,562 @@
 /home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:116: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
   np.random.shuffle(symbols)
 Loading data from /home/anton/Desktop/Rust_trader/dataset/super_entry_dataset.csv...
-  Loaded 3228700 rows, 61 columns
-  Super examples: 1667163 (51.6%)
+  Loaded 4425581 rows, 61 columns
+  Super examples: 3018985 (68.2%)
   By TF:
-    1m: 577334 total, 212431 super (36.8%)
-    5m: 581172 total, 176500 super (30.4%)
-    15m: 564049 total, 245784 super (43.6%)
-    60m: 1071905 total, 660768 super (61.6%)
-    240m: 357488 total, 296794 super (83.0%)
-    1440m: 76752 total, 74886 super (97.6%)
+    1m: 592950 total, 222509 super (37.5%)
+    5m: 617567 total, 266797 super (43.2%)
+    15m: 1406478 total, 930409 super (66.2%)
+    60m: 1111785 total, 936226 super (84.2%)
+    240m: 618077 total, 584727 super (94.6%)
+    1440m: 78724 total, 78317 super (99.5%)
 
 ============================================================
-Training models for TF 1m (577334 samples)
+Training models for TF 1m (592950 samples)
   Target move: 0.95%
 ============================================================
 
   Pair-based split:
-    Train: 100 pairs, 464953 rows
-    Test:  25 pairs, 112381 rows
+    Train: 102 pairs, 473647 rows
+    Test:  26 pairs, 119303 rows
 
   Training super_entry TF1m...
-    pos/neg: 164977/299976 (scale_pos_weight=1.82)
-[21:24:18] WARNING: ../src/learner.cc:767: 
+    pos/neg: 170849/302798 (scale_pos_weight=1.77)
+[15:54:01] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.70037	train-logloss:0.68688	test-auc:0.57100	test-logloss:0.69187
-[35]	train-auc:0.71386	train-logloss:0.62070	test-auc:0.58895	test-logloss:0.72231
+[0]	train-auc:0.75627	train-logloss:0.68332	test-auc:0.60363	test-logloss:0.68942
+[39]	train-auc:0.77846	train-logloss:0.57318	test-auc:0.60030	test-logloss:0.72844
 
   === super_entry TF1m Results ===
-    AUC:       0.5889
-    Precision: 0.4957
-    Recall:    0.6342
+    AUC:       0.6003
+    Precision: 0.4702
+    Recall:    0.7246
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.66      0.53      0.59     64927
-    Positive       0.50      0.63      0.56     47454
+    Negative       0.64      0.38      0.47     67643
+    Positive       0.47      0.72      0.57     51660
 
-    accuracy                           0.57    112381
-   macro avg       0.58      0.58      0.57    112381
-weighted avg       0.59      0.57      0.57    112381
+    accuracy                           0.53    119303
+   macro avg       0.56      0.55      0.52    119303
+weighted avg       0.57      0.53      0.52    119303
 
 
   Top 10 Features by Gain:
-    atr_pct                        441.2
-    sma                            331.5
-    ema_50                         300.4
-    ema_20                         294.2
-    ema_200                        121.5
+    ema_20                         683.7
+    sma                            674.6
+    atr_pct                        497.3
+    ema_50                         442.0
+    ema_200                        195.0
   Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1.schema.json
 
   Training super_dir TF1m...
-    pos/neg: 237348/227605 (scale_pos_weight=0.96)
-[21:24:19] WARNING: ../src/learner.cc:767: 
+    pos/neg: 239978/233669 (scale_pos_weight=0.97)
+[15:54:02] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.52279	train-logloss:0.69302	test-auc:0.50259	test-logloss:0.69313
-[41]	train-auc:0.54079	train-logloss:0.69118	test-auc:0.49924	test-logloss:0.69350
+[0]	train-auc:0.53088	train-logloss:0.69290	test-auc:0.50281	test-logloss:0.69313
+[30]	train-auc:0.55071	train-logloss:0.68975	test-auc:0.50027	test-logloss:0.69397
 /home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:116: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
   np.random.shuffle(symbols)
 
   === super_dir TF1m Results ===
-    AUC:       0.4992
-    Precision: 0.5123
-    Recall:    0.5955
+    AUC:       0.5003
+    Precision: 0.5053
+    Recall:    0.5984
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.48      0.40      0.44     54655
-    Positive       0.51      0.60      0.55     57726
+    Negative       0.50      0.41      0.45     59357
+    Positive       0.51      0.60      0.55     59946
 
-    accuracy                           0.50    112381
-   macro avg       0.50      0.50      0.49    112381
-weighted avg       0.50      0.50      0.50    112381
+    accuracy                           0.50    119303
+   macro avg       0.50      0.50      0.50    119303
+weighted avg       0.50      0.50      0.50    119303
 
 
   Top 10 Features by Gain:
-    ema_20                         13.0
-    sma                            11.2
-    atr_pct                        10.0
-    ema_50                         9.4
-    ema_200                        7.7
+    ema_20                         27.6
+    sma                            25.0
+    atr_pct                        21.5
+    ema_50                         17.5
+    ema_200                        13.4
   Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1.schema.json
 
 ============================================================
-Training models for TF 5m (581172 samples)
+Training models for TF 5m (617567 samples)
   Target move: 2.2%
 ============================================================
 
   Pair-based split:
-    Train: 99 pairs, 462072 rows
-    Test:  25 pairs, 119100 rows
+    Train: 102 pairs, 490205 rows
+    Test:  26 pairs, 127362 rows
 
   Training super_entry TF5m...
-    pos/neg: 139106/322966 (scale_pos_weight=2.32)
-[21:24:20] WARNING: ../src/learner.cc:767: 
+    pos/neg: 204948/285257 (scale_pos_weight=1.39)
+[15:54:04] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.65016	train-logloss:0.68948	test-auc:0.59989	test-logloss:0.69192
-[50]	train-auc:0.67116	train-logloss:0.64721	test-auc:0.62147	test-logloss:0.67535
-[65]	train-auc:0.67475	train-logloss:0.64394	test-auc:0.61887	test-logloss:0.67807
+[0]	train-auc:0.68742	train-logloss:0.68759	test-auc:0.47284	test-logloss:0.69463
+[30]	train-auc:0.69699	train-logloss:0.63207	test-auc:0.46024	test-logloss:0.75743
 
   === super_entry TF5m Results ===
-    AUC:       0.6189
-    Precision: 0.4016
-    Recall:    0.6079
+    AUC:       0.4602
+    Precision: 0.4612
+    Recall:    0.6732
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.77      0.59      0.66     81706
-    Positive       0.40      0.61      0.48     37394
+    Negative       0.45      0.26      0.33     65513
+    Positive       0.46      0.67      0.55     61849
 
-    accuracy                           0.59    119100
-   macro avg       0.58      0.60      0.57    119100
-weighted avg       0.65      0.59      0.61    119100
+    accuracy                           0.46    127362
+   macro avg       0.46      0.47      0.44    127362
+weighted avg       0.46      0.46      0.43    127362
 
 
   Top 10 Features by Gain:
-    ema_50                         249.7
-    sma                            224.3
-    ema_20                         207.0
-    atr_pct                        164.7
-    ema_200                        111.1
+    ema_20                         332.2
+    sma                            329.5
+    atr_pct                        311.8
+    ema_50                         197.0
+    ema_200                        115.0
   Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf5.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf5.schema.json
 
   Training super_dir TF5m...
-    pos/neg: 224020/238052 (scale_pos_weight=1.06)
-[21:24:22] WARNING: ../src/learner.cc:767: 
+    pos/neg: 239436/250769 (scale_pos_weight=1.05)
+[15:54:06] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.51673	train-logloss:0.69306	test-auc:0.49726	test-logloss:0.69317
-[29]	train-auc:0.53861	train-logloss:0.69179	test-auc:0.49307	test-logloss:0.69359
+[0]	train-auc:0.53497	train-logloss:0.69291	test-auc:0.50050	test-logloss:0.69319
+[29]	train-auc:0.54943	train-logloss:0.69036	test-auc:0.49480	test-logloss:0.69496
 /home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:116: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
   np.random.shuffle(symbols)
 
   === super_dir TF5m Results ===
-    AUC:       0.4927
-    Precision: 0.4887
-    Recall:    0.5271
+    AUC:       0.4945
+    Precision: 0.4869
+    Recall:    0.4388
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.51      0.47      0.49     60658
-    Positive       0.49      0.53      0.51     58442
+    Negative       0.50      0.55      0.53     64762
+    Positive       0.49      0.44      0.46     62600
 
-    accuracy                           0.50    119100
-   macro avg       0.50      0.50      0.50    119100
-weighted avg       0.50      0.50      0.50    119100
+    accuracy                           0.50    127362
+   macro avg       0.50      0.50      0.49    127362
+weighted avg       0.50      0.50      0.50    127362
 
 
   Top 10 Features by Gain:
-    sma                            16.3
-    ema_20                         15.0
-    ema_200                        13.2
-    atr_pct                        11.2
-    ema_50                         10.5
+    atr_pct                        21.9
+    ema_50                         19.8
+    ema_20                         19.6
+    sma                            16.5
+    ema_200                        12.9
   Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf5.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf5.schema.json
 
 ============================================================
-Training models for TF 15m (564049 samples)
+Training models for TF 15m (1406478 samples)
   Target move: 3.0%
 ============================================================
 
   Pair-based split:
-    Train: 98 pairs, 449240 rows
-    Test:  25 pairs, 114809 rows
+    Train: 102 pairs, 1111854 rows
+    Test:  26 pairs, 294624 rows
 
   Training super_entry TF15m...
-    pos/neg: 199337/249903 (scale_pos_weight=1.25)
-[21:24:23] WARNING: ../src/learner.cc:767: 
+    pos/neg: 726293/385561 (scale_pos_weight=0.53)
+[15:54:09] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.77693	train-logloss:0.68136	test-auc:0.74509	test-logloss:0.68228
-[50]	train-auc:0.79859	train-logloss:0.53941	test-auc:0.76599	test-logloss:0.55820
-[100]	train-auc:0.80711	train-logloss:0.52555	test-auc:0.77109	test-logloss:0.55019
-[150]	train-auc:0.81474	train-logloss:0.51732	test-auc:0.77426	test-logloss:0.54707
-[200]	train-auc:0.82134	train-logloss:0.51053	test-auc:0.77662	test-logloss:0.54506
-[250]	train-auc:0.82861	train-logloss:0.50325	test-auc:0.77810	test-logloss:0.54380
-[300]	train-auc:0.83422	train-logloss:0.49746	test-auc:0.77892	test-logloss:0.54303
-[350]	train-auc:0.84020	train-logloss:0.49141	test-auc:0.77987	test-logloss:0.54228
-[393]	train-auc:0.84451	train-logloss:0.48673	test-auc:0.78025	test-logloss:0.54196
+[0]	train-auc:0.77993	train-logloss:0.68119	test-auc:0.76987	test-logloss:0.68030
+[50]	train-auc:0.79186	train-logloss:0.54748	test-auc:0.78188	test-logloss:0.53290
+[100]	train-auc:0.79801	train-logloss:0.53712	test-auc:0.78450	test-logloss:0.52235
+[150]	train-auc:0.80212	train-logloss:0.53249	test-auc:0.78482	test-logloss:0.51894
+[200]	train-auc:0.80548	train-logloss:0.52891	test-auc:0.78448	test-logloss:0.51739
+[250]	train-auc:0.80843	train-logloss:0.52582	test-auc:0.78441	test-logloss:0.51629
+[300]	train-auc:0.81202	train-logloss:0.52220	test-auc:0.78422	test-logloss:0.51518
+[350]	train-auc:0.81524	train-logloss:0.51907	test-auc:0.78431	test-logloss:0.51436
+[400]	train-auc:0.81795	train-logloss:0.51628	test-auc:0.78395	test-logloss:0.51366
+[450]	train-auc:0.82089	train-logloss:0.51321	test-auc:0.78324	test-logloss:0.51342
+[499]	train-auc:0.82349	train-logloss:0.51051	test-auc:0.78276	test-logloss:0.51314
 
   === super_entry TF15m Results ===
-    AUC:       0.7802
-    Precision: 0.6795
-    Recall:    0.5775
+    AUC:       0.7828
+    Precision: 0.8272
+    Recall:    0.7418
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.74      0.81      0.78     68362
-    Positive       0.68      0.58      0.62     46447
+    Negative       0.53      0.65      0.58     90508
+    Positive       0.83      0.74      0.78    204116
 
-    accuracy                           0.72    114809
-   macro avg       0.71      0.70      0.70    114809
-weighted avg       0.72      0.72      0.71    114809
+    accuracy                           0.71    294624
+   macro avg       0.68      0.70      0.68    294624
+weighted avg       0.74      0.71      0.72    294624
 
 
   Top 10 Features by Gain:
-    atr_pct                        678.5
-    bb_width_pct                   119.3
-    volume_spike_flag              97.7
-    price_vs_supertrend            71.6
-    williams_norm                  71.6
-    price_vs_ema200                61.9
-    volume_spike                   60.5
-    price_vs_vwap                  50.1
-    trend                          50.1
-    supertrend                     42.2
+    atr_pct                        704.0
+    bb_width_pct                   239.3
+    atr                            91.1
+    price_vs_supertrend            88.1
+    volume_spike_flag              84.0
+    volume_spike                   68.0
+    alligator_teeth                44.0
+    price_vs_vwap                  43.7
+    price_vs_ema200                42.4
+    vwap                           40.3
   Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf15.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf15.schema.json
 
   Training super_dir TF15m...
-    pos/neg: 212973/236267 (scale_pos_weight=1.11)
-[21:24:34] WARNING: ../src/learner.cc:767: 
+    pos/neg: 541834/570020 (scale_pos_weight=1.05)
+[15:54:46] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.56824	train-logloss:0.69226	test-auc:0.55571	test-logloss:0.69248
-[50]	train-auc:0.63593	train-logloss:0.67064	test-auc:0.59288	test-logloss:0.67899
-[100]	train-auc:0.66286	train-logloss:0.66086	test-auc:0.59841	test-logloss:0.67659
-[150]	train-auc:0.68371	train-logloss:0.65254	test-auc:0.60120	test-logloss:0.67536
-[200]	train-auc:0.70175	train-logloss:0.64504	test-auc:0.60357	test-logloss:0.67454
-[250]	train-auc:0.71793	train-logloss:0.63806	test-auc:0.60456	test-logloss:0.67414
-[272]	train-auc:0.72450	train-logloss:0.63513	test-auc:0.60519	test-logloss:0.67401
+[0]	train-auc:0.54420	train-logloss:0.69275	test-auc:0.52765	test-logloss:0.69290
+[50]	train-auc:0.59338	train-logloss:0.68280	test-auc:0.54328	test-logloss:0.68946
+[100]	train-auc:0.61005	train-logloss:0.67883	test-auc:0.54400	test-logloss:0.68925
+[129]	train-auc:0.61933	train-logloss:0.67654	test-auc:0.54351	test-logloss:0.68947
 /home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:116: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
   np.random.shuffle(symbols)
 
   === super_dir TF15m Results ===
-    AUC:       0.6052
-    Precision: 0.5746
-    Recall:    0.4603
+    AUC:       0.5435
+    Precision: 0.5191
+    Recall:    0.5246
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.58      0.69      0.63     59741
-    Positive       0.57      0.46      0.51     55068
+    Negative       0.54      0.53      0.53    150017
+    Positive       0.52      0.52      0.52    144607
 
-    accuracy                           0.58    114809
-   macro avg       0.58      0.57      0.57    114809
-weighted avg       0.58      0.58      0.57    114809
+    accuracy                           0.53    294624
+   macro avg       0.53      0.53      0.53    294624
+weighted avg       0.53      0.53      0.53    294624
 
 
   Top 10 Features by Gain:
-    bb_width_pct                   41.7
-    atr_pct                        38.5
-    price_vs_ema200                37.1
-    price_vs_vwap                  36.7
-    supertrend                     35.9
-    fibo_pivot                     35.2
-    alligator_jaw                  35.1
-    macd_norm                      34.6
-    price_vs_supertrend            34.0
-    ema_50                         33.7
+    atr_pct                        59.8
+    price_vs_vwap                  53.5
+    adx                            53.2
+    fibo_r1                        49.1
+    price_vs_ema200                49.0
+    rsi_norm                       48.2
+    price_vs_supertrend            48.1
+    price_vs_ema50                 48.0
+    poc                            47.9
+    ema_200                        47.1
   Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf15.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf15.schema.json
 
 ============================================================
-Training models for TF 60m (1071905 samples)
+Training models for TF 60m (1111785 samples)
   Target move: 4.4%
 ============================================================
 
   Pair-based split:
-    Train: 96 pairs, 846178 rows
-    Test:  25 pairs, 225727 rows
+    Train: 100 pairs, 858437 rows
+    Test:  26 pairs, 253348 rows
 
   Training super_entry TF60m...
-    pos/neg: 519422/326756 (scale_pos_weight=0.63)
-[21:24:43] WARNING: ../src/learner.cc:767: 
+    pos/neg: 720265/138172 (scale_pos_weight=0.19)
+[15:55:00] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.78853	train-logloss:0.68077	test-auc:0.76987	test-logloss:0.68184
-[50]	train-auc:0.79654	train-logloss:0.54552	test-auc:0.77559	test-logloss:0.56312
-[100]	train-auc:0.80118	train-logloss:0.53673	test-auc:0.77738	test-logloss:0.55898
-[150]	train-auc:0.80529	train-logloss:0.53193	test-auc:0.77898	test-logloss:0.55708
-[200]	train-auc:0.80937	train-logloss:0.52745	test-auc:0.77957	test-logloss:0.55591
-[250]	train-auc:0.81294	train-logloss:0.52357	test-auc:0.77987	test-logloss:0.55506
-[300]	train-auc:0.81623	train-logloss:0.52001	test-auc:0.78003	test-logloss:0.55472
-[316]	train-auc:0.81726	train-logloss:0.51885	test-auc:0.78013	test-logloss:0.55444
+[0]	train-auc:0.81419	train-logloss:0.67859	test-auc:0.74742	test-logloss:0.68254
+[50]	train-auc:0.82699	train-logloss:0.51624	test-auc:0.77877	test-logloss:0.54704
+[100]	train-auc:0.83285	train-logloss:0.50487	test-auc:0.78349	test-logloss:0.53619
+[150]	train-auc:0.83737	train-logloss:0.49943	test-auc:0.78520	test-logloss:0.52985
+[200]	train-auc:0.84165	train-logloss:0.49427	test-auc:0.78636	test-logloss:0.52438
+[250]	train-auc:0.84593	train-logloss:0.48926	test-auc:0.78706	test-logloss:0.51949
+[300]	train-auc:0.84992	train-logloss:0.48466	test-auc:0.78766	test-logloss:0.51486
+[350]	train-auc:0.85312	train-logloss:0.48071	test-auc:0.78801	test-logloss:0.51180
+[400]	train-auc:0.85663	train-logloss:0.47656	test-auc:0.78829	test-logloss:0.50801
+[450]	train-auc:0.85965	train-logloss:0.47289	test-auc:0.78872	test-logloss:0.50525
+[499]	train-auc:0.86257	train-logloss:0.46936	test-auc:0.78873	test-logloss:0.50216
 
   === super_entry TF60m Results ===
-    AUC:       0.7801
-    Precision: 0.8060
-    Recall:    0.6890
+    AUC:       0.7887
+    Precision: 0.9323
+    Recall:    0.7307
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.58      0.72      0.64     84381
-    Positive       0.81      0.69      0.74    141346
+    Negative       0.31      0.69      0.43     37387
+    Positive       0.93      0.73      0.82    215961
 
-    accuracy                           0.70    225727
-   macro avg       0.69      0.71      0.69    225727
-weighted avg       0.72      0.70      0.71    225727
+    accuracy                           0.73    253348
+   macro avg       0.62      0.71      0.62    253348
+weighted avg       0.84      0.73      0.76    253348
 
 
   Top 10 Features by Gain:
-    atr_pct                        1078.8
-    bb_width_pct                   169.7
-    price_vs_supertrend            108.2
-    fibo_pivot                     85.4
-    price_vs_ema200                39.1
-    ema_200                        37.6
-    ema_50                         36.8
-    bb_upper                       33.9
-    volume_spike                   33.4
-    vwap                           32.7
+    atr_pct                        418.5
+    bb_width_pct                   62.3
+    price_vs_supertrend            41.1
+    vwap                           29.1
+    volume_spike                   28.5
+    obv                            24.6
+    atr                            23.9
+    price_vs_ema200                22.1
+    fibo_pivot                     18.1
+    supertrend                     18.0
   Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf60.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf60.schema.json
 
   Training super_dir TF60m...
-    pos/neg: 417305/428873 (scale_pos_weight=1.03)
-[21:25:01] WARNING: ../src/learner.cc:767: 
+    pos/neg: 417150/441287 (scale_pos_weight=1.06)
+[15:55:30] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.54438	train-logloss:0.69274	test-auc:0.52998	test-logloss:0.69289
-[50]	train-auc:0.59518	train-logloss:0.68211	test-auc:0.55820	test-logloss:0.68750
-[100]	train-auc:0.61709	train-logloss:0.67698	test-auc:0.56067	test-logloss:0.68685
-[150]	train-auc:0.63643	train-logloss:0.67231	test-auc:0.56290	test-logloss:0.68636
-[200]	train-auc:0.65041	train-logloss:0.66822	test-auc:0.56389	test-logloss:0.68633
-[250]	train-auc:0.66567	train-logloss:0.66400	test-auc:0.56446	test-logloss:0.68597
-[294]	train-auc:0.67584	train-logloss:0.66080	test-auc:0.56541	test-logloss:0.68591
+[0]	train-auc:0.53894	train-logloss:0.69276	test-auc:0.52838	test-logloss:0.69288
+[50]	train-auc:0.60169	train-logloss:0.68269	test-auc:0.56577	test-logloss:0.68716
+[100]	train-auc:0.62626	train-logloss:0.67694	test-auc:0.56915	test-logloss:0.68566
+[150]	train-auc:0.64520	train-logloss:0.67200	test-auc:0.57058	test-logloss:0.68485
+[200]	train-auc:0.66062	train-logloss:0.66752	test-auc:0.56995	test-logloss:0.68468
+[250]	train-auc:0.67394	train-logloss:0.66337	test-auc:0.57037	test-logloss:0.68446
+[300]	train-auc:0.68577	train-logloss:0.65933	test-auc:0.57186	test-logloss:0.68405
+[350]	train-auc:0.69595	train-logloss:0.65550	test-auc:0.57339	test-logloss:0.68373
+[400]	train-auc:0.70573	train-logloss:0.65170	test-auc:0.57433	test-logloss:0.68347
+[424]	train-auc:0.71039	train-logloss:0.64993	test-auc:0.57400	test-logloss:0.68356
 /home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:116: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
   np.random.shuffle(symbols)
 
   === super_dir TF60m Results ===
-    AUC:       0.5655
-    Precision: 0.5350
-    Recall:    0.5367
+    AUC:       0.5740
+    Precision: 0.5440
+    Recall:    0.5160
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.56      0.55      0.55    115396
-    Positive       0.53      0.54      0.54    110331
+    Negative       0.56      0.59      0.57    129605
+    Positive       0.54      0.52      0.53    123743
 
-    accuracy                           0.55    225727
-   macro avg       0.55      0.55      0.55    225727
-weighted avg       0.55      0.55      0.55    225727
+    accuracy                           0.55    253348
+   macro avg       0.55      0.55      0.55    253348
+weighted avg       0.55      0.55      0.55    253348
 
 
   Top 10 Features by Gain:
-    rsi_norm                       39.5
+    bb_mid                         43.0
     trend                          38.4
-    supertrend_dir                 37.9
-    atr_pct                        37.3
-    adx                            36.4
-    price_vs_fibo_pivot            36.3
-    price_vs_ema200                33.2
-    price_vs_vwap                  32.9
-    bb_upper                       31.9
-    alligator_lips                 31.7
+    atr_pct                        35.8
+    bb_upper                       34.5
+    supertrend                     33.7
+    poc                            33.4
+    ema_200                        33.4
+    bb_lower                       32.8
+    ema_50                         32.3
+    alligator_jaw                  32.3
   Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf60.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf60.schema.json
 
 ============================================================
-Training models for TF 240m (357488 samples)
+Training models for TF 240m (618077 samples)
   Target move: 6.0%
 ============================================================
 
   Pair-based split:
-    Train: 95 pairs, 290002 rows
-    Test:  24 pairs, 67486 rows
+    Train: 96 pairs, 497007 rows
+    Test:  25 pairs, 121070 rows
 
   Training super_entry TF240m...
-    pos/neg: 241628/48374 (scale_pos_weight=0.20)
-[21:25:17] WARNING: ../src/learner.cc:767: 
+    pos/neg: 468167/28840 (scale_pos_weight=0.06)
+[15:55:56] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.79044	train-logloss:0.68055	test-auc:0.79726	test-logloss:0.67917
-[50]	train-auc:0.81587	train-logloss:0.53377	test-auc:0.82468	test-logloss:0.50782
-[100]	train-auc:0.82859	train-logloss:0.51564	test-auc:0.82031	test-logloss:0.48922
-[150]	train-auc:0.83983	train-logloss:0.50274	test-auc:0.81550	test-logloss:0.48128
-[200]	train-auc:0.84854	train-logloss:0.49299	test-auc:0.81132	test-logloss:0.47564
-[250]	train-auc:0.85649	train-logloss:0.48356	test-auc:0.80990	test-logloss:0.46957
-[300]	train-auc:0.86401	train-logloss:0.47448	test-auc:0.80291	test-logloss:0.46695
-[350]	train-auc:0.87087	train-logloss:0.46621	test-auc:0.79502	test-logloss:0.46579
-[400]	train-auc:0.87763	train-logloss:0.45778	test-auc:0.79002	test-logloss:0.46383
-[450]	train-auc:0.88269	train-logloss:0.45119	test-auc:0.78338	test-logloss:0.46360
-[499]	train-auc:0.88768	train-logloss:0.44483	test-auc:0.77920	test-logloss:0.46253
+[0]	train-auc:0.88631	train-logloss:0.67076	test-auc:0.82991	test-logloss:0.66887
+[50]	train-auc:0.90395	train-logloss:0.41659	test-auc:0.84843	test-logloss:0.37846
+[100]	train-auc:0.91126	train-logloss:0.39668	test-auc:0.85076	test-logloss:0.35915
+[150]	train-auc:0.91760	train-logloss:0.38406	test-auc:0.85133	test-logloss:0.34947
+[200]	train-auc:0.92282	train-logloss:0.37374	test-auc:0.85164	test-logloss:0.33991
+[250]	train-auc:0.92777	train-logloss:0.36429	test-auc:0.85118	test-logloss:0.33299
+[300]	train-auc:0.93179	train-logloss:0.35584	test-auc:0.85124	test-logloss:0.32586
+[350]	train-auc:0.93545	train-logloss:0.34860	test-auc:0.85159	test-logloss:0.31795
+[400]	train-auc:0.93847	train-logloss:0.34200	test-auc:0.85149	test-logloss:0.31229
+[450]	train-auc:0.94154	train-logloss:0.33519	test-auc:0.85015	test-logloss:0.30782
+[499]	train-auc:0.94430	train-logloss:0.32925	test-auc:0.84992	test-logloss:0.30244
 
   === super_entry TF240m Results ===
-    AUC:       0.7792
-    Precision: 0.8835
-    Recall:    0.8121
+    AUC:       0.8499
+    Precision: 0.9841
+    Recall:    0.8614
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.38      0.52      0.44     12320
-    Positive       0.88      0.81      0.85     55166
+    Negative       0.15      0.64      0.25      4510
+    Positive       0.98      0.86      0.92    116560
 
-    accuracy                           0.76     67486
-   macro avg       0.63      0.67      0.64     67486
-weighted avg       0.79      0.76      0.77     67486
+    accuracy                           0.85    121070
+   macro avg       0.57      0.75      0.58    121070
+weighted avg       0.95      0.85      0.89    121070
 
 
   Top 10 Features by Gain:
-    atr_pct                        173.3
-    price_vs_supertrend            19.1
-    trend                          18.2
-    bb_width_pct                   17.3
-    fibo_pivot                     16.6
-    supertrend                     16.3
-    volume_spike_flag              16.2
-    price_vs_ema50                 15.8
-    ema_200                        15.4
-    vwap                           15.0
+    atr_pct                        189.3
+    bb_width_pct                   25.8
+    price_vs_supertrend            17.1
+    sma                            16.5
+    vwap                           15.5
+    ema_20                         14.1
+    ema_50                         13.8
+    price_vs_ema50                 12.0
+    bb_mid                         11.9
+    rsi                            11.7
   Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf240.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf240.schema.json
 
   Training super_dir TF240m...
-    pos/neg: 137466/152536 (scale_pos_weight=1.11)
-[21:25:25] WARNING: ../src/learner.cc:767: 
+    pos/neg: 240326/256681 (scale_pos_weight=1.07)
+[15:56:16] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.56260	train-logloss:0.69227	test-auc:0.54200	test-logloss:0.69264
-[50]	train-auc:0.64319	train-logloss:0.67075	test-auc:0.57340	test-logloss:0.68507
-[100]	train-auc:0.68159	train-logloss:0.65852	test-auc:0.57556	test-logloss:0.68389
-[150]	train-auc:0.71046	train-logloss:0.64760	test-auc:0.57834	test-logloss:0.68322
-[200]	train-auc:0.73371	train-logloss:0.63802	test-auc:0.58019	test-logloss:0.68294
-[210]	train-auc:0.73749	train-logloss:0.63617	test-auc:0.58044	test-logloss:0.68291
+[0]	train-auc:0.54964	train-logloss:0.69263	test-auc:0.53270	test-logloss:0.69282
+[50]	train-auc:0.62011	train-logloss:0.67788	test-auc:0.55587	test-logloss:0.68760
+[100]	train-auc:0.64981	train-logloss:0.66922	test-auc:0.55577	test-logloss:0.68711
+[114]	train-auc:0.65668	train-logloss:0.66709	test-auc:0.55574	test-logloss:0.68711
 /home/anton/Desktop/Rust_trader/trainer/src/train_super_entry.py:116: UserWarning: you are shuffling a 'StringArray' object which is not a subclass of 'Sequence'; `shuffle` is not guaranteed to behave correctly. E.g., non-numpy array/tensor objects with view semantics may contain duplicates after shuffling.
   np.random.shuffle(symbols)
 
   === super_dir TF240m Results ===
-    AUC:       0.5804
-    Precision: 0.5498
-    Recall:    0.4919
+    AUC:       0.5557
+    Precision: 0.5146
+    Recall:    0.4889
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.56      0.62      0.59     34720
-    Positive       0.55      0.49      0.52     32766
+    Negative       0.56      0.59      0.57     63742
+    Positive       0.51      0.49      0.50     57328
 
-    accuracy                           0.56     67486
-   macro avg       0.56      0.56      0.55     67486
-weighted avg       0.56      0.56      0.56     67486
+    accuracy                           0.54    121070
+   macro avg       0.54      0.54      0.54    121070
+weighted avg       0.54      0.54      0.54    121070
 
 
   Top 10 Features by Gain:
-    atr_pct                        43.7
-    rsi_norm                       38.9
-    price_vs_sma                   32.2
-    adx                            32.0
-    rsi                            31.2
-    supertrend                     30.9
-    williams_norm                  30.6
-    fibo_pivot                     30.0
-    price_vs_ema200                29.8
-    vwap                           29.3
+    trend_short                    49.9
+    price_vs_ema200                47.0
+    rsi                            42.9
+    williams                       42.2
+    price_vs_ema50                 41.5
+    atr_pct                        41.2
+    vwap                           40.3
+    supertrend                     39.1
+    rsi_norm                       39.0
+    poc                            38.3
   Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf240.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf240.schema.json
 
 ============================================================
-Training models for TF 1440m (76752 samples)
+Training models for TF 1440m (78724 samples)
   Target move: 8.0%
 ============================================================
 
   Pair-based split:
-    Train: 68 pairs, 57272 rows
-    Test:  17 pairs, 19480 rows
+    Train: 68 pairs, 63165 rows
+    Test:  18 pairs, 15559 rows
 
   Training super_entry TF1440m...
-    pos/neg: 56495/777 (scale_pos_weight=0.01)
-[21:25:29] WARNING: ../src/learner.cc:767: 
+    pos/neg: 62980/185 (scale_pos_weight=0.00)
+[15:56:20] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.91097	train-logloss:0.66885	test-auc:0.75180	test-logloss:0.67457
-[50]	train-auc:0.95998	train-logloss:0.31229	test-auc:0.84508	test-logloss:0.42757
-[100]	train-auc:0.97024	train-logloss:0.26128	test-auc:0.84500	test-logloss:0.36710
-[150]	train-auc:0.97660	train-logloss:0.23459	test-auc:0.84515	test-logloss:0.34206
-[200]	train-auc:0.98175	train-logloss:0.21183	test-auc:0.84244	test-logloss:0.31309
-[250]	train-auc:0.98532	train-logloss:0.19431	test-auc:0.83950	test-logloss:0.29378
-[300]	train-auc:0.98788	train-logloss:0.17854	test-auc:0.83590	test-logloss:0.27606
-[350]	train-auc:0.98980	train-logloss:0.16714	test-auc:0.83247	test-logloss:0.26655
-[400]	train-auc:0.99147	train-logloss:0.15612	test-auc:0.82795	test-logloss:0.26057
-[450]	train-auc:0.99265	train-logloss:0.14666	test-auc:0.82724	test-logloss:0.25542
-[499]	train-auc:0.99369	train-logloss:0.13914	test-auc:0.82528	test-logloss:0.25038
+[0]	train-auc:0.94979	train-logloss:0.66116	test-auc:0.81586	test-logloss:0.66683
+[50]	train-auc:0.97662	train-logloss:0.23982	test-auc:0.87948	test-logloss:0.26001
+[100]	train-auc:0.98054	train-logloss:0.19987	test-auc:0.87392	test-logloss:0.18464
+[150]	train-auc:0.98274	train-logloss:0.18740	test-auc:0.87111	test-logloss:0.15611
+[200]	train-auc:0.98409	train-logloss:0.17981	test-auc:0.87408	test-logloss:0.14330
+[250]	train-auc:0.98501	train-logloss:0.17554	test-auc:0.87215	test-logloss:0.13436
+[300]	train-auc:0.98607	train-logloss:0.16984	test-auc:0.86928	test-logloss:0.12349
+[350]	train-auc:0.98696	train-logloss:0.16504	test-auc:0.86727	test-logloss:0.11721
+[400]	train-auc:0.98713	train-logloss:0.16263	test-auc:0.87006	test-logloss:0.11298
+[450]	train-auc:0.98761	train-logloss:0.15937	test-auc:0.86894	test-logloss:0.10921
+[499]	train-auc:0.98799	train-logloss:0.15751	test-auc:0.86801	test-logloss:0.10731
 
   === super_entry TF1440m Results ===
-    AUC:       0.8253
-    Precision: 0.9597
-    Recall:    0.9181
+    AUC:       0.8680
+    Precision: 0.9878
+    Recall:    0.9750
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.20      0.35      0.26      1089
-    Positive       0.96      0.92      0.94     18391
+    Negative       0.09      0.17      0.12       222
+    Positive       0.99      0.98      0.98     15337
 
-    accuracy                           0.89     19480
-   macro avg       0.58      0.63      0.60     19480
-weighted avg       0.92      0.89      0.90     19480
+    accuracy                           0.96     15559
+   macro avg       0.54      0.57      0.55     15559
+weighted avg       0.98      0.96      0.97     15559
 
 
   Top 10 Features by Gain:
-    atr_pct                        15.4
-    rsi_norm                       4.6
-    bb_width_pct                   3.7
-    price_vs_supertrend            3.4
-    price_vs_ema50                 3.4
-    rsi                            3.2
-    alligator_jaw                  2.8
-    price_vs_vwap                  2.7
-    vwap                           2.6
-    bb_position                    2.3
+    atr_pct                        13.2
+    stoch_norm                     6.1
+    rsi_norm                       5.9
+    vwap                           5.6
+    ema_200                        5.2
+    fibo_pivot                     5.0
+    price_vs_ema20                 4.1
+    williams                       3.9
+    rsi                            3.1
+    stoch_k                        2.8
   Model: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1440.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_entry_v1_tf1440.schema.json
 
   Training super_dir TF1440m...
-    pos/neg: 26385/30887 (scale_pos_weight=1.17)
-[21:25:31] WARNING: ../src/learner.cc:767: 
+    pos/neg: 29199/33966 (scale_pos_weight=1.16)
+[15:56:22] WARNING: ../src/learner.cc:767: 
 Parameters: { "device" } are not used.
 
-[0]	train-auc:0.57905	train-logloss:0.69160	test-auc:0.51665	test-logloss:0.69291
-[50]	train-auc:0.75328	train-logloss:0.63725	test-auc:0.58147	test-logloss:0.69239
-[51]	train-auc:0.75457	train-logloss:0.63660	test-auc:0.58106	test-logloss:0.69242
+[0]	train-auc:0.60129	train-logloss:0.69094	test-auc:0.54032	test-logloss:0.69222
+[50]	train-auc:0.77112	train-logloss:0.62805	test-auc:0.60272	test-logloss:0.67623
+[83]	train-auc:0.80914	train-logloss:0.60292	test-auc:0.59929	test-logloss:0.67855
 
   === super_dir TF1440m Results ===
-    AUC:       0.5811
-    Precision: 0.5416
-    Recall:    0.5480
+    AUC:       0.5993
+    Precision: 0.5411
+    Recall:    0.5503
 
   Classification Report:
               precision    recall  f1-score   support
 
-    Negative       0.59      0.58      0.58     10234
-    Positive       0.54      0.55      0.54      9246
+    Negative       0.59      0.58      0.59      8216
+    Positive       0.54      0.55      0.55      7343
 
-    accuracy                           0.57     19480
-   macro avg       0.56      0.56      0.56     19480
-weighted avg       0.57      0.57      0.57     19480
+    accuracy                           0.57     15559
+   macro avg       0.57      0.57      0.57     15559
+weighted avg       0.57      0.57      0.57     15559
 
 
   Top 10 Features by Gain:
-    mfi                            39.5
-    rsi_norm                       38.5
-    price_vs_fibo_pivot            36.9
-    fibo_s1                        35.3
-    bb_upper                       33.7
-    ema_200                        33.4
-    price_vs_supertrend            33.0
-    rsi                            32.1
-    macd_norm                      31.7
-    alligator_teeth                30.5
+    rsi_norm                       50.3
+    trend                          44.1
+    rsi                            39.6
+    ema_200                        33.6
+    supertrend                     30.5
+    price_vs_ema200                30.0
+    ema_50                         29.4
+    poc                            29.4
+    alligator_jaw                  29.1
+    supertrend_dir                 28.7
   Model: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1440.ubj
   Schema: /home/anton/Desktop/Rust_trader/models/super_dir_v1_tf1440.schema.json
 

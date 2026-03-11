@@ -21,11 +21,11 @@ use std::sync::OnceLock;
 pub fn tf_target_move_pct() -> HashMap<i32, f64> {
     let mut m = HashMap::new();
     m.insert(1, 0.95);     // 1m:  1.0%
-    m.insert(5, 2.2);    // 5m:  1.75%
-    m.insert(15, 3.0);   // 15m: 2.75%
-    m.insert(60, 4.4);   // 1h:  3.75%
-    m.insert(240, 6.0);  // 4h:  4.75%
-    m.insert(1440, 8.0); // 1d:  5.75%
+    m.insert(5, 2.0);    // 5m:  1.75%
+    m.insert(15, 2.1);   // 15m: 2.75%
+    m.insert(60, 3.2);   // 1h:  3.75%
+    m.insert(240, 4.3);  // 4h:  4.75%
+    m.insert(1440, 6.4); // 1d:  5.75%
     m
 }
 
@@ -78,15 +78,15 @@ impl Default for SuperEntryConfig {
     fn default() -> Self {
         Self {
             warmup_bars: 300,
-            lookahead_bars: 20, // was 20
-            p_threshold: 0.50,  //was 0.55
-            sl_fraction: 0.75, //was 0.5
+            lookahead_bars: 25, // was 20
+            p_threshold: 0.55,  //was 0.55
+            sl_fraction: 0.65, //was 0.5
             max_hold_bars: 25,  // Force-close after 25 bars (reduces expired trades)
             tf_targets: tf_target_move_pct(),
             model_path_template: "models/super_entry_v1_tf{tf}.ubj".to_string(),
             direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),
-            min_magnitude_pct: 0.1,
-            train_split_ratio: 0.8,
+            min_magnitude_pct: 0.5,
+            train_split_ratio: 0.5,
         }
     }
 }

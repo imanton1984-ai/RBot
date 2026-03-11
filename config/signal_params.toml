@@ -120,10 +120,10 @@ sl_min_pct = 3.21  # 90% от V7
 # ───────────────────────────────────────────────────────────────────────────
 # Используются когда сигнал около support/resistance
 [atr_bounce]
-sl_mult  = 0.55    # SL = level ± (ATR × 0.55)
-tp1_mult = 0.75    # TP1 = entry ± (ATR × 0.75)
-tp2_mult = 1.4     # TP2 = entry ± (ATR × 1.4)
-tp3_mult = 2.2     # TP3 = entry ± (ATR × 2.2)
+sl_mult  = 0.75    # SL = level ± (ATR × 0.55)
+tp1_mult = 1.1    # TP1 = entry ± (ATR × 0.75)
+tp2_mult = 1.6     # TP2 = entry ± (ATR × 1.4)
+tp3_mult = 2.5     # TP3 = entry ± (ATR × 2.2)
 
 # ───────────────────────────────────────────────────────────────────────────
 # ATR МНОЖИТЕЛИ ДЛЯ BREAKOUT SETUP (когда пробой уровня)
@@ -132,8 +132,8 @@ tp3_mult = 2.2     # TP3 = entry ± (ATR × 2.2)
 [atr_breakout]
 sl_mult  = 0.75    # SL = level ± (ATR × 0.75)
 tp1_mult = 1.1     # TP1 = entry ± (ATR × 1.1)
-tp2_mult = 1.8     # TP2 = entry ± (ATR × 1.8)
-tp3_mult = 2.8     # TP3 = entry ± (ATR × 2.8)
+tp2_mult = 1.6     # TP2 = entry ± (ATR × 1.8)
+tp3_mult = 2.5     # TP3 = entry ± (ATR × 2.8)
 
 # ───────────────────────────────────────────────────────────────────────────
 # ДОПОЛНИТЕЛЬНЫЕ ПАРАМЕТРЫ

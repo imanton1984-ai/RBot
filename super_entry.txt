@@ -1,0 +1,3658 @@
+// strategies/ml_entry_strategy/src/bin/backtest.rs
+//
+// Super Entry Strategy Backtester
+//
+// Evaluates the Super Entry model on historical data.
+//
+// USAGE:
+//   cargo run --release -p ml_entry_strategy --bin super_entry_backtest
+//
+// WORKFLOW:
+//   1. Load models (super_entry + direction per TF)
+//   2. For each (symbol, tf), fetch ALL available candles (matching dataset depth)
+//   3. Starting from candle 301, run the pipeline:
+//      - extract features → predict → score → generate signal
+//   4. For each signal, simulate trade:
+//      - TP = target_move_pct for this TF
+//      - SL = sl_fraction * target_move_pct
+//      - Look ahead 20 candles for TP/SL/Expired
+//   5. Aggregate metrics: WinRate, AvgPnL, Sharpe, %expired, coverage
+//
+// OUTPUT:
+//   Console report per TF + overall
+//   Optional CSV export
+
+use anyhow::Result;
+use dotenvy::dotenv;
+use sqlx::PgPool;
+use std::collections::HashMap;
+
+use ml_entry_strategy::config::SuperEntryConfig;
+use ml_entry_strategy::dataset::{fetch_all_candles_for_tf, CandleWithIndicators};
+use ml_entry_strategy::pipeline::SuperEntryPipeline;
+
+/// Result of a simulated trade
+#[derive(Debug, Clone)]
+struct TradeResult {
+    symbol: String,
+    tf_minutes: i32,
+    direction: i8,
+    entry_price: f64,
+    exit_price: f64,
+    pnl_pct: f64,
+    outcome: TradeOutcome,
+    bars_to_outcome: usize,
+    p_super: f32,
+    combined_score: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum TradeOutcome {
+    Win,
+    Loss,
+    Expired,
+}
+
+/// Simulate a trade from a signal forward.
+///
+/// Looks ahead `max_hold` candles for TP or SL hit.
+/// If neither is hit within max_hold bars, force-close at market (Expired).
+fn simulate_trade(
+    candles: &[CandleWithIndicators],
+    signal_idx: usize,
+    direction: i8,
+    entry_price: f64,
+    tp_pct: f64,
+    sl_pct: f64,
+    max_hold: usize,
+) -> TradeResult {
+    let tp_price = if direction == 1 {
+        entry_price * (1.0 + tp_pct / 100.0)
+    } else {
+        entry_price * (1.0 - tp_pct / 100.0)
+    };
+
+    let sl_price = if direction == 1 {
+        entry_price * (1.0 - sl_pct / 100.0)
+    } else {
+        entry_price * (1.0 + sl_pct / 100.0)
+    };
+
+    let end_idx = (signal_idx + max_hold).min(candles.len() - 1);
+
+    for k in (signal_idx + 1)..=end_idx {
+        let high = candles[k].high;
+        let low = candles[k].low;
+
+        if direction == 1 {
+            // LONG: check SL first (worse case first)
+            if low <= sl_price {
+                let pnl = (sl_price - entry_price) / entry_price * 100.0;
+                return TradeResult {
+                    symbol: candles[signal_idx].symbol.clone(),
+                    tf_minutes: 0, // will be set by caller
+                    direction,
+                    entry_price,
+                    exit_price: sl_price,
+                    pnl_pct: pnl,
+                    outcome: TradeOutcome::Loss,
+                    bars_to_outcome: k - signal_idx,
+                    p_super: 0.0,
+                    combined_score: 0.0,
+                };
+            }
+            if high >= tp_price {
+                let pnl = (tp_price - entry_price) / entry_price * 100.0;
+                return TradeResult {
+                    symbol: candles[signal_idx].symbol.clone(),
+                    tf_minutes: 0,
+                    direction,
+                    entry_price,
+                    exit_price: tp_price,
+                    pnl_pct: pnl,
+                    outcome: TradeOutcome::Win,
+                    bars_to_outcome: k - signal_idx,
+                    p_super: 0.0,
+                    combined_score: 0.0,
+                };
+            }
+        } else {
+            // SHORT: check SL first
+            if high >= sl_price {
+                let pnl = (entry_price - sl_price) / entry_price * 100.0;
+                return TradeResult {
+                    symbol: candles[signal_idx].symbol.clone(),
+                    tf_minutes: 0,
+                    direction,
+                    entry_price,
+                    exit_price: sl_price,
+                    pnl_pct: pnl,
+                    outcome: TradeOutcome::Loss,
+                    bars_to_outcome: k - signal_idx,
+                    p_super: 0.0,
+                    combined_score: 0.0,
+                };
+            }
+            if low <= tp_price {
+                let pnl = (entry_price - tp_price) / entry_price * 100.0;
+                return TradeResult {
+                    symbol: candles[signal_idx].symbol.clone(),
+                    tf_minutes: 0,
+                    direction,
+                    entry_price,
+                    exit_price: tp_price,
+                    pnl_pct: pnl,
+                    outcome: TradeOutcome::Win,
+                    bars_to_outcome: k - signal_idx,
+                    p_super: 0.0,
+                    combined_score: 0.0,
+                };
+            }
+        }
+    }
+
+    // Expired: use last candle close
+    let last_close = candles[end_idx].close;
+    let pnl = if direction == 1 {
+        (last_close - entry_price) / entry_price * 100.0
+    } else {
+        (entry_price - last_close) / entry_price * 100.0
+    };
+
+    TradeResult {
+        symbol: candles[signal_idx].symbol.clone(),
+        tf_minutes: 0,
+        direction,
+        entry_price,
+        exit_price: last_close,
+        pnl_pct: pnl,
+        outcome: TradeOutcome::Expired,
+        bars_to_outcome: end_idx - signal_idx,
+        p_super: 0.0,
+        combined_score: 0.0,
+    }
+}
+
+/// Metrics for a group of trades
+#[derive(Debug, Default)]
+struct TfMetrics {
+    total: usize,
+    wins: usize,
+    losses: usize,
+    expired: usize,
+    total_pnl: f64,
+    pnl_values: Vec<f64>,
+    total_candles: usize, // total candles processed (for coverage)
+}
+
+#[allow(dead_code)]
+impl TfMetrics {
+    fn win_rate(&self) -> f64 {
+        if self.total > 0 {
+            self.wins as f64 / self.total as f64 * 100.0
+        } else {
+            0.0
+        }
+    }
+
+    fn avg_pnl(&self) -> f64 {
+        if self.total > 0 {
+            self.total_pnl / self.total as f64
+        } else {
+            0.0
+        }
+    }
+
+    fn sharpe(&self) -> f64 {
+        if self.total < 2 {
+            return 0.0;
+        }
+        let mean = self.avg_pnl();
+        let variance = self
+            .pnl_values
+            .iter()
+            .map(|p| (p - mean).powi(2))
+            .sum::<f64>()
+            / self.total as f64;
+        if variance > 0.0 {
+            mean / variance.sqrt()
+        } else {
+            0.0
+        }
+    }
+
+    fn expired_pct(&self) -> f64 {
+        if self.total > 0 {
+            self.expired as f64 / self.total as f64 * 100.0
+        } else {
+            0.0
+        }
+    }
+
+    fn coverage(&self) -> f64 {
+        if self.total_candles > 0 {
+            self.total as f64 / self.total_candles as f64 * 100.0
+        } else {
+            0.0
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    dotenv().ok();
+    tracing_subscriber::fmt::init();
+
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+
+    let config = SuperEntryConfig::from_env();
+    // Default to GPU when available (XGBoost gpu_predictor is 3-5x faster for batch)
+    let use_gpu = std::env::var("SUPER_ENTRY_USE_GPU")
+        .unwrap_or_default()
+        .parse::<bool>()
+        .unwrap_or(false);
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║         SUPER ENTRY STRATEGY BACKTESTER                      ║");
+    println!("╚══════════════════════════════════════════════════════════════╝");
+    println!();
+    println!("  Config:");
+    println!("    P threshold:    {}", config.p_threshold);
+    println!("    Warmup bars:    {}", config.warmup_bars);
+    println!("    Lookahead:      {}", config.lookahead_bars);
+    println!("    Max hold bars:  {} (force-close after N bars)", config.effective_max_hold());
+    println!("    SL fraction:    {}", config.sl_fraction);
+    println!("    GPU:            {}", use_gpu);
+    println!();
+
+    for &tf in SuperEntryConfig::timeframes() {
+        let limit = match tf {
+            1 => 5000, 5 => 12000, 15 => 12000, 60 => 12000,
+            240 => 12000, 1440 => 3700, _ => 5000,
+        };
+        let effective = if limit > 320 { limit - 320 } else { 0 };
+        println!(
+            "    TF {:>5}m:  TP={:.2}%  SL={:.2}%  candles={:<6} effective={}",
+            tf,
+            config.target_pct_for_tf(tf),
+            config.sl_pct_for_tf(tf),
+            limit,
+            effective
+        );
+    }
+    println!();
+
+    // Initialize pipeline
+    let pipeline = match SuperEntryPipeline::new(config.clone(), use_gpu) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to initialize pipeline: {}", e);
+            eprintln!("Make sure models are trained first: ./scripts/super_entry.sh --train-only");
+            return Ok(());
+        }
+    };
+
+    if !pipeline.has_models() {
+        eprintln!("No super_entry models found!");
+        eprintln!("Train models first:");
+        eprintln!("  1. Build dataset:  cargo run --release -p ml_entry_strategy --bin super_entry_dataset");
+        eprintln!("  2. Train models:   python trainer/src/train_super_entry.py");
+        return Ok(());
+    }
+
+    let pool = PgPool::connect(&db_url).await?;
+
+    let mut metrics_by_tf: HashMap<i32, TfMetrics> = HashMap::new();
+    let mut all_trades: Vec<TradeResult> = Vec::new();
+
+    // Per-TF candle limits for backtesting — MUST match dataset_builder limits
+    // so we evaluate the model on the same data depth it was trained on.
+    // More candles = more realistic backtest, less overfitting illusion.
+    let backtest_limit_per_tf = |tf_minutes: i32| -> usize {
+        match tf_minutes {
+            1 => 5000,     // 1m: ~3.5 days (4680 effective after warmup)
+            5 => 12000,    // 5m: ~41 days
+            15 => 12000,   // 15m: ~125 days
+            60 => 12000,   // 1h: ~500 days (target TF — max depth)
+            240 => 12000,  // 4h: ~5.5 years
+            1440 => 3700,  // 1d: ~10 years
+            _ => 5000,
+        }
+    };
+
+    let t0_total = std::time::Instant::now();
+
+    for &tf in SuperEntryConfig::timeframes() {
+        let t0_tf = std::time::Instant::now();
+        let target_pct = config.target_pct_for_tf(tf);
+        let sl_pct = config.sl_pct_for_tf(tf);
+        let limit = backtest_limit_per_tf(tf);
+
+        let mut tf_metrics = TfMetrics::default();
+
+        // ── BATCH FETCH: single SQL query per TF (all symbols at once) ──
+        // 6 batch queries instead of 133×6 = 798 individual queries.
+        // Uses ROW_NUMBER window function — much faster than per-symbol fetches.
+        let grouped = match fetch_all_candles_for_tf(&pool, tf, limit).await {
+            Ok(g) => g,
+            Err(e) => {
+                eprintln!("Failed to fetch candles for TF {}m: {}", tf, e);
+                continue;
+            }
+        };
+
+        println!("  TF {:>5}m: fetched {} symbols (limit={}) in {:.1}s, processing...",
+            tf, grouped.len(), limit, t0_tf.elapsed().as_secs_f64());
+
+        for (_symbol, candles) in &grouped {
+            if candles.len() < config.warmup_bars + config.lookahead_bars + 1 {
+                continue;
+            }
+
+            let results = pipeline.process_candles(candles, tf, use_gpu)?;
+            tf_metrics.total_candles += results.len();
+
+            for result in &results {
+                if let Some(ref signal) = result.signal {
+                    let direction = signal.side as i8;
+                    let entry_price = signal.entry_price;
+
+                    let mut trade = simulate_trade(
+                        candles,
+                        result.candle_index,
+                        direction,
+                        entry_price,
+                        target_pct,
+                        sl_pct,
+                        config.effective_max_hold(),
+                    );
+
+                    trade.tf_minutes = tf;
+                    trade.p_super = signal.p_super;
+                    trade.combined_score = signal.final_score;
+
+                    tf_metrics.total += 1;
+                    tf_metrics.total_pnl += trade.pnl_pct;
+                    tf_metrics.pnl_values.push(trade.pnl_pct);
+
+                    match trade.outcome {
+                        TradeOutcome::Win => tf_metrics.wins += 1,
+                        TradeOutcome::Loss => tf_metrics.losses += 1,
+                        TradeOutcome::Expired => tf_metrics.expired += 1,
+                    }
+
+                    all_trades.push(trade);
+                }
+            }
+        }
+
+        println!("  TF {:>5}m: {} trades in {:.1}s",
+            tf, tf_metrics.total, t0_tf.elapsed().as_secs_f64());
+        metrics_by_tf.insert(tf, tf_metrics);
+    }
+
+    println!("\n  Total backtest time: {:.1}s\n", t0_total.elapsed().as_secs_f64());
+
+    // ── Print results ──────────────────────────────────────
+    println!();
+    println!("╔══════════════════════════════════════════════════════════════════════════════╗");
+    println!("║                    SUPER ENTRY BACKTEST RESULTS                              ║");
+    println!("╚══════════════════════════════════════════════════════════════════════════════╝");
+    println!();
+    println!(
+        "{:<6} {:>7} {:>6} {:>6} {:>7} {:>8} {:>9} {:>8} {:>8}",
+        "TF", "Trades", "Wins", "Loss", "Exprd", "WinRate", "AvgPnL%", "Sharpe", "Cover%"
+    );
+    println!("{}", "-".repeat(75));
+
+    let mut tfs: Vec<i32> = metrics_by_tf.keys().copied().collect();
+    tfs.sort();
+
+    for tf in &tfs {
+        let m = &metrics_by_tf[tf];
+        let tf_name = match tf {
+            1 => "1m",
+            5 => "5m",
+            15 => "15m",
+            60 => "1h",
+            240 => "4h",
+            1440 => "1d",
+            _ => "??",
+        };
+
+        println!(
+            "{:<6} {:>7} {:>6} {:>6} {:>7} {:>7.1}% {:>8.4}% {:>8.3} {:>7.2}%",
+            tf_name,
+            m.total,
+            m.wins,
+            m.losses,
+            m.expired,
+            m.win_rate(),
+            m.avg_pnl(),
+            m.sharpe(),
+            m.coverage()
+        );
+    }
+
+    // Overall
+    let total_trades = all_trades.len();
+    let total_wins = all_trades.iter().filter(|t| t.outcome == TradeOutcome::Win).count();
+    let total_losses = all_trades.iter().filter(|t| t.outcome == TradeOutcome::Loss).count();
+    let total_expired = all_trades.iter().filter(|t| t.outcome == TradeOutcome::Expired).count();
+    let total_pnl: f64 = all_trades.iter().map(|t| t.pnl_pct).sum();
+
+    println!("{}", "-".repeat(75));
+    println!(
+        "TOTAL  {:>7} {:>6} {:>6} {:>7} {:>7.1}% {:>8.4}%",
+        total_trades,
+        total_wins,
+        total_losses,
+        total_expired,
+        if total_trades > 0 { total_wins as f64 / total_trades as f64 * 100.0 } else { 0.0 },
+        if total_trades > 0 { total_pnl / total_trades as f64 } else { 0.0 }
+    );
+    println!();
+
+    // ── Detailed breakdown for calibration ────────────────────
+    println!("======== P(SUPER) BUCKET ANALYSIS (calibration helper) ========");
+    println!(
+        "{:<6} {:>10} {:>10} {:>10} {:>10} {:>10}",
+        "TF", "0.55-0.60", "0.60-0.70", "0.70-0.80", "0.80-0.90", "0.90+"
+    );
+
+    let p_buckets: Vec<(f32, f32, &str)> = vec![
+        (0.55, 0.60, "0.55-0.60"),
+        (0.60, 0.70, "0.60-0.70"),
+        (0.70, 0.80, "0.70-0.80"),
+        (0.80, 0.90, "0.80-0.90"),
+        (0.90, 1.01, "0.90+"),
+    ];
+
+    let mut by_tf_trades: HashMap<i32, Vec<&TradeResult>> = HashMap::new();
+    for t in &all_trades {
+        by_tf_trades.entry(t.tf_minutes).or_default().push(t);
+    }
+    let mut sorted_tfs: Vec<i32> = by_tf_trades.keys().copied().collect();
+    sorted_tfs.sort();
+
+    for tf in &sorted_tfs {
+        let group = &by_tf_trades[tf];
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"??" };
+
+        let mut cells: Vec<String> = Vec::new();
+        for (lo, hi, _) in &p_buckets {
+            let in_bucket: Vec<&&TradeResult> = group.iter()
+                .filter(|t| t.p_super >= *lo && t.p_super < *hi)
+                .collect();
+            let n = in_bucket.len();
+            if n == 0 {
+                cells.push("  -  ".to_string());
+            } else {
+                let w = in_bucket.iter().filter(|t| t.outcome == TradeOutcome::Win).count();
+                cells.push(format!("{:.0}%({}) ", w as f64 / n as f64 * 100.0, n));
+            }
+        }
+        println!("{:<6} {:>10} {:>10} {:>10} {:>10} {:>10}",
+            tf_name, cells[0], cells[1], cells[2], cells[3], cells[4]);
+    }
+    println!();
+
+    // ── Direction breakdown ─────────────────────────────────
+    println!("======== DIRECTION BREAKDOWN ========");
+    println!(
+        "{:<6} {:>8} {:>8} {:>10} {:>10} {:>10} {:>10}",
+        "TF", "LONG", "SHORT", "LongWR%", "ShortWR%", "LongPnL%", "ShortPnL%"
+    );
+
+    for tf in &sorted_tfs {
+        let group = &by_tf_trades[tf];
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"??" };
+
+        let longs: Vec<&&TradeResult> = group.iter().filter(|t| t.direction == 1).collect();
+        let shorts: Vec<&&TradeResult> = group.iter().filter(|t| t.direction == -1).collect();
+
+        let long_wr = if !longs.is_empty() {
+            longs.iter().filter(|t| t.outcome == TradeOutcome::Win).count() as f64 / longs.len() as f64 * 100.0
+        } else { 0.0 };
+        let short_wr = if !shorts.is_empty() {
+            shorts.iter().filter(|t| t.outcome == TradeOutcome::Win).count() as f64 / shorts.len() as f64 * 100.0
+        } else { 0.0 };
+        let long_pnl = if !longs.is_empty() {
+            longs.iter().map(|t| t.pnl_pct).sum::<f64>() / longs.len() as f64
+        } else { 0.0 };
+        let short_pnl = if !shorts.is_empty() {
+            shorts.iter().map(|t| t.pnl_pct).sum::<f64>() / shorts.len() as f64
+        } else { 0.0 };
+
+        println!(
+            "{:<6} {:>8} {:>8} {:>9.1}% {:>9.1}% {:>9.4}% {:>9.4}%",
+            tf_name, longs.len(), shorts.len(), long_wr, short_wr, long_pnl, short_pnl
+        );
+    }
+    println!();
+
+    // ── Avg bars to outcome ─────────────────────────────────
+    println!("======== AVG BARS TO OUTCOME ========");
+    println!(
+        "{:<6} {:>10} {:>10} {:>10}",
+        "TF", "AvgWinBars", "AvgLossBars", "AvgExpBars"
+    );
+    for tf in &sorted_tfs {
+        let group = &by_tf_trades[tf];
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"??" };
+
+        let win_bars: Vec<f64> = group.iter().filter(|t| t.outcome == TradeOutcome::Win).map(|t| t.bars_to_outcome as f64).collect();
+        let loss_bars: Vec<f64> = group.iter().filter(|t| t.outcome == TradeOutcome::Loss).map(|t| t.bars_to_outcome as f64).collect();
+        let exp_bars: Vec<f64> = group.iter().filter(|t| t.outcome == TradeOutcome::Expired).map(|t| t.bars_to_outcome as f64).collect();
+
+        let avg_win = if !win_bars.is_empty() { win_bars.iter().sum::<f64>() / win_bars.len() as f64 } else { 0.0 };
+        let avg_loss = if !loss_bars.is_empty() { loss_bars.iter().sum::<f64>() / loss_bars.len() as f64 } else { 0.0 };
+        let avg_exp = if !exp_bars.is_empty() { exp_bars.iter().sum::<f64>() / exp_bars.len() as f64 } else { 0.0 };
+
+        println!("{:<6} {:>10.1} {:>11.1} {:>10.1}", tf_name, avg_win, avg_loss, avg_exp);
+    }
+    println!();
+
+    // ── Top 5 symbols per TF ─────────────────────────────────
+    println!("======== TOP 5 SYMBOLS BY PNL (per TF) ========");
+    for tf in &sorted_tfs {
+        let group = &by_tf_trades[tf];
+        let tf_name = match tf { 1=>"1m", 5=>"5m", 15=>"15m", 60=>"1h", 240=>"4h", 1440=>"1d", _=>"??" };
+
+        let mut by_symbol: HashMap<&str, (f64, usize, usize)> = HashMap::new();
+        for t in group {
+            let entry = by_symbol.entry(t.symbol.as_str()).or_insert((0.0, 0, 0));
+            entry.0 += t.pnl_pct;
+            entry.1 += 1;
+            if t.outcome == TradeOutcome::Win { entry.2 += 1; }
+        }
+
+        let mut sorted_symbols: Vec<(&str, f64, usize, usize)> = by_symbol.iter()
+            .map(|(&s, &(pnl, total, wins))| (s, pnl, total, wins))
+            .collect();
+        sorted_symbols.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        println!("  {} — top 5:", tf_name);
+        for (sym, pnl, total, wins) in sorted_symbols.iter().take(5) {
+            let wr = if *total > 0 { *wins as f64 / *total as f64 * 100.0 } else { 0.0 };
+            println!("    {:<12} PnL: {:>+8.2}%  trades: {:>4}  WR: {:>5.1}%", sym, pnl, total, wr);
+        }
+    }
+    println!();
+
+    // Export CSV if requested
+    let csv_output = std::env::var("SUPER_ENTRY_BACKTEST_CSV")
+        .unwrap_or_default();
+
+    if !csv_output.is_empty() {
+        export_backtest_csv(&all_trades, &csv_output)?;
+        println!("Backtest results exported to: {}", csv_output);
+    }
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║         BACKTEST COMPLETE                                    ║");
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+/// Export backtest results to CSV
+fn export_backtest_csv(trades: &[TradeResult], path: &str) -> Result<()> {
+    use std::io::Write;
+
+    let mut file = std::fs::File::create(path)?;
+    writeln!(
+        file,
+        "symbol,tf_minutes,direction,entry_price,exit_price,pnl_pct,outcome,bars_to_outcome,p_super,combined_score"
+    )?;
+
+    for t in trades {
+        let outcome_str = match t.outcome {
+            TradeOutcome::Win => "win",
+            TradeOutcome::Loss => "loss",
+            TradeOutcome::Expired => "expired",
+        };
+        writeln!(
+            file,
+            "{},{},{},{:.6},{:.6},{:.6},{},{},{:.4},{:.4}",
+            t.symbol,
+            t.tf_minutes,
+            t.direction,
+            t.entry_price,
+            t.exit_price,
+            t.pnl_pct,
+            outcome_str,
+            t.bars_to_outcome,
+            t.p_super,
+            t.combined_score,
+        )?;
+    }
+
+    Ok(())
+}
+// strategies/ml_entry_strategy/src/bin/dataset_builder.rs
+//
+// Super Entry Dataset Builder
+//
+// Generates the training dataset for the Super Entry Model.
+//
+// USAGE:
+//   cargo run --release -p ml_entry_strategy --bin super_entry_dataset
+//
+// OUTPUT:
+//   super_entry_dataset.csv — features + labels for all (symbol, tf) pairs
+//
+// WORKFLOW:
+//   1. Fetch candles per (symbol, tf) from DB (up to 12000 for key TFs)
+//   2. Use first 300 as warmup (for indicator computation)
+//   3. Label remaining candles with lookahead=20
+//   4. Export to CSV for Python trainer
+
+use anyhow::Result;
+use dotenvy::dotenv;
+use sqlx::PgPool;
+use tracing::info;
+
+use ml_entry_strategy::config::SuperEntryConfig;
+use ml_entry_strategy::dataset::{
+    build_labels, fetch_candles_with_indicators, fetch_active_symbols,
+    export_dataset_csv, all_feature_names, SuperEntryExample,
+};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    dotenv().ok();
+    tracing_subscriber::fmt::init();
+
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+
+    let output_path = std::env::var("SUPER_ENTRY_DATASET_OUTPUT")
+        .unwrap_or_else(|_| "dataset/super_entry_dataset.csv".to_string());
+
+    let config = SuperEntryConfig::from_env();
+
+    info!("=== Super Entry Dataset Builder ===");
+    info!("Warmup bars: {}", config.warmup_bars);
+    info!("Lookahead: {}", config.lookahead_bars);
+    info!("Output: {}", output_path);
+
+    let pool = PgPool::connect(&db_url).await?;
+
+    // Fetch active symbols
+    let symbols = fetch_active_symbols(&pool).await?;
+    info!("Found {} active symbols", symbols.len());
+
+    if symbols.is_empty() {
+        tracing::warn!("No active symbols found. Ensure market.pairs has data.");
+        return Ok(());
+    }
+
+    // Use ALL timeframes for dataset building (including 1d for training)
+    let timeframes = SuperEntryConfig::all_timeframes();
+    let mut all_examples: Vec<SuperEntryExample> = Vec::new();
+
+    let mut stats_by_tf: std::collections::HashMap<i32, (usize, usize)> = std::collections::HashMap::new();
+
+    // Per-TF candle limits for dataset building — more candles = better model.
+    // Must match what's available in DB (runtime.toml backfill_candles_per_tf).
+    // After warmup (300) + lookahead (20), effective training examples = limit - 320.
+    //   1m:  5000  → 4680 examples/symbol  (~3.5 days)
+    //   5m:  12000 → 11680 examples/symbol (~41 days)
+    //   15m: 12000 → 11680 examples/symbol (~125 days)
+    //   1h:  12000 → 11680 examples/symbol (~500 days)
+    //   4h:  12000 → 11680 examples/symbol (~5.5 years)
+    //   1d:  3700  → 3380 examples/symbol  (~10 years)
+    let dataset_limit_per_tf = |tf_minutes: i32| -> usize {
+        match tf_minutes {
+            1 => 5000,     // 1m: all available from DB
+            5 => 12000,    // 5m: deep history
+            15 => 12000,   // 15m: deep history
+            60 => 12000,   // 1h: deep history (target TF)
+            240 => 12000,  // 4h: deep history
+            1440 => 3700,  // 1d: 10+ years
+            _ => 5000,
+        }
+    };
+
+    for &tf in timeframes {
+        let target_pct = config.target_pct_for_tf(tf);
+        let limit = dataset_limit_per_tf(tf);
+        info!("Processing TF {}m (target_move={}%, limit={})", tf, target_pct, limit);
+
+        let mut tf_total = 0;
+        let mut tf_super = 0;
+
+        for symbol in &symbols {
+            let candles = fetch_candles_with_indicators(&pool, symbol, tf, limit).await?;
+
+            if candles.len() < config.warmup_bars + config.lookahead_bars + 1 {
+                continue;
+            }
+
+            let examples = build_labels(
+                &candles,
+                config.warmup_bars,
+                config.lookahead_bars,
+                target_pct,
+                tf,
+            );
+
+            for ex in &examples {
+                tf_total += 1;
+                if ex.is_super {
+                    tf_super += 1;
+                }
+            }
+
+            all_examples.extend(examples);
+        }
+
+        let super_rate = if tf_total > 0 {
+            tf_super as f64 / tf_total as f64 * 100.0
+        } else {
+            0.0
+        };
+
+        info!(
+            "  TF {}m: {} examples, {} super ({:.1}%)",
+            tf, tf_total, tf_super, super_rate
+        );
+
+        stats_by_tf.insert(tf, (tf_total, tf_super));
+    }
+
+    // Export
+    let feature_names = all_feature_names();
+    export_dataset_csv(&all_examples, &output_path, &feature_names)?;
+
+    info!("\n=== Dataset Summary ===");
+    info!("Total examples: {}", all_examples.len());
+    info!("Output: {}", output_path);
+
+    for &tf in timeframes {
+        if let Some((total, super_count)) = stats_by_tf.get(&tf) {
+            let rate = if *total > 0 {
+                *super_count as f64 / *total as f64 * 100.0
+            } else {
+                0.0
+            };
+            info!(
+                "  TF {}m: {} total, {} super ({:.1}%), target={:.2}%",
+                tf, total, super_count, rate,
+                config.target_pct_for_tf(tf)
+            );
+        }
+    }
+
+    info!("=== Done ===");
+    Ok(())
+}
+
+// strategies/ml_entry_strategy/src/bin/service.rs
+//
+// Super Entry Service — Production signal generator
+//
+// Stages:
+//   1. INIT:     Connect to DB, ensure tables, check existing data
+//   2. MODELS:   Load XGBoost models (10 boosters: 5 TF × 2 models)
+//   3. BACKFILL: Generate signals for historical data (skip if already done)
+//   4. REALTIME: Poll for new indicators → inference → write signals
+//
+// Logs written to: logs/super_entry_service.out
+
+use anyhow::Result;
+use dotenvy::dotenv;
+use sqlx::PgPool;
+use std::time::{Duration, Instant};
+use tracing::{info, warn, error};
+
+use ml_entry_strategy::config::SuperEntryConfig;
+use ml_entry_strategy::dataset::fetch_active_symbols;
+use ml_entry_strategy::db_writer::{insert_signals_batch, ensure_table_exists, count_signals};
+use ml_entry_strategy::pipeline::SuperEntryPipeline;
+use ml_entry_strategy::signal_generator::SuperEntrySignal;
+
+fn _stage(name: &str) {
+    let bar = "═".repeat(60);
+    println!("╔{}╗", bar);
+    println!("║  {:<56}  ║", name);
+    println!("╚{}╝", bar);
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    dotenv().ok();
+    tracing_subscriber::fmt::init();
+
+    let db_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/timescaledb_binance".to_string());
+
+    let config = SuperEntryConfig::from_env();
+    let use_gpu = std::env::var("SUPER_ENTRY_USE_GPU")
+        .unwrap_or_default()
+        .parse::<bool>()
+        .unwrap_or(false);
+
+    // ═══════════════════════════════════════════
+    // Stage 1: INIT
+    // ═══════════════════════════════════════════
+    println!("\n=== [STAGE 1/4] INIT ===");
+    info!(target: "super_entry", "Connecting to database...");
+    
+    let pool = PgPool::connect(&db_url).await?;
+    info!(target: "super_entry", "✅ DB connected");
+
+    ensure_table_exists(&pool).await?;
+    info!(target: "super_entry", "✅ trade.super_entry_signals table ready");
+
+    let initial_count = count_signals(&pool).await.unwrap_or(0);
+    info!(target: "super_entry", "Existing signals in DB: {}", initial_count);
+
+    // Wait for base pipeline to populate market.pairs (like compute_history does)
+    info!(target: "super_entry", "Waiting for active symbols in market.pairs...");
+    let symbols = loop {
+        match fetch_active_symbols(&pool).await {
+            Ok(s) if !s.is_empty() => break s,
+            Ok(_) => {
+                info!(target: "super_entry", "No active symbols yet. Waiting 10s for base pipeline...");
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
+            Err(_) => {
+                info!(target: "super_entry", "market.pairs not ready. Waiting 10s for DB init...");
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
+        }
+    };
+    info!(target: "super_entry", "✅ Active symbols: {}", symbols.len());
+
+    info!(target: "super_entry", "Config: p_threshold={}, warmup={}, lookahead={}, sl_fraction={}, gpu={}",
+        config.p_threshold, config.warmup_bars, config.lookahead_bars, config.sl_fraction, use_gpu);
+
+    for &tf in SuperEntryConfig::timeframes() {
+        info!(target: "super_entry", "  TF {:>5}m: TP={:.2}% SL={:.2}%",
+            tf, config.target_pct_for_tf(tf), config.sl_pct_for_tf(tf));
+    }
+
+    // ═══════════════════════════════════════════
+    // Stage 2: MODELS
+    // ═══════════════════════════════════════════
+    println!("\n=== [STAGE 2/4] LOADING MODELS ===");
+    let model_t0 = Instant::now();
+
+    let pipeline = match SuperEntryPipeline::new(config.clone(), use_gpu) {
+        Ok(p) => p,
+        Err(e) => {
+            error!(target: "super_entry", "❌ Failed to load models: {}", e);
+            error!(target: "super_entry", "Train first: ./scripts/super_entry.sh --train");
+            return Err(e);
+        }
+    };
+
+    if !pipeline.has_models() {
+        error!(target: "super_entry", "❌ No models found!");
+        return Ok(());
+    }
+
+    info!(target: "super_entry", "✅ Models loaded in {}ms", model_t0.elapsed().as_millis());
+
+    // ═══════════════════════════════════════════
+    // Stage 3: BACKFILL
+    // ═══════════════════════════════════════════
+    let force_backfill = std::env::var("SUPER_ENTRY_FORCE_BACKFILL")
+        .unwrap_or_default() == "true";
+
+    if initial_count == 0 || force_backfill {
+        println!("\n=== [STAGE 3/4] HISTORY BACKFILL ===");
+        info!(target: "super_entry", "Starting backfill ({})",
+            if force_backfill { "forced" } else { "DB empty" });
+        info!(target: "super_entry", "Backfill config: warmup_bars={}, lookahead={}, symbols={}",
+            config.warmup_bars, config.lookahead_bars, symbols.len());
+
+        let t0 = Instant::now();
+        let mut total_signals = 0usize;
+        let mut total_candles_processed = 0usize;
+        let mut total_symbols_processed = 0usize;
+
+        // Per-TF candle limits — consistent with dataset_builder and backtest
+        let backfill_limit = |tf_minutes: i32| -> usize {
+            match tf_minutes {
+                1 => 5000, 5 => 12000, 15 => 12000, 60 => 12000,
+                240 => 12000, 1440 => 3700, _ => 5000,
+            }
+        };
+
+        for &tf in SuperEntryConfig::timeframes() {
+            let tf_t0 = Instant::now();
+            let mut tf_signals: Vec<SuperEntrySignal> = Vec::new();
+            let mut tf_candles = 0usize;
+            let mut tf_symbols_ok = 0usize;
+            let mut tf_symbols_empty = 0usize;
+            let limit = backfill_limit(tf);
+
+            info!(target: "super_entry", "Processing TF {}m for {} symbols (limit={})...", tf, symbols.len(), limit);
+
+            // Concurrent fetch in batches of 20 symbols
+            for chunk in symbols.chunks(20) {
+                let mut handles = Vec::new();
+                for symbol in chunk {
+                    let pool_c = pool.clone();
+                    let sym = symbol.clone();
+                    handles.push(tokio::spawn(async move {
+                        ml_entry_strategy::dataset::fetch_candles_with_indicators(
+                            &pool_c, &sym, tf, limit
+                        ).await
+                    }));
+                }
+
+                for handle in handles {
+                    match handle.await {
+                        Ok(Ok(candles)) => {
+                            if candles.len() < config.warmup_bars + 1 {
+                                tf_symbols_empty += 1;
+                                info!(target: "super_entry",
+                                    "  {} {}m: insufficient candles ({} < warmup+1={}), skipping",
+                                    candles.first().map(|c| &c.symbol).unwrap_or(&"unknown".to_string()),
+                                    tf, candles.len(), config.warmup_bars + 1);
+                                continue;
+                            }
+                            tf_symbols_ok += 1;
+                            
+                            // Check for NULL/default indicators
+                            let null_rsi_count = candles.iter().filter(|c| c.rsi == 50.0).count();
+                            let _null_macd_count = candles.iter().filter(|c| c.macd == 0.0).count();
+                            if null_rsi_count > candles.len() / 2 {
+                                warn!(target: "super_entry",
+                                    "  {} {}m: {} / {} candles have default RSI=50 (indicators may not be computed)",
+                                    candles[0].symbol, tf, null_rsi_count, candles.len());
+                            }
+                            
+                            let results = match pipeline.process_candles(&candles, tf, use_gpu) {
+                                Ok(r) => r,
+                                Err(e) => {
+                                    warn!(target: "super_entry",
+                                        "  {} {}m: process_candles failed: {}",
+                                        candles[0].symbol, tf, e);
+                                    continue;
+                                }
+                            };
+                            tf_candles += results.len();
+                            for r in results {
+                                if let Some(s) = r.signal { tf_signals.push(s); }
+                            }
+                        }
+                        Ok(Err(e)) => {
+                            warn!(target: "super_entry", "  Fetch failed: {}", e);
+                        }
+                        Err(e) => {
+                            warn!(target: "super_entry", "  Task join failed: {:?}", e);
+                        }
+                    }
+                }
+            }
+            
+            total_symbols_processed += tf_symbols_ok;
+            total_candles_processed += tf_candles;
+
+            if !tf_signals.is_empty() {
+                let count = tf_signals.len();
+                match insert_signals_batch(&pool, &tf_signals).await {
+                    Ok(n) => {
+                        info!(target: "super_entry",
+                            "  TF {:>5}m: {} symbols → {} candles → {} signals → {} written ({}ms)",
+                            tf, tf_symbols_ok, tf_candles, count, n, tf_t0.elapsed().as_millis());
+                        total_signals += count;
+                    }
+                    Err(e) => error!(target: "super_entry", "  TF {}m INSERT failed: {}", tf, e),
+                }
+            } else {
+                info!(target: "super_entry", "  TF {:>5}m: {} symbols ({} empty) → {} candles → 0 signals ({}ms)",
+                    tf, tf_symbols_ok, tf_symbols_empty, tf_candles, tf_t0.elapsed().as_millis());
+            }
+        }
+
+        let final_count = count_signals(&pool).await.unwrap_or(0);
+        info!(target: "super_entry", "✅ Backfill complete: {} signals from {} symbols / {} candles in {:.1}s. DB total: {}",
+            total_signals, total_symbols_processed, total_candles_processed, t0.elapsed().as_secs_f64(), final_count);
+    } else {
+        println!("\n=== [STAGE 3/4] BACKFILL SKIPPED ===");
+        info!(target: "super_entry", "Skip: {} signals exist. SUPER_ENTRY_FORCE_BACKFILL=true to force.", initial_count);
+    }
+
+    // ═══════════════════════════════════════════
+    // Stage 4: REALTIME
+    // ═══════════════════════════════════════════
+    println!("\n=== [STAGE 4/4] REALTIME SIGNAL GENERATION ===");
+
+    let poll_interval = Duration::from_secs(
+        std::env::var("SUPER_ENTRY_POLL_SECS")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(60)
+    );
+    let max_idle: u32 = std::env::var("SUPER_ENTRY_MAX_IDLE_CYCLES")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+
+    info!(target: "super_entry", "Polling every {:?}, max_idle={} (0=forever)", poll_interval, max_idle);
+
+    let mut idle_cycles = 0u32;
+    let mut total_rt_signals = 0u64;
+    let mut cycle_num = 0u64;
+
+    loop {
+        tokio::time::sleep(poll_interval).await;
+        cycle_num += 1;
+
+        let rt_t0 = Instant::now();
+        let mut cycle_signals = 0usize;
+
+        for &tf in SuperEntryConfig::timeframes() {
+            let mut tf_signals: Vec<SuperEntrySignal> = Vec::new();
+
+            // Concurrent fetch for last candle (warmup+10)
+            for chunk in symbols.chunks(20) {
+                let mut handles = Vec::new();
+                for symbol in chunk {
+                    let pool_c = pool.clone();
+                    let sym = symbol.clone();
+                    let limit = config.warmup_bars + 10;
+                    handles.push(tokio::spawn(async move {
+                        ml_entry_strategy::dataset::fetch_candles_with_indicators(
+                            &pool_c, &sym, tf, limit
+                        ).await
+                    }));
+                }
+
+                for handle in handles {
+                    if let Ok(Ok(candles)) = handle.await {
+                        if candles.len() < config.warmup_bars + 1 { continue; }
+                        let last = candles.last().unwrap();
+                        if let Ok(r) = pipeline.process_single(last, tf, use_gpu) {
+                            if let Some(s) = r.signal { tf_signals.push(s); }
+                        }
+                    }
+                }
+            }
+
+            if !tf_signals.is_empty() {
+                match insert_signals_batch(&pool, &tf_signals).await {
+                    Ok(n) => cycle_signals += n,
+                    Err(e) => warn!(target: "super_entry", "Insert tf{}m: {}", tf, e),
+                }
+            }
+        }
+
+        let rt_ms = rt_t0.elapsed().as_millis();
+        total_rt_signals += cycle_signals as u64;
+
+        if cycle_signals > 0 {
+            idle_cycles = 0;
+            info!(target: "super_entry", 
+                "[RT cycle #{}] {} signals written in {}ms (total RT: {})",
+                cycle_num, cycle_signals, rt_ms, total_rt_signals);
+        } else {
+            idle_cycles += 1;
+            if idle_cycles % 5 == 0 {
+                info!(target: "super_entry", "[RT cycle #{}] idle {}/{} ({}ms)", 
+                    cycle_num, idle_cycles, max_idle, rt_ms);
+            }
+        }
+
+        if max_idle > 0 && idle_cycles >= max_idle {
+            info!(target: "super_entry", "Max idle reached ({}), shutting down", max_idle);
+            break;
+        }
+    }
+
+    info!(target: "super_entry", "Service stopped. Total RT signals: {}", total_rt_signals);
+    Ok(())
+}
+
+// strategies/ml_entry_strategy/src/config.rs
+//
+// Configuration for ML Entry Strategy (Super Entry Model)
+//
+// Contains:
+//   - TF_TARGET_MOVE_PCT: minimum % move per timeframe to qualify as "super"
+//   - Lookahead window (default 20 bars)
+//   - p_threshold: minimum P(super) to trigger entry
+//   - SL/TP parameters
+//   - Warmup bars (first 300 candles used for indicator context)
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+/// Target move percentage thresholds per timeframe (in %).
+/// A "super move" is defined as price moving >= this threshold
+/// within the lookahead window of 20 bars.
+///
+/// These are based on realistic TP3 targets adjusted per TF volatility.
+pub fn tf_target_move_pct() -> HashMap<i32, f64> {
+    let mut m = HashMap::new();
+    m.insert(1, 0.95);     // 1m:  1.0%
+    m.insert(5, 2.0);    // 5m:  1.75%
+    m.insert(15, 2.1);   // 15m: 2.75%
+    m.insert(60, 3.2);   // 1h:  3.75%
+    m.insert(240, 4.3);  // 4h:  4.75%
+    m.insert(1440, 6.4); // 1d:  5.75%
+    m
+}
+
+/// Get target move % for a specific timeframe (minutes).
+/// Returns None if TF is not configured.
+pub fn get_target_move_pct(tf_minutes: i32) -> Option<f64> {
+    tf_target_move_pct().get(&tf_minutes).copied()
+}
+
+/// Full configuration for the Super Entry Strategy
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SuperEntryConfig {
+    /// Number of warmup candles needed before generating training examples.
+    /// First `warmup_bars` candles are used to compute indicator state.
+    pub warmup_bars: usize,
+
+    /// Number of future bars to look ahead for measuring max move.
+    pub lookahead_bars: usize,
+
+    /// Minimum P(super) probability threshold to trigger an entry signal.
+    pub p_threshold: f64,
+
+    /// Stop-loss as a fraction of the target move (e.g., 0.5 = SL = 50% of TP).
+    pub sl_fraction: f64,
+
+    /// Maximum bars to hold a trade before force-closing.
+    /// If a trade doesn't hit TP or SL within max_hold_bars, close at market.
+    /// Set to 0 to use lookahead_bars as max hold (original behavior).
+    /// Env: SUPER_ENTRY_MAX_HOLD_BARS
+    pub max_hold_bars: usize,
+
+    /// Target move percentages per timeframe (override defaults).
+    /// Key = tf_minutes, Value = target_pct.
+    pub tf_targets: HashMap<i32, f64>,
+
+    /// Model file template (e.g., "models/super_entry_v1_tf{tf}.ubj")
+    pub model_path_template: String,
+
+    /// Direction model file template
+    pub direction_model_path_template: String,
+
+    /// Minimum magnitude to include in training (filter noise)
+    pub min_magnitude_pct: f64,
+
+    /// Train/test split ratio (fraction of pairs for training)
+    pub train_split_ratio: f64,
+}
+
+impl Default for SuperEntryConfig {
+    fn default() -> Self {
+        Self {
+            warmup_bars: 300,
+            lookahead_bars: 25, // was 20
+            p_threshold: 0.55,  //was 0.55
+            sl_fraction: 0.65, //was 0.5
+            max_hold_bars: 25,  // Force-close after 25 bars (reduces expired trades)
+            tf_targets: tf_target_move_pct(),
+            model_path_template: "models/super_entry_v1_tf{tf}.ubj".to_string(),
+            direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),
+            min_magnitude_pct: 0.5,
+            train_split_ratio: 0.5,
+        }
+    }
+}
+
+impl SuperEntryConfig {
+    /// Load config from environment variables with defaults
+    pub fn from_env() -> Self {
+        let mut cfg = Self::default();
+
+        if let Ok(v) = std::env::var("SUPER_ENTRY_WARMUP_BARS") {
+            if let Ok(n) = v.parse() { cfg.warmup_bars = n; }
+        }
+        if let Ok(v) = std::env::var("SUPER_ENTRY_LOOKAHEAD") {
+            if let Ok(n) = v.parse() { cfg.lookahead_bars = n; }
+        }
+        if let Ok(v) = std::env::var("SUPER_ENTRY_P_THRESHOLD") {
+            if let Ok(n) = v.parse() { cfg.p_threshold = n; }
+        }
+        if let Ok(v) = std::env::var("SUPER_ENTRY_SL_FRACTION") {
+            if let Ok(n) = v.parse() { cfg.sl_fraction = n; }
+        }
+        if let Ok(v) = std::env::var("SUPER_ENTRY_MAX_HOLD_BARS") {
+            if let Ok(n) = v.parse() { cfg.max_hold_bars = n; }
+        }
+        if let Ok(v) = std::env::var("SUPER_ENTRY_TRAIN_SPLIT") {
+            if let Ok(n) = v.parse() { cfg.train_split_ratio = n; }
+        }
+
+        cfg
+    }
+
+    /// Effective max hold bars for backtesting.
+    /// If max_hold_bars is 0, falls back to lookahead_bars.
+    pub fn effective_max_hold(&self) -> usize {
+        if self.max_hold_bars > 0 {
+            self.max_hold_bars
+        } else {
+            self.lookahead_bars
+        }
+    }
+
+    /// Get target move % for a timeframe, using override or default.
+    pub fn target_pct_for_tf(&self, tf_minutes: i32) -> f64 {
+        self.tf_targets
+            .get(&tf_minutes)
+            .copied()
+            .unwrap_or_else(|| get_target_move_pct(tf_minutes).unwrap_or(2.0))
+    }
+
+    /// Get the stop-loss % for a given TF (derived from target and sl_fraction).
+    pub fn sl_pct_for_tf(&self, tf_minutes: i32) -> f64 {
+        self.target_pct_for_tf(tf_minutes) * self.sl_fraction
+    }
+
+    /// Production timeframes for inference — configurable via env var.
+    ///
+    /// Env: SUPER_ENTRY_TIMEFRAMES (comma-separated minutes, e.g. "15,60,240,1440")
+    /// Default: "15,60,240,1440" (15m, 1h, 4h, 1d)
+    ///
+    /// Controls which TFs get indicator computation, feature snapshots, and
+    /// signal generation. Candle loading is NOT affected — all TFs still load.
+    ///
+    /// Previously hardcoded as [1, 5, 15, 60, 240, 1440]; 1m/5m removed by default
+    /// because they are too noisy for the super_entry model.
+    pub fn timeframes() -> &'static [i32] {
+        static TIMEFRAMES: OnceLock<Vec<i32>> = OnceLock::new();
+        TIMEFRAMES.get_or_init(|| {
+            let raw = std::env::var("SUPER_ENTRY_TIMEFRAMES")
+                .unwrap_or_else(|_| "5,15,60,240,1440".to_string());
+            let mut tfs: Vec<i32> = raw
+                .split(',')
+                .filter_map(|s| s.trim().parse::<i32>().ok())
+                .filter(|&m| [1, 5, 15, 60, 240, 1440].contains(&m))
+                .collect();
+            tfs.sort_unstable();
+            tfs.dedup();
+            if tfs.is_empty() {
+                tracing::warn!(
+                    "SUPER_ENTRY_TIMEFRAMES is empty or invalid ('{}'). Falling back to [15,60,240,1440]",
+                    raw
+                );
+                tfs = vec![5, 15, 60, 240, 1440];
+            }
+            tracing::info!("SuperEntry compute timeframes: {:?} (from SUPER_ENTRY_TIMEFRAMES)", tfs);
+            tfs
+        })
+    }
+
+    /// All timeframes including 1d (for dataset building / training only).
+    /// This is NOT affected by SUPER_ENTRY_TIMEFRAMES — always returns all TFs.
+    pub fn all_timeframes() -> &'static [i32] {
+        &[1, 5, 15, 60, 240, 1440]
+    }
+
+    /// Resolve model path for a given timeframe
+    pub fn model_path(&self, tf_minutes: i32) -> String {
+        self.model_path_template
+            .replace("{tf}", &tf_minutes.to_string())
+    }
+
+    /// Resolve direction model path for a given timeframe
+    pub fn direction_model_path(&self, tf_minutes: i32) -> String {
+        self.direction_model_path_template
+            .replace("{tf}", &tf_minutes.to_string())
+    }
+
+    /// Check if a given TF (in minutes) is in the active compute set.
+    /// Use this to skip indicator computation for disabled TFs.
+    pub fn is_tf_active(tf_minutes: i32) -> bool {
+        Self::timeframes().contains(&tf_minutes)
+    }
+}
+
+/// Feature names used by the super_entry model.
+/// These match the columns from market.indicators_wide.
+/// Must be kept in sync with Python trainer.
+pub const INDICATOR_FEATURES: &[&str] = &[
+    "rsi", "cci", "stoch_k", "stoch_d", "williams",
+    "macd", "macd_signal", "macd_hist",
+    "adx", "sma", "ema_20", "ema_50", "ema_200",
+    "bb_upper", "bb_mid", "bb_lower", "atr",
+    "obv", "vwap", "volume_spike",
+    "trend", "trend_short", "poc",
+    "alligator_jaw", "alligator_teeth", "alligator_lips",
+    "mfi", "fibo_pivot", "fibo_r1", "fibo_s1",
+    "supertrend", "supertrend_dir", "cmf",
+];
+
+/// Derived features computed from raw indicators.
+/// Keep in sync with Python trainer.
+pub const DERIVED_FEATURES: &[&str] = &[
+    "rsi_norm",        // RSI / 100 (normalized)
+    "cci_norm",        // CCI / 200 (normalized)
+    "stoch_norm",      // stoch_k / 100
+    "williams_norm",   // (williams + 100) / 100
+    "bb_position",     // (close - bb_lower) / (bb_upper - bb_lower)
+    "bb_width_pct",    // (bb_upper - bb_lower) / close * 100
+    "atr_pct",         // atr / close * 100
+    "price_vs_sma",    // (close - sma) / close * 100
+    "price_vs_ema20",  // (close - ema_20) / close * 100
+    "price_vs_ema50",  // (close - ema_50) / close * 100
+    "price_vs_ema200", // (close - ema_200) / close * 100
+    "price_vs_vwap",   // (close - vwap) / close * 100
+    "macd_norm",       // macd_hist / close * 1000
+    "obv_change_pct",  // not available without history — set 0
+    "volume_spike_flag", // volume_spike > 2.0
+    "mfi_norm",        // mfi / 100
+    "price_vs_fibo_pivot", // (close - fibo_pivot) / close * 100
+    "price_vs_supertrend", // (close - supertrend) / close * 100
+    "alligator_spread",    // (jaw - lips) / close * 100
+];
+
+/// Total number of features = INDICATOR_FEATURES + DERIVED_FEATURES
+pub fn total_feature_count() -> usize {
+    INDICATOR_FEATURES.len() + DERIVED_FEATURES.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let cfg = SuperEntryConfig::default();
+        assert_eq!(cfg.warmup_bars, 300);
+        assert_eq!(cfg.lookahead_bars, 20);
+        assert!((cfg.p_threshold - 0.50).abs() < 1e-6);
+        assert_eq!(cfg.max_hold_bars, 25);
+        assert_eq!(cfg.effective_max_hold(), 25);
+    }
+
+    #[test]
+    fn test_max_hold_zero_fallback() {
+        let mut cfg = SuperEntryConfig::default();
+        cfg.max_hold_bars = 0;
+        assert_eq!(cfg.effective_max_hold(), cfg.lookahead_bars);
+    }
+
+    #[test]
+    fn test_target_move_pct() {
+        let cfg = SuperEntryConfig::default();
+        assert!((cfg.target_pct_for_tf(1) - 0.95).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(60) - 4.4).abs() < 1e-6);
+        assert!((cfg.target_pct_for_tf(1440) - 8.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_sl_pct() {
+        let cfg = SuperEntryConfig::default();
+        // SL = 75% of TP target
+        let expected_1m = 0.95 * 0.75;
+        assert!((cfg.sl_pct_for_tf(1) - expected_1m).abs() < 1e-6);
+        let expected_1h = 4.4 * 0.75;
+        assert!((cfg.sl_pct_for_tf(60) - expected_1h).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_model_paths() {
+        let cfg = SuperEntryConfig::default();
+        assert_eq!(cfg.model_path(60), "models/super_entry_v1_tf60.ubj");
+        assert_eq!(cfg.direction_model_path(15), "models/super_dir_v1_tf15.ubj");
+    }
+
+    #[test]
+    fn test_feature_count() {
+        assert_eq!(INDICATOR_FEATURES.len(), 33);
+        assert_eq!(DERIVED_FEATURES.len(), 19);
+        assert_eq!(total_feature_count(), 52);
+    }
+}
+
+// strategies/ml_entry_strategy/src/dataset.rs
+//
+// Dataset Builder for Super Entry Model
+//
+// For each (pair, timeframe):
+//   - First 300 candles are used as warmup for indicator computation
+//   - From candle t=301 to t=980, create training examples:
+//     * Features: indicator values at candle t
+//     * Labels:
+//       - max_up_move_pct, max_down_move_pct (over next 20 candles)
+//       - direction (LONG if up >= down, else SHORT)
+//       - magnitude_pct (max of up/down)
+//       - is_super (magnitude >= TF_TARGET_MOVE_PCT)
+//
+// The dataset is saved as CSV for Python trainer consumption.
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+use std::io::Write;
+
+use crate::config::INDICATOR_FEATURES;
+
+/// A single candle row with indicators from the database
+#[derive(Debug, Clone)]
+pub struct CandleWithIndicators {
+    pub time: DateTime<Utc>,
+    pub symbol: String,
+    pub symbol_id: i64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+    // Indicators (match INDICATOR_FEATURES order)
+    pub rsi: f64,
+    pub cci: f64,
+    pub stoch_k: f64,
+    pub stoch_d: f64,
+    pub williams: f64,
+    pub macd: f64,
+    pub macd_signal: f64,
+    pub macd_hist: f64,
+    pub adx: f64,
+    pub sma: f64,
+    pub ema_20: f64,
+    pub ema_50: f64,
+    pub ema_200: f64,
+    pub bb_upper: f64,
+    pub bb_mid: f64,
+    pub bb_lower: f64,
+    pub atr: f64,
+    pub obv: f64,
+    pub vwap: f64,
+    pub volume_spike: f64,
+    pub trend: f64,
+    pub trend_short: f64,
+    pub poc: f64,
+    // Alligator
+    pub alligator_jaw: f64,
+    pub alligator_teeth: f64,
+    pub alligator_lips: f64,
+    // New indicators (v2)
+    pub mfi: f64,
+    pub fibo_pivot: f64,
+    pub fibo_r1: f64,
+    pub fibo_s1: f64,
+    pub supertrend: f64,
+    pub supertrend_dir: f64,
+    pub cmf: f64,
+}
+
+impl CandleWithIndicators {
+    /// Extract raw indicator values in the order of INDICATOR_FEATURES
+    pub fn indicator_values(&self) -> Vec<f64> {
+        vec![
+            self.rsi, self.cci, self.stoch_k, self.stoch_d, self.williams,
+            self.macd, self.macd_signal, self.macd_hist,
+            self.adx, self.sma, self.ema_20, self.ema_50, self.ema_200,
+            self.bb_upper, self.bb_mid, self.bb_lower, self.atr,
+            self.obv, self.vwap, self.volume_spike,
+            self.trend, self.trend_short, self.poc,
+            self.alligator_jaw, self.alligator_teeth, self.alligator_lips,
+            self.mfi, self.fibo_pivot, self.fibo_r1, self.fibo_s1,
+            self.supertrend, self.supertrend_dir, self.cmf,
+        ]
+    }
+
+    /// Compute derived features from raw indicators
+    pub fn derived_features(&self) -> Vec<f64> {
+        let close = self.close;
+        let safe_div = |a: f64, b: f64| if b.abs() > 1e-12 { a / b } else { 0.0 };
+
+        let rsi_norm = self.rsi / 100.0;
+        let cci_norm = self.cci / 200.0;
+        let stoch_norm = self.stoch_k / 100.0;
+        let williams_norm = (self.williams + 100.0) / 100.0;
+
+        let bb_range = self.bb_upper - self.bb_lower;
+        let bb_position = if bb_range.abs() > 1e-12 {
+            (close - self.bb_lower) / bb_range
+        } else {
+            0.5
+        };
+        let bb_width_pct = safe_div(bb_range, close) * 100.0;
+
+        let atr_pct = safe_div(self.atr, close) * 100.0;
+        let price_vs_sma = safe_div(close - self.sma, close) * 100.0;
+        let price_vs_ema20 = safe_div(close - self.ema_20, close) * 100.0;
+        let price_vs_ema50 = safe_div(close - self.ema_50, close) * 100.0;
+        let price_vs_ema200 = safe_div(close - self.ema_200, close) * 100.0;
+        let price_vs_vwap = safe_div(close - self.vwap, close) * 100.0;
+        let macd_norm = safe_div(self.macd_hist, close) * 1000.0;
+        let obv_change_pct = 0.0; // Requires history; not available in single-row context
+        let volume_spike_flag = if self.volume_spike > 2.0 { 1.0 } else { 0.0 };
+
+        // New derived features
+        let mfi_norm = self.mfi / 100.0;
+        let price_vs_fibo_pivot = safe_div(close - self.fibo_pivot, close) * 100.0;
+        let price_vs_supertrend = safe_div(close - self.supertrend, close) * 100.0;
+        // Alligator spread: jaw-lips difference normalized by price
+        let alligator_spread = safe_div(self.alligator_jaw - self.alligator_lips, close) * 100.0;
+
+        vec![
+            rsi_norm, cci_norm, stoch_norm, williams_norm,
+            bb_position, bb_width_pct, atr_pct,
+            price_vs_sma, price_vs_ema20, price_vs_ema50,
+            price_vs_ema200, price_vs_vwap,
+            macd_norm, obv_change_pct, volume_spike_flag,
+            mfi_norm, price_vs_fibo_pivot, price_vs_supertrend,
+            alligator_spread,
+        ]
+    }
+
+    /// Get full feature vector (indicators + derived)
+    pub fn full_features(&self) -> Vec<f64> {
+        let mut feats = self.indicator_values();
+        feats.extend(self.derived_features());
+        feats
+    }
+}
+
+/// A labeled training example
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuperEntryExample {
+    pub symbol: String,
+    pub tf_minutes: i32,
+    pub timestamp: String, // ISO8601
+    pub features: Vec<f64>,
+    pub max_up_move_pct: f64,
+    pub max_down_move_pct: f64,
+    pub direction: i8,       // 1 = LONG, -1 = SHORT
+    pub magnitude_pct: f64,
+    pub is_super: bool,
+    pub future_return_20: f64, // close[t+20] / close[t] - 1 (in %)
+}
+
+/// Build labels for a time series of candles starting from `start_idx`
+/// with `lookahead` bars look-forward.
+///
+/// Returns labeled examples for candles [start_idx .. end_idx].
+pub fn build_labels(
+    candles: &[CandleWithIndicators],
+    start_idx: usize,
+    lookahead: usize,
+    target_move_pct: f64,
+    tf_minutes: i32,
+) -> Vec<SuperEntryExample> {
+    let n = candles.len();
+    if n < start_idx + lookahead + 1 {
+        return Vec::new();
+    }
+
+    let end_idx = n - lookahead; // last valid index for labeling
+    let mut examples = Vec::with_capacity(end_idx - start_idx);
+
+    for t in start_idx..end_idx {
+        let entry_price = candles[t].close;
+        if entry_price <= 0.0 {
+            continue;
+        }
+
+        // Look ahead window: [t+1 .. t+lookahead]
+        let mut max_up: f64 = 0.0;
+        let mut max_down: f64 = 0.0;
+
+        for k in 1..=lookahead {
+            let idx = t + k;
+            if idx >= n {
+                break;
+            }
+            let high = candles[idx].high;
+            let low = candles[idx].low;
+
+            let up_move = (high - entry_price) / entry_price * 100.0;
+            let down_move = (entry_price - low) / entry_price * 100.0;
+
+            if up_move > max_up {
+                max_up = up_move;
+            }
+            if down_move > max_down {
+                max_down = down_move;
+            }
+        }
+
+        // Direction of best movement
+        let (direction, magnitude) = if max_up >= max_down {
+            (1i8, max_up)    // LONG
+        } else {
+            (-1i8, max_down) // SHORT
+        };
+
+        let is_super = magnitude >= target_move_pct;
+
+        // Future return at exactly lookahead bars
+        let future_close_idx = (t + lookahead).min(n - 1);
+        let future_return_20 =
+            (candles[future_close_idx].close - entry_price) / entry_price * 100.0;
+
+        let features = candles[t].full_features();
+
+        examples.push(SuperEntryExample {
+            symbol: candles[t].symbol.clone(),
+            tf_minutes,
+            timestamp: candles[t].time.to_rfc3339(),
+            features,
+            max_up_move_pct: max_up,
+            max_down_move_pct: max_down,
+            direction,
+            magnitude_pct: magnitude,
+            is_super,
+            future_return_20,
+        });
+    }
+
+    examples
+}
+
+/// Fetch candles with indicators for a given symbol and timeframe from DB.
+/// Returns up to `limit` rows ordered by time ASC.
+pub async fn fetch_candles_with_indicators(
+    pool: &PgPool,
+    symbol: &str,
+    tf_minutes: i32,
+    limit: usize,
+) -> Result<Vec<CandleWithIndicators>> {
+    let candle_table = match tf_minutes {
+        1 => "market.candles_1m",
+        5 => "market.candles_5m",
+        15 => "market.candles_15m",
+        60 => "market.candles_1h",
+        240 => "market.candles_4h",
+        1440 => "market.candles_1d",
+        _ => anyhow::bail!("Unsupported timeframe: {}", tf_minutes),
+    };
+
+    // NOTE: Indicators in market.indicators_wide are FLOAT4 (f32).
+    // We cast them to FLOAT8 (f64) in SQL to match Rust types.
+    // Candle OHLCV fields are already FLOAT8 in the candle tables.
+    let sql = format!(
+        r#"
+        SELECT
+            c.time, c.symbol, p.symbol_id,
+            c.open, c.high, c.low, c.close, c.volume,
+            COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,
+            COALESCE(i.cci, 0.0)::FLOAT8 as cci,
+            COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,
+            COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,
+            COALESCE(i.williams, -50.0)::FLOAT8 as williams,
+            COALESCE(i.macd, 0.0)::FLOAT8 as macd,
+            COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,
+            COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,
+            COALESCE(i.adx, 25.0)::FLOAT8 as adx,
+            COALESCE(i.sma, c.close)::FLOAT8 as sma,
+            COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,
+            COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,
+            COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,
+            COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,
+            COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,
+            COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,
+            COALESCE(i.atr, 0.001)::FLOAT8 as atr,
+            COALESCE(i.obv, 0.0)::FLOAT8 as obv,
+            COALESCE(i.vwap, c.close)::FLOAT8 as vwap,
+            COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,
+            COALESCE(i.trend, 0.0)::FLOAT8 as trend,
+            COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,
+            COALESCE(i.poc, c.close)::FLOAT8 as poc,
+            COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,
+            COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,
+            COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,
+            COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,
+            COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,
+            COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,
+            COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,
+            COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,
+            COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,
+            COALESCE(i.cmf, 0.0)::FLOAT8 as cmf
+        FROM {candle_table} c
+        JOIN market.pairs p ON p.symbol = c.symbol
+        LEFT JOIN market.indicators_wide i
+            ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $2
+        WHERE c.symbol = $1
+        ORDER BY c.time ASC
+        LIMIT $3
+        "#
+    );
+
+    let rows = sqlx::query_as::<_, CandleRow>(&sql)
+        .bind(symbol)
+        .bind(tf_minutes as i16)
+        .bind(limit as i64)
+        .fetch_all(pool)
+        .await?;
+
+    let candles = rows
+        .into_iter()
+        .map(|r| CandleWithIndicators {
+            time: r.time,
+            symbol: r.symbol,
+            symbol_id: r.symbol_id,
+            open: r.open,
+            high: r.high,
+            low: r.low,
+            close: r.close,
+            volume: r.volume,
+            rsi: r.rsi,
+            cci: r.cci,
+            stoch_k: r.stoch_k,
+            stoch_d: r.stoch_d,
+            williams: r.williams,
+            macd: r.macd,
+            macd_signal: r.macd_signal,
+            macd_hist: r.macd_hist,
+            adx: r.adx,
+            sma: r.sma,
+            ema_20: r.ema_20,
+            ema_50: r.ema_50,
+            ema_200: r.ema_200,
+            bb_upper: r.bb_upper,
+            bb_mid: r.bb_mid,
+            bb_lower: r.bb_lower,
+            atr: r.atr,
+            obv: r.obv,
+            vwap: r.vwap,
+            volume_spike: r.volume_spike,
+            trend: r.trend,
+            trend_short: r.trend_short,
+            poc: r.poc,
+            alligator_jaw: r.alligator_jaw,
+            alligator_teeth: r.alligator_teeth,
+            alligator_lips: r.alligator_lips,
+            mfi: r.mfi,
+            fibo_pivot: r.fibo_pivot,
+            fibo_r1: r.fibo_r1,
+            fibo_s1: r.fibo_s1,
+            supertrend: r.supertrend,
+            supertrend_dir: r.supertrend_dir,
+            cmf: r.cmf,
+        })
+        .collect();
+
+    Ok(candles)
+}
+
+/// sqlx compatible row struct
+#[derive(sqlx::FromRow)]
+struct CandleRow {
+    time: DateTime<Utc>,
+    symbol: String,
+    symbol_id: i64,
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+    volume: f64,
+    rsi: f64,
+    cci: f64,
+    stoch_k: f64,
+    stoch_d: f64,
+    williams: f64,
+    macd: f64,
+    macd_signal: f64,
+    macd_hist: f64,
+    adx: f64,
+    sma: f64,
+    ema_20: f64,
+    ema_50: f64,
+    ema_200: f64,
+    bb_upper: f64,
+    bb_mid: f64,
+    bb_lower: f64,
+    atr: f64,
+    obv: f64,
+    vwap: f64,
+    volume_spike: f64,
+    trend: f64,
+    trend_short: f64,
+    poc: f64,
+    alligator_jaw: f64,
+    alligator_teeth: f64,
+    alligator_lips: f64,
+    mfi: f64,
+    fibo_pivot: f64,
+    fibo_r1: f64,
+    fibo_s1: f64,
+    supertrend: f64,
+    supertrend_dir: f64,
+    cmf: f64,
+}
+
+/// Bulk-fetch ALL candles with indicators for a given TF (all symbols at once).
+/// Returns data grouped by symbol. Much faster than per-symbol queries.
+pub async fn fetch_all_candles_for_tf(
+    pool: &PgPool,
+    tf_minutes: i32,
+    limit_per_symbol: usize,
+) -> Result<std::collections::HashMap<String, Vec<CandleWithIndicators>>> {
+    let candle_table = match tf_minutes {
+        1 => "market.candles_1m",
+        5 => "market.candles_5m",
+        15 => "market.candles_15m",
+        60 => "market.candles_1h",
+        240 => "market.candles_4h",
+        1440 => "market.candles_1d",
+        _ => anyhow::bail!("Unsupported timeframe: {}", tf_minutes),
+    };
+
+    // Single query: get last N candles per symbol with indicators via window function
+    let sql = format!(
+        r#"
+        WITH ranked AS (
+            SELECT
+                c.time, c.symbol, p.symbol_id,
+                c.open, c.high, c.low, c.close, c.volume,
+                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,
+                COALESCE(i.cci, 0.0)::FLOAT8 as cci,
+                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,
+                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,
+                COALESCE(i.williams, -50.0)::FLOAT8 as williams,
+                COALESCE(i.macd, 0.0)::FLOAT8 as macd,
+                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,
+                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,
+                COALESCE(i.adx, 25.0)::FLOAT8 as adx,
+                COALESCE(i.sma, c.close)::FLOAT8 as sma,
+                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,
+                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,
+                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,
+                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,
+                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,
+                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,
+                COALESCE(i.atr, 0.001)::FLOAT8 as atr,
+                COALESCE(i.obv, 0.0)::FLOAT8 as obv,
+                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,
+                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,
+                COALESCE(i.trend, 0.0)::FLOAT8 as trend,
+                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,
+                COALESCE(i.poc, c.close)::FLOAT8 as poc,
+                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,
+                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,
+                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,
+                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,
+                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,
+                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,
+                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,
+                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,
+                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,
+                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,
+                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn
+            FROM {candle_table} c
+            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true
+            LEFT JOIN market.indicators_wide i
+                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1
+        )
+        SELECT time, symbol, symbol_id, open, high, low, close, volume,
+               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,
+               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,
+               obv, vwap, volume_spike, trend, trend_short, poc,
+               alligator_jaw, alligator_teeth, alligator_lips,
+               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf
+        FROM ranked
+        WHERE rn <= $2
+        ORDER BY symbol, time ASC
+        "#
+    );
+
+    let rows = sqlx::query_as::<_, CandleRow>(&sql)
+        .bind(tf_minutes as i16)
+        .bind(limit_per_symbol as i64)
+        .fetch_all(pool)
+        .await?;
+
+    // Group by symbol
+    let mut grouped: std::collections::HashMap<String, Vec<CandleWithIndicators>> =
+        std::collections::HashMap::new();
+
+    for r in rows {
+        let candle = CandleWithIndicators {
+            time: r.time, symbol: r.symbol.clone(), symbol_id: r.symbol_id,
+            open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume,
+            rsi: r.rsi, cci: r.cci, stoch_k: r.stoch_k, stoch_d: r.stoch_d,
+            williams: r.williams, macd: r.macd, macd_signal: r.macd_signal,
+            macd_hist: r.macd_hist, adx: r.adx, sma: r.sma,
+            ema_20: r.ema_20, ema_50: r.ema_50, ema_200: r.ema_200,
+            bb_upper: r.bb_upper, bb_mid: r.bb_mid, bb_lower: r.bb_lower,
+            atr: r.atr, obv: r.obv, vwap: r.vwap, volume_spike: r.volume_spike,
+            trend: r.trend, trend_short: r.trend_short, poc: r.poc,
+            alligator_jaw: r.alligator_jaw, alligator_teeth: r.alligator_teeth,
+            alligator_lips: r.alligator_lips, mfi: r.mfi,
+            fibo_pivot: r.fibo_pivot, fibo_r1: r.fibo_r1, fibo_s1: r.fibo_s1,
+            supertrend: r.supertrend, supertrend_dir: r.supertrend_dir, cmf: r.cmf,
+        };
+        grouped.entry(r.symbol).or_default().push(candle);
+    }
+
+    Ok(grouped)
+}
+
+/// Fetch list of active symbols from market.pairs
+pub async fn fetch_active_symbols(pool: &PgPool) -> Result<Vec<String>> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT symbol FROM market.pairs WHERE is_active = true ORDER BY symbol"
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().map(|(s,)| s).collect())
+}
+
+/// Export dataset to CSV file
+pub fn export_dataset_csv(
+    examples: &[SuperEntryExample],
+    output_path: &str,
+    feature_names: &[&str],
+) -> Result<()> {
+    let mut file = std::fs::File::create(output_path)?;
+
+    // Header
+    let mut header = String::from("symbol,tf_minutes,timestamp");
+    for name in feature_names {
+        header.push(',');
+        header.push_str(name);
+    }
+    header.push_str(",max_up_move_pct,max_down_move_pct,direction,magnitude_pct,is_super,future_return_20");
+    writeln!(file, "{}", header)?;
+
+    // Rows
+    for ex in examples {
+        let mut line = format!("{},{},{}", ex.symbol, ex.tf_minutes, ex.timestamp);
+        for &val in &ex.features {
+            line.push_str(&format!(",{:.6}", val));
+        }
+        line.push_str(&format!(
+            ",{:.6},{:.6},{},{:.6},{},{:.6}",
+            ex.max_up_move_pct,
+            ex.max_down_move_pct,
+            ex.direction,
+            ex.magnitude_pct,
+            if ex.is_super { 1 } else { 0 },
+            ex.future_return_20
+        ));
+        writeln!(file, "{}", line)?;
+    }
+
+    Ok(())
+}
+
+/// Get all feature names (indicator + derived) in order
+pub fn all_feature_names() -> Vec<&'static str> {
+    let mut names: Vec<&str> = INDICATOR_FEATURES.to_vec();
+    names.extend_from_slice(crate::config::DERIVED_FEATURES);
+    names
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_candle(close: f64, high: f64, low: f64) -> CandleWithIndicators {
+        CandleWithIndicators {
+            time: Utc::now(),
+            symbol: "BTCUSDT".to_string(),
+            symbol_id: 1,
+            open: close,
+            high,
+            low,
+            close,
+            volume: 1000.0,
+            rsi: 50.0, cci: 0.0, stoch_k: 50.0, stoch_d: 50.0, williams: -50.0,
+            macd: 0.0, macd_signal: 0.0, macd_hist: 0.0,
+            adx: 25.0, sma: close, ema_20: close, ema_50: close, ema_200: close,
+            bb_upper: close * 1.02, bb_mid: close, bb_lower: close * 0.98,
+            atr: close * 0.01, obv: 0.0, vwap: close, volume_spike: 1.0,
+            trend: 0.0, trend_short: 0.0, poc: close,
+            alligator_jaw: close, alligator_teeth: close, alligator_lips: close,
+            mfi: 50.0, fibo_pivot: close, fibo_r1: close * 1.01, fibo_s1: close * 0.99,
+            supertrend: close, supertrend_dir: 1.0, cmf: 0.0,
+        }
+    }
+
+    #[test]
+    fn test_build_labels_basic() {
+        // Create 25 candles: close=100, but candle 5 has high=110 (10% up)
+        let mut candles: Vec<CandleWithIndicators> = (0..25)
+            .map(|_| make_test_candle(100.0, 101.0, 99.0))
+            .collect();
+
+        // Candle at index 5 has a spike up
+        candles[5].high = 110.0;
+
+        let examples = build_labels(&candles, 0, 20, 5.0, 5);
+
+        // We should get examples for indices 0..5 (since 25 - 20 = 5)
+        assert_eq!(examples.len(), 5);
+
+        // Example at t=0 should see the spike at t=5 within lookahead
+        let ex0 = &examples[0];
+        assert!(ex0.max_up_move_pct >= 9.0); // ~10%
+        assert_eq!(ex0.direction, 1); // LONG
+        assert!(ex0.is_super); // 10% > 5% threshold
+    }
+
+    #[test]
+    fn test_build_labels_short_direction() {
+        let mut candles: Vec<CandleWithIndicators> = (0..25)
+            .map(|_| make_test_candle(100.0, 101.0, 99.0))
+            .collect();
+
+        // Candle at index 3 has a drop
+        candles[3].low = 90.0;
+
+        let examples = build_labels(&candles, 0, 20, 5.0, 5);
+
+        // Example at t=0 should see the drop
+        let ex0 = &examples[0];
+        assert!(ex0.max_down_move_pct >= 9.0); // ~10%
+        assert_eq!(ex0.direction, -1); // SHORT
+        assert!(ex0.is_super);
+    }
+
+    #[test]
+    fn test_feature_count() {
+        let candle = make_test_candle(100.0, 101.0, 99.0);
+        let features = candle.full_features();
+        assert_eq!(features.len(), crate::config::total_feature_count());
+    }
+}
+
+// strategies/ml_entry_strategy/src/db_writer.rs
+//
+// Database Writer for Super Entry signals
+//
+// Batch-inserts generated signals into trade.super_entry_signals using UNNEST
+// for maximum throughput (single RTT per batch).
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use sqlx::PgPool;
+use tracing::{info, warn};
+
+use crate::signal_generator::SuperEntrySignal;
+
+/// Batch-insert super entry signals into trade.super_entry_signals.
+///
+/// Uses UNNEST for efficient batch INSERT (single SQL round-trip per batch).
+/// ON CONFLICT: updates if a signal with same (symbol_id, tf_minutes, time) exists.
+pub async fn insert_signals_batch(pool: &PgPool, signals: &[SuperEntrySignal]) -> Result<usize> {
+    if signals.is_empty() {
+        return Ok(0);
+    }
+
+    let mut inserted = 0;
+
+    // Use larger chunks for bulk inserts (UNNEST supports thousands of rows per RTT)
+    for chunk in signals.chunks(2000) {
+        let mut time_v: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
+        let mut time_ms_v: Vec<i64> = Vec::with_capacity(chunk.len());
+        let mut symbol_v: Vec<String> = Vec::with_capacity(chunk.len());
+        let mut symbol_id_v: Vec<i64> = Vec::with_capacity(chunk.len());
+        let mut tf_v: Vec<i16> = Vec::with_capacity(chunk.len());
+        let mut side_v: Vec<i16> = Vec::with_capacity(chunk.len());
+        let mut entry_v: Vec<f64> = Vec::with_capacity(chunk.len());
+        let mut sl_v: Vec<f64> = Vec::with_capacity(chunk.len());
+        let mut tp_v: Vec<f64> = Vec::with_capacity(chunk.len());
+        let mut p_super_v: Vec<f32> = Vec::with_capacity(chunk.len());
+        let mut p_long_v: Vec<f32> = Vec::with_capacity(chunk.len());
+        let mut score_v: Vec<f32> = Vec::with_capacity(chunk.len());
+        let mut dir_conf_v: Vec<f32> = Vec::with_capacity(chunk.len());
+        let mut strategy_v: Vec<String> = Vec::with_capacity(chunk.len());
+        let mut reason_v: Vec<serde_json::Value> = Vec::with_capacity(chunk.len());
+
+        for sig in chunk {
+            time_v.push(sig.time);
+            time_ms_v.push(sig.time_ms);
+            symbol_v.push(sig.symbol.clone());
+            symbol_id_v.push(sig.symbol_id);
+            tf_v.push(sig.tf_minutes as i16);
+            side_v.push(sig.side);
+            entry_v.push(sig.entry_price);
+            sl_v.push(sig.sl_price);
+            tp_v.push(sig.tp_price);
+            p_super_v.push(sig.p_super);
+            p_long_v.push(sig.p_long);
+            score_v.push(sig.final_score);
+            // Recover dir_confidence from p_long
+            dir_conf_v.push((sig.p_long - 0.5).abs());
+            strategy_v.push("super_entry_v1".to_string());
+            reason_v.push(sig.reason.clone());
+        }
+
+        let result = sqlx::query(
+            r#"
+            INSERT INTO trade.super_entry_signals
+            (time, time_ms, symbol, symbol_id, tf_minutes, side,
+             entry_price, sl_price, tp_price,
+             p_super, p_long, combined_score, dir_confidence,
+             strategy, reason)
+            SELECT * FROM UNNEST(
+                $1::timestamptz[], $2::bigint[], $3::text[], $4::bigint[],
+                $5::smallint[], $6::smallint[],
+                $7::float8[], $8::float8[], $9::float8[],
+                $10::real[], $11::real[], $12::real[], $13::real[],
+                $14::text[], $15::jsonb[]
+            )
+            ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+                side = EXCLUDED.side,
+                entry_price = EXCLUDED.entry_price,
+                sl_price = EXCLUDED.sl_price,
+                tp_price = EXCLUDED.tp_price,
+                p_super = EXCLUDED.p_super,
+                p_long = EXCLUDED.p_long,
+                combined_score = EXCLUDED.combined_score,
+                dir_confidence = EXCLUDED.dir_confidence,
+                reason = EXCLUDED.reason
+            "#,
+        )
+        .bind(&time_v)
+        .bind(&time_ms_v)
+        .bind(&symbol_v)
+        .bind(&symbol_id_v)
+        .bind(&tf_v)
+        .bind(&side_v)
+        .bind(&entry_v)
+        .bind(&sl_v)
+        .bind(&tp_v)
+        .bind(&p_super_v)
+        .bind(&p_long_v)
+        .bind(&score_v)
+        .bind(&dir_conf_v)
+        .bind(&strategy_v)
+        .bind(&reason_v)
+        .execute(pool)
+        .await;
+
+        match result {
+            Ok(r) => {
+                inserted += r.rows_affected() as usize;
+            }
+            Err(e) => {
+                warn!("Failed to insert super_entry_signals batch: {}", e);
+                return Err(e.into());
+            }
+        }
+    }
+
+    Ok(inserted)
+}
+
+/// Get the latest signal time for a given (symbol, tf) pair.
+/// Returns None if no signals exist yet.
+pub async fn get_latest_signal_time(
+    pool: &PgPool,
+    symbol: &str,
+    tf_minutes: i32,
+) -> Result<Option<DateTime<Utc>>> {
+    let row: Option<(DateTime<Utc>,)> = sqlx::query_as(
+        "SELECT time FROM trade.super_entry_signals \
+         WHERE symbol = $1 AND tf_minutes = $2 \
+         ORDER BY time DESC LIMIT 1"
+    )
+    .bind(symbol)
+    .bind(tf_minutes as i16)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|(t,)| t))
+}
+
+/// Count total signals in the table
+pub async fn count_signals(pool: &PgPool) -> Result<i64> {
+    let (count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM trade.super_entry_signals"
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(count)
+}
+
+/// Create the table if it doesn't exist (fallback for when init_db hasn't run)
+pub async fn ensure_table_exists(pool: &PgPool) -> Result<()> {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS trade.super_entry_signals (
+            time            TIMESTAMPTZ NOT NULL,
+            time_ms         BIGINT NOT NULL,
+            symbol          TEXT NOT NULL,
+            symbol_id       BIGINT NOT NULL,
+            tf_minutes      SMALLINT NOT NULL,
+            side            SMALLINT NOT NULL,
+            entry_price     FLOAT8 NOT NULL,
+            sl_price        FLOAT8 NOT NULL,
+            tp_price        FLOAT8 NOT NULL,
+            p_super         REAL NOT NULL,
+            p_long          REAL NOT NULL,
+            combined_score  REAL NOT NULL,
+            dir_confidence  REAL NOT NULL DEFAULT 0.0,
+            strategy        TEXT NOT NULL DEFAULT 'super_entry_v1',
+            reason          JSONB,
+            created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (symbol_id, tf_minutes, time)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    info!("trade.super_entry_signals table ensured");
+    Ok(())
+}
+
+// strategies/ml_entry_strategy/src/lib.rs
+//
+// ML Entry Strategy — Super Entry Model
+//
+// A standalone strategy that uses XGBoost models to identify
+// high-probability entry points ("super entries") that are likely
+// to produce significant moves in the target direction.
+//
+// This strategy is independent from the existing entry_policy and
+// signal quality models. It can be enabled/disabled via config flags.
+//
+// MODULES:
+//   - config: Configuration and TF-specific target thresholds
+//   - dataset: Training data preparation (labeling, features)
+//   - model: XGBoost model loading and inference
+//   - scorer: Decision logic (P(super), direction, overheated filter)
+//   - signal_generator: Trade signal generation in system format
+//   - pipeline: Full orchestration pipeline
+//   - strategy: High-level strategy interface
+
+pub mod config;
+pub mod dataset;
+pub mod model;
+pub mod scorer;
+pub mod signal_generator;
+pub mod pipeline;
+pub mod strategy;
+pub mod db_writer;
+
+// Re-exports for convenience
+pub use config::SuperEntryConfig;
+pub use model::SuperEntryModelManager;
+pub use scorer::{SuperEntryScorer, SuperEntryDecision};
+pub use signal_generator::{SignalGenerator, SuperEntrySignal};
+pub use pipeline::SuperEntryPipeline;
+pub use strategy::SuperEntryStrategy;
+
+// strategies/ml_entry_strategy/src/model.rs
+//
+// Model wrapper for Super Entry XGBoost models.
+//
+// Uses direct Booster::load() instead of ModelManager to avoid
+// loading/parsing large XGBoost JSON model dumps as schema files,
+// which causes memory pressure and abort() in release builds.
+//
+// Models:
+//   - super_entry_v1_tf{X}.ubj — binary classifier: P(super move)
+//   - super_dir_v1_tf{X}.ubj — binary classifier: P(direction=LONG)
+
+use anyhow::Result;
+use tracing::{info, warn};
+use std::collections::HashMap;
+
+use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
+use crate::config::SuperEntryConfig;
+
+/// Prediction output from the super entry model
+#[derive(Debug, Clone, Copy)]
+pub struct SuperEntryPrediction {
+    /// Probability that this is a "super" move (P >= target move %)
+    pub p_super: f32,
+    /// Probability that the direction is LONG (>0.5 = LONG, <0.5 = SHORT)
+    pub p_long: f32,
+    /// Derived: direction (1 = LONG, -1 = SHORT)
+    pub direction: i8,
+    /// Derived: expected magnitude estimate (optional, from p_super * target)
+    pub estimated_magnitude_pct: f64,
+}
+
+/// Loaded model pair for one TF
+struct TfModels {
+    super_model: Booster,
+    dir_model: Option<Booster>,
+}
+
+/// Super Entry Model Manager
+///
+/// Loads and manages P(super) and P(direction) models per timeframe.
+/// Uses direct Booster loading to avoid ModelManager schema parsing overhead.
+pub struct SuperEntryModelManager {
+    models: HashMap<i32, TfModels>,
+    config: SuperEntryConfig,
+}
+
+impl SuperEntryModelManager {
+    /// Create a new SuperEntryModelManager and load models from disk.
+    ///
+    /// Models are loaded one-by-one directly via Booster::load(),
+    /// bypassing ModelManager's schema parsing which can crash on
+    /// large XGBoost JSON model dumps.
+    pub fn new(config: SuperEntryConfig, use_gpu: bool) -> Result<Self> {
+        let mut models = HashMap::new();
+        let timeframes = SuperEntryConfig::timeframes();
+
+        // Select device: GPU for batch inference (history), CPU for single inference (realtime)
+        let device = if use_gpu { Device::Cuda } else { Device::Cpu };
+        info!("Loading super_entry models (device={:?})...", device);
+
+        for &tf in timeframes {
+            let super_path = config.model_path(tf);
+            let dir_path = config.direction_model_path(tf);
+
+            // Load P(super) model — required
+            if !std::path::Path::new(&super_path).exists() {
+                warn!("Model not found: {} — skipping TF {}m", super_path, tf);
+                continue;
+            }
+
+            let super_model = match Booster::load(&super_path, device) {
+                Ok(b) => {
+                    info!("✅ Loaded super_entry TF {}m: {} (device={:?})", tf, super_path, device);
+                    b
+                }
+                Err(e) => {
+                    // Fallback to CPU if GPU load fails
+                    if use_gpu {
+                        warn!("GPU load failed for {}, falling back to CPU: {}", super_path, e);
+                        match Booster::load(&super_path, Device::Cpu) {
+                            Ok(b) => {
+                                info!("✅ Loaded super_entry TF {}m: {} (CPU fallback)", tf, super_path);
+                                b
+                            }
+                            Err(e2) => {
+                                warn!("❌ Failed to load {} on CPU too: {}", super_path, e2);
+                                continue;
+                            }
+                        }
+                    } else {
+                        warn!("❌ Failed to load {}: {}", super_path, e);
+                        continue;
+                    }
+                }
+            };
+
+            // Load P(direction) model — optional
+            let dir_model = if std::path::Path::new(&dir_path).exists() {
+                match Booster::load(&dir_path, device) {
+                    Ok(b) => {
+                        info!("✅ Loaded super_dir TF {}m: {} (device={:?})", tf, dir_path, device);
+                        Some(b)
+                    }
+                    Err(e) => {
+                        // Fallback to CPU
+                        if use_gpu {
+                            Booster::load(&dir_path, Device::Cpu).ok()
+                        } else {
+                            warn!("⚠️  Failed to load dir model {}: {}, using neutral direction", dir_path, e);
+                            None
+                        }
+                    }
+                }
+            } else {
+                None
+            };
+
+            models.insert(tf, TfModels { super_model, dir_model });
+
+            // Small yield between model loads
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        info!(
+            "Models loaded: {} TFs with super_entry, {} with direction",
+            models.len(),
+            models.values().filter(|m| m.dir_model.is_some()).count()
+        );
+
+        Ok(Self { models, config })
+    }
+
+    /// Check if models are loaded for any timeframe
+    pub fn has_models(&self) -> bool {
+        !self.models.is_empty()
+    }
+
+    /// Check if a model is available for a specific timeframe
+    pub fn has_model_for_tf(&self, tf_minutes: i32) -> bool {
+        self.models.contains_key(&tf_minutes)
+    }
+
+    /// Get available timeframes with loaded models
+    pub fn available_timeframes(&self) -> Vec<i32> {
+        let mut tfs: Vec<i32> = self.models.keys().copied().collect();
+        tfs.sort();
+        tfs
+    }
+
+    /// Run inference for a single candle's features.
+    pub fn predict(
+        &self,
+        tf_minutes: i32,
+        features: &[f32],
+        _use_gpu: bool,
+    ) -> Result<Option<SuperEntryPrediction>> {
+        let tf_models = match self.models.get(&tf_minutes) {
+            Some(m) => m,
+            None => return Ok(None),
+        };
+
+        let ncol = features.len();
+
+        // P(super) prediction
+        let p_super = tf_models.super_model
+            .predict_dense_cpu(features, 1, ncol, ModelKind::Regressor1)?
+            .first()
+            .copied()
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0);
+
+        // P(direction=LONG) prediction
+        let p_long = match &tf_models.dir_model {
+            Some(dir) => dir
+                .predict_dense_cpu(features, 1, ncol, ModelKind::Regressor1)?
+                .first()
+                .copied()
+                .unwrap_or(0.5)
+                .clamp(0.0, 1.0),
+            None => 0.5, // Neutral if no direction model
+        };
+
+        let direction = if p_long >= 0.5 { 1 } else { -1 };
+        let target = self.config.target_pct_for_tf(tf_minutes);
+
+        Ok(Some(SuperEntryPrediction {
+            p_super,
+            p_long,
+            direction,
+            estimated_magnitude_pct: target * p_super as f64,
+        }))
+    }
+
+    /// Batch inference for multiple feature rows.
+    pub fn predict_batch(
+        &self,
+        tf_minutes: i32,
+        features_batch: &[f32],
+        nrow: usize,
+        ncol: usize,
+        _use_gpu: bool,
+    ) -> Result<Vec<SuperEntryPrediction>> {
+        let tf_models = match self.models.get(&tf_minutes) {
+            Some(m) => m,
+            None => return Ok(Vec::new()),
+        };
+
+        // Batch P(super) prediction
+        let p_super_vec = tf_models.super_model
+            .predict_dense_cpu(features_batch, nrow, ncol, ModelKind::Regressor1)?;
+
+        // Batch P(direction) prediction
+        let p_long_vec = match &tf_models.dir_model {
+            Some(dir) => dir.predict_dense_cpu(features_batch, nrow, ncol, ModelKind::Regressor1)?,
+            None => vec![0.5f32; nrow],
+        };
+
+        let target = self.config.target_pct_for_tf(tf_minutes);
+
+        let mut predictions = Vec::with_capacity(nrow);
+        for i in 0..nrow {
+            let p_super = p_super_vec.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0);
+            let p_long = p_long_vec.get(i).copied().unwrap_or(0.5).clamp(0.0, 1.0);
+            let direction = if p_long >= 0.5 { 1 } else { -1 };
+
+            predictions.push(SuperEntryPrediction {
+                p_super,
+                p_long,
+                direction,
+                estimated_magnitude_pct: target * p_super as f64,
+            });
+        }
+
+        Ok(predictions)
+    }
+
+    /// Get the underlying config
+    pub fn config(&self) -> &SuperEntryConfig {
+        &self.config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prediction_direction() {
+        let pred = SuperEntryPrediction {
+            p_super: 0.8,
+            p_long: 0.7,
+            direction: 1,
+            estimated_magnitude_pct: 3.0,
+        };
+        assert_eq!(pred.direction, 1);
+        assert!(pred.p_super > 0.5);
+    }
+}
+
+// strategies/ml_entry_strategy/src/pipeline.rs
+//
+// Pipeline for Super Entry Strategy
+//
+// Orchestrates the full flow:
+//   1. Load candles + indicators from DB
+//   2. Build feature vectors
+//   3. Run model inference (P(super), P(direction))
+//   4. Score predictions (apply thresholds, overheated filter)
+//   5. Generate trade signals
+//
+// Can be used both for:
+//   - Historical backtesting (batch processing all candles)
+//   - Real-time inference (single candle at a time)
+
+use anyhow::Result;
+use sqlx::PgPool;
+use tracing::{info, warn, debug};
+
+use crate::config::SuperEntryConfig;
+use crate::dataset::{CandleWithIndicators, fetch_candles_with_indicators, fetch_active_symbols};
+use crate::model::{SuperEntryModelManager, SuperEntryPrediction};
+use crate::scorer::{SuperEntryScorer, SuperEntryDecision, OverheatedFeatures};
+use crate::signal_generator::{SignalGenerator, SuperEntrySignal};
+
+/// Result of processing a single candle through the pipeline
+#[derive(Debug, Clone)]
+pub struct PipelineResult {
+    /// The generated signal (if any)
+    pub signal: Option<SuperEntrySignal>,
+    /// The raw prediction from the model
+    pub prediction: Option<SuperEntryPrediction>,
+    /// The scorer's decision
+    pub decision: Option<SuperEntryDecision>,
+    /// Index of the candle in the series
+    pub candle_index: usize,
+}
+
+/// Super Entry Pipeline
+///
+/// Full pipeline: DB → features → model → scorer → signal
+pub struct SuperEntryPipeline {
+    config: SuperEntryConfig,
+    model_manager: SuperEntryModelManager,
+    scorer: SuperEntryScorer,
+    signal_generator: SignalGenerator,
+}
+
+impl SuperEntryPipeline {
+    /// Create a new pipeline with loaded models.
+    ///
+    /// # Arguments
+    /// * `config` - Strategy configuration
+    /// * `use_gpu` - Whether to use GPU for model inference
+    pub fn new(config: SuperEntryConfig, use_gpu: bool) -> Result<Self> {
+        let model_manager = SuperEntryModelManager::new(config.clone(), use_gpu)?;
+        let scorer = SuperEntryScorer::from_strategy_config(&config);
+        let signal_generator = SignalGenerator::new(config.clone());
+
+        Ok(Self {
+            config,
+            model_manager,
+            scorer,
+            signal_generator,
+        })
+    }
+
+    /// Check if the pipeline has any models loaded
+    pub fn has_models(&self) -> bool {
+        self.model_manager.has_models()
+    }
+
+    /// Process a series of candles for a given symbol/timeframe.
+    ///
+    /// Skips the first `warmup_bars` candles (used for indicator warmup).
+    /// For each candle after warmup:
+    ///   1. Extract features
+    ///   2. Run inference
+    ///   3. Score
+    ///   4. Generate signal (if super)
+    ///
+    /// # Returns
+    /// Vec of PipelineResult for each processed candle
+    pub fn process_candles(
+        &self,
+        candles: &[CandleWithIndicators],
+        tf_minutes: i32,
+        use_gpu: bool,
+    ) -> Result<Vec<PipelineResult>> {
+        if !self.model_manager.has_model_for_tf(tf_minutes) {
+            warn!("No model for TF {}m, skipping", tf_minutes);
+            return Ok(Vec::new());
+        }
+
+        let warmup = self.config.warmup_bars;
+        if candles.len() <= warmup {
+            debug!("Not enough candles for TF {}m (need > {})", tf_minutes, warmup);
+            return Ok(Vec::new());
+        }
+
+        let n = candles.len();
+        let process_start = warmup;
+        let batch_size = n - process_start;
+
+        // Build feature matrix for batch inference — zero-copy: write f32 directly
+        // Avoids intermediate Vec<f64> allocation per candle
+        let ncol = crate::config::total_feature_count();
+        let mut features_flat: Vec<f32> = Vec::with_capacity(batch_size * ncol);
+
+        for i in process_start..n {
+            // Write indicator features directly as f32 (no intermediate Vec<f64>)
+            let c = &candles[i];
+            // Raw indicators (33 features) — matches INDICATOR_FEATURES order
+            features_flat.push(c.rsi as f32);
+            features_flat.push(c.cci as f32);
+            features_flat.push(c.stoch_k as f32);
+            features_flat.push(c.stoch_d as f32);
+            features_flat.push(c.williams as f32);
+            features_flat.push(c.macd as f32);
+            features_flat.push(c.macd_signal as f32);
+            features_flat.push(c.macd_hist as f32);
+            features_flat.push(c.adx as f32);
+            features_flat.push(c.sma as f32);
+            features_flat.push(c.ema_20 as f32);
+            features_flat.push(c.ema_50 as f32);
+            features_flat.push(c.ema_200 as f32);
+            features_flat.push(c.bb_upper as f32);
+            features_flat.push(c.bb_mid as f32);
+            features_flat.push(c.bb_lower as f32);
+            features_flat.push(c.atr as f32);
+            features_flat.push(c.obv as f32);
+            features_flat.push(c.vwap as f32);
+            features_flat.push(c.volume_spike as f32);
+            features_flat.push(c.trend as f32);
+            features_flat.push(c.trend_short as f32);
+            features_flat.push(c.poc as f32);
+            // Alligator (3 features)
+            features_flat.push(c.alligator_jaw as f32);
+            features_flat.push(c.alligator_teeth as f32);
+            features_flat.push(c.alligator_lips as f32);
+            // New indicators (7 features)
+            features_flat.push(c.mfi as f32);
+            features_flat.push(c.fibo_pivot as f32);
+            features_flat.push(c.fibo_r1 as f32);
+            features_flat.push(c.fibo_s1 as f32);
+            features_flat.push(c.supertrend as f32);
+            features_flat.push(c.supertrend_dir as f32);
+            features_flat.push(c.cmf as f32);
+
+            // Derived features (19 features) — computed inline, no allocation
+            let close = c.close;
+            let safe_div = |a: f64, b: f64| -> f32 {
+                if b.abs() > 1e-12 { (a / b) as f32 } else { 0.0f32 }
+            };
+            features_flat.push((c.rsi / 100.0) as f32);                    // rsi_norm
+            features_flat.push((c.cci / 200.0) as f32);                    // cci_norm
+            features_flat.push((c.stoch_k / 100.0) as f32);                // stoch_norm
+            features_flat.push(((c.williams + 100.0) / 100.0) as f32);     // williams_norm
+            let bb_range = c.bb_upper - c.bb_lower;
+            features_flat.push(if bb_range.abs() > 1e-12 {                 // bb_position
+                ((close - c.bb_lower) / bb_range) as f32
+            } else { 0.5f32 });
+            features_flat.push(safe_div(bb_range, close) * 100.0);         // bb_width_pct
+            features_flat.push(safe_div(c.atr, close) * 100.0);            // atr_pct
+            features_flat.push(safe_div(close - c.sma, close) * 100.0);    // price_vs_sma
+            features_flat.push(safe_div(close - c.ema_20, close) * 100.0); // price_vs_ema20
+            features_flat.push(safe_div(close - c.ema_50, close) * 100.0); // price_vs_ema50
+            features_flat.push(safe_div(close - c.ema_200, close) * 100.0);// price_vs_ema200
+            features_flat.push(safe_div(close - c.vwap, close) * 100.0);   // price_vs_vwap
+            features_flat.push(safe_div(c.macd_hist, close) * 1000.0);     // macd_norm
+            features_flat.push(0.0f32);                                     // obv_change_pct (N/A)
+            features_flat.push(if c.volume_spike > 2.0 { 1.0f32 } else { 0.0f32 }); // volume_spike_flag
+            // New derived features (4 features)
+            features_flat.push((c.mfi / 100.0) as f32);                    // mfi_norm
+            features_flat.push(safe_div(close - c.fibo_pivot, close) * 100.0); // price_vs_fibo_pivot
+            features_flat.push(safe_div(close - c.supertrend, close) * 100.0); // price_vs_supertrend
+            features_flat.push(safe_div(c.alligator_jaw - c.alligator_lips, close) * 100.0); // alligator_spread
+        }
+
+        // Batch inference
+        let predictions = self.model_manager.predict_batch(
+            tf_minutes,
+            &features_flat,
+            batch_size,
+            ncol,
+            use_gpu,
+        )?;
+
+        // Score each prediction
+        let mut results = Vec::with_capacity(batch_size);
+        for (idx, pred) in predictions.iter().enumerate() {
+            let candle_idx = process_start + idx;
+            let candle = &candles[candle_idx];
+
+            // Build overheated features
+            let bb_range = candle.bb_upper - candle.bb_lower;
+            let bb_position = if bb_range.abs() > 1e-12 {
+                (candle.close - candle.bb_lower) / bb_range
+            } else {
+                0.5
+            };
+            let atr_pct = if candle.close > 0.0 {
+                candle.atr / candle.close * 100.0
+            } else {
+                0.0
+            };
+
+            let oh = OverheatedFeatures {
+                rsi: candle.rsi,
+                stoch_k: candle.stoch_k,
+                cci: candle.cci,
+                williams: candle.williams,
+                bb_position,
+                atr_pct,
+            };
+
+            let decision = self.scorer.score(pred, Some(&oh));
+
+            let signal = self.signal_generator.generate(
+                &decision,
+                &candle.symbol,
+                candle.symbol_id,
+                tf_minutes,
+                candle.time,
+                candle.close,
+                candle.atr,
+            );
+
+            results.push(PipelineResult {
+                signal,
+                prediction: Some(*pred),
+                decision: Some(decision),
+                candle_index: candle_idx,
+            });
+        }
+
+        Ok(results)
+    }
+
+    /// Process a single candle (for real-time use).
+    pub fn process_single(
+        &self,
+        candle: &CandleWithIndicators,
+        tf_minutes: i32,
+        use_gpu: bool,
+    ) -> Result<PipelineResult> {
+        if !self.model_manager.has_model_for_tf(tf_minutes) {
+            return Ok(PipelineResult {
+                signal: None,
+                prediction: None,
+                decision: None,
+                candle_index: 0,
+            });
+        }
+
+        let features: Vec<f32> = candle.full_features().into_iter().map(|v| v as f32).collect();
+
+        let prediction = self.model_manager.predict(tf_minutes, &features, use_gpu)?;
+
+        let result = match prediction {
+            Some(pred) => {
+                let bb_range = candle.bb_upper - candle.bb_lower;
+                let bb_position = if bb_range.abs() > 1e-12 {
+                    (candle.close - candle.bb_lower) / bb_range
+                } else {
+                    0.5
+                };
+                let atr_pct = if candle.close > 0.0 {
+                    candle.atr / candle.close * 100.0
+                } else {
+                    0.0
+                };
+
+                let oh = OverheatedFeatures {
+                    rsi: candle.rsi,
+                    stoch_k: candle.stoch_k,
+                    cci: candle.cci,
+                    williams: candle.williams,
+                    bb_position,
+                    atr_pct,
+                };
+
+                let decision = self.scorer.score(&pred, Some(&oh));
+
+                let signal = self.signal_generator.generate(
+                    &decision,
+                    &candle.symbol,
+                    candle.symbol_id,
+                    tf_minutes,
+                    candle.time,
+                    candle.close,
+                    candle.atr,
+                );
+
+                PipelineResult {
+                    signal,
+                    prediction: Some(pred),
+                    decision: Some(decision),
+                    candle_index: 0,
+                }
+            }
+            None => PipelineResult {
+                signal: None,
+                prediction: None,
+                decision: None,
+                candle_index: 0,
+            },
+        };
+
+        Ok(result)
+    }
+
+    /// Per-TF candle limit for full pipeline run.
+    /// Must be consistent with dataset_builder and backtest.
+    fn candle_limit_for_tf(tf_minutes: i32) -> usize {
+        match tf_minutes {
+            1 => 5000,
+            5 => 12000,
+            15 => 12000,
+            60 => 12000,
+            240 => 12000,
+            1440 => 3700,
+            _ => 5000,
+        }
+    }
+
+    /// Run the full pipeline for all symbols and timeframes.
+    ///
+    /// Fetches data from DB, processes each (symbol, tf) pair,
+    /// and returns all generated signals grouped by TF.
+    pub async fn run_all(
+        &self,
+        pool: &PgPool,
+        use_gpu: bool,
+    ) -> Result<Vec<SuperEntrySignal>> {
+        let symbols = fetch_active_symbols(pool).await?;
+        info!("Processing {} symbols", symbols.len());
+
+        let mut all_signals = Vec::new();
+
+        for &tf in SuperEntryConfig::timeframes() {
+            if !self.model_manager.has_model_for_tf(tf) {
+                continue;
+            }
+
+            let mut tf_signals = 0;
+            let mut tf_total = 0;
+            let limit = Self::candle_limit_for_tf(tf);
+
+            for symbol in &symbols {
+                let candles = fetch_candles_with_indicators(pool, symbol, tf, limit).await?;
+
+                if candles.len() < self.config.warmup_bars + self.config.lookahead_bars {
+                    continue;
+                }
+
+                let results = self.process_candles(&candles, tf, use_gpu)?;
+
+                for result in results {
+                    tf_total += 1;
+                    if let Some(signal) = result.signal {
+                        tf_signals += 1;
+                        all_signals.push(signal);
+                    }
+                }
+            }
+
+            info!(
+                "TF {}m: {} signals from {} candles ({:.1}% coverage)",
+                tf, tf_signals, tf_total,
+                if tf_total > 0 { tf_signals as f64 / tf_total as f64 * 100.0 } else { 0.0 }
+            );
+        }
+
+        info!("Total signals generated: {}", all_signals.len());
+        Ok(all_signals)
+    }
+
+    /// Get reference to config
+    pub fn config(&self) -> &SuperEntryConfig {
+        &self.config
+    }
+}
+
+// strategies/ml_entry_strategy/src/scorer.rs
+//
+// Scorer for Super Entry Strategy
+//
+// Decision logic:
+//   1. If p_super >= p_threshold → potential super signal
+//   2. Direction from P(LONG) model
+//   3. Confidence = p_super (higher = more confident)
+//
+// The scorer also applies:
+//   - "Overheated" detection: filters entries where indicators are extreme
+//     but p_super is marginally above threshold (low-quality super signals)
+//   - Directional confidence: requires p_long > dir_threshold OR p_long < (1 - dir_threshold)
+
+use crate::config::SuperEntryConfig;
+use crate::model::SuperEntryPrediction;
+use serde::{Deserialize, Serialize};
+
+/// Decision from the scorer
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum SuperEntryDecision {
+    /// Strong super entry signal detected
+    SuperEntry {
+        /// 1 = LONG, -1 = SHORT
+        direction: i8,
+        /// P(super) confidence
+        p_super: f32,
+        /// Directional confidence: distance from 0.5
+        dir_confidence: f32,
+        /// Combined score (p_super * dir_confidence_factor)
+        combined_score: f32,
+    },
+    /// Below threshold — no signal
+    NoSignal {
+        /// Reason for rejection
+        reason: RejectReason,
+        p_super: f32,
+    },
+}
+
+/// Reason why a signal was not generated
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum RejectReason {
+    /// P(super) below threshold
+    BelowThreshold,
+    /// Directional confidence too low (close to 0.5)
+    WeakDirection,
+    /// Indicators suggest overheated entry (marginal p_super + extreme indicators)
+    Overheated,
+}
+
+impl SuperEntryDecision {
+    /// Check if this is a super entry signal
+    pub fn is_super_entry(&self) -> bool {
+        matches!(self, SuperEntryDecision::SuperEntry { .. })
+    }
+
+    /// Get direction if it's a super entry
+    pub fn direction(&self) -> Option<i8> {
+        match self {
+            SuperEntryDecision::SuperEntry { direction, .. } => Some(*direction),
+            _ => None,
+        }
+    }
+
+    /// Get p_super value regardless of decision
+    pub fn p_super(&self) -> f32 {
+        match self {
+            SuperEntryDecision::SuperEntry { p_super, .. } => *p_super,
+            SuperEntryDecision::NoSignal { p_super, .. } => *p_super,
+        }
+    }
+}
+
+/// Configuration for the scorer
+#[derive(Debug, Clone)]
+pub struct ScorerConfig {
+    /// Minimum P(super) to consider as a potential signal
+    pub p_threshold: f64,
+    /// Minimum directional confidence (distance from 0.5 for p_long)
+    pub min_dir_confidence: f32,
+    /// Maximum marginal P(super) above threshold to be considered "overheated"
+    /// if indicator extremes are detected
+    pub overheated_margin: f32,
+    /// Enable overheated detection
+    pub enable_overheated_filter: bool,
+}
+
+impl Default for ScorerConfig {
+    fn default() -> Self {
+        Self {
+            p_threshold: 0.55,
+            min_dir_confidence: 0.10, // p_long must be > 0.6 or < 0.4
+            overheated_margin: 0.05,  // p_super in [threshold, threshold+0.05] is marginal
+            enable_overheated_filter: true,
+        }
+    }
+}
+
+impl From<&SuperEntryConfig> for ScorerConfig {
+    fn from(cfg: &SuperEntryConfig) -> Self {
+        Self {
+            p_threshold: cfg.p_threshold,
+            ..Default::default()
+        }
+    }
+}
+
+/// Super Entry Scorer
+///
+/// Evaluates predictions from the model and makes entry decisions.
+pub struct SuperEntryScorer {
+    config: ScorerConfig,
+}
+
+impl SuperEntryScorer {
+    /// Create a new scorer with the given configuration
+    pub fn new(config: ScorerConfig) -> Self {
+        Self { config }
+    }
+
+    /// Create scorer from strategy config
+    pub fn from_strategy_config(cfg: &SuperEntryConfig) -> Self {
+        Self::new(ScorerConfig::from(cfg))
+    }
+
+    /// Score a prediction and return a decision.
+    ///
+    /// # Arguments
+    /// * `prediction` - Model prediction output
+    /// * `features` - Raw feature values (for overheated detection)
+    ///
+    /// # Returns
+    /// SuperEntryDecision
+    pub fn score(
+        &self,
+        prediction: &SuperEntryPrediction,
+        features: Option<&OverheatedFeatures>,
+    ) -> SuperEntryDecision {
+        let p_super = prediction.p_super;
+        let p_long = prediction.p_long;
+        let direction = prediction.direction;
+
+        // 1. Check P(super) threshold
+        if (p_super as f64) < self.config.p_threshold {
+            return SuperEntryDecision::NoSignal {
+                reason: RejectReason::BelowThreshold,
+                p_super,
+            };
+        }
+
+        // 2. Check directional confidence
+        let dir_confidence = (p_long - 0.5).abs();
+        if dir_confidence < self.config.min_dir_confidence {
+            return SuperEntryDecision::NoSignal {
+                reason: RejectReason::WeakDirection,
+                p_super,
+            };
+        }
+
+        // 3. Overheated filter (optional)
+        if self.config.enable_overheated_filter {
+            let is_marginal = (p_super as f64) < self.config.p_threshold + self.config.overheated_margin as f64;
+            if is_marginal {
+                if let Some(oh) = features {
+                    if oh.is_overheated(direction) {
+                        return SuperEntryDecision::NoSignal {
+                            reason: RejectReason::Overheated,
+                            p_super,
+                        };
+                    }
+                }
+            }
+        }
+
+        // 4. Calculate combined score
+        // Higher is better: p_super weighted by directional confidence
+        let dir_factor = 1.0 + dir_confidence; // Range [1.0, 1.5]
+        let combined_score = p_super * dir_factor;
+
+        SuperEntryDecision::SuperEntry {
+            direction,
+            p_super,
+            dir_confidence,
+            combined_score,
+        }
+    }
+
+    /// Get the config
+    pub fn config(&self) -> &ScorerConfig {
+        &self.config
+    }
+}
+
+/// Features used for overheated detection.
+/// Extracted from the raw indicator values.
+pub struct OverheatedFeatures {
+    pub rsi: f64,
+    pub stoch_k: f64,
+    pub cci: f64,
+    pub williams: f64,
+    pub bb_position: f64, // 0 = lower band, 1 = upper band
+    pub atr_pct: f64,
+}
+
+impl OverheatedFeatures {
+    /// Check if indicators suggest an "overheated" entry.
+    ///
+    /// An entry is overheated if:
+    ///   - For LONG: RSI > 75, Stoch > 85, CCI > 150, or BB position > 0.95
+    ///   - For SHORT: RSI < 25, Stoch < 15, CCI < -150, or BB position < 0.05
+    ///
+    /// These are "extreme" readings that often precede reversals rather than
+    /// sustained moves, meaning a "super" signal at these levels is likely
+    /// a false positive.
+    pub fn is_overheated(&self, direction: i8) -> bool {
+        let mut extreme_count = 0;
+
+        if direction == 1 {
+            // LONG: check for overbought extremes
+            if self.rsi > 75.0 { extreme_count += 1; }
+            if self.stoch_k > 85.0 { extreme_count += 1; }
+            if self.cci > 150.0 { extreme_count += 1; }
+            if self.williams > -10.0 { extreme_count += 1; } // Williams near 0 = overbought
+            if self.bb_position > 0.95 { extreme_count += 1; }
+        } else {
+            // SHORT: check for oversold extremes
+            if self.rsi < 25.0 { extreme_count += 1; }
+            if self.stoch_k < 15.0 { extreme_count += 1; }
+            if self.cci < -150.0 { extreme_count += 1; }
+            if self.williams < -90.0 { extreme_count += 1; } // Williams near -100 = oversold
+            if self.bb_position < 0.05 { extreme_count += 1; }
+        }
+
+        // Need at least 2 extreme readings to call it overheated
+        extreme_count >= 2
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_super_entry_above_threshold() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        let pred = SuperEntryPrediction {
+            p_super: 0.75,
+            p_long: 0.80,
+            direction: 1,
+            estimated_magnitude_pct: 2.0,
+        };
+
+        let decision = scorer.score(&pred, None);
+        assert!(decision.is_super_entry());
+        assert_eq!(decision.direction(), Some(1));
+    }
+
+    #[test]
+    fn test_below_threshold() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        let pred = SuperEntryPrediction {
+            p_super: 0.40,
+            p_long: 0.80,
+            direction: 1,
+            estimated_magnitude_pct: 1.0,
+        };
+
+        let decision = scorer.score(&pred, None);
+        assert!(!decision.is_super_entry());
+        match decision {
+            SuperEntryDecision::NoSignal { reason, .. } => {
+                assert_eq!(reason, RejectReason::BelowThreshold);
+            }
+            _ => panic!("Expected NoSignal"),
+        }
+    }
+
+    #[test]
+    fn test_weak_direction() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        let pred = SuperEntryPrediction {
+            p_super: 0.75,
+            p_long: 0.52, // very close to 0.5
+            direction: 1,
+            estimated_magnitude_pct: 2.0,
+        };
+
+        let decision = scorer.score(&pred, None);
+        assert!(!decision.is_super_entry());
+        match decision {
+            SuperEntryDecision::NoSignal { reason, .. } => {
+                assert_eq!(reason, RejectReason::WeakDirection);
+            }
+            _ => panic!("Expected NoSignal for weak direction"),
+        }
+    }
+
+    #[test]
+    fn test_overheated_filter() {
+        let scorer = SuperEntryScorer::new(ScorerConfig {
+            p_threshold: 0.55,
+            overheated_margin: 0.05,
+            enable_overheated_filter: true,
+            ..Default::default()
+        });
+
+        // Marginal p_super (0.57 < 0.55 + 0.05) with extreme indicators
+        let pred = SuperEntryPrediction {
+            p_super: 0.57,
+            p_long: 0.80,
+            direction: 1,
+            estimated_magnitude_pct: 1.0,
+        };
+
+        let oh = OverheatedFeatures {
+            rsi: 82.0,      // overbought
+            stoch_k: 90.0,  // overbought
+            cci: 160.0,     // extreme
+            williams: -5.0, // overbought
+            bb_position: 0.98,
+            atr_pct: 2.0,
+        };
+
+        let decision = scorer.score(&pred, Some(&oh));
+        assert!(!decision.is_super_entry());
+        match decision {
+            SuperEntryDecision::NoSignal { reason, .. } => {
+                assert_eq!(reason, RejectReason::Overheated);
+            }
+            _ => panic!("Expected Overheated rejection"),
+        }
+    }
+
+    #[test]
+    fn test_not_overheated_when_strong_signal() {
+        let scorer = SuperEntryScorer::new(ScorerConfig {
+            p_threshold: 0.55,
+            overheated_margin: 0.05,
+            enable_overheated_filter: true,
+            ..Default::default()
+        });
+
+        // Strong p_super (0.80 > 0.55 + 0.05) — not marginal, so overheated filter skipped
+        let pred = SuperEntryPrediction {
+            p_super: 0.80,
+            p_long: 0.85,
+            direction: 1,
+            estimated_magnitude_pct: 3.0,
+        };
+
+        let oh = OverheatedFeatures {
+            rsi: 82.0,
+            stoch_k: 90.0,
+            cci: 160.0,
+            williams: -5.0,
+            bb_position: 0.98,
+            atr_pct: 2.0,
+        };
+
+        let decision = scorer.score(&pred, Some(&oh));
+        // Should still be super entry because p_super is not marginal
+        assert!(decision.is_super_entry());
+    }
+}
+
+// strategies/ml_entry_strategy/src/signal_generator.rs
+//
+// Signal Generator for Super Entry Strategy
+//
+// Converts SuperEntryDecision into a trade signal compatible with
+// the existing system format (trade.final_signals table schema).
+//
+// The generated signal includes:
+//   - entry_price (close of the current candle)
+//   - sl_price (derived from target move * sl_fraction)
+//   - tp_price (= target move %)
+//   - direction (LONG/SHORT from model)
+//   - reason JSON with strategy metadata
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+use crate::config::SuperEntryConfig;
+use crate::scorer::SuperEntryDecision;
+
+/// A generated super entry signal in the system format
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuperEntrySignal {
+    /// Symbol (e.g., "BTCUSDT")
+    pub symbol: String,
+    /// Symbol ID from market.pairs
+    pub symbol_id: i64,
+    /// Timeframe in minutes
+    pub tf_minutes: i32,
+    /// Signal timestamp
+    pub time: DateTime<Utc>,
+    /// Signal time in milliseconds (epoch)
+    pub time_ms: i64,
+    /// Side: 1 = LONG, -1 = SHORT
+    pub side: i16,
+    /// Entry price (close of the candle when signal was generated)
+    pub entry_price: f64,
+    /// Stop-loss price
+    pub sl_price: f64,
+    /// Take-profit price (target move %)
+    pub tp_price: f64,
+    /// Combined score from the scorer (0..1+)
+    pub final_score: f32,
+    /// P(super) from the model
+    pub p_super: f32,
+    /// P(LONG) from the model (for directional confidence)
+    pub p_long: f32,
+    /// Strategy metadata as JSON
+    pub reason: serde_json::Value,
+}
+
+impl SuperEntrySignal {
+    /// Check if this is a LONG signal
+    pub fn is_long(&self) -> bool {
+        self.side == 1
+    }
+
+    /// Check if this is a SHORT signal
+    pub fn is_short(&self) -> bool {
+        self.side == -1
+    }
+
+    /// Get the target move in % for this signal's TF
+    pub fn target_move_pct(&self, config: &SuperEntryConfig) -> f64 {
+        config.target_pct_for_tf(self.tf_minutes)
+    }
+
+    /// Get the SL distance in %
+    pub fn sl_pct(&self) -> f64 {
+        if self.entry_price > 0.0 {
+            (self.sl_price - self.entry_price).abs() / self.entry_price * 100.0
+        } else {
+            0.0
+        }
+    }
+
+    /// Get the TP distance in %
+    pub fn tp_pct(&self) -> f64 {
+        if self.entry_price > 0.0 {
+            (self.tp_price - self.entry_price).abs() / self.entry_price * 100.0
+        } else {
+            0.0
+        }
+    }
+}
+
+/// Signal Generator — creates signals from scorer decisions
+pub struct SignalGenerator {
+    config: SuperEntryConfig,
+}
+
+impl SignalGenerator {
+    /// Create a new signal generator
+    pub fn new(config: SuperEntryConfig) -> Self {
+        Self { config }
+    }
+
+    /// Generate a super entry signal from a decision and market context.
+    ///
+    /// # Arguments
+    /// * `decision` - Scorer decision (must be SuperEntry)
+    /// * `symbol` - Trading pair symbol
+    /// * `symbol_id` - Database symbol ID
+    /// * `tf_minutes` - Timeframe in minutes
+    /// * `time` - Current candle timestamp
+    /// * `close_price` - Current close price (entry price)
+    /// * `atr` - Current ATR value (for SL calculation, optional fallback)
+    ///
+    /// # Returns
+    /// Some(SuperEntrySignal) if decision is SuperEntry, None otherwise
+    pub fn generate(
+        &self,
+        decision: &SuperEntryDecision,
+        symbol: &str,
+        symbol_id: i64,
+        tf_minutes: i32,
+        time: DateTime<Utc>,
+        close_price: f64,
+        atr: f64,
+    ) -> Option<SuperEntrySignal> {
+        let (direction, p_super, dir_confidence, combined_score) = match decision {
+            SuperEntryDecision::SuperEntry {
+                direction,
+                p_super,
+                dir_confidence,
+                combined_score,
+            } => (*direction, *p_super, *dir_confidence, *combined_score),
+            SuperEntryDecision::NoSignal { .. } => return None,
+        };
+
+        let side: i16 = direction as i16;
+        let target_pct = self.config.target_pct_for_tf(tf_minutes);
+        let sl_pct = self.config.sl_pct_for_tf(tf_minutes);
+
+        // Calculate TP and SL prices
+        let (tp_price, sl_price) = if direction == 1 {
+            // LONG
+            let tp = close_price * (1.0 + target_pct / 100.0);
+            let sl = close_price * (1.0 - sl_pct / 100.0);
+            (tp, sl)
+        } else {
+            // SHORT
+            let tp = close_price * (1.0 - target_pct / 100.0);
+            let sl = close_price * (1.0 + sl_pct / 100.0);
+            (tp, sl)
+        };
+
+        let p_long = if direction == 1 {
+            0.5 + dir_confidence
+        } else {
+            0.5 - dir_confidence
+        };
+
+        let reason = json!({
+            "strategy": "ml_entry_strategy",
+            "model_version": "v1",
+            "p_super": p_super,
+            "p_long": p_long,
+            "direction": if direction == 1 { "LONG" } else { "SHORT" },
+            "dir_confidence": dir_confidence,
+            "combined_score": combined_score,
+            "target_move_pct": target_pct,
+            "sl_pct": sl_pct,
+            "atr": atr,
+            "lookahead_bars": self.config.lookahead_bars,
+            "p_threshold": self.config.p_threshold,
+        });
+
+        let time_ms = time.timestamp_millis();
+
+        Some(SuperEntrySignal {
+            symbol: symbol.to_string(),
+            symbol_id,
+            tf_minutes,
+            time,
+            time_ms,
+            side,
+            entry_price: close_price,
+            sl_price,
+            tp_price,
+            final_score: combined_score,
+            p_super,
+            p_long: p_long as f32,
+            reason,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_long_signal() {
+        let config = SuperEntryConfig::default();
+        let generator = SignalGenerator::new(config.clone());
+
+        let decision = SuperEntryDecision::SuperEntry {
+            direction: 1,
+            p_super: 0.80,
+            dir_confidence: 0.30,
+            combined_score: 1.04,
+        };
+
+        let signal = generator.generate(
+            &decision,
+            "BTCUSDT",
+            1,
+            60,
+            Utc::now(),
+            50000.0,
+            500.0,
+        );
+
+        assert!(signal.is_some());
+        let sig = signal.unwrap();
+        assert!(sig.is_long());
+        assert_eq!(sig.side, 1);
+        assert!(sig.tp_price > sig.entry_price); // TP above entry for LONG
+        assert!(sig.sl_price < sig.entry_price); // SL below entry for LONG
+        assert!((sig.tp_pct() - config.target_pct_for_tf(60)).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_generate_short_signal() {
+        let config = SuperEntryConfig::default();
+        let generator = SignalGenerator::new(config);
+
+        let decision = SuperEntryDecision::SuperEntry {
+            direction: -1,
+            p_super: 0.70,
+            dir_confidence: 0.25,
+            combined_score: 0.88,
+        };
+
+        let signal = generator.generate(
+            &decision,
+            "ETHUSDT",
+            2,
+            15,
+            Utc::now(),
+            3000.0,
+            30.0,
+        );
+
+        assert!(signal.is_some());
+        let sig = signal.unwrap();
+        assert!(sig.is_short());
+        assert_eq!(sig.side, -1);
+        assert!(sig.tp_price < sig.entry_price); // TP below entry for SHORT
+        assert!(sig.sl_price > sig.entry_price); // SL above entry for SHORT
+    }
+
+    #[test]
+    fn test_no_signal_generation() {
+        let config = SuperEntryConfig::default();
+        let generator = SignalGenerator::new(config);
+
+        let decision = SuperEntryDecision::NoSignal {
+            reason: crate::scorer::RejectReason::BelowThreshold,
+            p_super: 0.30,
+        };
+
+        let signal = generator.generate(
+            &decision,
+            "BTCUSDT",
+            1,
+            60,
+            Utc::now(),
+            50000.0,
+            500.0,
+        );
+
+        assert!(signal.is_none());
+    }
+}
+
+// strategies/ml_entry_strategy/src/strategy.rs
+//
+// High-level Strategy Interface for Super Entry
+//
+// Provides a unified API for:
+//   - Running the strategy on historical data (backtest)
+//   - Enabling/disabling via flags
+//   - Integration with the existing system
+
+use anyhow::Result;
+use sqlx::PgPool;
+use tracing::info;
+
+use crate::config::SuperEntryConfig;
+use crate::pipeline::SuperEntryPipeline;
+use crate::signal_generator::SuperEntrySignal;
+
+/// High-level Super Entry Strategy
+///
+/// Wraps the pipeline and provides a simple interface for
+/// running the strategy from external callers (backtester, real-time runner).
+pub struct SuperEntryStrategy {
+    pipeline: SuperEntryPipeline,
+    enabled: bool,
+}
+
+impl SuperEntryStrategy {
+    /// Create a new strategy instance.
+    ///
+    /// # Arguments
+    /// * `config` - Strategy configuration
+    /// * `use_gpu` - Whether to use GPU for inference
+    pub fn new(config: SuperEntryConfig, use_gpu: bool) -> Result<Self> {
+        let pipeline = SuperEntryPipeline::new(config, use_gpu)?;
+        let enabled = pipeline.has_models();
+
+        if !enabled {
+            tracing::warn!("Super Entry Strategy: no models loaded, strategy disabled");
+        } else {
+            info!("Super Entry Strategy: initialized successfully");
+        }
+
+        Ok(Self { pipeline, enabled })
+    }
+
+    /// Create from environment variables
+    pub fn from_env() -> Result<Self> {
+        let config = SuperEntryConfig::from_env();
+        let use_gpu = std::env::var("SUPER_ENTRY_USE_GPU")
+            .unwrap_or_default()
+            .parse::<bool>()
+            .unwrap_or(false);
+
+        Self::new(config, use_gpu)
+    }
+
+    /// Check if the strategy is enabled (has loaded models)
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Manually enable/disable the strategy
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+    }
+
+    /// Run the strategy on all available data from the database.
+    ///
+    /// Returns all generated super entry signals.
+    pub async fn run(&self, pool: &PgPool) -> Result<Vec<SuperEntrySignal>> {
+        if !self.enabled {
+            info!("Super Entry Strategy is disabled, returning empty signals");
+            return Ok(Vec::new());
+        }
+
+        let use_gpu = std::env::var("SUPER_ENTRY_USE_GPU")
+            .unwrap_or_default()
+            .parse::<bool>()
+            .unwrap_or(false);
+
+        self.pipeline.run_all(pool, use_gpu).await
+    }
+
+    /// Get reference to the pipeline
+    pub fn pipeline(&self) -> &SuperEntryPipeline {
+        &self.pipeline
+    }
+
+    /// Get reference to config
+    pub fn config(&self) -> &SuperEntryConfig {
+        self.pipeline.config()
+    }
+}

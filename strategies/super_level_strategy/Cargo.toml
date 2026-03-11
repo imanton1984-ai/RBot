@@ -1,0 +1,29 @@
+[package]
+name = "super_level_strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "super_level_backtest"
+path = "src/bin/backtest.rs"
+
+[dependencies]
+# Workspace deps
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+dotenvy = { workspace = true }
+
+# Local crates — reuse everything
+common = { path = "../../common" }
+predictors = { path = "../../compute/predictors" }
+ml_entry_strategy = { path = "../ml_entry_strategy" }
+ewmac_strategy = { path = "../ewmac_strategy" }
+indicators = { package = "compute_indicators", path = "../../compute/indicators" }
