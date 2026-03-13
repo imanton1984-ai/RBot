@@ -175,6 +175,13 @@ impl SuperEntryPipeline {
             features_flat.push(safe_div(close - c.fibo_pivot, close) * 100.0); // price_vs_fibo_pivot
             features_flat.push(safe_div(close - c.supertrend, close) * 100.0); // price_vs_supertrend
             features_flat.push(safe_div(c.alligator_jaw - c.alligator_lips, close) * 100.0); // alligator_spread
+
+            // Dynamic temporal features (38 features) — computed using candle history lookback
+            // Uses compute_dynamic_features() which reads candles[i-N] for N in {3,5,10,15}
+            let dyn_feats = crate::dataset::compute_dynamic_features(candles, i);
+            for v in &dyn_feats {
+                features_flat.push(*v as f32);
+            }
         }
 
         // Batch inference
@@ -238,8 +245,17 @@ impl SuperEntryPipeline {
     }
 
     /// Process a single candle (for real-time use).
-    pub fn process_single(
+    ///
+    /// # Arguments
+    /// * `candle_history` - Slice of recent candles (at least 15 for lookback).
+    ///   The LAST element is the candle to predict on.
+    ///   If None or too short, dynamic features will be zeros (degraded mode).
+    /// * `candle` - The candle to generate features for (must be the last in history)
+    /// * `tf_minutes` - Timeframe in minutes
+    /// * `use_gpu` - Whether to use GPU
+    pub fn process_single_with_context(
         &self,
+        candle_history: Option<&[CandleWithIndicators]>,
         candle: &CandleWithIndicators,
         tf_minutes: i32,
         use_gpu: bool,
@@ -253,7 +269,17 @@ impl SuperEntryPipeline {
             });
         }
 
-        let features: Vec<f32> = candle.full_features().into_iter().map(|v| v as f32).collect();
+        let mut features: Vec<f32> = candle.full_features().into_iter().map(|v| v as f32).collect();
+
+        // Add dynamic features using candle history for lookback context
+        let dyn_feats = match candle_history {
+            Some(history) if !history.is_empty() => {
+                let last_idx = history.len() - 1;
+                crate::dataset::compute_dynamic_features(history, last_idx)
+            }
+            _ => vec![0.0f64; crate::config::dynamic_feature_count()],
+        };
+        features.extend(dyn_feats.iter().map(|&v| v as f32));
 
         let prediction = self.model_manager.predict(tf_minutes, &features, use_gpu)?;
 

@@ -274,7 +274,10 @@ async fn main() -> Result<()> {
                     if let Ok(Ok(candles)) = handle.await {
                         if candles.len() < config.warmup_bars + 1 { continue; }
                         let last = candles.last().unwrap();
-                        if let Ok(r) = pipeline.process_single(last, tf, use_gpu) {
+                        // Pass full candle history as context for dynamic features
+                        if let Ok(r) = pipeline.process_single_with_context(
+                            Some(&candles), last, tf, use_gpu
+                        ) {
                             if let Some(s) = r.signal { tf_signals.push(s); }
                         }
                     }

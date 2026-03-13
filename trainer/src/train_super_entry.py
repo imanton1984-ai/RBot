@@ -68,7 +68,36 @@ DERIVED_FEATURES = [
     "alligator_spread",
 ]
 
-ALL_FEATURES = INDICATOR_FEATURES + DERIVED_FEATURES
+# Dynamic temporal features (must match Rust DYNAMIC_FEATURES order)
+# These capture HOW indicators are changing over time (lookback windows: 3, 5, 10, 15 bars)
+# Critical for direction prediction — static snapshots give AUC ~0.50 (random)
+DYNAMIC_FEATURES = [
+    # Window 3 bars
+    "price_return_lb3", "atr_ratio_lb3", "rsi_slope_lb3",
+    "trend_persist_lb3", "trend_short_persist_lb3",
+    "adx_slope_lb3", "macd_hist_slope_lb3", "ema20_direction_lb3",
+    # Window 5 bars
+    "price_return_lb5", "atr_ratio_lb5", "rsi_slope_lb5",
+    "trend_persist_lb5", "trend_short_persist_lb5",
+    "adx_slope_lb5", "macd_hist_slope_lb5", "ema20_direction_lb5",
+    # Window 10 bars
+    "price_return_lb10", "atr_ratio_lb10", "rsi_slope_lb10",
+    "trend_persist_lb10", "trend_short_persist_lb10",
+    "adx_slope_lb10", "macd_hist_slope_lb10", "ema20_direction_lb10",
+    # Window 15 bars
+    "price_return_lb15", "atr_ratio_lb15", "rsi_slope_lb15",
+    "trend_persist_lb15", "trend_short_persist_lb15",
+    "adx_slope_lb15", "macd_hist_slope_lb15", "ema20_direction_lb15",
+    # Aggregate features (6)
+    "supertrend_consistency", "trend_alignment",
+    "price_accel", "volume_trend_ratio",
+    "ema_convergence_change", "high_low_pressure",
+]
+
+# Static features (indicators + derived) — 52 total
+STATIC_FEATURES = INDICATOR_FEATURES + DERIVED_FEATURES
+# All features including dynamic — 90 total
+ALL_FEATURES = STATIC_FEATURES + DYNAMIC_FEATURES
 
 # TF target move percentages (must match Rust config::tf_target_move_pct)
 TF_TARGET_MOVE_PCT = {
@@ -96,6 +125,11 @@ def load_data(csv_path: str) -> pd.DataFrame:
         print(f"  WARNING: Missing columns: {missing}")
         for c in missing:
             df[c] = 0.0
+
+    # Feature count verification
+    n_static = len(STATIC_FEATURES)
+    n_dynamic = len(DYNAMIC_FEATURES)
+    print(f"  Static features: {n_static}, Dynamic features: {n_dynamic}, Total: {len(ALL_FEATURES)}")
 
     # Stats
     n_super = (df["is_super"] == 1).sum()
@@ -129,8 +163,16 @@ def split_by_pairs(df: pd.DataFrame, train_ratio: float = 0.8):
     return train_df, test_df
 
 
-def train_binary(train_df, test_df, label_col, feature_cols, use_gpu=False, model_name=""):
-    """Train binary XGBoost and evaluate."""
+def train_binary(train_df, test_df, label_col, feature_cols, use_gpu=False,
+                 model_name="", custom_params=None, num_boost_round=500,
+                 early_stopping_rounds=30):
+    """Train binary XGBoost and evaluate.
+    
+    Args:
+        custom_params: dict of XGBoost params to override defaults
+        num_boost_round: max number of boosting rounds
+        early_stopping_rounds: early stop patience
+    """
     X_train = train_df[feature_cols].values.astype(np.float32)
     y_train = train_df[label_col].values.astype(np.float32)
 
@@ -163,16 +205,22 @@ def train_binary(train_df, test_df, label_col, feature_cols, use_gpu=False, mode
         "verbosity": 1,
     }
 
+    # Apply custom params overrides (e.g., for direction model with different hypers)
+    if custom_params:
+        params.update(custom_params)
+
     print(f"\n  Training {model_name}...")
     print(f"    pos/neg: {int(n_pos)}/{int(n_neg)} (scale_pos_weight={scale_pos_weight:.2f})")
+    print(f"    params: eta={params['eta']}, max_depth={params['max_depth']}, "
+          f"rounds={num_boost_round}, early_stop={early_stopping_rounds}")
 
     evals = [(dtrain, "train"), (dtest, "test")]
     model = xgb.train(
         params,
         dtrain,
-        num_boost_round=500,
+        num_boost_round=num_boost_round,
         evals=evals,
-        early_stopping_rounds=30,
+        early_stopping_rounds=early_stopping_rounds,
         verbose_eval=50,
     )
 
@@ -303,17 +351,40 @@ def main():
 
         # 2. Train P(direction=LONG) classifier
         # Label: 1 = LONG (direction == 1), 0 = SHORT (direction == -1)
+        # Uses enhanced hyperparams + ALL_FEATURES (including dynamic temporal features)
+        # Dynamic features (price_return, atr_ratio, trend_persist, etc.) are critical
+        # for direction — they capture HOW the market is moving, not just static state.
         train_df_dir = train_df.copy()
         test_df_dir = test_df.copy()
         train_df_dir["label_long"] = (train_df_dir["direction"] == 1).astype(int)
         test_df_dir["label_long"] = (test_df_dir["direction"] == 1).astype(int)
+
+        # Direction model gets stronger hyperparameters:
+        # - Lower learning rate (0.03) for better generalization
+        # - Deeper trees (max_depth=8) to capture temporal feature interactions
+        # - More regularization (lambda=3, alpha=0.5) to prevent overfitting
+        # - More rounds (1500) with slower learning
+        # - Higher colsample (0.9) since dynamic features are all informative
+        dir_params = {
+            "eta": 0.03,
+            "max_depth": 8,
+            "subsample": 0.85,
+            "colsample_bytree": 0.9,
+            "min_child_weight": 10,
+            "lambda": 3.0,       # L2 regularization
+            "alpha": 0.5,        # L1 regularization
+            "gamma": 0.1,        # min split loss
+        }
 
         dir_model, dir_metrics = train_binary(
             train_df_dir, test_df_dir,
             label_col="label_long",
             feature_cols=ALL_FEATURES,
             use_gpu=args.gpu,
-            model_name=f"super_dir TF{tf}m"
+            model_name=f"super_dir TF{tf}m",
+            custom_params=dir_params,
+            num_boost_round=1500,
+            early_stopping_rounds=50,
         )
         save_model(dir_model, ALL_FEATURES, tf, "super_dir", dir_metrics, args.output_dir)
 

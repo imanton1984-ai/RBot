@@ -240,9 +240,83 @@ pub const DERIVED_FEATURES: &[&str] = &[
     "alligator_spread",    // (jaw - lips) / close * 100
 ];
 
-/// Total number of features = INDICATOR_FEATURES + DERIVED_FEATURES
+/// Lookback windows (in bars) for computing dynamic/temporal features.
+/// Used by both dataset builder and inference pipeline.
+pub const DYNAMIC_LOOKBACK_WINDOWS: &[usize] = &[3, 5, 10, 15];
+
+/// Dynamic (temporal) features — computed from lookback over candle history.
+/// These capture HOW indicators are CHANGING, not just their current value.
+/// Critical for direction prediction: a static snapshot doesn't tell if
+/// the trend is accelerating or decelerating.
+///
+/// Naming: `{metric}_lb{N}` where N is the lookback window in bars.
+///
+/// Keep in sync with Python trainer (DYNAMIC_FEATURES list).
+pub const DYNAMIC_FEATURES: &[&str] = &[
+    // --- Per-window features (8 metrics × 4 windows = 32) ---
+    // Window 3 bars
+    "price_return_lb3",         // (close[t] - close[t-3]) / close[t] * 100
+    "atr_ratio_lb3",            // atr[t] / atr[t-3] - 1 (vol expansion/contraction)
+    "rsi_slope_lb3",            // (rsi[t] - rsi[t-3]) / 100
+    "trend_persist_lb3",        // sum(trend[t-2..=t]) / 3 — trend consistency
+    "trend_short_persist_lb3",  // sum(trend_short[t-2..=t]) / 3
+    "adx_slope_lb3",            // (adx[t] - adx[t-3]) / 100
+    "macd_hist_slope_lb3",      // (macd_hist[t] - macd_hist[t-3]) / close * 1000
+    "ema20_direction_lb3",      // (ema20[t] - ema20[t-3]) / close * 100
+    // Window 5 bars
+    "price_return_lb5",
+    "atr_ratio_lb5",
+    "rsi_slope_lb5",
+    "trend_persist_lb5",
+    "trend_short_persist_lb5",
+    "adx_slope_lb5",
+    "macd_hist_slope_lb5",
+    "ema20_direction_lb5",
+    // Window 10 bars
+    "price_return_lb10",
+    "atr_ratio_lb10",
+    "rsi_slope_lb10",
+    "trend_persist_lb10",
+    "trend_short_persist_lb10",
+    "adx_slope_lb10",
+    "macd_hist_slope_lb10",
+    "ema20_direction_lb10",
+    // Window 15 bars
+    "price_return_lb15",
+    "atr_ratio_lb15",
+    "rsi_slope_lb15",
+    "trend_persist_lb15",
+    "trend_short_persist_lb15",
+    "adx_slope_lb15",
+    "macd_hist_slope_lb15",
+    "ema20_direction_lb15",
+    // --- Aggregate/cross-window features (6) ---
+    "supertrend_consistency",   // sum(supertrend_dir[t-14..=t]) / 15
+    "trend_alignment",          // trend[t] * trend_short[t]
+    "price_accel",              // (ret_5 - ret_5_prev) normalized — momentum acceleration
+    "volume_trend_ratio",       // mean_vol_recent_5 / mean_vol_prev_5
+    "ema_convergence_change",   // (ema20-ema50 now) - (ema20-ema50 5 bars ago) / close * 100
+    "high_low_pressure",        // bias of wicks over last 10 bars (buying/selling pressure)
+];
+
+/// Total number of features = INDICATOR(33) + DERIVED(19) + DYNAMIC(38) = 90
 pub fn total_feature_count() -> usize {
+    INDICATOR_FEATURES.len() + DERIVED_FEATURES.len() + DYNAMIC_FEATURES.len()
+}
+
+/// Number of static features (indicators + derived, no lookback needed)
+pub fn static_feature_count() -> usize {
     INDICATOR_FEATURES.len() + DERIVED_FEATURES.len()
+}
+
+/// Number of dynamic features (require candle history lookback)
+pub fn dynamic_feature_count() -> usize {
+    DYNAMIC_FEATURES.len()
+}
+
+/// Maximum lookback needed for dynamic features
+pub fn max_dynamic_lookback() -> usize {
+    *DYNAMIC_LOOKBACK_WINDOWS.last().unwrap_or(&15)
 }
 
 #[cfg(test)]
@@ -295,6 +369,10 @@ mod tests {
     fn test_feature_count() {
         assert_eq!(INDICATOR_FEATURES.len(), 33);
         assert_eq!(DERIVED_FEATURES.len(), 19);
-        assert_eq!(total_feature_count(), 52);
+        assert_eq!(DYNAMIC_FEATURES.len(), 38);
+        assert_eq!(static_feature_count(), 52);
+        assert_eq!(total_feature_count(), 90);
+        assert_eq!(dynamic_feature_count(), 38);
+        assert_eq!(max_dynamic_lookback(), 15);
     }
 }

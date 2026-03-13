@@ -27,3 +27,847 @@
 [2m2026-03-11T14:53:08.821617Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
 [2m2026-03-11T14:53:08.827792Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
 [2m2026-03-11T14:53:08.834781Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:23:11.626011Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:23:11.626331Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-03-13T00:23:11.626339Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:23:11.626420Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:23:11.626438Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(1, 0), (5, 0), (15, 0), (60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:23:11.626450Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Score ranges: 1m=[0.55, 0.89], 5m=[0.8, 0.9], 15m=[0.7, 0.9], 1h=[0.81, 1.9], 4h=[0.75, 1.9], 1d=[0.85, 1.9]
+[2m2026-03-13T00:23:11.626457Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Max drift: 0.25%
+[2m2026-03-13T00:23:11.626604Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-03-13T00:23:11.626626Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-03-13T00:23:11.626634Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=3x, trade_size=10 USDT (percent_depo), strategy=ml_super_entry
+[2m2026-03-13T00:23:11.626640Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m ⚠️ Trading mode is OFF — order_manager will run but NOT scan or trade.
+[2m2026-03-13T00:23:11.626646Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m   Click START TRADING in WebUI or set trading_mode = "auto" in order_manager.toml
+[2m2026-03-13T00:23:11.632314Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-03-13T00:23:14.404920Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 907.99 | Positions: 0
+[2m2026-03-13T00:23:14.413143Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-03-13T00:23:14.415360Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-03-13T00:23:15.560844Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 689 symbols
+[2m2026-03-13T00:23:15.561164Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 601 active symbols
+[2m2026-03-13T00:23:15.561182Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 601 symbols
+[2m2026-03-13T00:23:15.567771Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-03-13T00:23:15.567790Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-03-13T00:23:15.567799Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-03-13T00:23:15.567818Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:23:15.567831Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-03-13T00:23:15.567840Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:23:15.567908Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:23:15.568216Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-03-13T00:23:15.573618Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:23:15.580061Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:23:45.581757Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:23:45.582154Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:23:45.586655Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:24:15.587750Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:24:15.588130Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:24:15.590154Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:24:45.591795Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:24:45.592157Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:24:45.593507Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:25:15.594699Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:25:15.595063Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:25:15.596427Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:25:45.597848Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:25:45.603902Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:25:45.614081Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:26:15.615771Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:26:15.616157Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:26:15.619452Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:26:45.620680Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:26:45.624757Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:26:45.633454Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:27:15.634764Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:27:15.635117Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:27:15.638130Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:27:45.639790Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:27:45.644666Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:27:45.655239Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:28:15.656699Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:28:15.661312Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:28:15.671879Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:28:45.672782Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:28:45.673186Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:28:45.677181Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:29:15.678788Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:29:15.679233Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:29:15.682815Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:29:45.683590Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:29:45.683966Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:29:45.686693Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:30:15.687751Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:30:15.688156Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:30:15.689631Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:30:45.690567Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:30:45.690900Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:30:45.692156Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:31:15.693749Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:31:15.694108Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:31:15.695494Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:31:45.696862Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:31:45.697213Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 7), (240, 2), (1440, 1)]
+[2m2026-03-13T00:31:45.698561Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:32:03.559823Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:32:03.559845Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-03-13T00:32:03.559856Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:32:03.559924Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:32:03.559938Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(1, 0), (5, 0), (15, 0), (60, 9), (240, 0), (1440, 1)]
+[2m2026-03-13T00:32:03.559948Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Score ranges: 1m=[0.55, 0.89], 5m=[0.8, 0.9], 15m=[0.7, 0.9], 1h=[0.81, 1.9], 4h=[0.75, 1.9], 1d=[0.85, 1.9]
+[2m2026-03-13T00:32:03.559954Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Max drift: 0.25%
+[2m2026-03-13T00:32:03.559996Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-03-13T00:32:03.560007Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-03-13T00:32:03.560013Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=3x, trade_size=10 USDT (percent_depo), strategy=ml_super_entry
+[2m2026-03-13T00:32:03.560017Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m ⚠️ Trading mode is OFF — order_manager will run but NOT scan or trade.
+[2m2026-03-13T00:32:03.560022Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m   Click START TRADING in WebUI or set trading_mode = "auto" in order_manager.toml
+[2m2026-03-13T00:32:03.566062Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-03-13T00:32:04.808737Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 907.99 | Positions: 0
+[2m2026-03-13T00:32:04.817524Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-03-13T00:32:04.819471Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-03-13T00:32:06.075454Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 689 symbols
+[2m2026-03-13T00:32:06.075720Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 601 active symbols
+[2m2026-03-13T00:32:06.075735Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 601 symbols
+[2m2026-03-13T00:32:06.085228Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-03-13T00:32:06.085272Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-03-13T00:32:06.085281Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-03-13T00:32:06.085296Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:32:06.085305Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-03-13T00:32:06.085310Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-13T00:32:06.086070Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:32:06.087620Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-03-13T00:32:06.095844Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:32:06.104622Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:32:36.105815Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:32:36.107474Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:32:36.108838Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:33:06.110796Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:33:06.111096Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:33:06.112156Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:33:36.113288Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:33:36.113669Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:33:36.114688Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:34:06.115760Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:34:06.116106Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:34:06.117213Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:34:36.118845Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:34:36.119228Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:34:36.130165Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:35:06.131757Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:35:06.132159Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:35:06.139963Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:35:36.141720Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:35:36.142211Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:35:36.147522Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:36:06.148682Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:36:06.153107Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:36:06.164214Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:36:36.165772Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:36:36.167484Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:36:36.173622Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:37:06.173903Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:37:06.178215Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:37:06.186989Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:37:36.188603Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:37:36.190263Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:37:36.209375Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:38:06.210047Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:38:06.214560Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:38:06.233205Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:38:36.234778Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:38:36.236059Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:38:36.245120Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:39:06.246061Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:39:06.246411Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:39:06.249739Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:39:36.251068Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:39:36.251416Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:39:36.255726Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:40:06.256781Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:40:06.257159Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:40:06.260206Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:40:36.261668Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:40:36.262038Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:40:36.265920Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:41:06.267741Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:41:06.268126Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:41:06.271118Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:41:36.272557Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:41:36.272922Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:41:36.277849Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:42:06.279744Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:42:06.280098Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:42:06.283039Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:42:36.284745Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:42:36.285110Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9), (1440, 1)]
+[2m2026-03-13T00:42:36.290391Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 📡 SignalScanner: found 1 qualified signals across timeframes
+[2m2026-03-13T00:42:38.755664Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📐 percent_depo: total_wallet=908.19, available=907.99, 10.0% = 90.82 USDT per order
+[2m2026-03-13T00:42:38.756308Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 🔵 Opening API3USDT LONG position: price=0.2932, qty=929.20000000, SL=0.2740, TP=0.3224, score=1.049
+[2m2026-03-13T00:42:39.109996Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Set leverage for API3USDT to 3x
+[2m2026-03-13T00:42:39.460590Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Market order placed: API3USDT BUY NEW qty=929.20000000 → orderId=6525701050
+[2m2026-03-13T00:42:39.460625Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ⏳ Order 6525701050 returned status=NEW, avg_price=0.00, polling for FILLED...
+[2m2026-03-13T00:42:40.112249Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Order 6525701050 FILLED (poll #1, ~300ms): avg_price=0.29350000, qty=929.20000000
+[2m2026-03-13T00:42:40.112276Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m ✅ Entry filled: API3USDT BUY avg_price=0.29350000, qty=929.20000000, orderId=6525701050
+[2m2026-03-13T00:42:40.462986Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ API3USDT SL order rejected (-4120: unsupported order type). Client-side SL monitoring active via PositionTracker.
+[2m2026-03-13T00:42:40.813260Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m ⚠️ API3USDT TP order rejected (-4120: unsupported order type). Client-side TP monitoring active via PositionTracker.
+[2m2026-03-13T00:42:40.813296Z[0m [33m WARN[0m [2morder_manager::order_executor[0m[2m:[0m 🛡️ API3USDT SL=0.2740 / TP=0.3224 managed entirely client-side. PositionTracker checks every 2s. Bot downtime = unprotected!
+[2m2026-03-13T00:42:40.817839Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📊 Position #48 opened: API3USDT LONG entry=0.2935 SL=0.2740 TP=0.3224 tf=1440m candles_left=25
+[2m2026-03-13T00:42:40.824352Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: tracking new position #48 API3USDT LONG tf=1440m
+[2m2026-03-13T00:42:40.824373Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 After scanner: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.00 USDT
+[2m2026-03-13T00:42:42.808858Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.00 USDT
+[2m2026-03-13T00:42:45.165510Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.00 USDT
+[2m2026-03-13T00:42:47.533853Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.00 USDT
+[2m2026-03-13T00:42:49.891814Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.00 USDT
+[2m2026-03-13T00:42:52.250054Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.00 USDT
+[2m2026-03-13T00:42:54.608177Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.00 USDT
+[2m2026-03-13T00:42:56.964528Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.01 USDT
+[2m2026-03-13T00:42:59.320610Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.01 USDT
+[2m2026-03-13T00:43:01.676477Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.03 USDT
+[2m2026-03-13T00:43:04.035680Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T00:43:06.391078Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T00:43:08.747089Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T00:43:10.824972Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:43:10.825321Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:43:10.827748Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:43:11.103572Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T00:43:13.458677Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T00:43:15.813385Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T00:43:18.169726Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T00:43:20.532678Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.20 USDT
+[2m2026-03-13T00:43:22.888654Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:43:25.244484Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:43:27.600030Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.50 USDT
+[2m2026-03-13T00:43:29.956147Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.50 USDT
+[2m2026-03-13T00:43:32.312363Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:34.669264Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:37.024566Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:39.380585Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:40.829686Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:43:40.830321Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:43:40.832669Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:43:41.736831Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:44.092525Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:46.448965Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:48.804219Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.50 USDT
+[2m2026-03-13T00:43:51.160552Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.50 USDT
+[2m2026-03-13T00:43:53.516581Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:43:55.872208Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.39 USDT
+[2m2026-03-13T00:43:58.228018Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.39 USDT
+[2m2026-03-13T00:44:00.584448Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.40 USDT
+[2m2026-03-13T00:44:02.940165Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.28 USDT
+[2m2026-03-13T00:44:05.295686Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:07.651149Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:10.007054Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:10.833760Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:44:10.834117Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:44:10.836580Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:44:12.363209Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:14.719268Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:17.074807Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:19.430502Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:21.786731Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:24.143146Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:26.498194Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:28.854138Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:31.209976Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:33.566167Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:35.921513Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:38.278554Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:40.634189Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:40.837518Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:44:40.837923Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:44:40.840353Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:44:42.989438Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:45.356449Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:44:47.712275Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.26 USDT
+[2m2026-03-13T00:44:50.067266Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.38 USDT
+[2m2026-03-13T00:44:52.432493Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.40 USDT
+[2m2026-03-13T00:44:54.788199Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.40 USDT
+[2m2026-03-13T00:44:57.144749Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.40 USDT
+[2m2026-03-13T00:44:59.501325Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.42 USDT
+[2m2026-03-13T00:45:01.857332Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.42 USDT
+[2m2026-03-13T00:45:04.214039Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.44 USDT
+[2m2026-03-13T00:45:06.571995Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.44 USDT
+[2m2026-03-13T00:45:08.928470Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:10.841751Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:45:10.842137Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:45:10.844476Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:45:11.284281Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:13.639868Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:15.996242Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:18.352611Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:20.707942Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:23.063180Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:25.426962Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:27.783503Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.51 USDT
+[2m2026-03-13T00:45:30.139034Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:32.494578Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:45:34.850060Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:45:37.205629Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:45:39.561168Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:45:40.845749Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:45:40.846135Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:45:40.848402Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:45:41.917288Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:45:44.273132Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.71 USDT
+[2m2026-03-13T00:45:46.628822Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:45:48.984915Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:45:51.341890Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.76 USDT
+[2m2026-03-13T00:45:53.698372Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.76 USDT
+[2m2026-03-13T00:45:56.054065Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.76 USDT
+[2m2026-03-13T00:45:58.411106Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:46:00.767781Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:46:03.124102Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:46:05.479611Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.93 USDT
+[2m2026-03-13T00:46:07.774117Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.99 USDT
+[2m2026-03-13T00:46:10.074353Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:46:10.849766Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:46:10.850146Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:46:10.852588Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:46:12.368078Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.29 USDT
+[2m2026-03-13T00:46:14.662828Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:46:16.957138Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:46:19.250874Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:21.544780Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:23.839315Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:46:26.132728Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:46:28.426871Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:46:30.724708Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:46:33.019054Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:46:35.313239Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:46:37.606863Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:46:39.900243Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.29 USDT
+[2m2026-03-13T00:46:40.853759Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:46:40.854134Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:46:40.856506Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:46:42.194435Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:44.496140Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.12 USDT
+[2m2026-03-13T00:46:46.790106Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:49.083774Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:51.378206Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:53.672732Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:55.971910Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:46:58.265416Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:47:00.558835Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:47:02.852221Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:47:05.151824Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:47:07.446113Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.20 USDT
+[2m2026-03-13T00:47:09.739694Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.37 USDT
+[2m2026-03-13T00:47:10.857758Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:47:10.858102Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:47:10.860445Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:47:12.032856Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.38 USDT
+[2m2026-03-13T00:47:14.336007Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.38 USDT
+[2m2026-03-13T00:47:16.629518Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.42 USDT
+[2m2026-03-13T00:47:18.923293Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.43 USDT
+[2m2026-03-13T00:47:21.217741Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.48 USDT
+[2m2026-03-13T00:47:23.512297Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.48 USDT
+[2m2026-03-13T00:47:25.805801Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.48 USDT
+[2m2026-03-13T00:47:28.099833Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:30.396074Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:32.690184Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:34.984200Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:37.277841Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:39.571864Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:40.861766Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:47:40.862116Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:47:40.864547Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:47:41.865311Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:44.159290Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:46.452677Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:48.746019Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:47:51.039678Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.16 USDT
+[2m2026-03-13T00:47:53.333411Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.14 USDT
+[2m2026-03-13T00:47:55.628461Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.14 USDT
+[2m2026-03-13T00:47:57.921376Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.17 USDT
+[2m2026-03-13T00:48:00.215173Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.36 USDT
+[2m2026-03-13T00:48:02.508205Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.36 USDT
+[2m2026-03-13T00:48:04.802773Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:48:07.097274Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:48:09.390692Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:48:10.865311Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:48:10.865722Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:48:10.868093Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:48:11.692227Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:48:13.988543Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:48:16.306055Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:48:18.600069Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:48:20.894202Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:48:23.187514Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:48:25.480939Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.28 USDT
+[2m2026-03-13T00:48:27.774957Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.28 USDT
+[2m2026-03-13T00:48:30.068687Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.28 USDT
+[2m2026-03-13T00:48:32.361995Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.23 USDT
+[2m2026-03-13T00:48:34.657376Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.23 USDT
+[2m2026-03-13T00:48:36.951165Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.24 USDT
+[2m2026-03-13T00:48:39.245829Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.24 USDT
+[2m2026-03-13T00:48:40.869551Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:48:40.869920Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:48:40.872239Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:48:41.540000Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:43.833621Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:46.127214Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:48.421145Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:50.714942Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:53.012801Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:55.306643Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:57.600632Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:48:59.893871Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:49:02.187492Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:49:04.481246Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:49:06.774983Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.25 USDT
+[2m2026-03-13T00:49:09.068559Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:49:10.873756Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:49:10.874176Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:49:10.876397Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:49:11.362448Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.27 USDT
+[2m2026-03-13T00:49:13.656021Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.29 USDT
+[2m2026-03-13T00:49:15.949220Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.29 USDT
+[2m2026-03-13T00:49:18.243389Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:49:20.536632Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.32 USDT
+[2m2026-03-13T00:49:22.830060Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.32 USDT
+[2m2026-03-13T00:49:25.124299Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:49:27.417623Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:49:29.711045Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:49:32.004972Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:49:34.298651Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:49:36.591490Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.34 USDT
+[2m2026-03-13T00:49:38.885132Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:49:40.877273Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:49:40.877651Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:49:40.880068Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:49:41.178532Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:49:43.471819Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:49:45.766397Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:49:48.060367Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:49:50.354162Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.35 USDT
+[2m2026-03-13T00:49:52.648075Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.47 USDT
+[2m2026-03-13T00:49:54.941862Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.47 USDT
+[2m2026-03-13T00:49:57.234876Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:49:59.530475Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.49 USDT
+[2m2026-03-13T00:50:01.823930Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:04.117088Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:06.410681Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.49 USDT
+[2m2026-03-13T00:50:08.715054Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.48 USDT
+[2m2026-03-13T00:50:10.881025Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:50:10.881400Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:50:10.883673Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:50:11.009434Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:13.303073Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:15.596267Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:17.889483Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:20.182982Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:22.476843Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:24.770042Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:27.063993Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:29.357366Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.38 USDT
+[2m2026-03-13T00:50:31.650871Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.38 USDT
+[2m2026-03-13T00:50:33.945112Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.26 USDT
+[2m2026-03-13T00:50:36.239760Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.26 USDT
+[2m2026-03-13T00:50:38.534708Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.26 USDT
+[2m2026-03-13T00:50:40.828745Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.26 USDT
+[2m2026-03-13T00:50:40.883961Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:50:40.884274Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:50:40.886640Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:50:43.122660Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.26 USDT
+[2m2026-03-13T00:50:45.415911Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:47.710234Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:50.003985Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:50:52.297363Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.29 USDT
+[2m2026-03-13T00:50:54.593406Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:50:56.887235Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.28 USDT
+[2m2026-03-13T00:50:59.180615Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.28 USDT
+[2m2026-03-13T00:51:01.476485Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:51:03.769804Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:51:06.062804Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:51:08.356878Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.30 USDT
+[2m2026-03-13T00:51:10.650462Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.28 USDT
+[2m2026-03-13T00:51:10.887704Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:51:10.888120Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:51:10.890636Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:51:12.944421Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.28 USDT
+[2m2026-03-13T00:51:15.237060Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.40 USDT
+[2m2026-03-13T00:51:17.530435Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.40 USDT
+[2m2026-03-13T00:51:19.824649Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.40 USDT
+[2m2026-03-13T00:51:22.117943Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:51:24.411569Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:51:26.704732Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:51:28.998395Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.47 USDT
+[2m2026-03-13T00:51:31.291944Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.47 USDT
+[2m2026-03-13T00:51:33.585709Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.48 USDT
+[2m2026-03-13T00:51:35.880191Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.48 USDT
+[2m2026-03-13T00:51:38.184704Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.51 USDT
+[2m2026-03-13T00:51:40.477884Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.51 USDT
+[2m2026-03-13T00:51:40.891395Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:51:40.891783Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:51:40.894205Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:51:42.772510Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.51 USDT
+[2m2026-03-13T00:51:45.065354Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.54 USDT
+[2m2026-03-13T00:51:47.358971Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.54 USDT
+[2m2026-03-13T00:51:49.652596Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.56 USDT
+[2m2026-03-13T00:51:51.945276Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.56 USDT
+[2m2026-03-13T00:51:54.240136Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.58 USDT
+[2m2026-03-13T00:51:56.533991Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.58 USDT
+[2m2026-03-13T00:51:58.827233Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.60 USDT
+[2m2026-03-13T00:52:01.120813Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.60 USDT
+[2m2026-03-13T00:52:03.415286Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.58 USDT
+[2m2026-03-13T00:52:05.709072Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.58 USDT
+[2m2026-03-13T00:52:08.003755Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.58 USDT
+[2m2026-03-13T00:52:10.298330Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.58 USDT
+[2m2026-03-13T00:52:10.895754Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:52:10.896175Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:52:10.898477Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:52:12.591872Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.59 USDT
+[2m2026-03-13T00:52:14.886559Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:17.180525Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:19.473970Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:21.768744Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:24.063227Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:26.356740Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:28.650330Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:30.944156Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.45 USDT
+[2m2026-03-13T00:52:33.237790Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.45 USDT
+[2m2026-03-13T00:52:35.533656Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.45 USDT
+[2m2026-03-13T00:52:37.829052Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.46 USDT
+[2m2026-03-13T00:52:40.122927Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.46 USDT
+[2m2026-03-13T00:52:40.899754Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:52:40.900135Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:52:40.902503Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:52:42.417252Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.45 USDT
+[2m2026-03-13T00:52:44.711054Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.45 USDT
+[2m2026-03-13T00:52:47.004628Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.44 USDT
+[2m2026-03-13T00:52:49.297029Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.44 USDT
+[2m2026-03-13T00:52:51.591066Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.44 USDT
+[2m2026-03-13T00:52:53.885014Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.46 USDT
+[2m2026-03-13T00:52:56.180404Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.39 USDT
+[2m2026-03-13T00:52:58.473349Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.34 USDT
+[2m2026-03-13T00:53:00.766661Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.34 USDT
+[2m2026-03-13T00:53:03.060107Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.31 USDT
+[2m2026-03-13T00:53:05.353794Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.44 USDT
+[2m2026-03-13T00:53:07.647376Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.44 USDT
+[2m2026-03-13T00:53:09.940273Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.45 USDT
+[2m2026-03-13T00:53:10.903754Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:53:10.904197Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:53:10.906725Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:53:12.234394Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:53:14.528062Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:53:16.821529Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:53:19.115191Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.21 USDT
+[2m2026-03-13T00:53:21.408535Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:23.701860Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.12 USDT
+[2m2026-03-13T00:53:25.996146Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.12 USDT
+[2m2026-03-13T00:53:28.289823Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:30.583578Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:32.878102Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:35.174267Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:37.467298Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:39.760975Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:40.907757Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:53:40.908157Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:53:40.911293Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:53:42.054829Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -1.02 USDT
+[2m2026-03-13T00:53:44.349303Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:53:46.642509Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:53:48.935829Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:53:51.229997Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.89 USDT
+[2m2026-03-13T00:53:53.523989Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.89 USDT
+[2m2026-03-13T00:53:55.818083Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.89 USDT
+[2m2026-03-13T00:53:58.111754Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:54:00.405364Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:54:02.699738Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:54:04.993993Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:54:07.287181Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:54:09.581003Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:54:10.912439Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:54:10.912809Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:54:10.915769Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:54:11.876430Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:54:14.170571Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:54:16.464077Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:54:18.757534Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:54:21.050977Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:54:23.346960Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.83 USDT
+[2m2026-03-13T00:54:25.644390Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.83 USDT
+[2m2026-03-13T00:54:27.938471Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.83 USDT
+[2m2026-03-13T00:54:30.233727Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.82 USDT
+[2m2026-03-13T00:54:32.527873Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:54:34.822651Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.41 USDT
+[2m2026-03-13T00:54:37.115306Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.41 USDT
+[2m2026-03-13T00:54:39.408692Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.39 USDT
+[2m2026-03-13T00:54:40.917294Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:54:40.917688Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:54:40.919916Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:54:41.701813Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.39 USDT
+[2m2026-03-13T00:54:43.996799Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.39 USDT
+[2m2026-03-13T00:54:46.291056Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.47 USDT
+[2m2026-03-13T00:54:48.584562Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.44 USDT
+[2m2026-03-13T00:54:50.878224Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:54:53.171053Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.85 USDT
+[2m2026-03-13T00:54:55.464843Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.93 USDT
+[2m2026-03-13T00:54:57.760402Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.93 USDT
+[2m2026-03-13T00:55:00.054840Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:55:02.353113Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:04.646196Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:06.939826Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:09.234107Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:55:10.921752Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:55:10.922109Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:55:10.924407Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:55:11.528366Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:55:13.822123Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:55:16.116222Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:18.410136Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:55:20.707612Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.84 USDT
+[2m2026-03-13T00:55:23.000398Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.82 USDT
+[2m2026-03-13T00:55:25.293476Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.82 USDT
+[2m2026-03-13T00:55:27.587176Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:29.881394Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:32.176650Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:34.472619Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:36.765893Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:39.059545Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:40.924885Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:55:40.925253Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:55:40.927519Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:55:41.352809Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:43.646422Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:55:45.940088Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:55:48.235388Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:55:50.528002Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:55:52.822192Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:55:55.118868Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:55:57.413195Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:55:59.706534Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:56:02.000248Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:56:04.294054Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:56:06.588240Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:56:08.882525Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:56:10.927948Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:56:10.928349Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:56:10.930736Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:56:11.175901Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.64 USDT
+[2m2026-03-13T00:56:13.470295Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.52 USDT
+[2m2026-03-13T00:56:15.764087Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.49 USDT
+[2m2026-03-13T00:56:18.057780Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.49 USDT
+[2m2026-03-13T00:56:20.352351Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.49 USDT
+[2m2026-03-13T00:56:22.646093Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.49 USDT
+[2m2026-03-13T00:56:24.940408Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.49 USDT
+[2m2026-03-13T00:56:27.235834Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.52 USDT
+[2m2026-03-13T00:56:29.530213Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.47 USDT
+[2m2026-03-13T00:56:31.823300Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.49 USDT
+[2m2026-03-13T00:56:34.117275Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.49 USDT
+[2m2026-03-13T00:56:36.410772Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.52 USDT
+[2m2026-03-13T00:56:38.705039Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.52 USDT
+[2m2026-03-13T00:56:40.932507Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:56:40.932867Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:56:40.935249Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:56:40.998898Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.52 USDT
+[2m2026-03-13T00:56:43.292847Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.76 USDT
+[2m2026-03-13T00:56:45.587034Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.76 USDT
+[2m2026-03-13T00:56:47.883560Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:56:50.179109Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:56:52.473030Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:56:54.773389Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:56:57.066817Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:56:59.360670Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:01.654974Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:03.956176Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:06.257998Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:08.551387Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:10.845273Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:10.936477Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:57:10.936879Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:57:10.939204Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:57:13.139052Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:15.432565Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:57:17.725776Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.73 USDT
+[2m2026-03-13T00:57:20.019986Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.59 USDT
+[2m2026-03-13T00:57:22.314334Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.59 USDT
+[2m2026-03-13T00:57:24.608185Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.61 USDT
+[2m2026-03-13T00:57:26.901892Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.61 USDT
+[2m2026-03-13T00:57:29.195277Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.61 USDT
+[2m2026-03-13T00:57:31.488980Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.64 USDT
+[2m2026-03-13T00:57:33.782863Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.64 USDT
+[2m2026-03-13T00:57:36.077332Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.67 USDT
+[2m2026-03-13T00:57:38.370771Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.67 USDT
+[2m2026-03-13T00:57:40.665022Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.71 USDT
+[2m2026-03-13T00:57:40.940409Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:57:40.940778Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:57:40.943984Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:57:42.958940Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.71 USDT
+[2m2026-03-13T00:57:45.252637Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.75 USDT
+[2m2026-03-13T00:57:47.545841Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.75 USDT
+[2m2026-03-13T00:57:49.839695Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.75 USDT
+[2m2026-03-13T00:57:52.133023Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.80 USDT
+[2m2026-03-13T00:57:54.427123Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.74 USDT
+[2m2026-03-13T00:57:56.720613Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:57:59.014055Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:58:01.308200Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:58:03.601657Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.65 USDT
+[2m2026-03-13T00:58:05.894970Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:58:08.188447Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.56 USDT
+[2m2026-03-13T00:58:10.481539Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:58:10.945749Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:58:10.946078Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:58:10.948370Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:58:12.774079Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:58:15.077258Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:58:17.370707Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:58:19.664058Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.37 USDT
+[2m2026-03-13T00:58:21.964931Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.37 USDT
+[2m2026-03-13T00:58:24.259017Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:58:26.552717Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:58:28.846261Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.46 USDT
+[2m2026-03-13T00:58:31.139573Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.44 USDT
+[2m2026-03-13T00:58:33.446874Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.42 USDT
+[2m2026-03-13T00:58:35.739930Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.42 USDT
+[2m2026-03-13T00:58:38.034008Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.42 USDT
+[2m2026-03-13T00:58:40.327544Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.42 USDT
+[2m2026-03-13T00:58:40.949324Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:58:40.949725Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:58:40.952008Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:58:42.620488Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.42 USDT
+[2m2026-03-13T00:58:44.913766Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.28 USDT
+[2m2026-03-13T00:58:47.208400Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.25 USDT
+[2m2026-03-13T00:58:49.502272Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.25 USDT
+[2m2026-03-13T00:58:51.795896Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.25 USDT
+[2m2026-03-13T00:58:54.089049Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.24 USDT
+[2m2026-03-13T00:58:56.382636Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.25 USDT
+[2m2026-03-13T00:58:58.675838Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.25 USDT
+[2m2026-03-13T00:59:00.968932Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.25 USDT
+[2m2026-03-13T00:59:03.262522Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.25 USDT
+[2m2026-03-13T00:59:05.556018Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.18 USDT
+[2m2026-03-13T00:59:07.850198Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.18 USDT
+[2m2026-03-13T00:59:10.144272Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.18 USDT
+[2m2026-03-13T00:59:10.953237Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:59:10.953643Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:59:10.955959Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:59:12.437971Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.17 USDT
+[2m2026-03-13T00:59:14.731697Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.16 USDT
+[2m2026-03-13T00:59:17.025113Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.17 USDT
+[2m2026-03-13T00:59:19.319070Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.17 USDT
+[2m2026-03-13T00:59:21.614043Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:59:23.907571Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:59:26.201130Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.19 USDT
+[2m2026-03-13T00:59:28.494637Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:30.788059Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:33.082057Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:35.375582Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:37.668435Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:39.966343Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:40.957761Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T00:59:40.958164Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T00:59:40.960428Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T00:59:42.260114Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:44.553858Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:46.850197Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.12 USDT
+[2m2026-03-13T00:59:49.144073Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:51.438028Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.09 USDT
+[2m2026-03-13T00:59:53.731661Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.08 USDT
+[2m2026-03-13T00:59:56.024402Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.08 USDT
+[2m2026-03-13T00:59:58.317855Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.08 USDT
+[2m2026-03-13T01:00:00.620545Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.08 USDT
+[2m2026-03-13T01:00:02.913944Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: -0.08 USDT
+[2m2026-03-13T01:00:05.207582Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T01:00:07.500590Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T01:00:09.793746Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.09 USDT
+[2m2026-03-13T01:00:10.961771Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T01:00:10.962164Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T01:00:10.964440Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T01:00:12.087712Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.34 USDT
+[2m2026-03-13T01:00:14.381333Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.60 USDT
+[2m2026-03-13T01:00:16.676487Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.60 USDT
+[2m2026-03-13T01:00:18.969966Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.60 USDT
+[2m2026-03-13T01:00:21.264097Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.59 USDT
+[2m2026-03-13T01:00:23.557192Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.59 USDT
+[2m2026-03-13T01:00:25.851276Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.58 USDT
+[2m2026-03-13T01:00:28.146329Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.58 USDT
+[2m2026-03-13T01:00:30.439725Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.56 USDT
+[2m2026-03-13T01:00:32.733595Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.56 USDT
+[2m2026-03-13T01:00:35.027023Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.56 USDT
+[2m2026-03-13T01:00:37.320750Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.65 USDT
+[2m2026-03-13T01:00:39.615311Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.65 USDT
+[2m2026-03-13T01:00:40.965800Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T01:00:40.966162Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T01:00:40.968531Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T01:00:41.908714Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.65 USDT
+[2m2026-03-13T01:00:44.203055Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.65 USDT
+[2m2026-03-13T01:00:46.497090Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.56 USDT
+[2m2026-03-13T01:00:48.790553Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.56 USDT
+[2m2026-03-13T01:00:51.084803Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.56 USDT
+[2m2026-03-13T01:00:53.378906Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.65 USDT
+[2m2026-03-13T01:00:55.679848Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.78 USDT
+[2m2026-03-13T01:00:57.973518Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:00.267034Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:02.561709Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:04.856574Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:07.149768Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:09.444153Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:10.969760Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T01:01:10.970187Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T01:01:10.972450Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T01:01:11.738023Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:14.032244Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:16.325974Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.74 USDT
+[2m2026-03-13T01:01:18.619637Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.77 USDT
+[2m2026-03-13T01:01:20.913412Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.77 USDT
+[2m2026-03-13T01:01:23.209858Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.79 USDT
+[2m2026-03-13T01:01:25.503743Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.79 USDT
+[2m2026-03-13T01:01:27.797382Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.79 USDT
+[2m2026-03-13T01:01:30.090848Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.82 USDT
+[2m2026-03-13T01:01:32.385373Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 1.00 USDT
+[2m2026-03-13T01:01:34.679432Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.94 USDT
+[2m2026-03-13T01:01:36.973746Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.93 USDT
+[2m2026-03-13T01:01:39.268328Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.89 USDT
+[2m2026-03-13T01:01:40.973765Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T01:01:40.974144Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T01:01:40.976376Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T01:01:41.562255Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.89 USDT
+[2m2026-03-13T01:01:43.855966Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.89 USDT
+[2m2026-03-13T01:01:46.150672Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.86 USDT
+[2m2026-03-13T01:01:48.444147Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.86 USDT
+[2m2026-03-13T01:01:50.738278Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.81 USDT
+[2m2026-03-13T01:01:53.031601Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.81 USDT
+[2m2026-03-13T01:01:55.325109Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.78 USDT
+[2m2026-03-13T01:01:57.619027Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.78 USDT
+[2m2026-03-13T01:01:59.913489Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.78 USDT
+[2m2026-03-13T01:02:02.207478Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.77 USDT
+[2m2026-03-13T01:02:04.501114Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.77 USDT
+[2m2026-03-13T01:02:06.814574Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.77 USDT
+[2m2026-03-13T01:02:09.114131Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.77 USDT
+[2m2026-03-13T01:02:10.977135Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T01:02:10.978809Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T01:02:10.981358Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T01:02:11.409700Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.76 USDT
+[2m2026-03-13T01:02:13.704475Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.76 USDT
+[2m2026-03-13T01:02:15.999546Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.76 USDT
+[2m2026-03-13T01:02:18.294287Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.75 USDT
+[2m2026-03-13T01:02:20.587686Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.71 USDT
+[2m2026-03-13T01:02:22.880474Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.70 USDT
+[2m2026-03-13T01:02:25.173929Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.70 USDT
+[2m2026-03-13T01:02:27.467809Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.69 USDT
+[2m2026-03-13T01:02:29.761070Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.69 USDT
+[2m2026-03-13T01:02:32.055124Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.69 USDT
+[2m2026-03-13T01:02:34.349657Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.68 USDT
+[2m2026-03-13T01:02:36.644792Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.69 USDT
+[2m2026-03-13T01:02:38.937811Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.67 USDT
+[2m2026-03-13T01:02:40.982069Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T01:02:40.982464Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T01:02:40.983120Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T01:02:41.231779Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.67 USDT
+[2m2026-03-13T01:02:43.525304Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.64 USDT
+[2m2026-03-13T01:02:45.819007Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.64 USDT
+[2m2026-03-13T01:02:48.112456Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.64 USDT
+[2m2026-03-13T01:02:50.406050Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.55 USDT
+[2m2026-03-13T01:02:52.699575Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.55 USDT
+[2m2026-03-13T01:02:54.993076Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.54 USDT
+[2m2026-03-13T01:02:57.286620Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.51 USDT
+[2m2026-03-13T01:02:59.580830Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.48 USDT
+[2m2026-03-13T01:03:01.875286Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.48 USDT
+[2m2026-03-13T01:03:04.169383Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.48 USDT
+[2m2026-03-13T01:03:06.463720Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.46 USDT
+[2m2026-03-13T01:03:08.757781Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.52 USDT
+[2m2026-03-13T01:03:10.984023Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-13T01:03:10.984390Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(60, 9)]
+[2m2026-03-13T01:03:10.984990Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📡 Scanner: no qualified signals found
+[2m2026-03-13T01:03:11.052927Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.50 USDT
+[2m2026-03-13T01:03:13.346864Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.50 USDT
+[2m2026-03-13T01:03:15.641272Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Tracker: Open: 1 (1h=0, 4h=0, 15m=0) | Total unPnL: 0.50 USDT

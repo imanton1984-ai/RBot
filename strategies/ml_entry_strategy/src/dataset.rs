@@ -5,7 +5,7 @@
 // For each (pair, timeframe):
 //   - First 300 candles are used as warmup for indicator computation
 //   - From candle t=301 to t=980, create training examples:
-//     * Features: indicator values at candle t
+//     * Features: indicator values at candle t + dynamic temporal features
 //     * Labels:
 //       - max_up_move_pct, max_down_move_pct (over next 20 candles)
 //       - direction (LONG if up >= down, else SHORT)
@@ -13,6 +13,14 @@
 //       - is_super (magnitude >= TF_TARGET_MOVE_PCT)
 //
 // The dataset is saved as CSV for Python trainer consumption.
+//
+// DYNAMIC FEATURES (v2):
+//   For direction prediction, static indicator snapshots are insufficient
+//   (AUC ~0.50 = random). We add temporal/lookback features that capture
+//   HOW indicators are changing over time:
+//   - price_return, atr_ratio, rsi_slope, trend persistence, etc.
+//   - Lookback windows: 3, 5, 10, 15 bars
+//   - Plus aggregate features: supertrend consistency, trend alignment, etc.
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -20,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::io::Write;
 
-use crate::config::INDICATOR_FEATURES;
+use crate::config::{INDICATOR_FEATURES, DYNAMIC_LOOKBACK_WINDOWS};
 
 /// A single candle row with indicators from the database
 #[derive(Debug, Clone)]
@@ -156,6 +164,154 @@ pub struct SuperEntryExample {
     pub future_return_20: f64, // close[t+20] / close[t] - 1 (in %)
 }
 
+/// Compute dynamic/temporal features for candle at index `t` using lookback
+/// over the candle history. These features capture HOW indicators are changing,
+/// which is critical for direction prediction.
+///
+/// Returns a Vec<f64> of exactly `crate::config::dynamic_feature_count()` elements.
+///
+/// The lookback windows are defined in `DYNAMIC_LOOKBACK_WINDOWS` (3, 5, 10, 15).
+/// If `t` < max_lookback, returns zeros (safe default for warmup candles).
+///
+/// # Feature groups (per window N):
+/// 1. price_return — directional price momentum
+/// 2. atr_ratio — volatility expansion/contraction
+/// 3. rsi_slope — oscillator momentum
+/// 4. trend_persist — trend direction consistency
+/// 5. trend_short_persist — short-term trend consistency
+/// 6. adx_slope — trend strength change
+/// 7. macd_hist_slope — MACD momentum
+/// 8. ema20_direction — moving average slope
+///
+/// # Aggregate features:
+/// 9. supertrend_consistency — directional conviction over 15 bars
+/// 10. trend_alignment — agreement between long/short trends
+/// 11. price_accel — momentum acceleration (2nd derivative)
+/// 12. volume_trend_ratio — recent vs older volume activity
+/// 13. ema_convergence_change — EMA20/50 convergence/divergence shift
+/// 14. high_low_pressure — wick bias (buying vs selling pressure)
+pub fn compute_dynamic_features(candles: &[CandleWithIndicators], t: usize) -> Vec<f64> {
+    let n_dynamic = crate::config::dynamic_feature_count();
+    let max_lb = crate::config::max_dynamic_lookback();
+
+    // Not enough history — return zeros
+    if t < max_lb || t >= candles.len() {
+        return vec![0.0; n_dynamic];
+    }
+
+    let cur = &candles[t];
+    let close = cur.close;
+
+    // Safe division helper
+    let safe_div = |a: f64, b: f64| -> f64 {
+        if b.abs() > 1e-12 { a / b } else { 0.0 }
+    };
+
+    let mut feats = Vec::with_capacity(n_dynamic);
+
+    // --- Per-window features (8 per window × 4 windows = 32) ---
+    for &lb in DYNAMIC_LOOKBACK_WINDOWS {
+        let prev = &candles[t - lb];
+
+        // 1. Price return (%)
+        feats.push(safe_div(close - prev.close, close) * 100.0);
+
+        // 2. ATR ratio (expansion/contraction)
+        feats.push(safe_div(cur.atr, prev.atr) - 1.0);
+
+        // 3. RSI slope (normalized)
+        feats.push((cur.rsi - prev.rsi) / 100.0);
+
+        // 4. Trend persistence: average of trend values over last lb bars
+        let trend_sum: f64 = (0..lb)
+            .map(|j| candles[t - j].trend)
+            .sum();
+        feats.push(trend_sum / lb as f64);
+
+        // 5. Trend short persistence: average of trend_short over last lb bars
+        let trend_short_sum: f64 = (0..lb)
+            .map(|j| candles[t - j].trend_short)
+            .sum();
+        feats.push(trend_short_sum / lb as f64);
+
+        // 6. ADX slope (normalized)
+        feats.push((cur.adx - prev.adx) / 100.0);
+
+        // 7. MACD histogram slope (normalized by price)
+        feats.push(safe_div(cur.macd_hist - prev.macd_hist, close) * 1000.0);
+
+        // 8. EMA20 direction (slope normalized by price)
+        feats.push(safe_div(cur.ema_20 - prev.ema_20, close) * 100.0);
+    }
+
+    // --- Aggregate features (6) ---
+
+    // 9. Supertrend consistency over 15 bars: how often supertrend_dir agrees
+    let st_sum: f64 = (0..15.min(t + 1))
+        .map(|j| candles[t - j].supertrend_dir)
+        .sum();
+    feats.push(st_sum / 15.0);
+
+    // 10. Trend alignment: do long-term and short-term trends agree?
+    feats.push(cur.trend * cur.trend_short);
+
+    // 11. Price acceleration: momentum[0..5] vs momentum[5..10]
+    //     = (ret_recent_5) - (ret_prev_5), normalized
+    let ret_recent_5 = if t >= 5 {
+        safe_div(close - candles[t - 5].close, close) * 100.0
+    } else {
+        0.0
+    };
+    let ret_prev_5 = if t >= 10 {
+        safe_div(candles[t - 5].close - candles[t - 10].close, candles[t - 5].close) * 100.0
+    } else {
+        0.0
+    };
+    feats.push(ret_recent_5 - ret_prev_5);
+
+    // 12. Volume trend ratio: average vol of recent 5 vs previous 5 bars
+    let vol_recent: f64 = (0..5.min(t + 1))
+        .map(|j| candles[t - j].volume)
+        .sum::<f64>()
+        / 5.0f64.min((t + 1) as f64);
+    let vol_prev: f64 = if t >= 5 {
+        (5..10.min(t + 1))
+            .map(|j| candles[t - j].volume)
+            .sum::<f64>()
+            / 5.0f64.min((t - 4) as f64)
+    } else {
+        vol_recent
+    };
+    feats.push(safe_div(vol_recent, vol_prev));
+
+    // 13. EMA convergence change: (ema20-ema50) change over 5 bars
+    let ema_gap_now = cur.ema_20 - cur.ema_50;
+    let ema_gap_prev = if t >= 5 {
+        candles[t - 5].ema_20 - candles[t - 5].ema_50
+    } else {
+        ema_gap_now
+    };
+    feats.push(safe_div(ema_gap_now - ema_gap_prev, close) * 100.0);
+
+    // 14. High-low pressure: are wicks biased up or down over last 10 bars?
+    //     Positive = buying pressure (lower wicks larger), Negative = selling pressure
+    let mut pressure_sum = 0.0;
+    let pressure_window = 10.min(t + 1);
+    for j in 0..pressure_window {
+        let c = &candles[t - j];
+        let upper_wick = c.high - c.close.max(c.open);
+        let lower_wick = c.close.min(c.open) - c.low;
+        let atr_safe = if c.atr > 1e-12 { c.atr } else { 1.0 };
+        // Positive = lower wick bigger = buying support
+        pressure_sum += safe_div(lower_wick - upper_wick, atr_safe);
+    }
+    feats.push(pressure_sum / pressure_window as f64);
+
+    debug_assert_eq!(feats.len(), n_dynamic,
+        "Dynamic feature count mismatch: expected {}, got {}", n_dynamic, feats.len());
+    feats
+}
+
 /// Build labels for a time series of candles starting from `start_idx`
 /// with `lookahead` bars look-forward.
 ///
@@ -282,7 +438,9 @@ pub fn build_labels(
         let future_return_20 =
             (candles[future_close_idx].close - entry_price) / entry_price * 100.0;
 
-        let features = candles[t].full_features();
+        // Static features (indicators + derived) + dynamic temporal features
+        let mut features = candles[t].full_features();
+        features.extend(compute_dynamic_features(candles, t));
 
         examples.push(SuperEntryExample {
             symbol: candles[t].symbol.clone(),
@@ -629,10 +787,11 @@ pub fn export_dataset_csv(
     Ok(())
 }
 
-/// Get all feature names (indicator + derived) in order
+/// Get all feature names (indicator + derived + dynamic) in order
 pub fn all_feature_names() -> Vec<&'static str> {
     let mut names: Vec<&str> = INDICATOR_FEATURES.to_vec();
     names.extend_from_slice(crate::config::DERIVED_FEATURES);
+    names.extend_from_slice(crate::config::DYNAMIC_FEATURES);
     names
 }
 
@@ -727,7 +886,42 @@ mod tests {
     #[test]
     fn test_feature_count() {
         let candle = make_test_candle(100.0, 101.0, 99.0);
-        let features = candle.full_features();
-        assert_eq!(features.len(), crate::config::total_feature_count());
+        let static_features = candle.full_features();
+        // Static features (indicators + derived) = 52
+        assert_eq!(static_features.len(), crate::config::static_feature_count());
+        // Total with dynamic = 90
+        assert_eq!(
+            static_features.len() + crate::config::dynamic_feature_count(),
+            crate::config::total_feature_count()
+        );
+    }
+
+    #[test]
+    fn test_dynamic_features_basic() {
+        // Create 20 candles with default values
+        let candles: Vec<CandleWithIndicators> = (0..20)
+            .map(|_| make_test_candle(100.0, 101.0, 99.0))
+            .collect();
+
+        // At index 15 (enough lookback=15), dynamic features should be computable
+        let dyn_feats = compute_dynamic_features(&candles, 15);
+        assert_eq!(dyn_feats.len(), crate::config::dynamic_feature_count());
+
+        // With identical candles, most deltas should be 0 or near-0
+        for &v in &dyn_feats {
+            assert!(v.is_finite(), "Dynamic feature is not finite: {}", v);
+        }
+    }
+
+    #[test]
+    fn test_dynamic_features_not_enough_lookback() {
+        let candles: Vec<CandleWithIndicators> = (0..10)
+            .map(|_| make_test_candle(100.0, 101.0, 99.0))
+            .collect();
+
+        // Index 5 has less than 15 bars lookback — should return zeros
+        let dyn_feats = compute_dynamic_features(&candles, 5);
+        assert_eq!(dyn_feats.len(), crate::config::dynamic_feature_count());
+        assert!(dyn_feats.iter().all(|&v| v == 0.0), "Expected all zeros for insufficient lookback");
     }
 }

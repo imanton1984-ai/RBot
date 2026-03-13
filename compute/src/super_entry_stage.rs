@@ -111,7 +111,8 @@ impl SuperEntryStage {
 
     /// Run the stage — consumes feature snapshots and generates signals.
     ///
-    /// For realtime: processes single candles via process_single().
+    /// For realtime: buffers last 15 candles per (symbol,tf) for dynamic features,
+    ///   then processes via process_single_with_context().
     /// For history: buffers candles per (symbol, tf) and batch-processes.
     /// When channel closes, flushes ALL remaining buffers.
     pub async fn run(mut self) -> Result<()> {
@@ -121,9 +122,15 @@ impl SuperEntryStage {
         self.preload_symbol_ids().await;
 
         // Buffer candles per (symbol, tf_minutes) for batch processing
-        let mut candle_buffers: HashMap<(String, i32), Vec<CandleWithIndicators>> = 
+        let mut candle_buffers: HashMap<(String, i32), Vec<CandleWithIndicators>> =
             HashMap::new();
         
+        // Rolling context buffer for realtime (last ~20 candles per symbol/tf)
+        // Keeps enough history for dynamic feature lookback (max 15 bars)
+        let rt_context_size = 20;
+        let mut rt_context: HashMap<(String, i32), Vec<CandleWithIndicators>> =
+            HashMap::new();
+
         let warmup = self.pipeline.config().warmup_bars;
         // Larger buffer for history mode — processes in bigger batches for throughput
         let max_buffer_size = 5000;
@@ -136,7 +143,7 @@ impl SuperEntryStage {
             let tf_minutes = match parse_tf_minutes(&snapshot.timeframe) {
                 Some(tf) => tf,
                 None => {
-                    warn!(target: "super_entry_stage", 
+                    warn!(target: "super_entry_stage",
                         "Failed to parse timeframe '{}' for {}, skipping",
                         snapshot.timeframe, snapshot.symbol);
                     continue;
@@ -164,8 +171,22 @@ impl SuperEntryStage {
             let candle = snapshot_to_candle(&snapshot, symbol_id);
             
             if snapshot.is_realtime {
-                // REALTIME: use process_single for immediate inference
-                match self.pipeline.process_single(&candle, tf_minutes, self.use_gpu) {
+                // REALTIME: maintain rolling context for dynamic features,
+                // then use process_single_with_context for immediate inference
+                let key = (snapshot.symbol.clone(), tf_minutes);
+                let ctx = rt_context.entry(key).or_default();
+                ctx.push(candle.clone());
+                // Keep only last rt_context_size candles
+                if ctx.len() > rt_context_size {
+                    ctx.drain(0..ctx.len() - rt_context_size);
+                }
+
+                match self.pipeline.process_single_with_context(
+                    Some(ctx.as_slice()),
+                    &candle,
+                    tf_minutes,
+                    self.use_gpu,
+                ) {
                     Ok(result) => {
                         if let Some(signal) = result.signal {
                             debug!(target: "super_entry_stage",
@@ -182,8 +203,8 @@ impl SuperEntryStage {
                         }
                     }
                     Err(e) => {
-                        warn!(target: "super_entry_stage", 
-                            "process_single failed for {} {}m: {}", 
+                        warn!(target: "super_entry_stage",
+                            "process_single_with_context failed for {} {}m: {}",
                             snapshot.symbol, tf_minutes, e);
                     }
                 }
