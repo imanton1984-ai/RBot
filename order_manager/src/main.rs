@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
         config.signal_score_min_1h, config.signal_score_max_1h,
         config.signal_score_min_4h, config.signal_score_max_4h,
         config.signal_score_min_1d, config.signal_score_max_1d);
-    info!("Max drift: {}%", config.max_price_drift_pct);
+    info!("Max drift: {}%, Symbol cooldown: {}h", config.max_price_drift_pct, config.symbol_cooldown_hours);
 
     // Load exchange credentials (retry-friendly — don't crash on failure)
     let exchange_settings = match settings_lib::ExchangeSettings::load_with_env() {

@@ -92,18 +92,21 @@ impl SignalScanner {
             return Ok(Vec::new());
         }
 
-        // 2. Get symbols that already have ANY open position (across ALL timeframes)
-        let used_symbols = self.fetch_open_position_symbols().await?;
+        // 2. Get symbols blocked from trading:
+        //    a) Currently have an open position (status=1) on any timeframe
+        //    b) Had a position (open or closed) opened within the cooldown window (e.g. 12h)
+        //    This prevents situations like BANANAS31USDT being traded 7+ times in one session.
+        let used_symbols = self.fetch_cooldown_symbols().await?;
 
         // 3. Для каждого сигнала проверить актуальность цены
         let mut qualified = Vec::new();
 
         for raw in &raw_signals {
-            // Skip if this symbol already has an open position on ANY timeframe
+            // Skip if this symbol is on cooldown (open position OR traded within last N hours)
             if used_symbols.contains(&raw.symbol) {
                 debug!(
-                    "SignalScanner: skipping {} tf={}m — already has open position for this symbol",
-                    raw.symbol, tf_minutes
+                    "SignalScanner: skipping {} tf={}m — symbol on cooldown (open or traded within last {:.0}h)",
+                    raw.symbol, tf_minutes, self.config.symbol_cooldown_hours
                 );
                 continue;
             }
@@ -245,28 +248,46 @@ impl SignalScanner {
         }
     }
 
-    /// Получить все символы, для которых уже есть ОТКРЫТАЯ позиция (на ЛЮБОМ TF).
-    /// Prevents opening duplicate positions for the same coin.
-    async fn fetch_open_position_symbols(&self) -> Result<Vec<String>> {
+    /// Получить все символы, заблокированные для торговли:
+    ///   1. Имеют ОТКРЫТУЮ позицию (status=1) — нельзя дублировать
+    ///   2. Имели позицию (открытую или закрытую), opened_at в пределах cooldown-окна
+    ///      Предотвращает повторные сливы на одну пару (BANANAS31USDT × 7 за сессию).
+    async fn fetch_cooldown_symbols(&self) -> Result<Vec<String>> {
+        let cooldown_hours = self.config.symbol_cooldown_hours;
+        let cooldown_secs = (cooldown_hours * 3600.0) as i64;
+
         let rows = sqlx::query(
             r#"
             SELECT DISTINCT COALESCE(symbol, '') as symbol
             FROM trade.positions
-            WHERE status = 1
-              AND symbol IS NOT NULL
+            WHERE symbol IS NOT NULL
               AND symbol != ''
+              AND (
+                  status = 1
+                  OR opened_at >= now() - make_interval(secs => $1)
+              )
             "#,
         )
+        .bind(cooldown_secs as f64)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows
+        let symbols: Vec<String> = rows
             .iter()
             .map(|r| {
                 let s: String = r.get("symbol");
                 s
             })
-            .collect())
+            .collect();
+
+        if !symbols.is_empty() {
+            debug!(
+                "SignalScanner: {} symbols on cooldown (open or traded within last {:.0}h)",
+                symbols.len(), cooldown_hours
+            );
+        }
+
+        Ok(symbols)
     }
 
     /// Получить текущую рыночную цену для символа (close последней 1m свечи)

@@ -66,6 +66,10 @@ pub struct OrderManagerConfig {
     pub signal_score_max_1d: f32,
     /// Максимальный дрифт цены (%), чтобы сигнал считался актуальным
     pub max_price_drift_pct: f64,
+    /// Cooldown (часы) — запрещает повторное открытие ордера на ту же пару в течение этого времени.
+    /// Предотвращает ситуации типа BANANAS31USDT × 7 подряд за одну сессию.
+    #[serde(default = "default_symbol_cooldown_hours")]
+    pub symbol_cooldown_hours: f64,
     /// Интервал сканирования сигналов (секунды)
     pub scan_interval_secs: u64,
 
@@ -109,6 +113,7 @@ fn default_trade_size_type() -> String { "fixed_usdt".to_string() }
 fn default_strategy_type() -> String { "ml_super_entry".to_string() }
 fn default_order_type() -> String { "futures_oco".to_string() }
 fn default_trading_mode() -> String { "off".to_string() }
+fn default_symbol_cooldown_hours() -> f64 { 12.0 }
 
 impl Default for OrderManagerConfig {
     fn default() -> Self {
@@ -136,6 +141,7 @@ impl Default for OrderManagerConfig {
             signal_score_min_1d: 0.70,
             signal_score_max_1d: 0.80,
             max_price_drift_pct: 0.2,
+            symbol_cooldown_hours: 12.0,
             scan_interval_secs: 30,
 
             // Executor
@@ -212,6 +218,9 @@ impl OrderManagerConfig {
         }
         if let Ok(v) = std::env::var("OM_PRICE_DRIFT_PCT") {
             if let Ok(n) = v.parse() { cfg.max_price_drift_pct = n; }
+        }
+        if let Ok(v) = std::env::var("OM_SYMBOL_COOLDOWN_HOURS") {
+            if let Ok(n) = v.parse() { cfg.symbol_cooldown_hours = n; }
         }
         if let Ok(v) = std::env::var("OM_SCAN_INTERVAL") {
             if let Ok(n) = v.parse() { cfg.scan_interval_secs = n; }
