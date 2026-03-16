@@ -176,8 +176,8 @@ impl SuperEntryPipeline {
             features_flat.push(safe_div(close - c.supertrend, close) * 100.0); // price_vs_supertrend
             features_flat.push(safe_div(c.alligator_jaw - c.alligator_lips, close) * 100.0); // alligator_spread
 
-            // Dynamic temporal features (38 features) — computed using candle history lookback
-            // Uses compute_dynamic_features() which reads candles[i-N] for N in {3,5,10,15}
+            // Dynamic temporal features (54 features) — computed using candle history lookback
+            // Uses compute_dynamic_features() which reads candles[i-N] for N in {3,5,10,15,25,50}
             let dyn_feats = crate::dataset::compute_dynamic_features(candles, i);
             for v in &dyn_feats {
                 features_flat.push(*v as f32);

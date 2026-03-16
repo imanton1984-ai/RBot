@@ -87,6 +87,22 @@
     "adx_slope_lb15",
     "macd_hist_slope_lb15",
     "ema20_direction_lb15",
+    "price_return_lb25",
+    "atr_ratio_lb25",
+    "rsi_slope_lb25",
+    "trend_persist_lb25",
+    "trend_short_persist_lb25",
+    "adx_slope_lb25",
+    "macd_hist_slope_lb25",
+    "ema20_direction_lb25",
+    "price_return_lb50",
+    "atr_ratio_lb50",
+    "rsi_slope_lb50",
+    "trend_persist_lb50",
+    "trend_short_persist_lb50",
+    "adx_slope_lb50",
+    "macd_hist_slope_lb50",
+    "ema20_direction_lb50",
     "supertrend_consistency",
     "trend_alignment",
     "price_accel",
@@ -94,14 +110,14 @@
     "ema_convergence_change",
     "high_low_pressure"
   ],
-  "n_features": 90,
+  "n_features": 106,
   "metrics": {
-    "auc": 0.6735187293463456,
-    "precision": 0.5945008965929468,
-    "recall": 0.6758630062516988
+    "auc": 0.7485788796023933,
+    "precision": 0.6595158433379256,
+    "recall": 0.6882316697473814
   },
-  "best_iteration": 324,
-  "n_trees": 325,
+  "best_iteration": 1999,
+  "n_trees": 2000,
   "strategy": "ml_entry_strategy",
   "target_move_pct": 10.0
 }

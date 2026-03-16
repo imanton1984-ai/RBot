@@ -14,32 +14,18 @@ export LIBRARY_PATH="$XGBOOST_LIB_DIR:${LIBRARY_PATH:-}"
 
 TARGET_DIR="$ROOT_DIR/target/release"
 
-# Check if binaries already exist and are up-to-date
-BINARIES=("compute_history" "compute_realtime" "connections" "ingestor")
+# Always run cargo build — it handles incremental compilation internally.
+# Previous "skip if binaries exist" logic was WRONG: it never recompiled
+# when source files changed, causing stale binaries without new features (e.g. cooldown).
+log "Building without CUDA features (cargo handles incremental compilation)"
+export CARGO_TERM_COLOR="always"
 
-all_built=true
-for bin in "${BINARIES[@]}"; do
-    if [[ ! -x "$TARGET_DIR/$bin" ]]; then
-        all_built=false
-        break
-    fi
-done
+PROFILE="release"
 
-if [[ "$all_built" == true ]]; then
-    ok "All binaries already built. Skipping build."
-else
-    log "Building without CUDA features"
-    export CARGO_TERM_COLOR="always"
+run_with_pty "cargo build --$PROFILE -p compute --bin compute_history"
+run_with_pty "cargo build --$PROFILE -p compute --bin compute_realtime"
+run_with_pty "cargo build --$PROFILE -p connections"
+run_with_pty "cargo build --$PROFILE -p ingestor"
+run_with_pty "cargo build --$PROFILE -p order_manager"
 
-    # Build everything with default features (no cuda)
-    # Using release for performance, change to debug if laptop is too slow to compile release
-    PROFILE="release" # Change to debug if laptop is too slow to compile release
-
-    run_with_pty "cargo build --$PROFILE -p compute --bin compute_history"
-    run_with_pty "cargo build --$PROFILE -p compute --bin compute_realtime"
-    run_with_pty "cargo build --$PROFILE -p connections"
-    run_with_pty "cargo build --$PROFILE -p ingestor"
-    run_with_pty "cargo build --$PROFILE -p order_manager"
-
-    ok "CPU Build finished."
-fi
+ok "CPU Build finished."

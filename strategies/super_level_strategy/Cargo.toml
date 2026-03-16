@@ -8,6 +8,10 @@ license.workspace = true
 name = "super_level_backtest"
 path = "src/bin/backtest.rs"
 
+[[bin]]
+name = "super_level_dataset"
+path = "src/bin/dataset_builder.rs"
+
 [dependencies]
 # Workspace deps
 tokio = { workspace = true }
@@ -21,9 +25,11 @@ chrono = { workspace = true }
 sqlx = { workspace = true }
 dotenvy = { workspace = true }
 
-# Local crates — reuse everything
+# Local crates — reuse data layer and ML runtime
 common = { path = "../../common" }
 predictors = { path = "../../compute/predictors" }
 ml_entry_strategy = { path = "../ml_entry_strategy" }
-ewmac_strategy = { path = "../ewmac_strategy" }
 indicators = { package = "compute_indicators", path = "../../compute/indicators" }
+
+# Extra
+csv = "1.3"

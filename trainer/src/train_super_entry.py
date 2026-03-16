@@ -69,8 +69,9 @@ DERIVED_FEATURES = [
 ]
 
 # Dynamic temporal features (must match Rust DYNAMIC_FEATURES order)
-# These capture HOW indicators are changing over time (lookback windows: 3, 5, 10, 15 bars)
+# These capture HOW indicators are changing over time (lookback windows: 3, 5, 10, 15, 25, 50 bars)
 # Critical for direction prediction — static snapshots give AUC ~0.50 (random)
+# v2: expanded from 4 windows to 6 (added lb25 and lb50 for broader trend context)
 DYNAMIC_FEATURES = [
     # Window 3 bars
     "price_return_lb3", "atr_ratio_lb3", "rsi_slope_lb3",
@@ -88,6 +89,14 @@ DYNAMIC_FEATURES = [
     "price_return_lb15", "atr_ratio_lb15", "rsi_slope_lb15",
     "trend_persist_lb15", "trend_short_persist_lb15",
     "adx_slope_lb15", "macd_hist_slope_lb15", "ema20_direction_lb15",
+    # Window 25 bars (v2: ~1 day for 1h candles)
+    "price_return_lb25", "atr_ratio_lb25", "rsi_slope_lb25",
+    "trend_persist_lb25", "trend_short_persist_lb25",
+    "adx_slope_lb25", "macd_hist_slope_lb25", "ema20_direction_lb25",
+    # Window 50 bars (v2: ~2 days for 1h candles)
+    "price_return_lb50", "atr_ratio_lb50", "rsi_slope_lb50",
+    "trend_persist_lb50", "trend_short_persist_lb50",
+    "adx_slope_lb50", "macd_hist_slope_lb50", "ema20_direction_lb50",
     # Aggregate features (6)
     "supertrend_consistency", "trend_alignment",
     "price_accel", "volume_trend_ratio",
@@ -351,29 +360,39 @@ def main():
 
         # 2. Train P(direction=LONG) classifier
         # Label: 1 = LONG (direction == 1), 0 = SHORT (direction == -1)
-        # Uses enhanced hyperparams + ALL_FEATURES (including dynamic temporal features)
-        # Dynamic features (price_return, atr_ratio, trend_persist, etc.) are critical
-        # for direction — they capture HOW the market is moving, not just static state.
-        train_df_dir = train_df.copy()
-        test_df_dir = test_df.copy()
+        #
+        # KEY IMPROVEMENT v2: Train ONLY on is_super=True examples.
+        # Non-super examples have ambiguous/random direction labels (choppy market),
+        # which poison the model. Super examples have clear directional outcomes.
+        train_df_dir = train_df[train_df["is_super"] == 1].copy()
+        test_df_dir = test_df[test_df["is_super"] == 1].copy()
+
+        if len(train_df_dir) < 50 or len(test_df_dir) < 20:
+            print(f"  ⚠️ Not enough super examples for direction model (train={len(train_df_dir)}, test={len(test_df_dir)}). Skipping.")
+            continue
+
         train_df_dir["label_long"] = (train_df_dir["direction"] == 1).astype(int)
         test_df_dir["label_long"] = (test_df_dir["direction"] == 1).astype(int)
 
-        # Direction model gets stronger hyperparameters:
-        # - Lower learning rate (0.03) for better generalization
-        # - Deeper trees (max_depth=8) to capture temporal feature interactions
-        # - More regularization (lambda=3, alpha=0.5) to prevent overfitting
-        # - More rounds (1500) with slower learning
-        # - Higher colsample (0.9) since dynamic features are all informative
+        print(f"\n  Direction model: training on {len(train_df_dir)} super-only examples "
+              f"(filtered from {len(train_df)})")
+
+        # Direction model v2 hyperparameters — ANTI-OVERFIT focus:
+        # - Lower learning rate (0.01) for better generalization
+        # - Shallower trees (max_depth=5) to prevent memorization
+        # - Heavy regularization (lambda=5, alpha=1.0, gamma=0.5)
+        # - Lower subsample (0.7) for more diverse trees
+        # - Fewer colsample (0.7) as regularization through feature sampling
+        # - Higher min_child_weight (50) to prevent fitting noise
         dir_params = {
-            "eta": 0.03,
-            "max_depth": 8,
-            "subsample": 0.85,
-            "colsample_bytree": 0.9,
-            "min_child_weight": 10,
-            "lambda": 3.0,       # L2 regularization
-            "alpha": 0.5,        # L1 regularization
-            "gamma": 0.1,        # min split loss
+            "eta": 0.01,
+            "max_depth": 5,
+            "subsample": 0.7,
+            "colsample_bytree": 0.7,
+            "min_child_weight": 50,
+            "lambda": 5.0,       # L2 regularization (strong)
+            "alpha": 1.0,        # L1 regularization (strong)
+            "gamma": 0.5,        # min split loss (higher = more conservative)
         }
 
         dir_model, dir_metrics = train_binary(
@@ -383,8 +402,8 @@ def main():
             use_gpu=args.gpu,
             model_name=f"super_dir TF{tf}m",
             custom_params=dir_params,
-            num_boost_round=1500,
-            early_stopping_rounds=50,
+            num_boost_round=2000,
+            early_stopping_rounds=80,
         )
         save_model(dir_model, ALL_FEATURES, tf, "super_dir", dir_metrics, args.output_dir)
 

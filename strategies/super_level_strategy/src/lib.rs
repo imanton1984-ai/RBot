@@ -1,29 +1,29 @@
 // strategies/super_level_strategy/src/lib.rs
 //
-// Super Level Strategy — Level-First Sniper Strategy
+// Super Level Strategy — ML-based Level-First Trading
 //
-// Архитектура "Level-First" — уровни (ликвидность) являются фундаментом.
-// ML, EWMAC, Эвристика — слуги-помощники, подтверждающие вход.
+// 5 ML моделей:
+//   1. Level     — качество/сила уровня (по реальным касаниям)
+//   2. Entry     — определяет оптимальную точку входа у уровня
+//   3. Direction  — предсказывает направление (LONG/SHORT)
+//   4. BounceBreak — предсказывает отскок или пробой
+//   5. Evaluator  — финальный вердикт по всем моделям
 //
-// 5 ФАЗ:
-//   1. Radar      — Поиск "Зоны Убийства" (цена у сильного уровня, ≤0.5 ATR)
-//   2. Context    — Определение сценария: Bounce (отскок) или Breakout (пробой)
-//   3. ML Valid.  — Подтверждение через Super Entry модель (p_super ≥ threshold)
-//   4. Entry Agent — Тайминг входа (ENTER/WAIT/CANCEL на младшем TF)
-//   5. Risk Mgmt  — ATR-based SL/TP (bounce: tight, breakout: wide)
-//
-// ПЕРЕИСПОЛЬЗУЕТ:
-//   - ml_entry_strategy    — SuperEntryPipeline (zero-copy CUDA inference)
-//   - ewmac_strategy       — EwmacCalculator    (trend context)
-//   - predictors::level_view — LevelView        (уровни S/R)
-//   - indicators::sr_levels  — calculate_sr_levels (вычисление уровней)
-//   - entry_policy::agent   — EntryAgent        (тайминг входа)
+// Суть: быстрые сделки у уровней. Цена близко от уровня =
+// движение вот-вот наступит. Модели определяют силу, направление,
+// сценарий и итоговую оценку.
 
 pub mod config;
-pub mod phases;
+pub mod dataset;
+pub mod model;
+pub mod scorer;
+pub mod signal_generator;
 pub mod pipeline;
 
 // Re-exports
 pub use config::SuperLevelConfig;
-pub use phases::{PhaseResult, Scenario};
+pub use dataset::{SuperLevelExample, PriceLevel, LevelStrength, LevelType};
+pub use model::{SuperLevelModelManager, SuperLevelPrediction};
+pub use scorer::{SuperLevelScorer, SuperLevelDecision};
+pub use signal_generator::{SignalGenerator, SuperLevelSignal};
 pub use pipeline::SuperLevelPipeline;

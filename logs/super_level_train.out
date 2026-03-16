@@ -1,0 +1,1207 @@
+╔══════════════════════════════════════════════════════════════╗
+║     SUPER LEVEL STRATEGY — 5 MODEL TRAINING                 ║
+╚══════════════════════════════════════════════════════════════╝
+  CSV:       /home/anton/Desktop/Rust_trader/dataset/super_level_dataset.csv
+  Output:    /home/anton/Desktop/Rust_trader/models
+  GPU:       True
+  Split:     prep=5.0%, train=65.0%, test=30%
+  Log:       logs/super_level_training_20260316_172824.log
+
+Loading data from /home/anton/Desktop/Rust_trader/dataset/super_level_dataset.csv...
+  Loaded 4883022 rows, 117 columns
+  Features: 104 (ind=33, der=19, lvl=18, dyn=34)
+    TF 1m: 639925 rows | win=143504(22.4%) | entry=118577(18.5%) | bounce=370418(57.9%) | strong_lvl=558933(87.3%)
+    TF 5m: 735276 rows | win=159142(21.6%) | entry=121741(16.6%) | bounce=206537(28.1%) | strong_lvl=607316(82.6%)
+    TF 15m: 1551907 rows | win=511393(33.0%) | entry=453718(29.2%) | bounce=243631(15.7%) | strong_lvl=1231047(79.3%)
+    TF 60m: 1212229 rows | win=645957(53.3%) | entry=579616(47.8%) | bounce=70314(5.8%) | strong_lvl=935180(77.1%)
+    TF 240m: 670753 rows | win=437267(65.2%) | entry=395470(59.0%) | bounce=18047(2.7%) | strong_lvl=511850(76.3%)
+    TF 1440m: 72932 rows | win=56227(77.1%) | entry=51042(70.0%) | bounce=1107(1.5%) | strong_lvl=56575(77.6%)
+
+══════════════════════════════════════════════════════════════════════
+  TRAINING MODELS FOR TF 1m (639925 samples)
+  Target move: 1.2%
+══════════════════════════════════════════════════════════════════════
+
+  Time-based split (prep=5.0%, train=65.0%, test=30%):
+    Train: 415844 rows (143 symbols)
+    Test:  192192 rows
+
+  ┌─── Training: LEVEL TF1m ───
+  │ pos/neg: 366149/49695 (weight=0.14)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:29:06] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.98911	train-logloss:0.64955	test-auc:0.98760	test-logloss:0.65010
+[100]	train-auc:0.99798	train-logloss:0.06731	test-auc:0.99644	test-logloss:0.08205
+[200]	train-auc:0.99861	train-logloss:0.05300	test-auc:0.99659	test-logloss:0.07218
+[300]	train-auc:0.99898	train-logloss:0.04565	test-auc:0.99669	test-logloss:0.06790
+[400]	train-auc:0.99920	train-logloss:0.04063	test-auc:0.99673	test-logloss:0.06545
+[499]	train-auc:0.99936	train-logloss:0.03697	test-auc:0.99672	test-logloss:0.06401
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ LEVEL TF1m RESULTS ══════
+  │   TRAIN: AUC=0.9994  Acc=0.9852
+  │   TEST:  AUC=0.9967  Acc=0.9727
+  │          Precision=0.9944  Recall=0.9737  F1=0.9839
+  │   Overfit gap: AUC=0.0026  Acc=0.0124
+  │   Confusion: TP=160321 FP=910 FN=4332 TN=26629
+  │
+  │   Top 10 Features (by Gain):
+  │     nearest_sup_strength                1344.4
+  │     nearest_res_strength                736.0
+  │     nearest_sup_touches                 318.8
+  │     nearest_res_touches                 186.1
+  │     channel_position                    43.7
+  │     nearest_res_dist_pct                27.5
+  │     in_level_zone                       24.9
+  │     nearest_sup_dist_pct                23.5
+  │     nearest_sup_age_bars                9.3
+  │     approach_velocity_5                 9.3
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_level_v1_tf1.ubj
+
+  ┌─── Training: ENTRY TF1m ───
+  │ pos/neg: 72803/343041 (weight=4.71)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:29:47] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.80484	train-logloss:0.67885	test-auc:0.78296	test-logloss:0.68018
+[100]	train-auc:0.87312	train-logloss:0.45870	test-auc:0.83927	test-logloss:0.52261
+[200]	train-auc:0.89026	train-logloss:0.43098	test-auc:0.84259	test-logloss:0.51850
+[300]	train-auc:0.90171	train-logloss:0.41293	test-auc:0.84260	test-logloss:0.51457
+[400]	train-auc:0.91113	train-logloss:0.39710	test-auc:0.84218	test-logloss:0.51087
+[499]	train-auc:0.91877	train-logloss:0.38332	test-auc:0.84157	test-logloss:0.50761
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ ENTRY TF1m RESULTS ══════
+  │   TRAIN: AUC=0.9188  Acc=0.8247
+  │   TEST:  AUC=0.8416  Acc=0.7336
+  │          Precision=0.4316  Recall=0.8057  F1=0.5621
+  │   Overfit gap: AUC=0.0772  Acc=0.0911
+  │   Confusion: TP=32861 FP=43275 FN=7926 TN=108130
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 469.2
+  │     sma                                 448.2
+  │     ema_20                              342.9
+  │     price_accel                         270.1
+  │     price_return_lb15                   224.5
+  │     price_return_lb25                   223.6
+  │     price_return_lb3                    206.2
+  │     atr_pct                             178.0
+  │     price_return_lb10                   177.1
+  │     channel_width_atr                   159.9
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_entry_v1_tf1.ubj
+
+  Direction model: 87858 win-only train, 49711 test
+
+  ┌─── Training: DIRECTION TF1m ───
+  │ pos/neg: 45586/42272 (weight=0.93)
+  │ eta=0.02, depth=5, rounds=1500, early_stop=60
+[17:30:29] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.56887	train-logloss:0.69274	test-auc:0.51898	test-logloss:0.69308
+[100]	train-auc:0.66696	train-logloss:0.67012	test-auc:0.52994	test-logloss:0.69178
+[110]	train-auc:0.67027	train-logloss:0.66876	test-auc:0.53039	test-logloss:0.69180
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ DIRECTION TF1m RESULTS ══════
+  │   TRAIN: AUC=0.6704  Acc=0.6125
+  │   TEST:  AUC=0.5307  Acc=0.5153
+  │          Precision=0.6001  Recall=0.4735  F1=0.5293
+  │   Overfit gap: AUC=0.1397  Acc=0.0973
+  │   Confusion: TP=13548 FP=9029 FN=15067 TN=12067
+  │
+  │   Top 10 Features (by Gain):
+  │     nearest_res_strength                41.2
+  │     ema_50                              38.7
+  │     nearest_res_touches                 36.9
+  │     nearest_res_age_bars                36.9
+  │     nearest_sup_bars_since_touch        36.5
+  │     nearest_sup_age_bars                36.0
+  │     atr_pct                             34.9
+  │     nearest_res_dist_pct                33.1
+  │     sma                                 32.4
+  │     total_levels_nearby                 32.0
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_dir_v1_tf1.ubj
+
+  Bounce/Break model: 338443 near-level train, 154387 test
+
+  ┌─── Training: BOUNCE/BREAK TF1m ───
+  │ pos/neg: 198110/140333 (weight=0.71)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:30:32] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.70505	train-logloss:0.68595	test-auc:0.69886	test-logloss:0.68618
+[100]	train-auc:0.78600	train-logloss:0.55502	test-auc:0.75459	test-logloss:0.58985
+[200]	train-auc:0.80545	train-logloss:0.53469	test-auc:0.75629	test-logloss:0.58797
+[232]	train-auc:0.81035	train-logloss:0.52979	test-auc:0.75629	test-logloss:0.58809
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ BOUNCE/BREAK TF1m RESULTS ══════
+  │   TRAIN: AUC=0.8103  Acc=0.7325
+  │   TEST:  AUC=0.7563  Acc=0.6811
+  │          Precision=0.7252  Recall=0.6555  F1=0.6886
+  │   Overfit gap: AUC=0.0541  Acc=0.0514
+  │   Confusion: TP=54445 FP=20631 FN=28609 TN=50702
+  │
+  │   Top 10 Features (by Gain):
+  │     price_return_lb25                   217.9
+  │     nearest_sup_dist_pct                195.1
+  │     in_level_zone                       139.2
+  │     price_accel                         129.8
+  │     price_return_lb15                   96.2
+  │     nearest_res_dist_pct                95.7
+  │     price_return_lb10                   92.7
+  │     price_return_lb5                    73.3
+  │     total_levels_nearby                 72.4
+  │     price_return_lb3                    71.2
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_bb_v1_tf1.ubj
+
+  ┌─── Training: EVALUATOR TF1m ───
+  │ pos/neg: 87858/327986 (weight=3.73)
+  │ eta=0.03, depth=5, rounds=1000, early_stop=50
+[17:30:48] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.75043	train-logloss:0.68702	test-auc:0.72777	test-logloss:0.68831
+[100]	train-auc:0.83281	train-logloss:0.51651	test-auc:0.79674	test-logloss:0.57766
+[200]	train-auc:0.84725	train-logloss:0.49310	test-auc:0.80266	test-logloss:0.57384
+[300]	train-auc:0.85611	train-logloss:0.48095	test-auc:0.80469	test-logloss:0.57231
+[400]	train-auc:0.86260	train-logloss:0.47227	test-auc:0.80544	test-logloss:0.57157
+[500]	train-auc:0.86843	train-logloss:0.46418	test-auc:0.80588	test-logloss:0.57023
+[552]	train-auc:0.87048	train-logloss:0.46149	test-auc:0.80567	test-logloss:0.57024
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ EVALUATOR TF1m RESULTS ══════
+  │   TRAIN: AUC=0.8705  Acc=0.7927
+  │   TEST:  AUC=0.8057  Acc=0.7122
+  │          Precision=0.4661  Recall=0.7756  F1=0.5823
+  │   Overfit gap: AUC=0.0648  Acc=0.0805
+  │   Confusion: TP=38557 FP=44157 FN=11154 TN=98324
+  │
+  │   Top 10 Features (by Gain):
+  │     price_return_lb25                   749.9
+  │     price_accel                         706.6
+  │     nearest_sup_dist_pct                664.8
+  │     price_return_lb15                   546.4
+  │     price_return_lb3                    528.5
+  │     price_return_lb10                   465.6
+  │     total_levels_nearby                 442.6
+  │     price_return_lb5                    408.3
+  │     ema_200                             253.0
+  │     ema_20                              229.2
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_eval_v1_tf1.ubj
+
+══════════════════════════════════════════════════════════════════════
+  TRAINING MODELS FOR TF 5m (735276 samples)
+  Target move: 2.8%
+══════════════════════════════════════════════════════════════════════
+
+  Time-based split (prep=5.0%, train=65.0%, test=30%):
+    Train: 477853 rows (143 symbols)
+    Test:  220703 rows
+
+  ┌─── Training: LEVEL TF5m ───
+  │ pos/neg: 396003/81850 (weight=0.21)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:31:33] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.98923	train-logloss:0.65011	test-auc:0.98642	test-logloss:0.65037
+[100]	train-auc:0.99664	train-logloss:0.08374	test-auc:0.99522	test-logloss:0.09036
+[200]	train-auc:0.99753	train-logloss:0.06941	test-auc:0.99560	test-logloss:0.08109
+[300]	train-auc:0.99806	train-logloss:0.06156	test-auc:0.99576	test-logloss:0.07752
+[400]	train-auc:0.99843	train-logloss:0.05593	test-auc:0.99583	test-logloss:0.07568
+[499]	train-auc:0.99867	train-logloss:0.05196	test-auc:0.99586	test-logloss:0.07460
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ LEVEL TF5m RESULTS ══════
+  │   TRAIN: AUC=0.9987  Acc=0.9770
+  │   TEST:  AUC=0.9959  Acc=0.9679
+  │          Precision=0.9939  Recall=0.9673  F1=0.9804
+  │   Overfit gap: AUC=0.0028  Acc=0.0091
+  │   Confusion: TP=177070 FP=1092 FN=5995 TN=36546
+  │
+  │   Top 10 Features (by Gain):
+  │     nearest_res_strength                1311.8
+  │     nearest_sup_strength                1210.6
+  │     nearest_res_touches                 310.3
+  │     nearest_sup_touches                 296.4
+  │     nearest_res_dist_pct                58.9
+  │     nearest_sup_dist_pct                50.5
+  │     channel_position                    49.6
+  │     in_level_zone                       33.6
+  │     approach_velocity_5                 27.6
+  │     nearest_sup_bars_since_touch        12.4
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_level_v1_tf5.ubj
+
+  ┌─── Training: ENTRY TF5m ───
+  │ pos/neg: 80425/397428 (weight=4.94)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:32:19] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.75715	train-logloss:0.68184	test-auc:0.77663	test-logloss:0.68130
+[100]	train-auc:0.83341	train-logloss:0.51097	test-auc:0.83989	test-logloss:0.50416
+[200]	train-auc:0.85625	train-logloss:0.48294	test-auc:0.84186	test-logloss:0.48761
+[300]	train-auc:0.87259	train-logloss:0.46326	test-auc:0.84071	test-logloss:0.48116
+[400]	train-auc:0.88506	train-logloss:0.44722	test-auc:0.83983	test-logloss:0.47630
+[499]	train-auc:0.89441	train-logloss:0.43433	test-auc:0.83901	test-logloss:0.47277
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ ENTRY TF5m RESULTS ══════
+  │   TRAIN: AUC=0.8944  Acc=0.7979
+  │   TEST:  AUC=0.8390  Acc=0.7647
+  │          Precision=0.3646  Recall=0.7522  F1=0.4912
+  │   Overfit gap: AUC=0.0554  Acc=0.0333
+  │   Confusion: TP=25067 FP=43681 FN=8259 TN=143696
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 803.1
+  │     price_accel                         253.5
+  │     price_return_lb3                    249.3
+  │     price_return_lb25                   245.6
+  │     in_level_zone                       229.7
+  │     atr_pct                             200.2
+  │     sma                                 185.3
+  │     price_return_lb10                   161.0
+  │     price_return_lb15                   147.9
+  │     ema_20                              134.5
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_entry_v1_tf5.ubj
+
+  Direction model: 104572 win-only train, 43823 test
+
+  ┌─── Training: DIRECTION TF5m ───
+  │ pos/neg: 59248/45324 (weight=0.76)
+  │ eta=0.02, depth=5, rounds=1500, early_stop=60
+[17:33:00] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.59241	train-logloss:0.69259	test-auc:0.53907	test-logloss:0.69295
+[100]	train-auc:0.67682	train-logloss:0.66037	test-auc:0.54601	test-logloss:0.68964
+[147]	train-auc:0.69288	train-logloss:0.65159	test-auc:0.54202	test-logloss:0.69045
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ DIRECTION TF5m RESULTS ══════
+  │   TRAIN: AUC=0.6931  Acc=0.6309
+  │   TEST:  AUC=0.5419  Acc=0.5313
+  │          Precision=0.6265  Recall=0.5346  F1=0.5769
+  │   Overfit gap: AUC=0.1512  Acc=0.0995
+  │   Confusion: TP=14004 FP=8347 FN=12191 TN=9281
+  │
+  │   Top 10 Features (by Gain):
+  │     nearest_res_dist_pct                59.4
+  │     nearest_res_bars_since_touch        46.9
+  │     nearest_sup_strength                44.9
+  │     price_return_lb25                   40.6
+  │     nearest_res_touches                 39.1
+  │     nearest_sup_bars_since_touch        38.3
+  │     in_level_zone                       37.4
+  │     nearest_res_age_bars                37.4
+  │     nearest_sup_age_bars                35.8
+  │     price_return_lb10                   35.2
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_dir_v1_tf5.ubj
+
+  Bounce/Break model: 372500 near-level train, 171397 test
+
+  ┌─── Training: BOUNCE/BREAK TF5m ───
+  │ pos/neg: 100557/271943 (weight=2.70)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:33:06] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.63829	train-logloss:0.68941	test-auc:0.63019	test-logloss:0.68960
+[100]	train-auc:0.71633	train-logloss:0.61613	test-auc:0.68971	test-logloss:0.63512
+[200]	train-auc:0.74182	train-logloss:0.59791	test-auc:0.69292	test-logloss:0.62929
+[300]	train-auc:0.75908	train-logloss:0.58599	test-auc:0.69194	test-logloss:0.62728
+[400]	train-auc:0.77464	train-logloss:0.57495	test-auc:0.69097	test-logloss:0.62553
+[499]	train-auc:0.78857	train-logloss:0.56493	test-auc:0.68981	test-logloss:0.62449
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ BOUNCE/BREAK TF5m RESULTS ══════
+  │   TRAIN: AUC=0.7886  Acc=0.6756
+  │   TEST:  AUC=0.6898  Acc=0.6090
+  │          Precision=0.4175  Recall=0.7123  F1=0.5265
+  │   Overfit gap: AUC=0.0988  Acc=0.0666
+  │   Confusion: TP=37255 FP=51971 FN=15051 TN=67120
+  │
+  │   Top 10 Features (by Gain):
+  │     in_level_zone                       106.7
+  │     nearest_res_dist_pct                95.1
+  │     nearest_sup_dist_pct                93.8
+  │     price_return_lb3                    86.4
+  │     price_accel                         80.2
+  │     price_return_lb15                   78.7
+  │     price_return_lb10                   64.6
+  │     price_return_lb25                   63.0
+  │     channel_position                    55.4
+  │     atr_pct                             52.8
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_bb_v1_tf5.ubj
+
+  ┌─── Training: EVALUATOR TF5m ───
+  │ pos/neg: 104572/373281 (weight=3.57)
+  │ eta=0.03, depth=5, rounds=1000, early_stop=50
+[17:33:41] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.69835	train-logloss:0.68907	test-auc:0.72831	test-logloss:0.68847
+[100]	train-auc:0.77080	train-logloss:0.57544	test-auc:0.80094	test-logloss:0.56044
+[200]	train-auc:0.79136	train-logloss:0.55484	test-auc:0.80421	test-logloss:0.54475
+[300]	train-auc:0.80436	train-logloss:0.54225	test-auc:0.80412	test-logloss:0.53871
+[400]	train-auc:0.81366	train-logloss:0.53299	test-auc:0.80393	test-logloss:0.53583
+[500]	train-auc:0.82137	train-logloss:0.52552	test-auc:0.80383	test-logloss:0.53409
+[600]	train-auc:0.82767	train-logloss:0.51914	test-auc:0.80308	test-logloss:0.53282
+[700]	train-auc:0.83314	train-logloss:0.51353	test-auc:0.80250	test-logloss:0.53223
+[800]	train-auc:0.83803	train-logloss:0.50839	test-auc:0.80211	test-logloss:0.53143
+[900]	train-auc:0.84267	train-logloss:0.50351	test-auc:0.80157	test-logloss:0.53099
+[999]	train-auc:0.84679	train-logloss:0.49902	test-auc:0.80102	test-logloss:0.53026
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ EVALUATOR TF5m RESULTS ══════
+  │   TRAIN: AUC=0.8468  Acc=0.7847
+  │   TEST:  AUC=0.8010  Acc=0.7580
+  │          Precision=0.4319  Recall=0.6934  F1=0.5323
+  │   Overfit gap: AUC=0.0458  Acc=0.0267
+  │   Confusion: TP=30389 FP=39966 FN=13434 TN=136914
+  │
+  │   Top 10 Features (by Gain):
+  │     price_return_lb25                   431.9
+  │     price_return_lb3                    408.7
+  │     in_level_zone                       393.1
+  │     price_accel                         385.7
+  │     price_return_lb15                   239.6
+  │     nearest_sup_dist_pct                222.8
+  │     price_return_lb10                   218.4
+  │     price_return_lb5                    191.1
+  │     atr_pct                             146.9
+  │     ema_20                              138.9
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_eval_v1_tf5.ubj
+
+══════════════════════════════════════════════════════════════════════
+  TRAINING MODELS FOR TF 15m (1551907 samples)
+  Target move: 3.5%
+══════════════════════════════════════════════════════════════════════
+
+  Time-based split (prep=5.0%, train=65.0%, test=30%):
+    Train: 1008639 rows (143 symbols)
+    Test:  465775 rows
+
+  ┌─── Training: LEVEL TF15m ───
+  │ pos/neg: 796825/211814 (weight=0.27)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:35:13] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.98919	train-logloss:0.65030	test-auc:0.98852	test-logloss:0.65023
+[100]	train-auc:0.99598	train-logloss:0.08886	test-auc:0.99536	test-logloss:0.08997
+[200]	train-auc:0.99677	train-logloss:0.07703	test-auc:0.99567	test-logloss:0.08188
+[300]	train-auc:0.99725	train-logloss:0.07103	test-auc:0.99583	test-logloss:0.07904
+[400]	train-auc:0.99760	train-logloss:0.06679	test-auc:0.99593	test-logloss:0.07750
+[499]	train-auc:0.99790	train-logloss:0.06287	test-auc:0.99597	test-logloss:0.07641
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ LEVEL TF15m RESULTS ══════
+  │   TRAIN: AUC=0.9979  Acc=0.9711
+  │   TEST:  AUC=0.9960  Acc=0.9669
+  │          Precision=0.9943  Recall=0.9644  F1=0.9791
+  │   Overfit gap: AUC=0.0019  Acc=0.0042
+  │   Confusion: TP=361854 FP=2060 FN=13360 TN=88501
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 2696.7
+  │     nearest_sup_strength                1685.5
+  │     nearest_res_strength                1318.3
+  │     nearest_sup_touches                 492.8
+  │     nearest_res_touches                 399.5
+  │     atr_pct                             332.5
+  │     channel_width_atr                   178.6
+  │     nearest_sup_dist_pct                153.7
+  │     nearest_res_dist_pct                142.0
+  │     nearest_sup_dist_atr                118.9
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_level_v1_tf15.ubj
+
+  ┌─── Training: ENTRY TF15m ───
+  │ pos/neg: 278837/729802 (weight=2.62)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:36:40] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.76563	train-logloss:0.68248	test-auc:0.72792	test-logloss:0.68601
+[84]	train-auc:0.79286	train-logloss:0.55075	test-auc:0.75155	test-logloss:0.61769
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ ENTRY TF15m RESULTS ══════
+  │   TRAIN: AUC=0.7929  Acc=0.7262
+  │   TEST:  AUC=0.7516  Acc=0.6421
+  │          Precision=0.4509  Recall=0.7474  F1=0.5625
+  │   Overfit gap: AUC=0.0413  Acc=0.0841
+  │   Confusion: TP=107159 FP=130487 FN=36218 TN=191911
+  │
+  │   Top 10 Features (by Gain):
+  │     atr_pct                             3983.1
+  │     bb_width_pct                        3304.0
+  │     total_levels_nearby                 3224.6
+  │     nearest_sup_dist_atr                857.4
+  │     price_vs_supertrend                 682.6
+  │     channel_position                    675.4
+  │     nearest_res_dist_atr                666.1
+  │     trend_persist_lb5                   620.4
+  │     atr_ratio_lb3                       520.7
+  │     nearest_res_strength                484.3
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_entry_v1_tf15.ubj
+
+  Direction model: 314789 win-only train, 161427 test
+
+  ┌─── Training: DIRECTION TF15m ───
+  │ pos/neg: 156771/158018 (weight=1.01)
+  │ eta=0.02, depth=5, rounds=1500, early_stop=60
+[17:36:57] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.59017	train-logloss:0.69257	test-auc:0.53492	test-logloss:0.69293
+[100]	train-auc:0.67085	train-logloss:0.66138	test-auc:0.55067	test-logloss:0.68847
+[127]	train-auc:0.67982	train-logloss:0.65645	test-auc:0.55269	test-logloss:0.68846
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ DIRECTION TF15m RESULTS ══════
+  │   TRAIN: AUC=0.6798  Acc=0.6195
+  │   TEST:  AUC=0.5527  Acc=0.5419
+  │          Precision=0.5848  Recall=0.6115  F1=0.5979
+  │   Overfit gap: AUC=0.1271  Acc=0.0776
+  │   Confusion: TP=54970 FP=39023 FN=34928 TN=32506
+  │
+  │   Top 10 Features (by Gain):
+  │     nearest_res_bars_since_touch        230.5
+  │     price_vs_ema50                      223.0
+  │     price_vs_ema200                     219.4
+  │     mfi                                 158.5
+  │     price_return_lb5                    151.5
+  │     mfi_norm                            142.2
+  │     price_accel                         140.8
+  │     macd_norm                           140.3
+  │     macd_hist_slope_lb15                132.6
+  │     rsi                                 130.8
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_dir_v1_tf15.ubj
+
+  Bounce/Break model: 938804 near-level train, 437634 test
+
+  ┌─── Training: BOUNCE/BREAK TF15m ───
+  │ pos/neg: 166219/772585 (weight=4.65)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:37:10] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.69863	train-logloss:0.68705	test-auc:0.67035	test-logloss:0.68629
+[100]	train-auc:0.74166	train-logloss:0.59793	test-auc:0.70444	test-logloss:0.57810
+[200]	train-auc:0.75897	train-logloss:0.58394	test-auc:0.70965	test-logloss:0.56594
+[300]	train-auc:0.77172	train-logloss:0.57357	test-auc:0.71126	test-logloss:0.55926
+[400]	train-auc:0.78239	train-logloss:0.56513	test-auc:0.71161	test-logloss:0.55457
+[499]	train-auc:0.79180	train-logloss:0.55733	test-auc:0.71184	test-logloss:0.55097
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ BOUNCE/BREAK TF15m RESULTS ══════
+  │   TRAIN: AUC=0.7918  Acc=0.6748
+  │   TEST:  AUC=0.7118  Acc=0.6869
+  │          Precision=0.2581  Recall=0.5724  F1=0.3558
+  │   Overfit gap: AUC=0.0800  Acc=-0.0121
+  │   Confusion: TP=37847 FP=108775 FN=28269 TN=262743
+  │
+  │   Top 10 Features (by Gain):
+  │     atr_pct                             1336.9
+  │     bb_width_pct                        509.8
+  │     volume_spike_flag                   280.0
+  │     volume_spike                        246.7
+  │     in_level_zone                       236.5
+  │     atr_ratio_lb3                       215.9
+  │     nearest_res_dist_pct                192.1
+  │     total_levels_nearby                 187.8
+  │     nearest_sup_dist_pct                182.3
+  │     channel_position                    176.1
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_bb_v1_tf15.ubj
+
+  ┌─── Training: EVALUATOR TF15m ───
+  │ pos/neg: 314789/693850 (weight=2.20)
+  │ eta=0.03, depth=5, rounds=1000, early_stop=50
+[17:38:32] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.74548	train-logloss:0.68768	test-auc:0.71575	test-logloss:0.68938
+[100]	train-auc:0.76315	train-logloss:0.58083	test-auc:0.73203	test-logloss:0.63007
+[120]	train-auc:0.76595	train-logloss:0.57802	test-auc:0.73282	test-logloss:0.63033
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ EVALUATOR TF15m RESULTS ══════
+  │   TRAIN: AUC=0.7661  Acc=0.7146
+  │   TEST:  AUC=0.7328  Acc=0.6536
+  │          Precision=0.5002  Recall=0.6940  F1=0.5814
+  │   Overfit gap: AUC=0.0333  Acc=0.0610
+  │   Confusion: TP=112028 FP=111942 FN=49399 TN=192406
+  │
+  │   Top 10 Features (by Gain):
+  │     atr_pct                             4999.2
+  │     bb_width_pct                        4747.8
+  │     price_vs_supertrend                 1272.4
+  │     total_levels_nearby                 660.4
+  │     price_vs_vwap                       486.2
+  │     price_return_lb3                    425.9
+  │     atr_ratio_lb3                       408.0
+  │     trend_persist_lb15                  356.6
+  │     atr_ratio_lb5                       350.8
+  │     trend_persist_lb3                   349.8
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_eval_v1_tf15.ubj
+
+══════════════════════════════════════════════════════════════════════
+  TRAINING MODELS FOR TF 60m (1212229 samples)
+  Target move: 5.0%
+══════════════════════════════════════════════════════════════════════
+
+  Time-based split (prep=5.0%, train=65.0%, test=30%):
+    Train: 787863 rows (141 symbols)
+    Test:  363842 rows
+
+  ┌─── Training: LEVEL TF60m ───
+  │ pos/neg: 613917/173946 (weight=0.28)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:39:02] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.99030	train-logloss:0.65015	test-auc:0.98836	test-logloss:0.65056
+[100]	train-auc:0.99656	train-logloss:0.08311	test-auc:0.99552	test-logloss:0.09135
+[200]	train-auc:0.99733	train-logloss:0.07023	test-auc:0.99599	test-logloss:0.08250
+[300]	train-auc:0.99779	train-logloss:0.06390	test-auc:0.99610	test-logloss:0.07935
+[400]	train-auc:0.99809	train-logloss:0.05965	test-auc:0.99616	test-logloss:0.07762
+[499]	train-auc:0.99832	train-logloss:0.05622	test-auc:0.99618	test-logloss:0.07641
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ LEVEL TF60m RESULTS ══════
+  │   TRAIN: AUC=0.9983  Acc=0.9749
+  │   TEST:  AUC=0.9962  Acc=0.9683
+  │          Precision=0.9948  Recall=0.9636  F1=0.9790
+  │   Overfit gap: AUC=0.0021  Acc=0.0065
+  │   Confusion: TP=268000 FP=1411 FN=10110 TN=84321
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 2727.8
+  │     nearest_sup_strength                1104.2
+  │     nearest_res_strength                941.8
+  │     nearest_sup_touches                 327.6
+  │     nearest_res_touches                 264.8
+  │     channel_width_atr                   156.6
+  │     nearest_sup_dist_pct                105.6
+  │     nearest_sup_dist_atr                92.9
+  │     nearest_res_dist_pct                74.5
+  │     nearest_res_dist_atr                52.9
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_level_v1_tf60.ubj
+
+  ┌─── Training: ENTRY TF60m ───
+  │ pos/neg: 380160/407703 (weight=1.07)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:40:15] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.72493	train-logloss:0.68502	test-auc:0.70233	test-logloss:0.68606
+[100]	train-auc:0.75437	train-logloss:0.57506	test-auc:0.71599	test-logloss:0.60478
+[188]	train-auc:0.77212	train-logloss:0.56007	test-auc:0.71607	test-logloss:0.60467
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ ENTRY TF60m RESULTS ══════
+  │   TRAIN: AUC=0.7723  Acc=0.6987
+  │   TEST:  AUC=0.7160  Acc=0.6420
+  │          Precision=0.5805  Recall=0.7252  F1=0.6448
+  │   Overfit gap: AUC=0.0563  Acc=0.0567
+  │   Confusion: TP=118228 FP=85453 FN=44805 TN=115356
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 1591.4
+  │     atr_pct                             955.6
+  │     nearest_sup_dist_atr                507.5
+  │     nearest_res_dist_atr                442.8
+  │     bb_width_pct                        380.8
+  │     approach_velocity_5                 248.6
+  │     fibo_r1                             245.6
+  │     channel_position                    236.9
+  │     nearest_res_strength                167.1
+  │     channel_width_atr                   163.8
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_entry_v1_tf60.ubj
+
+  Direction model: 423381 win-only train, 181429 test
+
+  ┌─── Training: DIRECTION TF60m ───
+  │ pos/neg: 202354/221027 (weight=1.09)
+  │ eta=0.02, depth=5, rounds=1500, early_stop=60
+[17:40:43] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.57884	train-logloss:0.69268	test-auc:0.51367	test-logloss:0.69310
+[77]	train-auc:0.63969	train-logloss:0.67387	test-auc:0.51648	test-logloss:0.69487
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ DIRECTION TF60m RESULTS ══════
+  │   TRAIN: AUC=0.6397  Acc=0.5947
+  │   TEST:  AUC=0.5165  Acc=0.4979
+  │          Precision=0.4600  Recall=0.5733  F1=0.5104
+  │   Overfit gap: AUC=0.1232  Acc=0.0968
+  │   Confusion: TP=47493 FP=55755 FN=35342 TN=42839
+  │
+  │   Top 10 Features (by Gain):
+  │     trend_persist_lb3                   310.7
+  │     trend_persist_lb5                   302.5
+  │     nearest_res_age_bars                300.8
+  │     atr_ratio_lb25                      235.0
+  │     rsi                                 218.1
+  │     adx                                 210.6
+  │     adx_slope_lb25                      209.3
+  │     rsi_norm                            208.9
+  │     trend                               208.7
+  │     nearest_sup_age_bars                197.6
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_dir_v1_tf60.ubj
+
+  Bounce/Break model: 738496 near-level train, 341464 test
+
+  ┌─── Training: BOUNCE/BREAK TF60m ───
+  │ pos/neg: 44389/694107 (weight=15.64)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:40:53] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.68845	train-logloss:0.68760	test-auc:0.67381	test-logloss:0.68923
+[100]	train-auc:0.77357	train-logloss:0.57886	test-auc:0.74402	test-logloss:0.59509
+[200]	train-auc:0.80446	train-logloss:0.55250	test-auc:0.74859	test-logloss:0.56829
+[300]	train-auc:0.82601	train-logloss:0.53270	test-auc:0.74901	test-logloss:0.55134
+[400]	train-auc:0.84391	train-logloss:0.51566	test-auc:0.74917	test-logloss:0.53632
+[499]	train-auc:0.85913	train-logloss:0.50025	test-auc:0.74762	test-logloss:0.52367
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ BOUNCE/BREAK TF60m RESULTS ══════
+  │   TRAIN: AUC=0.8591  Acc=0.7420
+  │   TEST:  AUC=0.7476  Acc=0.7168
+  │          Precision=0.1320  Recall=0.6200  F1=0.2176
+  │   Overfit gap: AUC=0.1115  Acc=0.0251
+  │   Confusion: TP=13448 FP=88446 FN=8243 TN=231327
+  │
+  │   Top 10 Features (by Gain):
+  │     atr_pct                             999.4
+  │     in_level_zone                       408.2
+  │     total_levels_nearby                 392.8
+  │     channel_position                    359.1
+  │     bb_width_pct                        356.3
+  │     williams_norm                       287.0
+  │     volume_spike                        280.4
+  │     nearest_res_dist_atr                278.9
+  │     volume_spike_flag                   275.8
+  │     atr_ratio_lb3                       274.7
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_bb_v1_tf60.ubj
+
+  ┌─── Training: EVALUATOR TF60m ───
+  │ pos/neg: 423381/364482 (weight=0.86)
+  │ eta=0.03, depth=5, rounds=1000, early_stop=50
+[17:42:02] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.68863	train-logloss:0.68986	test-auc:0.66334	test-logloss:0.69035
+[100]	train-auc:0.70611	train-logloss:0.62387	test-auc:0.67344	test-logloss:0.64447
+[200]	train-auc:0.71753	train-logloss:0.61476	test-auc:0.67438	test-logloss:0.64374
+[286]	train-auc:0.72487	train-logloss:0.60935	test-auc:0.67454	test-logloss:0.64370
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ EVALUATOR TF60m RESULTS ══════
+  │   TRAIN: AUC=0.7249  Acc=0.6671
+  │   TEST:  AUC=0.6745  Acc=0.6243
+  │          Precision=0.6202  Recall=0.6358  F1=0.6279
+  │   Overfit gap: AUC=0.0503  Acc=0.0428
+  │   Confusion: TP=115350 FP=70629 FN=66079 TN=111784
+  │
+  │   Top 10 Features (by Gain):
+  │     atr_pct                             1257.4
+  │     bb_width_pct                        699.7
+  │     fibo_r1                             253.5
+  │     fibo_pivot                          243.2
+  │     price_vs_supertrend                 229.6
+  │     rsi_slope_lb25                      142.4
+  │     supertrend                          117.0
+  │     fibo_s1                             116.4
+  │     ema_20                              111.1
+  │     trend_persist_lb25                  111.0
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_eval_v1_tf60.ubj
+
+══════════════════════════════════════════════════════════════════════
+  TRAINING MODELS FOR TF 240m (670753 samples)
+  Target move: 7.5%
+══════════════════════════════════════════════════════════════════════
+
+  Time-based split (prep=5.0%, train=65.0%, test=30%):
+    Train: 435928 rows (134 symbols)
+    Test:  201360 rows
+
+  ┌─── Training: LEVEL TF240m ───
+  │ pos/neg: 337459/98469 (weight=0.29)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:42:45] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.99091	train-logloss:0.64959	test-auc:0.98940	test-logloss:0.65005
+[100]	train-auc:0.99706	train-logloss:0.07567	test-auc:0.99590	test-logloss:0.08761
+[200]	train-auc:0.99797	train-logloss:0.06157	test-auc:0.99621	test-logloss:0.07977
+[300]	train-auc:0.99842	train-logloss:0.05483	test-auc:0.99629	test-logloss:0.07765
+[400]	train-auc:0.99872	train-logloss:0.04991	test-auc:0.99632	test-logloss:0.07614
+[499]	train-auc:0.99896	train-logloss:0.04577	test-auc:0.99632	test-logloss:0.07545
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ LEVEL TF240m RESULTS ══════
+  │   TRAIN: AUC=0.9990  Acc=0.9800
+  │   TEST:  AUC=0.9963  Acc=0.9695
+  │          Precision=0.9944  Recall=0.9648  F1=0.9794
+  │   Overfit gap: AUC=0.0026  Acc=0.0105
+  │   Confusion: TP=145795 FP=827 FN=5321 TN=49417
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 1743.6
+  │     nearest_sup_strength                585.9
+  │     nearest_res_strength                582.5
+  │     nearest_sup_touches                 190.6
+  │     nearest_res_touches                 182.6
+  │     channel_width_atr                   155.4
+  │     nearest_res_dist_pct                61.9
+  │     nearest_sup_dist_atr                59.5
+  │     nearest_sup_dist_pct                54.0
+  │     nearest_res_dist_atr                32.4
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_level_v1_tf240.ubj
+
+  ┌─── Training: ENTRY TF240m ───
+  │ pos/neg: 257923/178005 (weight=0.69)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:43:30] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.71304	train-logloss:0.68521	test-auc:0.69054	test-logloss:0.68627
+[100]	train-auc:0.74642	train-logloss:0.57128	test-auc:0.70918	test-logloss:0.59777
+[200]	train-auc:0.76866	train-logloss:0.55482	test-auc:0.71182	test-logloss:0.59387
+[300]	train-auc:0.78649	train-logloss:0.54203	test-auc:0.71178	test-logloss:0.59243
+[400]	train-auc:0.80109	train-logloss:0.53126	test-auc:0.71080	test-logloss:0.59224
+[409]	train-auc:0.80234	train-logloss:0.53031	test-auc:0.71080	test-logloss:0.59222
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ ENTRY TF240m RESULTS ══════
+  │   TRAIN: AUC=0.8023  Acc=0.7423
+  │   TEST:  AUC=0.7108  Acc=0.6707
+  │          Precision=0.6959  Recall=0.7581  F1=0.7257
+  │   Overfit gap: AUC=0.0915  Acc=0.0717
+  │   Confusion: TP=87708 FP=38323 FN=27985 TN=47344
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 476.6
+  │     atr_pct                             202.5
+  │     nearest_sup_dist_atr                143.8
+  │     nearest_res_dist_atr                98.9
+  │     channel_position                    79.3
+  │     bb_width_pct                        64.2
+  │     trend                               54.7
+  │     channel_width_atr                   46.3
+  │     nearest_res_strength                41.8
+  │     vwap                                39.1
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_entry_v1_tf240.ubj
+
+  Direction model: 282115 win-only train, 129806 test
+
+  ┌─── Training: DIRECTION TF240m ───
+  │ pos/neg: 133989/148126 (weight=1.11)
+  │ eta=0.02, depth=5, rounds=1500, early_stop=60
+[17:44:08] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.57420	train-logloss:0.69274	test-auc:0.52684	test-logloss:0.69298
+[100]	train-auc:0.65421	train-logloss:0.67106	test-auc:0.53769	test-logloss:0.69184
+[115]	train-auc:0.65873	train-logloss:0.66915	test-auc:0.53869	test-logloss:0.69199
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ DIRECTION TF240m RESULTS ══════
+  │   TRAIN: AUC=0.6587  Acc=0.6090
+  │   TEST:  AUC=0.5387  Acc=0.5198
+  │          Precision=0.4797  Recall=0.5737  F1=0.5225
+  │   Overfit gap: AUC=0.1200  Acc=0.0892
+  │   Confusion: TP=34100 FP=36987 FN=25341 TN=33378
+  │
+  │   Top 10 Features (by Gain):
+  │     rsi_norm                            233.2
+  │     rsi                                 141.0
+  │     atr_pct                             122.7
+  │     trend_persist_lb15                  116.9
+  │     nearest_res_age_bars                111.0
+  │     mfi_norm                            103.7
+  │     nearest_sup_age_bars                102.2
+  │     stoch_norm                          101.9
+  │     williams                            101.9
+  │     stoch_k                             101.7
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_dir_v1_tf240.ubj
+
+  Bounce/Break model: 410495 near-level train, 186960 test
+
+  ┌─── Training: BOUNCE/BREAK TF240m ───
+  │ pos/neg: 10286/400209 (weight=38.91)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:44:16] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.72837	train-logloss:0.68518	test-auc:0.70931	test-logloss:0.68667
+[100]	train-auc:0.84761	train-logloss:0.50911	test-auc:0.79501	test-logloss:0.54901
+[200]	train-auc:0.88958	train-logloss:0.45988	test-auc:0.79724	test-logloss:0.50614
+[300]	train-auc:0.91877	train-logloss:0.42186	test-auc:0.79615	test-logloss:0.47295
+[400]	train-auc:0.94037	train-logloss:0.38822	test-auc:0.79376	test-logloss:0.44132
+[499]	train-auc:0.95556	train-logloss:0.35972	test-auc:0.79064	test-logloss:0.41606
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ BOUNCE/BREAK TF240m RESULTS ══════
+  │   TRAIN: AUC=0.9556  Acc=0.8451
+  │   TEST:  AUC=0.7906  Acc=0.7984
+  │          Precision=0.0825  Recall=0.5905  F1=0.1448
+  │   Overfit gap: AUC=0.1649  Acc=0.0468
+  │   Confusion: TP=3192 FP=35483 FN=2214 TN=146071
+  │
+  │   Top 10 Features (by Gain):
+  │     in_level_zone                       624.0
+  │     total_levels_nearby                 573.1
+  │     atr_pct                             500.3
+  │     channel_position                    420.6
+  │     volume_spike                        373.7
+  │     nearest_res_strength                338.0
+  │     nearest_sup_dist_atr                319.9
+  │     nearest_sup_strength                313.1
+  │     volume_spike_flag                   308.0
+  │     nearest_res_dist_atr                303.8
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_bb_v1_tf240.ubj
+
+  ┌─── Training: EVALUATOR TF240m ───
+  │ pos/neg: 282115/153813 (weight=0.55)
+  │ eta=0.03, depth=5, rounds=1000, early_stop=50
+[17:45:00] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.65684	train-logloss:0.69066	test-auc:0.61257	test-logloss:0.69183
+[100]	train-auc:0.68119	train-logloss:0.63655	test-auc:0.63026	test-logloss:0.66743
+[200]	train-auc:0.69572	train-logloss:0.62674	test-auc:0.63413	test-logloss:0.66426
+[300]	train-auc:0.70594	train-logloss:0.62046	test-auc:0.63504	test-logloss:0.66246
+[400]	train-auc:0.71470	train-logloss:0.61527	test-auc:0.63580	test-logloss:0.66124
+[500]	train-auc:0.72224	train-logloss:0.61090	test-auc:0.63616	test-logloss:0.66019
+[600]	train-auc:0.72938	train-logloss:0.60660	test-auc:0.63606	test-logloss:0.65944
+[700]	train-auc:0.73583	train-logloss:0.60267	test-auc:0.63560	test-logloss:0.65887
+[800]	train-auc:0.74185	train-logloss:0.59900	test-auc:0.63521	test-logloss:0.65860
+[900]	train-auc:0.74763	train-logloss:0.59540	test-auc:0.63457	test-logloss:0.65813
+[999]	train-auc:0.75308	train-logloss:0.59190	test-auc:0.63434	test-logloss:0.65758
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ EVALUATOR TF240m RESULTS ══════
+  │   TRAIN: AUC=0.7531  Acc=0.7069
+  │   TEST:  AUC=0.6343  Acc=0.6233
+  │          Precision=0.7197  Recall=0.6808  F1=0.6997
+  │   Overfit gap: AUC=0.1187  Acc=0.0836
+  │   Confusion: TP=88371 FP=34424 FN=41435 TN=37130
+  │
+  │   Top 10 Features (by Gain):
+  │     atr_pct                             219.9
+  │     bb_width_pct                        75.5
+  │     price_vs_supertrend                 35.4
+  │     vwap                                34.2
+  │     trend_persist_lb3                   30.1
+  │     price_vs_vwap                       28.1
+  │     trend                               25.7
+  │     adx                                 25.6
+  │     trend_persist_lb5                   25.5
+  │     alligator_spread                    24.7
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_eval_v1_tf240.ubj
+
+══════════════════════════════════════════════════════════════════════
+  TRAINING MODELS FOR TF 1440m (72932 samples)
+  Target move: 10.0%
+══════════════════════════════════════════════════════════════════════
+
+  Time-based split (prep=5.0%, train=65.0%, test=30%):
+    Train: 47369 rows (75 symbols)
+    Test:  21952 rows
+
+  ┌─── Training: LEVEL TF1440m ───
+  │ pos/neg: 38079/9290 (weight=0.24)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:46:20] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.99255	train-logloss:0.64868	test-auc:0.99195	test-logloss:0.64910
+[100]	train-auc:0.99872	train-logloss:0.05658	test-auc:0.99679	test-logloss:0.07552
+[200]	train-auc:0.99940	train-logloss:0.03875	test-auc:0.99701	test-logloss:0.06785
+[300]	train-auc:0.99970	train-logloss:0.03045	test-auc:0.99701	test-logloss:0.06620
+[400]	train-auc:0.99985	train-logloss:0.02447	test-auc:0.99705	test-logloss:0.06513
+[470]	train-auc:0.99991	train-logloss:0.02131	test-auc:0.99701	test-logloss:0.06533
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ LEVEL TF1440m RESULTS ══════
+  │   TRAIN: AUC=0.9999  Acc=0.9924
+  │   TEST:  AUC=0.9970  Acc=0.9734
+  │          Precision=0.9915  Recall=0.9708  F1=0.9810
+  │   Overfit gap: AUC=0.0029  Acc=0.0191
+  │   Confusion: TP=15125 FP=130 FN=455 TN=6242
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 481.0
+  │     nearest_sup_strength                126.6
+  │     nearest_res_strength                67.8
+  │     channel_width_atr                   66.5
+  │     nearest_sup_touches                 50.4
+  │     nearest_sup_dist_pct                50.2
+  │     nearest_res_touches                 28.3
+  │     nearest_res_dist_pct                14.8
+  │     nearest_sup_dist_atr                12.5
+  │     bb_width_pct                        11.3
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_level_v1_tf1440.ubj
+
+  ┌─── Training: ENTRY TF1440m ───
+  │ pos/neg: 33955/13414 (weight=0.40)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:46:30] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.67225	train-logloss:0.68618	test-auc:0.71698	test-logloss:0.68343
+[100]	train-auc:0.81284	train-logloss:0.54529	test-auc:0.72563	test-logloss:0.54916
+[200]	train-auc:0.88162	train-logloss:0.50176	test-auc:0.72758	test-logloss:0.53952
+[300]	train-auc:0.91994	train-logloss:0.46662	test-auc:0.72768	test-logloss:0.53397
+[400]	train-auc:0.94341	train-logloss:0.43653	test-auc:0.72760	test-logloss:0.52989
+[499]	train-auc:0.96072	train-logloss:0.40734	test-auc:0.72716	test-logloss:0.52650
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ ENTRY TF1440m RESULTS ══════
+  │   TRAIN: AUC=0.9607  Acc=0.9059
+  │   TEST:  AUC=0.7272  Acc=0.7535
+  │          Precision=0.7685  Recall=0.8901  F1=0.8249
+  │   Overfit gap: AUC=0.2336  Acc=0.1525
+  │   Confusion: TP=12746 FP=3839 FN=1573 TN=3794
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 70.3
+  │     nearest_res_strength                18.4
+  │     nearest_sup_dist_atr                17.6
+  │     trend_persist_lb3                   11.2
+  │     nearest_res_dist_atr                10.9
+  │     nearest_sup_strength                10.3
+  │     atr_pct                             8.3
+  │     trend_persist_lb15                  8.2
+  │     fibo_pivot                          7.9
+  │     alligator_lips                      7.8
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_entry_v1_tf1440.ubj
+
+  Direction model: 36412 win-only train, 16923 test
+
+  ┌─── Training: DIRECTION TF1440m ───
+  │ pos/neg: 17304/19108 (weight=1.10)
+  │ eta=0.02, depth=5, rounds=1500, early_stop=60
+[17:46:42] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.62010	train-logloss:0.69217	test-auc:0.53916	test-logloss:0.69289
+[100]	train-auc:0.75833	train-logloss:0.63642	test-auc:0.56458	test-logloss:0.68922
+[200]	train-auc:0.79402	train-logloss:0.60946	test-auc:0.57250	test-logloss:0.68803
+[300]	train-auc:0.82273	train-logloss:0.58742	test-auc:0.57989	test-logloss:0.68691
+[358]	train-auc:0.83291	train-logloss:0.57740	test-auc:0.57912	test-logloss:0.68751
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ DIRECTION TF1440m RESULTS ══════
+  │   TRAIN: AUC=0.8331  Acc=0.7505
+  │   TEST:  AUC=0.5791  Acc=0.5568
+  │          Precision=0.4929  Recall=0.5583  F1=0.5236
+  │   Overfit gap: AUC=0.2540  Acc=0.1937
+  │   Confusion: TP=4121 FP=4240 FN=3260 TN=5302
+  │
+  │   Top 10 Features (by Gain):
+  │     trend_persist_lb25                  41.6
+  │     trend                               38.3
+  │     adx_slope_lb15                      37.6
+  │     trend_persist_lb10                  37.3
+  │     trend_persist_lb3                   36.4
+  │     trend_persist_lb15                  33.7
+  │     nearest_res_strength                31.7
+  │     price_vs_ema20                      31.3
+  │     atr_pct                             31.0
+  │     atr_ratio_lb25                      30.8
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_dir_v1_tf1440.ubj
+
+  Bounce/Break model: 45041 near-level train, 19292 test
+
+  ┌─── Training: BOUNCE/BREAK TF1440m ───
+  │ pos/neg: 543/44498 (weight=81.95)
+  │ eta=0.05, depth=6, rounds=500, early_stop=30
+[17:46:49] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.84772	train-logloss:0.67157	test-auc:0.72946	test-logloss:0.67240
+[100]	train-auc:0.99213	train-logloss:0.21855	test-auc:0.78553	test-logloss:0.23298
+[200]	train-auc:0.99973	train-logloss:0.10193	test-auc:0.77759	test-logloss:0.12838
+[300]	train-auc:0.99998	train-logloss:0.05260	test-auc:0.77284	test-logloss:0.08986
+[400]	train-auc:1.00000	train-logloss:0.02788	test-auc:0.76997	test-logloss:0.07601
+[499]	train-auc:1.00000	train-logloss:0.01644	test-auc:0.76681	test-logloss:0.07236
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+  │
+  │ ══════ BOUNCE/BREAK TF1440m RESULTS ══════
+  │   TRAIN: AUC=1.0000  Acc=0.9991
+  │   TEST:  AUC=0.7668  Acc=0.9852
+  │          Precision=0.2414  Recall=0.0259  F1=0.0468
+  │   Overfit gap: AUC=0.2332  Acc=0.0138
+  │   Confusion: TP=7 FP=22 FN=263 TN=19000
+  │
+  │   Top 10 Features (by Gain):
+  │     total_levels_nearby                 303.2
+  │     in_level_zone                       216.7
+  │     williams_norm                       158.4
+  │     channel_position                    125.9
+  │     nearest_res_touches                 116.5
+  │     stoch_norm                          112.3
+  │     nearest_sup_dist_atr                107.9
+  │     volume_spike                        95.3
+  │     atr_pct                             94.0
+  │     nearest_res_dist_pct                84.7
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_bb_v1_tf1440.ubj
+
+  ┌─── Training: EVALUATOR TF1440m ───
+  │ pos/neg: 36412/10957 (weight=0.30)
+  │ eta=0.03, depth=5, rounds=1000, early_stop=50
+[17:47:02] WARNING: ../src/learner.cc:767: 
+Parameters: { "device" } are not used.
+
+[0]	train-auc:0.58807	train-logloss:0.69212	test-auc:0.51118	test-logloss:0.69253
+[100]	train-auc:0.72819	train-logloss:0.64788	test-auc:0.52555	test-logloss:0.67250
+[200]	train-auc:0.77286	train-logloss:0.62598	test-auc:0.52607	test-logloss:0.66398
+[300]	train-auc:0.80281	train-logloss:0.60935	test-auc:0.52602	test-logloss:0.65847
+[400]	train-auc:0.82697	train-logloss:0.59342	test-auc:0.52680	test-logloss:0.65291
+[500]	train-auc:0.84514	train-logloss:0.57991	test-auc:0.52652	test-logloss:0.64900
+[600]	train-auc:0.86173	train-logloss:0.56701	test-auc:0.52917	test-logloss:0.64478
+[700]	train-auc:0.87506	train-logloss:0.55464	test-auc:0.52855	test-logloss:0.64224
+[800]	train-auc:0.88732	train-logloss:0.54324	test-auc:0.52955	test-logloss:0.63946
+[900]	train-auc:0.89740	train-logloss:0.53296	test-auc:0.53005	test-logloss:0.63608
+[999]	train-auc:0.90743	train-logloss:0.52139	test-auc:0.53034	test-logloss:0.63305
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "trained_at": datetime.utcnow().isoformat(),
+/home/anton/Desktop/Rust_trader/trainer/src/train_super_level.py:546: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  f.write(f"Date: {datetime.utcnow().isoformat()}\n")
+  │
+  │ ══════ EVALUATOR TF1440m RESULTS ══════
+  │   TRAIN: AUC=0.9074  Acc=0.8307
+  │   TEST:  AUC=0.5303  Acc=0.6634
+  │          Precision=0.7799  Recall=0.7850  F1=0.7824
+  │   Overfit gap: AUC=0.3771  Acc=0.1673
+  │   Confusion: TP=13285 FP=3750 FN=3638 TN=1279
+  │
+  │   Top 10 Features (by Gain):
+  │     nearest_res_strength                12.1
+  │     trend_persist_lb15                  8.5
+  │     trend_persist_lb10                  8.1
+  │     trend_persist_lb5                   8.0
+  │     fibo_pivot                          7.9
+  │     atr_pct                             7.8
+  │     supertrend_consistency              7.6
+  │     atr_ratio_lb25                      7.2
+  │     supertrend_dir                      7.2
+  │     williams_norm                       7.1
+  └─────────────────────────────
+  Model: /home/anton/Desktop/Rust_trader/models/slvl_eval_v1_tf1440.ubj
+
+══════════════════════════════════════════════════════════════════════
+  ✅ SUPER LEVEL TRAINING COMPLETE — SUMMARY
+══════════════════════════════════════════════════════════════════════
+
+   TF        Model  Train AUC   Test AUC  Precision   Recall     F1  Overfit
+---------------------------------------------------------------------------
+    1m        level 0.9994     0.9967     0.9944     0.9737  0.9839 +0.0026
+    1m        entry 0.9188     0.8416     0.4316     0.8057  0.5621 +0.0772
+    1m    direction 0.6704     0.5307     0.6001     0.4735  0.5293 +0.1397
+    1m bounce_break 0.8103     0.7563     0.7252     0.6555  0.6886 +0.0541
+    1m    evaluator 0.8705     0.8057     0.4661     0.7756  0.5823 +0.0648
+    5m        level 0.9987     0.9959     0.9939     0.9673  0.9804 +0.0028
+    5m        entry 0.8944     0.8390     0.3646     0.7522  0.4912 +0.0554
+    5m    direction 0.6931     0.5419     0.6265     0.5346  0.5769 +0.1512
+    5m bounce_break 0.7886     0.6898     0.4175     0.7123  0.5265 +0.0988
+    5m    evaluator 0.8468     0.8010     0.4319     0.6934  0.5323 +0.0458
+   15m        level 0.9979     0.9960     0.9943     0.9644  0.9791 +0.0019
+   15m        entry 0.7929     0.7516     0.4509     0.7474  0.5625 +0.0413
+   15m    direction 0.6798     0.5527     0.5848     0.6115  0.5979 +0.1271
+   15m bounce_break 0.7918     0.7118     0.2581     0.5724  0.3558 +0.0800
+   15m    evaluator 0.7661     0.7328     0.5002     0.6940  0.5814 +0.0333
+   60m        level 0.9983     0.9962     0.9948     0.9636  0.9790 +0.0021
+   60m        entry 0.7723     0.7160     0.5805     0.7252  0.6448 +0.0563
+   60m    direction 0.6397     0.5165     0.4600     0.5733  0.5104 +0.1232
+   60m bounce_break 0.8591     0.7476     0.1320     0.6200  0.2176 +0.1115
+   60m    evaluator 0.7249     0.6745     0.6202     0.6358  0.6279 +0.0503
+  240m        level 0.9990     0.9963     0.9944     0.9648  0.9794 +0.0026
+  240m        entry 0.8023     0.7108     0.6959     0.7581  0.7257 +0.0915
+  240m    direction 0.6587     0.5387     0.4797     0.5737  0.5225 +0.1200
+  240m bounce_break 0.9556     0.7906     0.0825     0.5905  0.1448 +0.1649
+  240m    evaluator 0.7531     0.6343     0.7197     0.6808  0.6997 +0.1187
+ 1440m        level 0.9999     0.9970     0.9915     0.9708  0.9810 +0.0029
+ 1440m        entry 0.9607     0.7272     0.7685     0.8901  0.8249 +0.2336
+ 1440m    direction 0.8331     0.5791     0.4929     0.5583  0.5236 +0.2540
+ 1440m bounce_break 1.0000     0.7668     0.2414     0.0259  0.0468 +0.2332
+ 1440m    evaluator 0.9074     0.5303     0.7799     0.7850  0.7824 +0.3771
+
+  Models saved to: /home/anton/Desktop/Rust_trader/models/
+  Log:             logs/super_level_training_20260316_172824.log
+
+  Next steps:
+  1. Run backtest: cargo run --release -p super_level_strategy --bin super_level_backtest
+══════════════════════════════════════════════════════════════════════

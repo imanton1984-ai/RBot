@@ -242,7 +242,9 @@ pub const DERIVED_FEATURES: &[&str] = &[
 
 /// Lookback windows (in bars) for computing dynamic/temporal features.
 /// Used by both dataset builder and inference pipeline.
-pub const DYNAMIC_LOOKBACK_WINDOWS: &[usize] = &[3, 5, 10, 15];
+/// v2: expanded from [3,5,10,15] to include 25 and 50 for broader trend context.
+/// For 1h candles: lb25 = 1 day, lb50 = 2 days — critical for direction prediction.
+pub const DYNAMIC_LOOKBACK_WINDOWS: &[usize] = &[3, 5, 10, 15, 25, 50];
 
 /// Dynamic (temporal) features — computed from lookback over candle history.
 /// These capture HOW indicators are CHANGING, not just their current value.
@@ -253,7 +255,7 @@ pub const DYNAMIC_LOOKBACK_WINDOWS: &[usize] = &[3, 5, 10, 15];
 ///
 /// Keep in sync with Python trainer (DYNAMIC_FEATURES list).
 pub const DYNAMIC_FEATURES: &[&str] = &[
-    // --- Per-window features (8 metrics × 4 windows = 32) ---
+    // --- Per-window features (8 metrics × 6 windows = 48) ---
     // Window 3 bars
     "price_return_lb3",         // (close[t] - close[t-3]) / close[t] * 100
     "atr_ratio_lb3",            // atr[t] / atr[t-3] - 1 (vol expansion/contraction)
@@ -290,8 +292,26 @@ pub const DYNAMIC_FEATURES: &[&str] = &[
     "adx_slope_lb15",
     "macd_hist_slope_lb15",
     "ema20_direction_lb15",
+    // Window 25 bars (v2: ~1 day for 1h candles)
+    "price_return_lb25",
+    "atr_ratio_lb25",
+    "rsi_slope_lb25",
+    "trend_persist_lb25",
+    "trend_short_persist_lb25",
+    "adx_slope_lb25",
+    "macd_hist_slope_lb25",
+    "ema20_direction_lb25",
+    // Window 50 bars (v2: ~2 days for 1h candles)
+    "price_return_lb50",
+    "atr_ratio_lb50",
+    "rsi_slope_lb50",
+    "trend_persist_lb50",
+    "trend_short_persist_lb50",
+    "adx_slope_lb50",
+    "macd_hist_slope_lb50",
+    "ema20_direction_lb50",
     // --- Aggregate/cross-window features (6) ---
-    "supertrend_consistency",   // sum(supertrend_dir[t-14..=t]) / 15
+    "supertrend_consistency",   // sum(supertrend_dir[t-49..=t]) / 50 (v2: expanded from 15 to 50)
     "trend_alignment",          // trend[t] * trend_short[t]
     "price_accel",              // (ret_5 - ret_5_prev) normalized — momentum acceleration
     "volume_trend_ratio",       // mean_vol_recent_5 / mean_vol_prev_5
@@ -369,10 +389,10 @@ mod tests {
     fn test_feature_count() {
         assert_eq!(INDICATOR_FEATURES.len(), 33);
         assert_eq!(DERIVED_FEATURES.len(), 19);
-        assert_eq!(DYNAMIC_FEATURES.len(), 38);
+        assert_eq!(DYNAMIC_FEATURES.len(), 54); // 8 metrics × 6 windows + 6 aggregate
         assert_eq!(static_feature_count(), 52);
-        assert_eq!(total_feature_count(), 90);
-        assert_eq!(dynamic_feature_count(), 38);
-        assert_eq!(max_dynamic_lookback(), 15);
+        assert_eq!(total_feature_count(), 106); // 52 + 54
+        assert_eq!(dynamic_feature_count(), 54);
+        assert_eq!(max_dynamic_lookback(), 50);
     }
 }

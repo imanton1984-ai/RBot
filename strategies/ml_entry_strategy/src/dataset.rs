@@ -246,11 +246,12 @@ pub fn compute_dynamic_features(candles: &[CandleWithIndicators], t: usize) -> V
 
     // --- Aggregate features (6) ---
 
-    // 9. Supertrend consistency over 15 bars: how often supertrend_dir agrees
-    let st_sum: f64 = (0..15.min(t + 1))
+    // 9. Supertrend consistency over 50 bars (v2: expanded from 15 for broader trend context)
+    let st_window = 50.min(t + 1);
+    let st_sum: f64 = (0..st_window)
         .map(|j| candles[t - j].supertrend_dir)
         .sum();
-    feats.push(st_sum / 15.0);
+    feats.push(st_sum / st_window as f64);
 
     // 10. Trend alignment: do long-term and short-term trends agree?
     feats.push(cur.trend * cur.trend_short);
@@ -898,13 +899,13 @@ mod tests {
 
     #[test]
     fn test_dynamic_features_basic() {
-        // Create 20 candles with default values
-        let candles: Vec<CandleWithIndicators> = (0..20)
+        // Create 60 candles with default values (need at least 50 for max lookback)
+        let candles: Vec<CandleWithIndicators> = (0..60)
             .map(|_| make_test_candle(100.0, 101.0, 99.0))
             .collect();
 
-        // At index 15 (enough lookback=15), dynamic features should be computable
-        let dyn_feats = compute_dynamic_features(&candles, 15);
+        // At index 55 (enough lookback=50), dynamic features should be computable
+        let dyn_feats = compute_dynamic_features(&candles, 55);
         assert_eq!(dyn_feats.len(), crate::config::dynamic_feature_count());
 
         // With identical candles, most deltas should be 0 or near-0
@@ -915,12 +916,12 @@ mod tests {
 
     #[test]
     fn test_dynamic_features_not_enough_lookback() {
-        let candles: Vec<CandleWithIndicators> = (0..10)
+        let candles: Vec<CandleWithIndicators> = (0..30)
             .map(|_| make_test_candle(100.0, 101.0, 99.0))
             .collect();
 
-        // Index 5 has less than 15 bars lookback — should return zeros
-        let dyn_feats = compute_dynamic_features(&candles, 5);
+        // Index 20 has less than 50 bars lookback — should return zeros
+        let dyn_feats = compute_dynamic_features(&candles, 20);
         assert_eq!(dyn_feats.len(), crate::config::dynamic_feature_count());
         assert!(dyn_feats.iter().all(|&v| v == 0.0), "Expected all zeros for insufficient lookback");
     }

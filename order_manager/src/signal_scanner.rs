@@ -94,7 +94,7 @@ impl SignalScanner {
 
         // 2. Get symbols blocked from trading:
         //    a) Currently have an open position (status=1) on any timeframe
-        //    b) Had a position (open or closed) opened within the cooldown window (e.g. 12h)
+        //    b) Had a position opened OR closed within the cooldown window (e.g. 12h)
         //    This prevents situations like BANANAS31USDT being traded 7+ times in one session.
         let used_symbols = self.fetch_cooldown_symbols().await?;
 
@@ -104,8 +104,8 @@ impl SignalScanner {
         for raw in &raw_signals {
             // Skip if this symbol is on cooldown (open position OR traded within last N hours)
             if used_symbols.contains(&raw.symbol) {
-                debug!(
-                    "SignalScanner: skipping {} tf={}m — symbol on cooldown (open or traded within last {:.0}h)",
+                info!(
+                    "🚫 SignalScanner: BLOCKED {} tf={}m — symbol on cooldown (open or traded within last {:.0}h)",
                     raw.symbol, tf_minutes, self.config.symbol_cooldown_hours
                 );
                 continue;
@@ -250,8 +250,10 @@ impl SignalScanner {
 
     /// Получить все символы, заблокированные для торговли:
     ///   1. Имеют ОТКРЫТУЮ позицию (status=1) — нельзя дублировать
-    ///   2. Имели позицию (открытую или закрытую), opened_at в пределах cooldown-окна
+    ///   2. Имели позицию opened_at ИЛИ closed_at в пределах cooldown-окна
     ///      Предотвращает повторные сливы на одну пару (BANANAS31USDT × 7 за сессию).
+    ///      Используем GREATEST(opened_at, closed_at) чтобы cooldown считался от последнего
+    ///      взаимодействия с парой, а не от открытия (которое может быть >12ч назад).
     async fn fetch_cooldown_symbols(&self) -> Result<Vec<String>> {
         let cooldown_hours = self.config.symbol_cooldown_hours;
         let cooldown_secs = (cooldown_hours * 3600.0) as i64;
@@ -265,6 +267,7 @@ impl SignalScanner {
               AND (
                   status = 1
                   OR opened_at >= now() - make_interval(secs => $1)
+                  OR closed_at >= now() - make_interval(secs => $1)
               )
             "#,
         )
@@ -281,9 +284,9 @@ impl SignalScanner {
             .collect();
 
         if !symbols.is_empty() {
-            debug!(
-                "SignalScanner: {} symbols on cooldown (open or traded within last {:.0}h)",
-                symbols.len(), cooldown_hours
+            info!(
+                "🔒 SignalScanner: {} symbols on cooldown (open or traded within last {:.0}h): {:?}",
+                symbols.len(), cooldown_hours, symbols
             );
         }
 
