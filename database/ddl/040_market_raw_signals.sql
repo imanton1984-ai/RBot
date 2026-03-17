@@ -2,7 +2,10 @@
 CREATE SCHEMA IF NOT EXISTS market;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
-DROP TABLE IF EXISTS market.raw_signals CASCADE;
+-- NOTE: DO NOT drop raw_signals on restart!
+-- Previous DROP TABLE destroyed all computed signals, forcing full recompute.
+-- Use CREATE TABLE IF NOT EXISTS for idempotent startup.
+-- To force a full reset, run: DROP TABLE IF EXISTS market.raw_signals CASCADE;
 
 CREATE TABLE IF NOT EXISTS market.raw_signals (
     time            TIMESTAMPTZ NOT NULL,

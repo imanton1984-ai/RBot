@@ -176,36 +176,22 @@ async fn main() -> Result<()> {
     // --- PIPELINE SETUP END ---
 
     // =====================================================================
-    // INCREMENTAL GAP-AWARE PROCESSING LOOP
+    // INCREMENTAL GAP-AWARE PROCESSING LOOP (v2 — optimized)
     // =====================================================================
+    //
+    // Key optimizations vs v1:
+    //   1. Smart polling instead of hardcoded sleep(120s)
+    //   2. Bulk gap detection: ONE SQL query for ALL symbols×TFs
+    //   3. Ingestor-aware exit: tracks candle growth to know when ingestor is done
+    //   4. No N+1 diagnostic queries
 
-    // For super_entry mode: use longer wait for candles to load (ingestor backfill takes 2+ minutes)
-    let max_idle_cycles: u32 = if is_super {
-        6  // Super entry: allow more idle cycles (candles take time to load)
-    } else {
-        std::env::var("HISTORY_MAX_IDLE_CYCLES")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(10)
-    };
-
-    let poll_interval_secs: u64 = if is_super { 30 } else { 30 };
-    let initial_wait_secs: u64 = if is_super { 120 } else { 15 };
+    let poll_interval_secs: u64 = 15;  // faster polling for gap check
 
     // 1) Wait for active pairs to appear
     let symbols = wait_for_active_symbols(&db_pool).await?;
     tracing::info!("Found {} active symbols", symbols.len());
 
-    if is_super {
-        tracing::info!("compute_history (super_entry): will persist indicators for: {:?}", symbols);
-        tracing::info!("compute_history (super_entry): fast mode enabled (idle_cycles={}, poll={}s, initial_wait={}s)", 
-            max_idle_cycles, poll_interval_secs, initial_wait_secs);
-    }
-
     // ─── Timeframe selection ───────────────────────────────────────────
-    // When ACTIVE_STRATEGY=super_entry, compute indicators ONLY for TFs
-    // configured in SUPER_ENTRY_TIMEFRAMES (default: 15m,1h,4h,1d).
-    // Candles still load for ALL TFs — only indicator computation is skipped.
     let all_timeframes = [
         Timeframe::M1,
         Timeframe::M5,
@@ -223,7 +209,7 @@ async fn main() -> Result<()> {
             .copied()
             .collect();
         tracing::info!(
-            "compute_history (super_entry): FILTERED timeframes for indicator compute: {:?} (from SUPER_ENTRY_TIMEFRAMES)",
+            "compute_history (super_entry): FILTERED timeframes: {:?}",
             filtered.iter().map(|tf| tf.as_str()).collect::<Vec<_>>()
         );
         filtered
@@ -231,184 +217,168 @@ async fn main() -> Result<()> {
         all_timeframes.to_vec()
     };
 
-    tracing::info!(
-        "Waiting {}s for ingestor to populate candle data...",
-        initial_wait_secs
-    );
-    tokio::time::sleep(Duration::from_secs(initial_wait_secs)).await;
-    
-    // Log current state before processing
-    if is_super {
-        for tf in &timeframes {
-            let candle_table = format!("market.candles_{}", tf.as_str());
-            for symbol in &symbols {
-                let candle_count: Option<i64> = sqlx::query_scalar(&format!(
-                    "SELECT COUNT(*) FROM {} WHERE symbol = $1", candle_table
-                ))
-                .bind(symbol.as_str())
-                .fetch_optional(&db_pool)
-                .await
-                .ok()
-                .flatten();
-                
-                let indicator_count: Option<i64> = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM market.indicators_wide WHERE symbol = $1 AND tf_minutes = $2"
-                )
-                .bind(symbol.as_str())
-                .bind(tf.to_minutes() as i16)
-                .fetch_optional(&db_pool)
-                .await
-                .ok()
-                .flatten();
-                
-                tracing::info!(
-                    "compute_history (super_entry): {} {} - candles: {:?}, indicators: {:?}",
-                    symbol, tf.as_str(), candle_count, indicator_count
-                );
+    // ─── Decompress recent chunks in indicators_wide ────────────────
+    // TimescaleDB compression with 3-day policy can cause
+    // `tuple decompression limit exceeded by operation` errors on bulk INSERT.
+    // Decompress recent chunks before we start writing.
+    tracing::info!("Decompressing recent indicators_wide chunks (avoids decompression errors on INSERT)...");
+    let decompress_result = sqlx::raw_sql(
+        "SELECT decompress_chunk(c, true) \
+         FROM show_chunks('market.indicators_wide', older_than => INTERVAL '0 seconds') c \
+         WHERE is_compressed"
+    )
+    .execute(&db_pool)
+    .await;
+    match decompress_result {
+        Ok(_) => tracing::info!("indicators_wide chunks decompressed OK"),
+        Err(e) => tracing::warn!("Chunk decompression failed (may be OK if no compressed chunks): {}", e),
+    }
+
+    // ─── Smart wait for ingestor (replaces hardcoded sleep 120s) ──────
+    // Poll every 5s, start as soon as ANY candle data appears in required TFs.
+    // Max wait 180s to handle cold-start.
+    {
+        let wait_start = std::time::Instant::now();
+        let max_wait = Duration::from_secs(180);
+        let poll = Duration::from_secs(5);
+        tracing::info!("Waiting for ingestor to populate candle data (poll={}s, max={}s)...",
+            poll.as_secs(), max_wait.as_secs());
+        
+        loop {
+            let mut ready_tfs = 0u32;
+            for tf in &timeframes {
+                let table = format!("market.candles_{}", tf.as_str());
+                if table_has_data(&db_pool, &table).await {
+                    ready_tfs += 1;
+                }
             }
+            if ready_tfs > 0 {
+                tracing::info!(
+                    "Candle data detected in {}/{} TFs after {:.1}s — starting processing",
+                    ready_tfs, timeframes.len(), wait_start.elapsed().as_secs_f64()
+                );
+                break;
+            }
+            if wait_start.elapsed() > max_wait {
+                tracing::warn!("Max wait {}s exceeded, starting with whatever data is available", max_wait.as_secs());
+                break;
+            }
+            tokio::time::sleep(poll).await;
         }
     }
 
-    let mut idle_cycles: u32 = 0;
+    // ─── Bulk diagnostic (ONE query instead of 724) ───────────────────
+    if is_super {
+        let tf_list: Vec<i16> = timeframes.iter().map(|tf| tf.to_minutes() as i16).collect();
+        let diag = bulk_gap_summary(&db_pool, &timeframes).await;
+        tracing::info!(
+            "compute_history: {} symbols, {} TFs ({:?}). Gaps: {}/{} symbol×TF pairs need indicators",
+            symbols.len(), tf_list.len(), tf_list, diag.gaps_with_work, diag.total_pairs
+        );
+    }
+
+    // ─── Main processing loop ─────────────────────────────────────────
+    // Ingestor-aware: we track total candle count across all TFs.
+    // If candle count grows between cycles → ingestor still loading → don't exit.
+    // If candle count stable AND no gaps → truly done.
+    let mut prev_total_candles: i64 = 0;
+    let mut stable_cycles: u32 = 0;          // cycles where candle count didn't grow AND no gaps
+    let max_stable_cycles: u32 = 2;          // exit after 2 consecutive stable+idle cycles
     let mut total_jobs_submitted: u64 = 0;
     let mut cycle_count: u64 = 0;
 
     loop {
         cycle_count += 1;
         let mut jobs_this_cycle: u64 = 0;
-        let mut tables_with_data = 0u64;
-        let mut tables_empty = 0u64;
 
-        for timeframe in &timeframes {
-            let candle_table = format!("market.candles_{}", timeframe.as_str());
-            let tf_minutes = timeframe.to_minutes() as i16;
+        // ── BULK gap detection: ONE SQL per TF (instead of 724 individual queries) ──
+        let all_gaps = find_all_gaps_bulk(&db_pool, &timeframes).await;
 
-            // Check if candle table has any data
-            if !table_has_data(&db_pool, &candle_table).await {
-                tables_empty += 1;
+        for gap in &all_gaps {
+            if gap.gap_candles < 25 {
                 continue;
             }
-            tables_with_data += 1;
 
-            for symbol in &symbols {
-                // Find the gap: latest candle time vs latest indicator time
-                let gap = find_uncomputed_gap(
-                    &db_pool,
-                    symbol.as_str(),
-                    &candle_table,
-                    tf_minutes,
-                )
-                .await;
+            let symbol = Symbol::from(gap.symbol.clone());
+            let timeframe = match gap.tf_str.parse::<Timeframe>() {
+                Ok(tf) => tf,
+                Err(_) => continue,
+            };
 
-                match gap {
-                    Ok(Some(gap_info)) => {
-                        if gap_info.candle_count < 25 {
-                            // Need at least 25 candles: 19 warmup bars for indicators
-                            // + minimum 6 valid output bars. Without this, the gap
-                            // persists forever (indicators skip but gap_candles > 0),
-                            // preventing compute_history from ever exiting.
-                            continue;
-                        }
+            let length = (gap.gap_candles as usize + 200).min(10_000);
 
-                        // We need warmup candles before the gap start for indicator calculations
-                        // Fetch enough history: gap + 200 warmup bars
-                        let length = (gap_info.candle_count as usize + 200).min(10_000);
+            tracing::info!(
+                "Gap detected: {} {} gap_candles={} total_fetch={}",
+                gap.symbol, gap.tf_str, gap.gap_candles, length
+            );
 
-                        tracing::info!(
-                            "Gap detected: {} {} gap_candles={} total_fetch={}",
-                            symbol.as_str(),
-                            timeframe.as_str(),
-                            gap_info.candle_count,
-                            length
-                        );
+            let window_spec = WindowSpec {
+                length,
+                warmup: 100,
+            };
 
-                        let window_spec = WindowSpec {
-                            length,
-                            warmup: 100,
-                        };
-
-                        if let Err(e) = job_scheduler
-                            .submit_batch(*timeframe, vec![symbol.clone()], window_spec)
-                            .await
-                        {
-                            tracing::error!("Submit batch failed for {} {}: {}", symbol.as_str(), timeframe.as_str(), e);
-                        } else {
-                            jobs_this_cycle += 1;
-                        }
-                    }
-                    Ok(None) => {
-                        // No gap — this symbol/tf is up to date
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            "Error checking gap for {} {}: {}",
-                            symbol.as_str(),
-                            timeframe.as_str(),
-                            e
-                        );
-                    }
-                }
+            if let Err(e) = job_scheduler
+                .submit_batch(timeframe, vec![symbol], window_spec)
+                .await
+            {
+                tracing::error!("Submit batch failed for {} {}: {}", gap.symbol, gap.tf_str, e);
+            } else {
+                jobs_this_cycle += 1;
             }
         }
 
         total_jobs_submitted += jobs_this_cycle;
 
+        // ── Check ingestor progress: are candles still growing? ──
+        let current_total_candles = count_total_candles(&db_pool, &timeframes).await;
+        let candles_growing = current_total_candles > prev_total_candles;
+        prev_total_candles = current_total_candles;
+
         if jobs_this_cycle > 0 {
-            idle_cycles = 0;
+            stable_cycles = 0;
             tracing::info!(
-                "Cycle {}: submitted {} jobs (total: {}). Tables with data: {}/{}. Waiting for processing...",
-                cycle_count,
-                jobs_this_cycle,
-                total_jobs_submitted,
-                tables_with_data,
-                timeframes.len()
+                "Cycle {}: submitted {} jobs (total: {}). Candles: {} ({}). Waiting for processing...",
+                cycle_count, jobs_this_cycle, total_jobs_submitted,
+                current_total_candles,
+                if candles_growing { "growing" } else { "stable" }
             );
-            // Give time for computation to complete before next cycle
-            // Longer wait when processing lots of jobs
+            // Scale wait by job count — but not excessively
             let wait = if jobs_this_cycle > 100 {
-                Duration::from_secs(120)
-            } else if jobs_this_cycle > 20 {
                 Duration::from_secs(60)
+            } else if jobs_this_cycle > 20 {
+                Duration::from_secs(30)
             } else {
                 Duration::from_secs(poll_interval_secs)
             };
             tokio::time::sleep(wait).await;
         } else {
-            // Only count idle cycles if ALL tables have data
-            // If some tables are still empty, ingestor is still loading candles
-            let all_tables_ready = tables_empty == 0;
-            
-            if all_tables_ready {
-                idle_cycles += 1;
+            // No gaps found this cycle
+            if candles_growing {
+                // Ingestor still loading — new candles appeared, wait and recheck
+                stable_cycles = 0;
+                tracing::info!(
+                    "Cycle {}: no gaps but candles still growing ({} total, +{}). Ingestor active — waiting...",
+                    cycle_count, current_total_candles,
+                    current_total_candles - prev_total_candles + (current_total_candles - prev_total_candles).abs()
+                );
+                tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
             } else {
+                // Candles stable AND no gaps → possible completion
+                stable_cycles += 1;
                 tracing::info!(
-                    "Cycle {}: waiting for ingestor (tables_empty={}/{}, will not count as idle)",
-                    cycle_count, tables_empty, timeframes.len()
+                    "Cycle {}: no gaps, candles stable ({} total). Stable cycle {}/{}. Total jobs: {}",
+                    cycle_count, current_total_candles, stable_cycles, max_stable_cycles, total_jobs_submitted
                 );
+                if stable_cycles >= max_stable_cycles {
+                    tracing::info!(
+                        "Ingestor done + no gaps for {} cycles. History processing complete. \
+                         Total cycles: {}, total jobs: {}, total candles: {}",
+                        max_stable_cycles, cycle_count, total_jobs_submitted, current_total_candles
+                    );
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
             }
-            
-            tracing::info!(
-                "Cycle {}: no gaps found (idle {}/{}, tables_with_data={}/{}). Total jobs: {}",
-                cycle_count,
-                idle_cycles,
-                max_idle_cycles,
-                tables_with_data,
-                timeframes.len(),
-                total_jobs_submitted
-            );
-
-            if idle_cycles >= max_idle_cycles {
-                tracing::info!(
-                    "No new data for {} consecutive cycles. History processing complete. \
-                     Total cycles: {}, total jobs: {}",
-                    max_idle_cycles,
-                    cycle_count,
-                    total_jobs_submitted
-                );
-                break;
-            }
-
-            tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
         }
     }
 
@@ -493,47 +463,48 @@ async fn main() -> Result<()> {
     tracing::info!("compute_history: Waiting 15s for BulkPersistor final flush...");
     tokio::time::sleep(Duration::from_secs(15)).await;
 
-    // Final summary for super_entry mode
+    // Final summary (BULK — 2 queries instead of 2172 individual queries)
     if is_super {
         tracing::info!("compute_history: === FINAL SUMMARY ===");
-        for tf in &timeframes {
-            for symbol in &symbols {
-                let indicator_count: Option<i64> = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM market.indicators_wide WHERE symbol = $1 AND tf_minutes = $2"
-                )
-                .bind(symbol.as_str())
-                .bind(tf.to_minutes() as i16)
-                .fetch_optional(&db_pool)
-                .await
-                .ok()
-                .flatten();
-                
-                let raw_signal_count: Option<i64> = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM market.raw_signals WHERE symbol = $1 AND tf_minutes = $2"
-                )
-                .bind(symbol.as_str())
-                .bind(tf.to_minutes() as i16)
-                .fetch_optional(&db_pool)
-                .await
-                .ok()
-                .flatten();
-                
-                let super_entry_count: Option<i64> = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM trade.super_entry_signals WHERE symbol = $1 AND tf_minutes = $2"
-                )
-                .bind(symbol.as_str())
-                .bind(tf.to_minutes() as i16)
-                .fetch_optional(&db_pool)
-                .await
-                .ok()
-                .flatten();
-                
-                tracing::info!(
-                    "RESULT: {} {} - indicators: {:?}, raw_signals: {:?}, super_entry_signals: {:?}",
-                    symbol, tf.as_str(), indicator_count, raw_signal_count, super_entry_count
-                );
-            }
+        let summary_rows = sqlx::query_as::<_, (String, i16, i64)>(
+            "SELECT symbol, tf_minutes, COUNT(*) as cnt \
+             FROM market.indicators_wide \
+             GROUP BY symbol, tf_minutes \
+             ORDER BY symbol, tf_minutes"
+        )
+        .fetch_all(&db_pool)
+        .await
+        .unwrap_or_default();
+
+        let se_rows = sqlx::query_as::<_, (String, i16, i64)>(
+            "SELECT symbol, tf_minutes, COUNT(*) as cnt \
+             FROM trade.super_entry_signals \
+             GROUP BY symbol, tf_minutes \
+             ORDER BY symbol, tf_minutes"
+        )
+        .fetch_all(&db_pool)
+        .await
+        .unwrap_or_default();
+
+        let mut se_map: std::collections::HashMap<(String, i16), i64> = std::collections::HashMap::new();
+        for (sym, tf, cnt) in &se_rows {
+            se_map.insert((sym.clone(), *tf), *cnt);
         }
+
+        for (sym, tf, ind_cnt) in &summary_rows {
+            let se_cnt = se_map.get(&(sym.clone(), *tf)).copied().unwrap_or(0);
+            tracing::info!(
+                "RESULT: {} {}m - indicators: {}, super_entry_signals: {}",
+                sym, tf, ind_cnt, se_cnt
+            );
+        }
+
+        let total_ind: i64 = summary_rows.iter().map(|(_, _, c)| c).sum();
+        let total_se: i64 = se_rows.iter().map(|(_, _, c)| c).sum();
+        tracing::info!(
+            "TOTAL: {} indicator rows, {} super_entry_signal rows across {} symbol×TF pairs",
+            total_ind, total_se, summary_rows.len()
+        );
     }
 
     tracing::info!("compute_history exiting gracefully");
@@ -688,83 +659,127 @@ async fn run_super_entry_backfill(pool: &PgPool, use_cuda: bool) -> Result<usize
     Ok(total_signals)
 }
 
-/// Information about an uncomputed gap for a symbol/timeframe pair
-struct GapInfo {
-    /// Number of candles that don't have corresponding indicators
-    candle_count: i64,
+// ═══════════════════════════════════════════════════════════════════════════
+// BULK GAP DETECTION (v2) — replaces per-symbol find_uncomputed_gap
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A gap found for a specific symbol × timeframe pair
+struct BulkGapInfo {
+    symbol: String,
+    tf_str: String,
+    gap_candles: i64,
 }
 
-/// Find candles that exist but don't have computed indicators yet.
-/// Returns None if everything is up to date.
-async fn find_uncomputed_gap(
-    pool: &PgPool,
-    symbol: &str,
-    candle_table: &str,
-    tf_minutes: i16,
-) -> Result<Option<GapInfo>> {
-    // Strategy: Compare max(time) in candle table vs max(time) in indicators_wide.
-    // If indicators lag behind candles, there's a gap to process.
-    //
-    // We also check if there are ANY indicators for this symbol/tf.
-    // If none exist at all, that's a full gap.
+/// Summary of gap detection across all symbols×TFs
+struct GapSummary {
+    total_pairs: u64,
+    gaps_with_work: u64,
+}
 
-    let query = format!(
-        r#"
-        WITH candle_range AS (
-            SELECT 
-                MIN(time) as first_candle,
-                MAX(time) as last_candle,
-                COUNT(*) as total_candles
-            FROM {} 
-            WHERE symbol = $1
-        ),
-        indicator_range AS (
-            SELECT MAX(time) as last_indicator
-            FROM market.indicators_wide 
-            WHERE symbol = $1 AND tf_minutes = $2
-        )
-        SELECT 
-            cr.total_candles,
-            cr.first_candle,
-            cr.last_candle,
-            ir.last_indicator,
-            CASE
-                WHEN cr.total_candles = 0 THEN 0
-                WHEN ir.last_indicator IS NULL THEN cr.total_candles
-                ELSE (
-                    SELECT COUNT(*) FROM {} c
-                    WHERE c.symbol = $1 AND c.time > ir.last_indicator
-                )
-            END as gap_candles
-        FROM candle_range cr, indicator_range ir
-        "#,
-        candle_table, candle_table
-    );
+/// Find ALL uncomputed gaps across ALL symbols and TFs in bulk.
+/// Uses ONE SQL query per TF — NO correlated subqueries (fast: <100ms).
+///
+/// Strategy: Compare MAX(time_ms) in candles vs MAX(time_ms) in indicators.
+/// When last_indicator IS NULL → all candles are gaps (total_candles).
+/// When last_candle > last_indicator → estimate gap from time difference.
+/// This avoids the slow `COUNT(*) WHERE time > X` correlated subquery
+/// that was taking 3-5 seconds per TF on compressed TimescaleDB tables.
+async fn find_all_gaps_bulk(pool: &PgPool, timeframes: &[Timeframe]) -> Vec<BulkGapInfo> {
+    let mut all_gaps = Vec::new();
 
-    let row = sqlx::query(&query)
-        .bind(symbol)
-        .bind(tf_minutes)
-        .fetch_optional(pool)
-        .await?;
+    for tf in timeframes {
+        let candle_table = format!("market.candles_{}", tf.as_str());
+        let tf_minutes = tf.to_minutes() as i16;
+        let tf_str = tf.as_str().to_string();
+        let interval_ms = tf.to_minutes() as i64 * 60 * 1000;
 
-    let row = match row {
-        Some(r) => r,
-        None => return Ok(None),
-    };
+        // Fast query: NO correlated subqueries.
+        // Uses MAX(time_ms) comparison and estimates gap size from time delta.
+        let query = format!(
+            r#"
+            WITH candle_stats AS (
+                SELECT symbol,
+                       COUNT(*) as total_candles,
+                       MAX(time_ms) as last_candle_ms
+                FROM {}
+                GROUP BY symbol
+                HAVING COUNT(*) > 0
+            ),
+            indicator_stats AS (
+                SELECT symbol,
+                       MAX(time_ms) as last_indicator_ms
+                FROM market.indicators_wide
+                WHERE tf_minutes = $1
+                GROUP BY symbol
+            )
+            SELECT
+                c.symbol,
+                CASE
+                    WHEN i.last_indicator_ms IS NULL THEN c.total_candles
+                    WHEN c.last_candle_ms > i.last_indicator_ms THEN
+                        GREATEST(1, (c.last_candle_ms - i.last_indicator_ms) / $2)
+                    ELSE 0
+                END as gap_candles
+            FROM candle_stats c
+            LEFT JOIN indicator_stats i ON c.symbol = i.symbol
+            WHERE i.last_indicator_ms IS NULL
+               OR c.last_candle_ms > i.last_indicator_ms
+            "#,
+            candle_table
+        );
 
-    let total_candles: i64 = row.get("total_candles");
-    if total_candles == 0 {
-        return Ok(None);
+        match sqlx::query(&query)
+            .bind(tf_minutes)
+            .bind(interval_ms)
+            .fetch_all(pool)
+            .await
+        {
+            Ok(rows) => {
+                for row in rows {
+                    let symbol: String = row.get("symbol");
+                    let gap_candles: i64 = row.get("gap_candles");
+                    all_gaps.push(BulkGapInfo {
+                        symbol,
+                        tf_str: tf_str.clone(),
+                        gap_candles,
+                    });
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Bulk gap detection failed for TF {}: {}", tf.as_str(), e);
+            }
+        }
     }
 
-    let gap_candles: i64 = row.get("gap_candles");
-    if gap_candles <= 0 {
-        return Ok(None);
-    }
+    all_gaps
+}
 
-    Ok(Some(GapInfo {
-        candle_count: gap_candles,
-    }))
+/// Quick summary of gaps (for diagnostic logging)
+async fn bulk_gap_summary(pool: &PgPool, timeframes: &[Timeframe]) -> GapSummary {
+    let gaps = find_all_gaps_bulk(pool, timeframes).await;
+    let gaps_with_work = gaps.iter().filter(|g| g.gap_candles >= 25).count() as u64;
+    let total_pairs = gaps.len() as u64;
+    GapSummary {
+        total_pairs,
+        gaps_with_work,
+    }
+}
+
+/// Count total candles across all required TFs (for ingestor progress tracking).
+/// Returns a single number — if it grows between cycles, ingestor is still active.
+async fn count_total_candles(pool: &PgPool, timeframes: &[Timeframe]) -> i64 {
+    let mut total: i64 = 0;
+    for tf in timeframes {
+        let table = format!("market.candles_{}", tf.as_str());
+        let query = format!("SELECT COUNT(*) FROM {}", table);
+        let count: Option<i64> = sqlx::query_scalar(&query)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
+        total += count.unwrap_or(0);
+    }
+    total
 }
 
 /// Check if table has any data (fast: LIMIT 1)

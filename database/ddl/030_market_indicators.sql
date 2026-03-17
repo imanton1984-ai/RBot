@@ -2,7 +2,10 @@
 CREATE SCHEMA IF NOT EXISTS market;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
-DROP TABLE IF EXISTS market.indicators_wide CASCADE;
+-- NOTE: DO NOT drop indicators_wide on restart!
+-- Previous DROP TABLE destroyed all computed indicators, forcing 20+ minute full recompute.
+-- Use CREATE TABLE IF NOT EXISTS for idempotent startup.
+-- To force a full reset, run: DROP TABLE IF EXISTS market.indicators_wide CASCADE;
 
 CREATE TABLE IF NOT EXISTS market.indicators_wide (
     time            TIMESTAMPTZ NOT NULL,
