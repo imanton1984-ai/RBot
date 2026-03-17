@@ -26,6 +26,7 @@ pub mod signal_generator;
 pub mod pipeline;
 pub mod strategy;
 pub mod db_writer;
+pub mod heuristic;
 
 // Re-exports for convenience
 pub use config::SuperEntryConfig;
@@ -34,3 +35,9 @@ pub use scorer::{SuperEntryScorer, SuperEntryDecision};
 pub use signal_generator::{SignalGenerator, SuperEntrySignal};
 pub use pipeline::SuperEntryPipeline;
 pub use strategy::SuperEntryStrategy;
+pub use heuristic::{
+    CrossTfStore, MultiTfStore, HeuristicMode, HeuristicResult,
+    compute_heuristic_direction, compute_heuristic_direction_backtest,
+    apply_heuristic_filter, get_higher_tf, get_lower_tf,
+    heuristic_min_confidence_from_env,
+};

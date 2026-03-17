@@ -34,148 +34,12 @@ use std::collections::HashMap;
 use ml_entry_strategy::config::SuperEntryConfig;
 use ml_entry_strategy::dataset::{fetch_all_candles_for_tf, CandleWithIndicators};
 use ml_entry_strategy::pipeline::SuperEntryPipeline;
-
-// ─────────────────────────────────────────────────────────────────────
-// Cross-TF Heuristic Direction System
-// ─────────────────────────────────────────────────────────────────────
-
-/// TF hierarchy for cross-TF lookups
-fn get_higher_tf(tf: i32) -> Option<i32> {
-    match tf {
-        1 => Some(5),
-        5 => Some(15),
-        15 => Some(60),
-        60 => Some(240),
-        240 => Some(1440),
-        _ => None,
-    }
-}
-
-fn get_lower_tf(tf: i32) -> Option<i32> {
-    match tf {
-        5 => Some(1),
-        15 => Some(5),
-        60 => Some(15),
-        240 => Some(60),
-        1440 => Some(240),
-        _ => None,
-    }
-}
-
-/// Store for cross-TF candle lookups.
-/// Pre-loads all TFs so we can quickly find the higher/lower TF candle
-/// at any given timestamp for any symbol.
-struct MultiTfStore {
-    /// tf_minutes -> symbol -> sorted Vec<CandleWithIndicators>
-    data: HashMap<i32, HashMap<String, Vec<CandleWithIndicators>>>,
-}
-
-impl MultiTfStore {
-    fn new() -> Self {
-        Self { data: HashMap::new() }
-    }
-
-    fn insert_tf(&mut self, tf: i32, grouped: HashMap<String, Vec<CandleWithIndicators>>) {
-        self.data.insert(tf, grouped);
-    }
-
-    /// Find the latest candle for (symbol, tf) at time <= target_time.
-    /// Uses binary search for O(log n) lookup.
-    fn find_candle_at(
-        &self,
-        symbol: &str,
-        tf: i32,
-        target_time: DateTime<Utc>,
-    ) -> Option<&CandleWithIndicators> {
-        let tf_data = self.data.get(&tf)?;
-        let candles = tf_data.get(symbol)?;
-        if candles.is_empty() {
-            return None;
-        }
-        // Binary search: find rightmost candle with time <= target_time
-        let idx = candles.partition_point(|c| c.time <= target_time);
-        if idx > 0 {
-            Some(&candles[idx - 1])
-        } else {
-            None
-        }
-    }
-
-    /// Get candles for a specific TF (all symbols)
-    fn get_tf(&self, tf: i32) -> Option<&HashMap<String, Vec<CandleWithIndicators>>> {
-        self.data.get(&tf)
-    }
-}
-
-/// Heuristic direction mode
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum HeuristicMode {
-    /// Replace ML direction with heuristic when confident
-    Override,
-    /// Reject signal if heuristic disagrees with ML direction
-    Filter,
-    /// Disable heuristic — use pure ML direction
-    Off,
-}
-
-/// Sign of a float: +1, -1, or 0
-fn sign_f64(v: f64) -> i32 {
-    if v > 0.01 { 1 } else if v < -0.01 { -1 } else { 0 }
-}
-
-/// Compute cross-TF heuristic direction using weighted voting.
-///
-/// Votes from 3 sources:
-///   Current TF:  supertrend_dir, trend, trend_short  → weight=1 each → max ±3
-///   Higher TF:   supertrend_dir, trend, trend_short  → weight=2 each → max ±6  (dominant)
-///   Lower TF:    trend_short only                    → weight=1       → max ±1  (timing)
-///
-/// Total max = 10 points
-/// Direction = sign(total)
-/// Confidence = |total| / 10.0
-///
-/// Returns (direction, confidence, n_sources_used)
-fn compute_heuristic_direction(
-    current_candle: &CandleWithIndicators,
-    current_tf: i32,
-    store: &MultiTfStore,
-) -> (i8, f32, u8) {
-    let mut score: i32 = 0;
-    let max_points: i32 = 10;
-    let mut n_sources: u8 = 1;
-
-    // ── Current TF (weight=1 each, max ±3) ──
-    score += sign_f64(current_candle.supertrend_dir);
-    score += sign_f64(current_candle.trend);
-    score += sign_f64(current_candle.trend_short);
-
-    // ── Higher TF (weight=2 each, max ±6) — THE KEY FOR DIRECTION ──
-    if let Some(htf) = get_higher_tf(current_tf) {
-        if let Some(htf_candle) = store.find_candle_at(
-            &current_candle.symbol, htf, current_candle.time,
-        ) {
-            score += 2 * sign_f64(htf_candle.supertrend_dir);
-            score += 2 * sign_f64(htf_candle.trend);
-            score += 2 * sign_f64(htf_candle.trend_short);
-            n_sources += 1;
-        }
-    }
-
-    // ── Lower TF (weight=1, trend_short only — for timing) ──
-    if let Some(ltf) = get_lower_tf(current_tf) {
-        if let Some(ltf_candle) = store.find_candle_at(
-            &current_candle.symbol, ltf, current_candle.time,
-        ) {
-            score += sign_f64(ltf_candle.trend_short);
-            n_sources += 1;
-        }
-    }
-
-    let direction: i8 = if score > 0 { 1 } else { -1 };
-    let confidence = (score.abs() as f32) / (max_points as f32);
-
-    (direction, confidence, n_sources)
-}
+use ml_entry_strategy::heuristic::{
+    MultiTfStore, HeuristicMode,
+    compute_heuristic_direction_backtest,
+    get_higher_tf, get_lower_tf,
+    heuristic_min_confidence_from_env,
+};
 
 // ─────────────────────────────────────────────────────────────────────
 // Trade Simulation
@@ -393,24 +257,9 @@ async fn main() -> Result<()> {
                 .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
         });
 
-    // Heuristic direction mode
-    // Default: "filter" — reject signals where heuristic disagrees with ML.
-    // This preserves ML direction quality while adding cross-TF confirmation.
-    // "override" mode was tested and found to HURT performance (WR drops from 64% to 45%).
-    let heuristic_mode = match std::env::var("HEURISTIC_DIR_MODE")
-        .unwrap_or_else(|_| "filter".to_string())
-        .to_lowercase()
-        .as_str()
-    {
-        "override" => HeuristicMode::Override,
-        "off" => HeuristicMode::Off,
-        _ => HeuristicMode::Filter,
-    };
-
-    let heuristic_min_confidence: f32 = std::env::var("HEURISTIC_DIR_CONFIDENCE")
-        .unwrap_or_else(|_| "0.3".to_string())
-        .parse()
-        .unwrap_or(0.3);
+    // Heuristic direction mode (from shared module)
+    let heuristic_mode = HeuristicMode::from_env();
+    let heuristic_min_confidence = heuristic_min_confidence_from_env();
 
     println!("╔══════════════════════════════════════════════════════════════╗");
     println!("║   SUPER ENTRY STRATEGY BACKTESTER v2 (Cross-TF Heuristic)   ║");
@@ -533,32 +382,36 @@ async fn main() -> Result<()> {
                     let ml_direction = signal.side as i8;
                     let entry_price = signal.entry_price;
 
-                    // ── Cross-TF Heuristic Direction ──
-                    let (heuristic_dir, heur_conf, heur_sources) =
+                    // ── Cross-TF Heuristic Direction (shared module) ──
+                    let heur_result =
                         if heuristic_mode != HeuristicMode::Off {
-                            compute_heuristic_direction(
+                            compute_heuristic_direction_backtest(
                                 &candles[candle_idx], tf, &store,
                             )
                         } else {
-                            (ml_direction, 0.0, 0)
+                            ml_entry_strategy::heuristic::HeuristicResult {
+                                direction: ml_direction,
+                                confidence: 0.0,
+                                sources_used: 0,
+                            }
                         };
 
                     let final_direction = match heuristic_mode {
                         HeuristicMode::Override => {
-                            if heur_conf >= heuristic_min_confidence {
-                                if heuristic_dir != ml_direction {
+                            if heur_result.confidence >= heuristic_min_confidence {
+                                if heur_result.direction != ml_direction {
                                     tf_metrics.heuristic_override_count += 1;
                                 }
                                 tf_metrics.heuristic_dir_used += 1;
-                                heuristic_dir
+                                heur_result.direction
                             } else {
                                 tf_metrics.ml_dir_used += 1;
                                 ml_direction
                             }
                         }
                         HeuristicMode::Filter => {
-                            if heur_conf >= heuristic_min_confidence
-                                && heuristic_dir != ml_direction
+                            if heur_result.confidence >= heuristic_min_confidence
+                                && heur_result.direction != ml_direction
                             {
                                 tf_metrics.heuristic_filter_reject += 1;
                                 continue; // Skip this signal
@@ -582,9 +435,9 @@ async fn main() -> Result<()> {
                     trade.p_super = signal.p_super;
                     trade.combined_score = signal.final_score;
                     trade.ml_direction = ml_direction;
-                    trade.heuristic_direction = heuristic_dir;
-                    trade.heuristic_confidence = heur_conf;
-                    trade.heuristic_sources = heur_sources;
+                    trade.heuristic_direction = heur_result.direction;
+                    trade.heuristic_confidence = heur_result.confidence;
+                    trade.heuristic_sources = heur_result.sources_used;
 
                     tf_metrics.total += 1;
                     tf_metrics.total_pnl += trade.pnl_pct;
