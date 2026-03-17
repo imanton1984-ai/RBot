@@ -1,0 +1,617 @@
+╔═════════════════════════════════════════════════════════════════════════╗
+║  Walk-Forward Optimization — Super Entry Strategy                      ║
+╚═════════════════════════════════════════════════════════════════════════╝
+
+Loading dataset from dataset/super_entry_dataset.csv...
+  Loaded 5,301,452 rows, 115 columns in 32.0s
+
+  Dataset overview:
+    TF     1m:   705,925 rows, 151 symbols, super=22.0%  [2026-03-10..2026-03-13] ◄
+    TF     5m:   783,310 rows, 151 symbols, super=21.9%  [2026-02-25..2026-03-15] ◄
+    TF    15m: 1,670,190 rows, 151 symbols, super=34.2%  [2025-11-11..2026-03-15] ◄
+    TF    60m: 1,324,534 rows, 149 symbols, super=54.8%  [2024-11-11..2026-03-14] ◄
+    TF   240m:   725,560 rows, 144 symbols, super=66.2%  [2020-11-09..2026-03-09] ◄
+    TF  1440m:    91,933 rows, 102 symbols, super=77.4%  [2020-07-04..2026-02-15] ◄
+
+═══════════════════════════════════════════════════════════════════════════
+  WFO TRAINING — TF 1m
+  1m: very short history, 2 folds — limited statistical power
+  Data: 705925 rows, 151 symbols
+  Folds: 2 × 0.75d test, min_train=1.5d
+  Purge: 25 bars × 1min = 0.4h
+  Embargo: 50 bars × 1min = 0.8h
+═══════════════════════════════════════════════════════════════════════════
+
+  2 Walk-Forward folds:
+    Fold 0: Train [2026-03-10 → 2026-03-12] (2d) | Test [2026-03-12 → 2026-03-12] (1d)
+    Fold 1: Train [2026-03-10 → 2026-03-12] (3d) | Test [2026-03-12 → 2026-03-13] (1d)
+
+  ── Fold 0/1 ──
+    Train: 384393 rows, 151 symbols, super=22.2%
+    Test:  155681 rows, 151 symbols, super=21.0%
+    Training P(super) fold 0... (train=384393, test=155681, pos=85162/384393 = 22.2%)
+      → AUC=0.8228  P=0.4567  R=0.7263  F1=0.5608  LogLoss=0.5066  (trees=475)
+    Training P(dir) fold 0... (train=85162, test=32625, pos=43861/85162 = 51.5%)
+      → AUC=0.5173  P=0.5587  R=0.4978  F1=0.5265  LogLoss=0.6935  (trees=24)
+
+  ── Fold 1/1 ──
+    Train: 547473 rows, 151 symbols, super=21.8%
+    Test:  147278 rows, 151 symbols, super=23.0%
+    Training P(super) fold 1... (train=547473, test=147278, pos=119251/547473 = 21.8%)
+      → AUC=0.7872  P=0.4427  R=0.6979  F1=0.5418  LogLoss=0.5518  (trees=132)
+    Training P(dir) fold 1... (train=119251, test=33933, pos=62449/119251 = 52.4%)
+      → AUC=0.5469  P=0.6419  R=0.5471  F1=0.5907  LogLoss=0.6908  (trees=134)
+
+  ────────────────────────────────────────────────────────────
+  WFO Aggregate Out-of-Sample Metrics — TF 1m
+  ────────────────────────────────────────────────────────────
+    P(super) (across 2 folds, 302959 OOS samples):
+      auc           0.8050 ± 0.0178  [0.7872 .. 0.8228]  CV=0.022
+      precision     0.4497 ± 0.0070  [0.4427 .. 0.4567]  CV=0.016
+      recall        0.7121 ± 0.0142  [0.6979 .. 0.7263]  CV=0.020
+      f1            0.5513 ± 0.0095  [0.5418 .. 0.5608]  CV=0.017
+      logloss       0.5292 ± 0.0226  [0.5066 .. 0.5518]  CV=0.043
+    P(direction) (across 2 folds, 66558 OOS samples):
+      auc           0.5321 ± 0.0148  [0.5173 .. 0.5469]  CV=0.028
+      precision     0.6003 ± 0.0416  [0.5587 .. 0.6419]  CV=0.069
+      recall        0.5224 ± 0.0246  [0.4978 .. 0.5471]  CV=0.047
+      f1            0.5586 ± 0.0321  [0.5265 .. 0.5907]  CV=0.057
+      logloss       0.6921 ± 0.0014  [0.6908 .. 0.6935]  CV=0.002
+
+    Stable features P(super) (appeared in top-5 across 2 folds):
+      ema20_direction_lb15                 2/2 folds
+      price_return_lb50                    2/2 folds
+      price_return_lb25                    2/2 folds
+      price_accel                          2/2 folds
+      ema20_direction_lb25                 2/2 folds
+    Stable features P(dir) (appeared in top-5 across 2 folds):
+      price_return_lb50                    2/2 folds
+      ema20_direction_lb50                 2/2 folds
+      price_return_lb15                    2/2 folds
+      ema20_direction_lb15                 1/2 folds
+      price_return_lb25                    1/2 folds
+      atr_pct                              1/2 folds
+      ema_20                               1/2 folds
+
+  ── FINAL model (trained on ALL data) ──
+    Training FINAL P(super)... (train=635333, test=70592, pos=142534/635333 = 22.4%)
+      → AUC=0.7643  P=0.4156  R=0.5715  F1=0.4812  LogLoss=0.5141  (trees=110)
+    ✅ Saved: models/super_entry_v1_tf1.ubj
+    Training FINAL P(dir)... (train=139882, test=15542, pos=75944/139882 = 54.3%)
+      → AUC=0.5481  P=0.5754  R=0.6031  F1=0.5889  LogLoss=0.6891  (trees=177)
+    ✅ Saved: models/super_dir_v1_tf1.ubj
+
+  📊 WFO report saved: models/wfo_report_tf1.json
+  ⏱️  Elapsed: 34.8s
+
+═══════════════════════════════════════════════════════════════════════════
+  WFO TRAINING — TF 5m
+  5m: 18 days, 3 folds with expanding window
+  Data: 783310 rows, 151 symbols
+  Folds: 3 × 3.5d test, min_train=6.0d
+  Purge: 25 bars × 5min = 2.1h
+  Embargo: 50 bars × 5min = 4.2h
+═══════════════════════════════════════════════════════════════════════════
+
+  3 Walk-Forward folds:
+    Fold 0: Train [2026-02-25 → 2026-03-04] (8d) | Test [2026-03-04 → 2026-03-08] (4d)
+    Fold 1: Train [2026-02-25 → 2026-03-08] (11d) | Test [2026-03-08 → 2026-03-11] (4d)
+    Fold 2: Train [2026-02-25 → 2026-03-11] (15d) | Test [2026-03-11 → 2026-03-15] (4d)
+
+  ── Fold 0/2 ──
+    Train: 324777 rows, 150 symbols, super=26.1%
+    Test:  144710 rows, 151 symbols, super=17.6%
+    Training P(super) fold 0... (train=324777, test=144710, pos=84640/324777 = 26.1%)
+      → AUC=0.8006  P=0.4309  R=0.6571  F1=0.5205  LogLoss=0.5486  (trees=202)
+    Training P(dir) fold 0... (train=84640, test=25439, pos=50069/84640 = 59.2%)
+      → AUC=0.5160  P=0.4903  R=0.4881  F1=0.4892  LogLoss=0.6954  (trees=23)
+
+  ── Fold 1/2 ──
+    Train: 476812 rows, 151 symbols, super=23.3%
+    Test:  144809 rows, 151 symbols, super=20.4%
+    Training P(super) fold 1... (train=476812, test=144809, pos=111218/476812 = 23.3%)
+      → AUC=0.7943  P=0.4237  R=0.6838  F1=0.5232  LogLoss=0.5647  (trees=126)
+    Training P(dir) fold 1... (train=111218, test=29555, pos=62681/111218 = 56.4%)
+      → AUC=0.5089  P=0.5956  R=0.5476  F1=0.5706  LogLoss=0.6948  (trees=12)
+
+  ── Fold 2/2 ──
+    Train: 629020 rows, 151 symbols, super=22.6%
+    Test:  143116 rows, 151 symbols, super=19.2%
+    Training P(super) fold 2... (train=629020, test=143116, pos=142090/629020 = 22.6%)
+      → AUC=0.8138  P=0.4377  R=0.6865  F1=0.5346  LogLoss=0.5267  (trees=294)
+    Training P(dir) fold 2... (train=142090, test=27514, pos=80551/142090 = 56.7%)
+      → AUC=0.5894  P=0.6480  R=0.5843  F1=0.6145  LogLoss=0.6809  (trees=316)
+
+  ────────────────────────────────────────────────────────────
+  WFO Aggregate Out-of-Sample Metrics — TF 5m
+  ────────────────────────────────────────────────────────────
+    P(super) (across 3 folds, 432635 OOS samples):
+      auc           0.8029 ± 0.0081  [0.7943 .. 0.8138]  CV=0.010  trend=↑0.0066/fold
+      precision     0.4308 ± 0.0057  [0.4237 .. 0.4377]  CV=0.013  trend=→0.0034/fold
+      recall        0.6758 ± 0.0133  [0.6571 .. 0.6865]  CV=0.020  trend=↑0.0147/fold
+      f1            0.5261 ± 0.0061  [0.5205 .. 0.5346]  CV=0.012  trend=↑0.0070/fold
+      logloss       0.5467 ± 0.0156  [0.5267 .. 0.5647]  CV=0.028  trend=↓0.0110/fold
+    P(direction) (across 3 folds, 82508 OOS samples):
+      auc           0.5381 ± 0.0364  [0.5089 .. 0.5894]  CV=0.068  trend=↑0.0367/fold
+      precision     0.5780 ± 0.0656  [0.4903 .. 0.6480]  CV=0.113  trend=↑0.0789/fold
+      recall        0.5400 ± 0.0396  [0.4881 .. 0.5843]  CV=0.073  trend=↑0.0481/fold
+      f1            0.5581 ± 0.0519  [0.4892 .. 0.6145]  CV=0.093  trend=↑0.0626/fold
+      logloss       0.6904 ± 0.0067  [0.6809 .. 0.6954]  CV=0.010  trend=↓0.0072/fold
+
+    Stable features P(super) (appeared in top-5 across 3 folds):
+      ema20_direction_lb25                 3/3 folds
+      price_return_lb25                    3/3 folds
+      price_return_lb3                     3/3 folds
+      price_accel                          2/3 folds
+      price_return_lb10                    1/3 folds
+      ema20_direction_lb5                  1/3 folds
+      price_return_lb50                    1/3 folds
+      ema20_direction_lb50                 1/3 folds
+    Stable features P(dir) (appeared in top-5 across 3 folds):
+      price_return_lb50                    3/3 folds
+      ema20_direction_lb50                 3/3 folds
+      price_return_lb25                    3/3 folds
+      price_return_lb10                    3/3 folds
+      ema20_direction_lb10                 2/3 folds
+      ema20_direction_lb25                 1/3 folds
+
+  ── FINAL model (trained on ALL data) ──
+    Training FINAL P(super)... (train=704979, test=78331, pos=157146/704979 = 22.3%)
+      → AUC=0.6943  P=0.3200  R=0.5251  F1=0.3976  LogLoss=0.5860  (trees=61)
+    ✅ Saved: models/super_entry_v1_tf5.ubj
+    Training FINAL P(dir)... (train=154045, test=17116, pos=87570/154045 = 56.8%)
+      → AUC=0.6066  P=0.6451  R=0.6544  F1=0.6497  LogLoss=0.6715  (trees=981)
+    ✅ Saved: models/super_dir_v1_tf5.ubj
+
+  📊 WFO report saved: models/wfo_report_tf5.json
+  ⏱️  Elapsed: 48.6s
+
+═══════════════════════════════════════════════════════════════════════════
+  WFO TRAINING — TF 15m
+  15m: 4 months, 5 folds with fortnightly test windows
+  Data: 1670190 rows, 151 symbols
+  Folds: 5 × 14.0d test, min_train=30.0d
+  Purge: 25 bars × 15min = 6.2h
+  Embargo: 50 bars × 15min = 12.5h
+═══════════════════════════════════════════════════════════════════════════
+
+  5 Walk-Forward folds:
+    Fold 0: Train [2025-11-11 → 2026-01-04] (54d) | Test [2026-01-04 → 2026-01-18] (14d)
+    Fold 1: Train [2025-11-11 → 2026-01-18] (68d) | Test [2026-01-18 → 2026-02-01] (14d)
+    Fold 2: Train [2025-11-11 → 2026-02-01] (82d) | Test [2026-02-01 → 2026-02-15] (14d)
+    Fold 3: Train [2025-11-11 → 2026-02-15] (96d) | Test [2026-02-15 → 2026-03-01] (14d)
+    Fold 4: Train [2025-11-11 → 2026-03-01] (110d) | Test [2026-03-01 → 2026-03-15] (14d)
+
+  ── Fold 0/4 ──
+    Train: 711328 rows, 143 symbols, super=32.6%
+    Test:  185731 rows, 144 symbols, super=29.3%
+    Training P(super) fold 0... (train=711328, test=185731, pos=232128/711328 = 32.6%)
+      → AUC=0.7595  P=0.5063  R=0.6359  F1=0.5637  LogLoss=0.5774  (trees=145)
+    Training P(dir) fold 0... (train=232128, test=54470, pos=116354/232128 = 50.1%)
+      → AUC=0.5186  P=0.5498  R=0.5817  F1=0.5653  LogLoss=0.6932  (trees=39)
+
+  ── Fold 1/4 ──
+    Train: 904041 rows, 144 symbols, super=32.0%
+    Test:  186480 rows, 144 symbols, super=35.1%
+    Training P(super) fold 1... (train=904041, test=186480, pos=289147/904041 = 32.0%)
+      → AUC=0.7234  P=0.5287  R=0.6268  F1=0.5736  LogLoss=0.6108  (trees=52)
+    Training P(dir) fold 1... (train=289147, test=65522, pos=147711/289147 = 51.1%)
+      → AUC=0.4560  P=0.3874  R=0.5236  F1=0.4453  LogLoss=0.7027  (trees=1)
+
+  ── Fold 2/4 ──
+    Train: 1097577 rows, 144 symbols, super=32.4%
+    Test:  188474 rows, 147 symbols, super=42.8%
+    Training P(super) fold 2... (train=1097577, test=188474, pos=355317/1097577 = 32.4%)
+      → AUC=0.7161  P=0.5561  R=0.7456  F1=0.6371  LogLoss=0.6459  (trees=35)
+    Training P(dir) fold 2... (train=355317, test=80614, pos=174860/355317 = 49.2%)
+      → AUC=0.5440  P=0.5457  R=0.6510  F1=0.5937  LogLoss=0.6907  (trees=87)
+
+  ── Fold 3/4 ──
+    Train: 1293065 rows, 147 symbols, super=34.0%
+    Test:  190479 rows, 148 symbols, super=35.5%
+    Training P(super) fold 3... (train=1293065, test=190479, pos=439408/1293065 = 34.0%)
+      → AUC=0.7158  P=0.5390  R=0.5896  F1=0.5632  LogLoss=0.6139  (trees=127)
+    Training P(dir) fold 3... (train=439408, test=67664, pos=217298/439408 = 49.5%)
+      → AUC=0.5061  P=0.5468  R=0.5916  F1=0.5683  LogLoss=0.6963  (trees=33)
+
+  ── Fold 4/4 ──
+    Train: 1490747 rows, 148 symbols, super=34.2%
+    Test:  168565 rows, 151 symbols, super=33.3%
+    Training P(super) fold 4... (train=1490747, test=168565, pos=510073/1490747 = 34.2%)
+      → AUC=0.7783  P=0.5400  R=0.7121  F1=0.6142  LogLoss=0.5961  (trees=70)
+    Training P(dir) fold 4... (train=510073, test=56053, pos=253501/510073 = 49.7%)
+      → AUC=0.4967  P=0.5922  R=0.5544  F1=0.5727  LogLoss=0.6935  (trees=17)
+
+  ────────────────────────────────────────────────────────────
+  WFO Aggregate Out-of-Sample Metrics — TF 15m
+  ────────────────────────────────────────────────────────────
+    P(super) (across 5 folds, 919729 OOS samples):
+      auc           0.7386 ± 0.0256  [0.7158 .. 0.7783]  CV=0.035  trend=→0.0030/fold
+      precision     0.5340 ± 0.0164  [0.5063 .. 0.5561]  CV=0.031  trend=↑0.0078/fold
+      recall        0.6620 ± 0.0577  [0.5896 .. 0.7456]  CV=0.087  trend=↑0.0115/fold
+      f1            0.5904 ± 0.0299  [0.5632 .. 0.6371]  CV=0.051  trend=↑0.0091/fold
+      logloss       0.6088 ± 0.0226  [0.5774 .. 0.6459]  CV=0.037  trend=→0.0040/fold
+    P(direction) (across 5 folds, 324323 OOS samples):
+      auc           0.5043 ± 0.0289  [0.4560 .. 0.5440]  CV=0.057  trend=→0.0006/fold
+      precision     0.5244 ± 0.0707  [0.3874 .. 0.5922]  CV=0.135  trend=↑0.0244/fold
+      recall        0.5804 ± 0.0425  [0.5236 .. 0.6510]  CV=0.073  trend=→0.0014/fold
+      f1            0.5491 ± 0.0528  [0.4453 .. 0.5937]  CV=0.096  trend=↑0.0138/fold
+      logloss       0.6953 ± 0.0041  [0.6907 .. 0.7027]  CV=0.006  trend=→0.0006/fold
+
+    Stable features P(super) (appeared in top-5 across 5 folds):
+      atr_pct                              5/5 folds
+      bb_width_pct                         5/5 folds
+      price_vs_supertrend                  5/5 folds
+      atr_ratio_lb50                       4/5 folds
+      rsi_norm                             2/5 folds
+      trend_persist_lb3                    1/5 folds
+      atr_ratio_lb5                        1/5 folds
+      volume_spike                         1/5 folds
+    Stable features P(dir) (appeared in top-5 across 5 folds):
+      macd_hist_slope_lb15                 5/5 folds
+      supertrend_dir                       2/5 folds
+      trend_persist_lb10                   2/5 folds
+      adx                                  2/5 folds
+      price_return_lb15                    1/5 folds
+      price_vs_vwap                        1/5 folds
+      atr_ratio_lb15                       1/5 folds
+      trend_persist_lb15                   1/5 folds
+
+  ── FINAL model (trained on ALL data) ──
+    Training FINAL P(super)... (train=1503171, test=167019, pos=513994/1503171 = 34.2%)
+      → AUC=0.7589  P=0.5615  R=0.6338  F1=0.5955  LogLoss=0.5743  (trees=500)
+    ✅ Saved: models/super_entry_v1_tf15.ubj
+    Training FINAL P(dir)... (train=513932, test=57103, pos=260601/513932 = 50.7%)
+      → AUC=0.6712  P=0.6198  R=0.5978  F1=0.6086  LogLoss=0.6449  (trees=1998)
+    ✅ Saved: models/super_dir_v1_tf15.ubj
+
+  📊 WFO report saved: models/wfo_report_tf15.json
+  ⏱️  Elapsed: 225.3s
+
+═══════════════════════════════════════════════════════════════════════════
+  WFO TRAINING — TF 60m
+  1h: 16 months, 5 folds with bimonthly test windows
+  Data: 1324534 rows, 149 symbols
+  Folds: 5 × 60.0d test, min_train=120.0d
+  Purge: 25 bars × 60min = 25.0h
+  Embargo: 50 bars × 60min = 50.0h
+═══════════════════════════════════════════════════════════════════════════
+
+  5 Walk-Forward folds:
+    Fold 0: Train [2024-11-11 → 2025-05-18] (188d) | Test [2025-05-18 → 2025-07-17] (60d)
+    Fold 1: Train [2024-11-11 → 2025-07-17] (248d) | Test [2025-07-17 → 2025-09-15] (60d)
+    Fold 2: Train [2024-11-11 → 2025-09-15] (308d) | Test [2025-09-15 → 2025-11-14] (60d)
+    Fold 3: Train [2024-11-11 → 2025-11-14] (368d) | Test [2025-11-14 → 2026-01-13] (60d)
+    Fold 4: Train [2024-11-11 → 2026-01-13] (428d) | Test [2026-01-13 → 2026-03-14] (60d)
+
+  ── Fold 0/4 ──
+    Train: 417477 rows, 104 symbols, super=60.4%
+    Test:  149229 rows, 112 symbols, super=52.6%
+    Training P(super) fold 0... (train=417477, test=149229, pos=251950/417477 = 60.4%)
+      → AUC=0.6796  P=0.6802  R=0.5023  F1=0.5779  LogLoss=0.6536  (trees=39)
+    Training P(dir) fold 0... (train=251950, test=78559, pos=120672/251950 = 47.9%)
+      → AUC=0.4442  P=0.4700  R=0.4646  F1=0.4673  LogLoss=0.7053  (trees=1)
+
+  ── Fold 1/4 ──
+    Train: 571615 rows, 111 symbols, super=58.3%
+    Test:  160337 rows, 119 symbols, super=48.1%
+    Training P(super) fold 1... (train=571615, test=160337, pos=333441/571615 = 58.3%)
+      → AUC=0.6967  P=0.6586  R=0.5435  F1=0.5955  LogLoss=0.6324  (trees=61)
+    Training P(dir) fold 1... (train=333441, test=77145, pos=162793/333441 = 48.8%)
+      → AUC=0.5047  P=0.4748  R=0.5440  F1=0.5070  LogLoss=0.6952  (trees=6)
+
+  ── Fold 2/4 ──
+    Train: 737252 rows, 119 symbols, super=56.1%
+    Test:  176313 rows, 133 symbols, super=55.4%
+    Training P(super) fold 2... (train=737252, test=176313, pos=413496/737252 = 56.1%)
+      → AUC=0.6889  P=0.6860  R=0.6692  F1=0.6775  LogLoss=0.6378  (trees=43)
+    Training P(dir) fold 2... (train=413496, test=97693, pos=201780/413496 = 48.8%)
+      → AUC=0.5178  P=0.4369  R=0.5320  F1=0.4798  LogLoss=0.6932  (trees=61)
+
+  ── Fold 3/4 ──
+    Train: 919106 rows, 133 symbols, super=55.8%
+    Test:  191475 rows, 142 symbols, super=48.2%
+    Training P(super) fold 3... (train=919106, test=191475, pos=512439/919106 = 55.8%)
+      → AUC=0.6808  P=0.6228  R=0.6209  F1=0.6219  LogLoss=0.6407  (trees=46)
+    Training P(dir) fold 3... (train=512439, test=92376, pos=245161/512439 = 47.8%)
+      → AUC=0.5031  P=0.5173  R=0.5366  F1=0.5268  LogLoss=0.6949  (trees=2)
+
+  ── Fold 4/4 ──
+    Train: 1116816 rows, 142 symbols, super=54.5%
+    Test:  197227 rows, 149 symbols, super=56.0%
+    Training P(super) fold 4... (train=1116816, test=197227, pos=608453/1116816 = 54.5%)
+      → AUC=0.6674  P=0.6716  R=0.6528  F1=0.6621  LogLoss=0.6475  (trees=61)
+    Training P(dir) fold 4... (train=608453, test=110543, pos=292144/608453 = 48.0%)
+      → AUC=0.5465  P=0.4909  R=0.5713  F1=0.5281  LogLoss=0.6924  (trees=109)
+
+  ────────────────────────────────────────────────────────────
+  WFO Aggregate Out-of-Sample Metrics — TF 60m
+  ────────────────────────────────────────────────────────────
+    P(super) (across 5 folds, 874581 OOS samples):
+      auc           0.6827 ± 0.0098  [0.6674 .. 0.6967]  CV=0.014  trend=→0.0040/fold
+      precision     0.6638 ± 0.0225  [0.6228 .. 0.6860]  CV=0.034  trend=↓0.0053/fold
+      recall        0.5978 ± 0.0644  [0.5023 .. 0.6692]  CV=0.108  trend=↑0.0378/fold
+      f1            0.6270 ± 0.0380  [0.5779 .. 0.6775]  CV=0.061  trend=↑0.0195/fold
+      logloss       0.6424 ± 0.0074  [0.6324 .. 0.6536]  CV=0.012  trend=→0.0004/fold
+    P(direction) (across 5 folds, 456316 OOS samples):
+      auc           0.5033 ± 0.0334  [0.4442 .. 0.5465]  CV=0.066  trend=↑0.0203/fold
+      precision     0.4780 ± 0.0263  [0.4369 .. 0.5173]  CV=0.055  trend=↑0.0084/fold
+      recall        0.5297 ± 0.0353  [0.4646 .. 0.5713]  CV=0.067  trend=↑0.0206/fold
+      f1            0.5018 ± 0.0246  [0.4673 .. 0.5281]  CV=0.049  trend=↑0.0141/fold
+      logloss       0.6962 ± 0.0047  [0.6924 .. 0.7053]  CV=0.007  trend=→0.0026/fold
+
+    Stable features P(super) (appeared in top-5 across 5 folds):
+      atr_pct                              5/5 folds
+      bb_width_pct                         5/5 folds
+      price_vs_supertrend                  4/5 folds
+      fibo_s1                              2/5 folds
+      vwap                                 2/5 folds
+      supertrend                           2/5 folds
+      supertrend_dir                       1/5 folds
+      alligator_lips                       1/5 folds
+    Stable features P(dir) (appeared in top-5 across 5 folds):
+      rsi_slope_lb50                       3/5 folds
+      trend_persist_lb3                    3/5 folds
+      trend_persist_lb5                    3/5 folds
+      stoch_d                              2/5 folds
+      trend_persist_lb10                   2/5 folds
+      atr_ratio_lb50                       1/5 folds
+      trend_persist_lb15                   1/5 folds
+      trend_persist_lb25                   1/5 folds
+
+  ── FINAL model (trained on ALL data) ──
+    Training FINAL P(super)... (train=1192081, test=132453, pos=652121/1192081 = 54.7%)
+      → AUC=0.7178  P=0.6985  R=0.7042  F1=0.7014  LogLoss=0.6161  (trees=500)
+    ✅ Saved: models/super_entry_v1_tf60.ubj
+    Training FINAL P(dir)... (train=652978, test=72553, pos=311161/652978 = 47.7%)
+      → AUC=0.6753  P=0.6056  R=0.5942  F1=0.5999  LogLoss=0.6471  (trees=2000)
+    ✅ Saved: models/super_dir_v1_tf60.ubj
+
+  📊 WFO report saved: models/wfo_report_tf60.json
+  ⏱️  Elapsed: 206.0s
+
+═══════════════════════════════════════════════════════════════════════════
+  WFO TRAINING — TF 240m
+  4h: 5.3 years, 6 folds with quarterly test windows
+  Data: 725560 rows, 144 symbols
+  Folds: 6 × 120.0d test, min_train=365.0d
+  Purge: 25 bars × 240min = 100.0h
+  Embargo: 50 bars × 240min = 200.0h
+═══════════════════════════════════════════════════════════════════════════
+
+  6 Walk-Forward folds:
+    Fold 0: Train [2020-11-09 → 2024-03-19] (1226d) | Test [2024-03-19 → 2024-07-17] (120d)
+    Fold 1: Train [2020-11-09 → 2024-07-17] (1346d) | Test [2024-07-17 → 2024-11-14] (120d)
+    Fold 2: Train [2020-11-09 → 2024-11-14] (1466d) | Test [2024-11-14 → 2025-03-14] (120d)
+    Fold 3: Train [2020-11-09 → 2025-03-14] (1586d) | Test [2025-03-14 → 2025-07-12] (120d)
+    Fold 4: Train [2020-11-09 → 2025-07-12] (1706d) | Test [2025-07-12 → 2025-11-09] (120d)
+    Fold 5: Train [2020-11-09 → 2025-11-09] (1826d) | Test [2025-11-09 → 2026-03-09] (120d)
+
+  ── Fold 0/5 ──
+    Train: 309275 rows, 63 symbols, super=63.1%
+    Test:  46457 rows, 72 symbols, super=64.7%
+    Training P(super) fold 0... (train=309275, test=46457, pos=195229/309275 = 63.1%)
+      → AUC=0.6419  P=0.7212  R=0.7273  F1=0.7242  LogLoss=0.6485  (trees=137)
+    Training P(dir) fold 0... (train=195229, test=30052, pos=96678/195229 = 49.5%)
+      → AUC=0.5412  P=0.4262  R=0.4730  F1=0.4484  LogLoss=0.6873  (trees=166)
+
+  ── Fold 1/5 ──
+    Train: 358629 rows, 72 symbols, super=63.4%
+    Test:  50055 rows, 77 symbols, super=66.1%
+    Training P(super) fold 1... (train=358629, test=50055, pos=227361/358629 = 63.4%)
+      → AUC=0.6300  P=0.7393  R=0.6412  F1=0.6868  LogLoss=0.6681  (trees=38)
+    Training P(dir) fold 1... (train=227361, test=33107, pos=109380/227361 = 48.1%)
+      → AUC=0.5235  P=0.5046  R=0.5536  F1=0.5280  LogLoss=0.6934  (trees=39)
+
+  ── Fold 2/5 ──
+    Train: 412123 rows, 77 symbols, super=63.7%
+    Test:  56116 rows, 94 symbols, super=74.7%
+    Training P(super) fold 2... (train=412123, test=56116, pos=262556/412123 = 63.7%)
+      → AUC=0.5745  P=0.7690  R=0.9325  F1=0.8429  LogLoss=0.5948  (trees=215)
+    Training P(dir) fold 2... (train=262556, test=41942, pos=126840/262556 = 48.3%)
+      → AUC=0.5857  P=0.4730  R=0.5451  F1=0.5065  LogLoss=0.6798  (trees=947)
+
+  ── Fold 3/5 ──
+    Train: 471608 rows, 93 symbols, super=65.1%
+    Test:  67439 rows, 105 symbols, super=70.1%
+    Training P(super) fold 3... (train=471608, test=67439, pos=307163/471608 = 65.1%)
+      → AUC=0.6236  P=0.7539  R=0.7788  F1=0.7661  LogLoss=0.6327  (trees=500)
+    Training P(dir) fold 3... (train=307163, test=47252, pos=145733/307163 = 47.4%)
+      → AUC=0.5192  P=0.5152  R=0.5335  F1=0.5242  LogLoss=0.6929  (trees=23)
+
+  ── Fold 4/5 ──
+    Train: 543427 rows, 105 symbols, super=65.6%
+    Test:  76616 rows, 125 symbols, super=66.4%
+    Training P(super) fold 4... (train=543427, test=76616, pos=356343/543427 = 65.6%)
+      → AUC=0.6080  P=0.7180  R=0.7094  F1=0.7136  LogLoss=0.6594  (trees=88)
+    Training P(dir) fold 4... (train=356343, test=50852, pos=170547/356343 = 47.9%)
+      → AUC=0.5241  P=0.4937  R=0.5190  F1=0.5060  LogLoss=0.6931  (trees=44)
+
+  ── Fold 5/5 ──
+    Train: 624766 rows, 122 symbols, super=65.8%
+    Test:  91554 rows, 144 symbols, super=68.3%
+    Training P(super) fold 5... (train=624766, test=91554, pos=410891/624766 = 65.8%)
+      → AUC=0.5991  P=0.7251  R=0.7861  F1=0.7544  LogLoss=0.6392  (trees=498)
+    Training P(dir) fold 5... (train=410891, test=62575, pos=197518/410891 = 48.1%)
+      → AUC=0.5055  P=0.4373  R=0.5570  F1=0.4899  LogLoss=0.6952  (trees=2)
+
+  ────────────────────────────────────────────────────────────
+  WFO Aggregate Out-of-Sample Metrics — TF 240m
+  ────────────────────────────────────────────────────────────
+    P(super) (across 6 folds, 388237 OOS samples):
+      auc           0.6128 ± 0.0221  [0.5745 .. 0.6419]  CV=0.036  trend=↓0.0066/fold
+      precision     0.7377 ± 0.0186  [0.7180 .. 0.7690]  CV=0.025  trend=→0.0017/fold
+      recall        0.7625 ± 0.0899  [0.6412 .. 0.9325]  CV=0.118  trend=↑0.0098/fold
+      f1            0.7480 ± 0.0498  [0.6868 .. 0.8429]  CV=0.067  trend=→0.0044/fold
+      logloss       0.6404 ± 0.0236  [0.5948 .. 0.6681]  CV=0.037  trend=→0.0010/fold
+    P(direction) (across 6 folds, 265780 OOS samples):
+      auc           0.5332 ± 0.0257  [0.5055 .. 0.5857]  CV=0.048  trend=↓0.0070/fold
+      precision     0.4750 ± 0.0333  [0.4262 .. 0.5152]  CV=0.070  trend=→0.0019/fold
+      recall        0.5302 ± 0.0286  [0.4730 .. 0.5570]  CV=0.054  trend=↑0.0087/fold
+      f1            0.5005 ± 0.0265  [0.4484 .. 0.5280]  CV=0.053  trend=→0.0046/fold
+      logloss       0.6903 ± 0.0053  [0.6798 .. 0.6952]  CV=0.008  trend=→0.0015/fold
+
+    Stable features P(super) (appeared in top-5 across 6 folds):
+      atr_pct                              6/6 folds
+      bb_width_pct                         6/6 folds
+      price_vs_supertrend                  6/6 folds
+      vwap                                 4/6 folds
+      trend_persist_lb3                    2/6 folds
+      rsi_norm                             2/6 folds
+      supertrend_dir                       1/6 folds
+      trend_short_persist_lb10             1/6 folds
+    Stable features P(dir) (appeared in top-5 across 6 folds):
+      rsi_norm                             6/6 folds
+      rsi                                  4/6 folds
+      williams_norm                        3/6 folds
+      atr_ratio_lb5                        2/6 folds
+      ema20_direction_lb3                  2/6 folds
+      rsi_slope_lb50                       2/6 folds
+      bb_position                          1/6 folds
+      atr_ratio_lb15                       1/6 folds
+
+  ── FINAL model (trained on ALL data) ──
+    Training FINAL P(super)... (train=653004, test=72556, pos=435293/653004 = 66.7%)
+      → AUC=0.6943  P=0.7332  R=0.7252  F1=0.7292  LogLoss=0.6310  (trees=500)
+    ✅ Saved: models/super_entry_v1_tf240.ubj
+    Training FINAL P(dir)... (train=432331, test=48036, pos=204643/432331 = 47.3%)
+      → AUC=0.6528  P=0.5788  R=0.6023  F1=0.5903  LogLoss=0.6567  (trees=2000)
+    ✅ Saved: models/super_dir_v1_tf240.ubj
+
+  📊 WFO report saved: models/wfo_report_tf240.json
+  ⏱️  Elapsed: 183.8s
+
+═══════════════════════════════════════════════════════════════════════════
+  WFO TRAINING — TF 1440m
+  1d: 5.6 years, 5 folds with semi-annual test windows
+  Data: 91933 rows, 102 symbols
+  Folds: 5 × 180.0d test, min_train=365.0d
+  Purge: 25 bars × 1440min = 600.0h
+  Embargo: 50 bars × 1440min = 1200.0h
+═══════════════════════════════════════════════════════════════════════════
+
+  5 Walk-Forward folds:
+    Fold 0: Train [2020-07-04 → 2023-08-30] (1152d) | Test [2023-08-30 → 2024-02-26] (180d)
+    Fold 1: Train [2020-07-04 → 2024-02-26] (1332d) | Test [2024-02-26 → 2024-08-24] (180d)
+    Fold 2: Train [2020-07-04 → 2024-08-24] (1512d) | Test [2024-08-24 → 2025-02-20] (180d)
+    Fold 3: Train [2020-07-04 → 2025-02-20] (1692d) | Test [2025-02-20 → 2025-08-19] (180d)
+    Fold 4: Train [2020-07-04 → 2025-08-19] (1872d) | Test [2025-08-19 → 2026-02-15] (180d)
+
+  ── Fold 0/4 ──
+    Train: 31139 rows, 45 symbols, super=78.0%
+    Test:  6245 rows, 49 symbols, super=76.5%
+    Training P(super) fold 0... (train=31139, test=6245, pos=24287/31139 = 78.0%)
+      → AUC=0.5432  P=0.7724  R=0.8242  F1=0.7974  LogLoss=0.6115  (trees=499)
+    Training P(dir) fold 0... (train=24287, test=4777, pos=11351/24287 = 46.7%)
+      → AUC=0.5085  P=0.7093  R=0.3315  F1=0.4518  LogLoss=0.7072  (trees=1)
+
+  ── Fold 1/4 ──
+    Train: 39554 rows, 49 symbols, super=76.5%
+    Test:  7172 rows, 56 symbols, super=80.3%
+    Training P(super) fold 1... (train=39554, test=7172, pos=30276/39554 = 76.5%)
+      → AUC=0.5231  P=0.8122  R=0.7657  F1=0.7883  LogLoss=0.6227  (trees=496)
+    Training P(dir) fold 1... (train=30276, test=5762, pos=14722/30276 = 48.6%)
+      → AUC=0.5107  P=0.3957  R=0.4580  F1=0.4246  LogLoss=0.6967  (trees=17)
+
+  ── Fold 2/4 ──
+    Train: 49094 rows, 56 symbols, super=77.2%
+    Test:  8593 rows, 72 symbols, super=78.4%
+    Training P(super) fold 2... (train=49094, test=8593, pos=37903/49094 = 77.2%)
+      → AUC=0.5254  P=0.7902  R=0.7638  F1=0.7768  LogLoss=0.6296  (trees=500)
+    Training P(dir) fold 2... (train=37903, test=6736, pos=17950/37903 = 47.4%)
+      → AUC=0.5668  P=0.4965  R=0.5756  F1=0.5332  LogLoss=0.6886  (trees=97)
+
+  ── Fold 3/4 ──
+    Train: 60202 rows, 69 symbols, super=77.3%
+    Test:  9881 rows, 78 symbols, super=77.0%
+    Training P(super) fold 3... (train=60202, test=9881, pos=46546/60202 = 77.3%)
+      → AUC=0.5151  P=0.7763  R=0.7206  F1=0.7474  LogLoss=0.6512  (trees=293)
+    Training P(dir) fold 3... (train=46546, test=7609, pos=22376/46546 = 48.1%)
+      → AUC=0.5257  P=0.5966  R=0.5576  F1=0.5764  LogLoss=0.6892  (trees=206)
+
+  ── Fold 4/4 ──
+    Train: 73469 rows, 77 symbols, super=77.3%
+    Test:  12556 rows, 102 symbols, super=78.6%
+    Training P(super) fold 4... (train=73469, test=12556, pos=56783/73469 = 77.3%)
+      → AUC=0.5215  P=0.7902  R=0.8080  F1=0.7990  LogLoss=0.6169  (trees=500)
+    Training P(dir) fold 4... (train=56783, test=9870, pos=27547/56783 = 48.5%)
+      → AUC=0.5808  P=0.3890  R=0.6928  F1=0.4983  LogLoss=0.6957  (trees=24)
+
+  ────────────────────────────────────────────────────────────
+  WFO Aggregate Out-of-Sample Metrics — TF 1440m
+  ────────────────────────────────────────────────────────────
+    P(super) (across 5 folds, 44447 OOS samples):
+      auc           0.5257 ± 0.0094  [0.5151 .. 0.5432]  CV=0.018  trend=↓0.0051/fold
+      precision     0.7883 ± 0.0140  [0.7724 .. 0.8122]  CV=0.018  trend=→0.0000/fold
+      recall        0.7765 ± 0.0365  [0.7206 .. 0.8242]  CV=0.047  trend=↓0.0077/fold
+      f1            0.7818 ± 0.0189  [0.7474 .. 0.7990]  CV=0.024  trend=→0.0038/fold
+      logloss       0.6264 ± 0.0138  [0.6115 .. 0.6512]  CV=0.022  trend=→0.0039/fold
+    P(direction) (across 5 folds, 34754 OOS samples):
+      auc           0.5385 ± 0.0297  [0.5085 .. 0.5808]  CV=0.055  trend=↑0.0159/fold
+      precision     0.5175 ± 0.1223  [0.3890 .. 0.7093]  CV=0.236  trend=↓0.0440/fold
+      recall        0.5231 ± 0.1214  [0.3315 .. 0.6928]  CV=0.232  trend=↑0.0822/fold
+      f1            0.4969 ± 0.0546  [0.4246 .. 0.5764]  CV=0.110  trend=↑0.0245/fold
+      logloss       0.6955 ± 0.0067  [0.6886 .. 0.7072]  CV=0.010  trend=→0.0031/fold
+
+    Stable features P(super) (appeared in top-5 across 5 folds):
+      trend_persist_lb3                    5/5 folds
+      atr_pct                              4/5 folds
+      trend_persist_lb15                   3/5 folds
+      atr_ratio_lb25                       3/5 folds
+      supertrend_dir                       2/5 folds
+      trend_persist_lb10                   2/5 folds
+      vwap                                 2/5 folds
+      trend_persist_lb5                    2/5 folds
+    Stable features P(dir) (appeared in top-5 across 5 folds):
+      trend_persist_lb50                   4/5 folds
+      adx_slope_lb15                       3/5 folds
+      atr_ratio_lb25                       2/5 folds
+      price_return_lb25                    2/5 folds
+      price_vs_sma                         2/5 folds
+      rsi_norm                             1/5 folds
+      trend_persist_lb15                   1/5 folds
+      atr_ratio_lb50                       1/5 folds
+
+  ── FINAL model (trained on ALL data) ──
+    Training FINAL P(super)... (train=82740, test=9193, pos=64202/82740 = 77.6%)
+      → AUC=0.5933  P=0.7901  R=0.7207  F1=0.7538  LogLoss=0.6377  (trees=499)
+    ✅ Saved: models/super_entry_v1_tf1440.ubj
+    Training FINAL P(dir)... (train=64039, test=7115, pos=29896/64039 = 46.7%)
+      → AUC=0.6993  P=0.6216  R=0.6426  F1=0.6319  LogLoss=0.6305  (trees=1993)
+    ✅ Saved: models/super_dir_v1_tf1440.ubj
+
+  📊 WFO report saved: models/wfo_report_tf1440.json
+  ⏱️  Elapsed: 32.5s
+
+╔═════════════════════════════════════════════════════════════════════════╗
+║  WFO TRAINING COMPLETE — FINAL SUMMARY                                 ║
+╚═════════════════════════════════════════════════════════════════════════╝
+
+  TF 1m (705,925 rows, 151 symbols, 2 folds):
+    P(super):     AUC=0.8050±0.0178  F1=0.5513±0.0095  (OOS=302,959)
+    P(direction): AUC=0.5321±0.0148  F1=0.5586±0.0321  (OOS=66,558)
+
+  TF 5m (783,310 rows, 151 symbols, 3 folds):
+    P(super):     AUC=0.8029±0.0081  F1=0.5261±0.0061  (OOS=432,635)
+    P(direction): AUC=0.5381±0.0364  F1=0.5581±0.0519  (OOS=82,508)
+
+  TF 15m (1,670,190 rows, 151 symbols, 5 folds):
+    P(super):     AUC=0.7386±0.0256  F1=0.5904±0.0299  (OOS=919,729)
+    P(direction): AUC=0.5043±0.0289  F1=0.5491±0.0528  (OOS=324,323)
+
+  TF 60m (1,324,534 rows, 149 symbols, 5 folds):
+    P(super):     AUC=0.6827±0.0098  F1=0.6270±0.0380  (OOS=874,581)
+    P(direction): AUC=0.5033±0.0334  F1=0.5018±0.0246  (OOS=456,316)
+
+  TF 240m (725,560 rows, 144 symbols, 6 folds):
+    P(super):     AUC=0.6128±0.0221  F1=0.7480±0.0498  (OOS=388,237)
+    P(direction): AUC=0.5332±0.0257  F1=0.5005±0.0265  (OOS=265,780)
+
+  TF 1440m (91,933 rows, 102 symbols, 5 folds):
+    P(super):     AUC=0.5257±0.0094  F1=0.7818±0.0189  (OOS=44,447)
+    P(direction): AUC=0.5385±0.0297  F1=0.4969±0.0546  (OOS=34,754)
+
+  📊 Combined report: models/wfo_combined_report.json
+  🏷️  Models: models/super_entry_v1_tf*.ubj
+  ⏱️  Total time: 734.1s (12.2min)
+  🏁 Done (FULL TRAINING)

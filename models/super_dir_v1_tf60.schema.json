@@ -111,5 +111,6 @@
   "task": "super_dir",
   "tf_minutes": 60,
   "outputs": 1,
-  "objective": "binary:logistic"
+  "objective": "binary:logistic",
+  "training_method": "walk_forward_optimization"
 }
