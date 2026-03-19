@@ -4,15 +4,15 @@
   "target": "super_dir",
   "n_features": 106,
   "metrics": {
-    "auc": 0.6752662542911747,
-    "precision": 0.6055690568910491,
-    "recall": 0.594242041144696,
-    "f1": 0.5998520817320939,
-    "logloss": 0.6470966124520686,
-    "train_size": 652978,
-    "test_size": 72553,
-    "train_pos_rate": 0.4765260085332125,
-    "test_pos_rate": 0.47970449924468994,
+    "auc": 0.6689316288785886,
+    "precision": 0.5946795184815609,
+    "recall": 0.6169739421573163,
+    "f1": 0.6056216216216216,
+    "logloss": 0.6504754083713332,
+    "train_size": 852142,
+    "test_size": 94682,
+    "train_pos_rate": 0.4754900004928756,
+    "test_pos_rate": 0.4794892370700836,
     "best_iteration": 1999,
     "top5_features": [
       "trend_persist_lb3",
@@ -21,8 +21,8 @@
       "trend_persist_lb10",
       "ema20_direction_lb50"
     ],
-    "wfo_oos_auc_mean": 0.5032681562506781,
-    "wfo_oos_auc_std": 0.03337162229762664
+    "wfo_oos_auc_mean": 0.5042895697368646,
+    "wfo_oos_auc_std": 0.03329077466325603
   },
   "best_iteration": 1999,
   "n_trees": 2000,

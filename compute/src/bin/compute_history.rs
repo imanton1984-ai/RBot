@@ -86,11 +86,13 @@ async fn main() -> Result<()> {
 
     // 1. Initialize DB Persistor (HISTORY Mode)
     std::env::set_var("DB_PERSIST_MODE", "history");
-    // Optimization for bulk loading (reduced batch sizes for faster commits)
-    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "20000");
+    // Reduced chunk size: 20 new pairs × deep history = massive batches
+    // that hit TimescaleDB "tuple decompression limit exceeded" on compressed chunks.
+    // 2000 rows per chunk keeps each INSERT well within the decompression limit.
+    std::env::set_var("DB_PERSIST_CHUNK_SIZE_HISTORY", "2000");
     std::env::set_var("DB_PERSIST_FLUSH_MS", "500");
-    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1"); 
-    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0"); 
+    std::env::set_var("DB_PERSIST_HISTORY_SKIP_JSON", "1");
+    std::env::set_var("DB_PERSIST_HISTORY_UPSERT", "0");
 
     let bulk_persistor = database_lib::bulk_persistor::BulkPersistor::new_from_env_mode(
         database_lib::bulk_persistor::PersistMode::History
@@ -217,21 +219,35 @@ async fn main() -> Result<()> {
         all_timeframes.to_vec()
     };
 
-    // ─── Decompress recent chunks in indicators_wide ────────────────
-    // TimescaleDB compression with 3-day policy can cause
-    // `tuple decompression limit exceeded by operation` errors on bulk INSERT.
-    // Decompress recent chunks before we start writing.
-    tracing::info!("Decompressing recent indicators_wide chunks (avoids decompression errors on INSERT)...");
-    let decompress_result = sqlx::raw_sql(
-        "SELECT decompress_chunk(c, true) \
-         FROM show_chunks('market.indicators_wide', older_than => INTERVAL '0 seconds') c \
-         WHERE is_compressed"
-    )
-    .execute(&db_pool)
-    .await;
-    match decompress_result {
-        Ok(_) => tracing::info!("indicators_wide chunks decompressed OK"),
-        Err(e) => tracing::warn!("Chunk decompression failed (may be OK if no compressed chunks): {}", e),
+    // ─── Decompress ALL target hypertable chunks ────────────────────
+    // TimescaleDB compression causes "tuple decompression limit exceeded by operation"
+    // on bulk INSERT into compressed chunks (especially with 20+ pairs × deep history).
+    // Decompress ALL tables that BulkPersistor writes to before starting.
+    {
+        let tables_to_decompress = [
+            "market.indicators_wide",
+            "market.raw_signals",
+            "trade.predictors",
+            "trade.final_signals",
+            "trade.super_entry_signals",
+        ];
+        for table in &tables_to_decompress {
+            tracing::info!("Decompressing compressed chunks in {} ...", table);
+            let sql = format!(
+                "SELECT decompress_chunk(c, true) \
+                 FROM show_chunks('{}', older_than => INTERVAL '0 seconds') c \
+                 WHERE is_compressed",
+                table
+            );
+            match sqlx::raw_sql(&sql).execute(&db_pool).await {
+                Ok(_) => tracing::info!("{} chunks decompressed OK", table),
+                Err(e) => tracing::warn!(
+                    "{} decompress skipped (no compressed chunks or not a hypertable): {}",
+                    table, e
+                ),
+            }
+        }
+        tracing::info!("All target tables decompressed — safe for bulk INSERT");
     }
 
     // ─── Smart wait for ingestor (replaces hardcoded sleep 120s) ──────

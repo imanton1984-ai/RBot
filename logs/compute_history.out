@@ -1,0 +1,6 @@
+[2m2026-03-19T09:24:08.663417Z[0m [32m INFO[0m [2mcompute_history[0m[2m:[0m compute_history: ACTIVE_STRATEGY = super_entry
+[2m2026-03-19T09:24:08.663445Z[0m [32m INFO[0m [2mcompute_history[0m[2m:[0m compute_history: MODE: indicators + raw_signals + super_entry_signals (ZERO-COPY)
+[2m2026-03-19T09:24:08.663451Z[0m [32m INFO[0m [2mcompute_history[0m[2m:[0m compute_history: SUPER_ENTRY_ENABLED=true
+[2m2026-03-19T09:24:08.693997Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m there is already a transaction in progress
+[2m2026-03-19T09:24:08.695116Z[0m [33m WARN[0m [2msqlx::postgres::notice[0m[2m:[0m there is no transaction in progress
+[2m2026-03-19T09:24:08.717821Z[0m [33m WARN[0m [2mdatabase_lib::init_db[0m[2m:[0m DDL file #6 error (may be safe to ignore if objects already exist): error returned from database: compression policy already exists for hypertable or continuous aggregate "indicators_wide"

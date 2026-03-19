@@ -192,6 +192,12 @@ impl SignalScanner {
         // Get per-timeframe score range
         let (score_min, score_max) = self.get_score_range_for_tf(tf_minutes);
 
+        // p_super_min — прямой фильтр по вероятности ML-модели (per-TF).
+        // combined_score = p_super * (1 + dir_confidence), поэтому фильтрация
+        // только по combined_score может пропускать сигналы с низким p_super
+        // но высоким dir_confidence. p_super_min = 0.0 = отключён.
+        let p_super_min = self.config.get_p_super_min_for_tf(tf_minutes);
+
         let rows = sqlx::query(
             r#"
             SELECT
@@ -202,6 +208,7 @@ impl SignalScanner {
             WHERE tf_minutes = $1
               AND combined_score >= $2
               AND combined_score <= $3
+              AND p_super >= $6
               AND time >= now() - make_interval(mins => $4::int)
             ORDER BY combined_score DESC, time DESC
             LIMIT $5
@@ -212,6 +219,7 @@ impl SignalScanner {
         .bind(score_max)
         .bind(lookback_minutes as i32)
         .bind(limit as i64)
+        .bind(p_super_min)
         .fetch_all(&self.pool)
         .await?;
 

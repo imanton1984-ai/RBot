@@ -4,7 +4,7 @@
 // Загружается из config/order_manager.toml + env-переменных.
 //
 // Содержит:
-//   - Параметры signal_scanner (score range, price drift, lookback)
+//   - Параметры signal_scanner (p_super_min per TF, combined_score range, price drift, lookback)
 //   - Параметры order_executor (пропорции таймфреймов, leverage)
 //   - Параметры position_tracker (scan interval, force-close)
 //   - Kafka/Database endpoints
@@ -39,35 +39,75 @@ pub struct OrderManagerConfig {
     #[serde(default = "default_trading_mode")]
     pub trading_mode: String,
 
-    // ─── Signal Scanner (per-timeframe score ranges) ────────────────────────────────────
-    /// Минимальный combined_score для 1m сигнала (inclusive)
+    // ─── Signal Scanner: per-TF P(SUPER) thresholds ─────────────────────────
+    // Основной фильтр: минимальный P(SUPER) из ML-модели для каждого TF.
+    // P(SUPER) — вероятность "super move" от XGBoost модели (0.0–1.0).
+    // Фильтруется НАПРЯМУЮ по колонке p_super в trade.super_entry_signals.
+    // 0.0 = фильтр отключён для данного TF.
+
+    /// Минимальный P(SUPER) для 1m сигнала
+    #[serde(default = "default_p_super_min")]
+    pub p_super_min_1m: f32,
+    /// Минимальный P(SUPER) для 5m сигнала
+    #[serde(default = "default_p_super_min")]
+    pub p_super_min_5m: f32,
+    /// Минимальный P(SUPER) для 15m сигнала
+    #[serde(default = "default_p_super_min")]
+    pub p_super_min_15m: f32,
+    /// Минимальный P(SUPER) для 1h сигнала
+    #[serde(default = "default_p_super_min")]
+    pub p_super_min_1h: f32,
+    /// Минимальный P(SUPER) для 4h сигнала
+    #[serde(default = "default_p_super_min")]
+    pub p_super_min_4h: f32,
+    /// Минимальный P(SUPER) для 1d сигнала
+    #[serde(default = "default_p_super_min")]
+    pub p_super_min_1d: f32,
+
+    // ─── Signal Scanner: combined_score range (internal, kept for backward compat) ───
+    // combined_score = p_super * (1 + dir_confidence). Используется как
+    // дополнительный фильтр/ранжирование. В WebUI не показывается —
+    // пользователь управляет только через p_super_min_* выше.
+    /// Минимальный combined_score для 1m (internal)
+    #[serde(default = "default_score_min")]
     pub signal_score_min_1m: f32,
-    /// Максимальный combined_score для 1m сигнала (inclusive)
+    /// Максимальный combined_score для 1m (internal)
+    #[serde(default = "default_score_max")]
     pub signal_score_max_1m: f32,
-    /// Минимальный combined_score для 5m сигнала (inclusive)
+    /// Минимальный combined_score для 5m (internal)
+    #[serde(default = "default_score_min")]
     pub signal_score_min_5m: f32,
-    /// Максимальный combined_score для 5m сигнала (inclusive)
+    /// Максимальный combined_score для 5m (internal)
+    #[serde(default = "default_score_max")]
     pub signal_score_max_5m: f32,
-    /// Минимальный combined_score для 15m сигнала (inclusive)
+    /// Минимальный combined_score для 15m (internal)
+    #[serde(default = "default_score_min")]
     pub signal_score_min_15m: f32,
-    /// Максимальный combined_score для 15m сигнала (inclusive)
+    /// Максимальный combined_score для 15m (internal)
+    #[serde(default = "default_score_max")]
     pub signal_score_max_15m: f32,
-    /// Минимальный combined_score для 1h сигнала (inclusive)
+    /// Минимальный combined_score для 1h (internal)
+    #[serde(default = "default_score_min")]
     pub signal_score_min_1h: f32,
-    /// Максимальный combined_score для 1h сигнала (inclusive)
+    /// Максимальный combined_score для 1h (internal)
+    #[serde(default = "default_score_max")]
     pub signal_score_max_1h: f32,
-    /// Минимальный combined_score для 4h сигнала (inclusive)
+    /// Минимальный combined_score для 4h (internal)
+    #[serde(default = "default_score_min")]
     pub signal_score_min_4h: f32,
-    /// Максимальный combined_score для 4h сигнала (inclusive)
+    /// Максимальный combined_score для 4h (internal)
+    #[serde(default = "default_score_max")]
     pub signal_score_max_4h: f32,
-    /// Минимальный combined_score для 1d сигнала (inclusive)
+    /// Минимальный combined_score для 1d (internal)
+    #[serde(default = "default_score_min")]
     pub signal_score_min_1d: f32,
-    /// Максимальный combined_score для 1d сигнала (inclusive)
+    /// Максимальный combined_score для 1d (internal)
+    #[serde(default = "default_score_max")]
     pub signal_score_max_1d: f32,
+
     /// Максимальный дрифт цены (%), чтобы сигнал считался актуальным
     pub max_price_drift_pct: f64,
-    /// Cooldown (часы) — запрещает повторное открытие ордера на ту же пару в течение этого времени.
-    /// Предотвращает ситуации типа BANANAS31USDT × 7 подряд за одну сессию.
+    /// Cooldown (часы) — запрещает повторное открытие ордера на ту же пару
     #[serde(default = "default_symbol_cooldown_hours")]
     pub symbol_cooldown_hours: f64,
     /// Интервал сканирования сигналов (секунды)
@@ -95,25 +135,27 @@ pub struct OrderManagerConfig {
     pub tracker_interval_secs: u64,
 
     // ─── Infrastructure ────────────────────────────────────
-    /// Kafka brokers
     pub kafka_brokers: String,
-    /// Kafka topic для событий позиций (→ WebUI)
     pub topic_positions: String,
-    /// Kafka topic для команд ордеров (← risk_manager)
     pub topic_orders_cmd: String,
-    /// Kafka group ID
     pub kafka_group_id: String,
-    /// Database URL
     pub database_url: String,
-    /// Использовать тестнет Binance
     pub binance_testnet: bool,
+
+    // ─── Backward compat: single p_super_min (deprecated, use per-TF) ──
+    /// DEPRECATED: use p_super_min_* per TF. Kept for backward compat, ignored if per-TF set.
+    #[serde(default = "default_p_super_min")]
+    pub p_super_min: f32,
 }
 
 fn default_trade_size_type() -> String { "fixed_usdt".to_string() }
 fn default_strategy_type() -> String { "ml_super_entry".to_string() }
 fn default_order_type() -> String { "futures_oco".to_string() }
 fn default_trading_mode() -> String { "off".to_string() }
-fn default_symbol_cooldown_hours() -> f64 { 12.0 }
+fn default_symbol_cooldown_hours() -> f64 { 7.0 }
+fn default_p_super_min() -> f32 { 0.0 }
+fn default_score_min() -> f32 { 0.0 }
+fn default_score_max() -> f32 { 2.0 }
 
 impl Default for OrderManagerConfig {
     fn default() -> Self {
@@ -127,30 +169,40 @@ impl Default for OrderManagerConfig {
             order_type: "futures_oco".to_string(),
             trading_mode: "off".to_string(),
 
-            // Scanner (per-timeframe score ranges)
-            signal_score_min_1m: 0.70,
-            signal_score_max_1m: 0.80,
-            signal_score_min_5m: 0.70,
-            signal_score_max_5m: 0.80,
-            signal_score_min_15m: 0.70,
-            signal_score_max_15m: 0.80,
-            signal_score_min_1h: 0.70,
-            signal_score_max_1h: 0.80,
-            signal_score_min_4h: 0.70,
-            signal_score_max_4h: 0.80,
-            signal_score_min_1d: 0.70,
-            signal_score_max_1d: 0.80,
-            max_price_drift_pct: 0.2,
-            symbol_cooldown_hours: 12.0,
+            // Per-TF P(SUPER) thresholds (primary filter)
+            p_super_min_1m: 0.0,
+            p_super_min_5m: 0.0,
+            p_super_min_15m: 0.55,
+            p_super_min_1h: 0.55,
+            p_super_min_4h: 0.55,
+            p_super_min_1d: 0.55,
+
+            // combined_score ranges (internal, permissive defaults)
+            signal_score_min_1m: 0.0,
+            signal_score_max_1m: 2.0,
+            signal_score_min_5m: 0.0,
+            signal_score_max_5m: 2.0,
+            signal_score_min_15m: 0.0,
+            signal_score_max_15m: 2.0,
+            signal_score_min_1h: 0.0,
+            signal_score_max_1h: 2.0,
+            signal_score_min_4h: 0.0,
+            signal_score_max_4h: 2.0,
+            signal_score_min_1d: 0.0,
+            signal_score_max_1d: 2.0,
+
+            max_price_drift_pct: 0.25,
+            symbol_cooldown_hours: 7.0,
             scan_interval_secs: 30,
+            p_super_min: 0.0, // deprecated
 
             // Executor
             max_hold_bars: 25,
             tf_1m_pct: 0,
             tf_5m_pct: 0,
-            tf_15m_pct: 10,
-            tf_1h_pct: 70,
-            tf_4h_pct: 20,
+            tf_15m_pct: 70,
+            tf_1h_pct: 30,
+            tf_4h_pct: 0,
             tf_1d_pct: 0,
 
             // Tracker
@@ -175,6 +227,22 @@ impl OrderManagerConfig {
     pub fn is_auto(&self) -> bool {
         self.trading_mode == "auto"
     }
+
+    /// Get P(SUPER) minimum threshold for a given timeframe.
+    /// Falls back to global p_super_min if per-TF is 0.0, then to 0.0.
+    pub fn get_p_super_min_for_tf(&self, tf_minutes: i16) -> f32 {
+        let per_tf = match tf_minutes {
+            1 => self.p_super_min_1m,
+            5 => self.p_super_min_5m,
+            15 => self.p_super_min_15m,
+            60 => self.p_super_min_1h,
+            240 => self.p_super_min_4h,
+            1440 => self.p_super_min_1d,
+            _ => 0.0,
+        };
+        // If per-TF is set (> 0), use it; otherwise fall back to global p_super_min
+        if per_tf > 0.0 { per_tf } else { self.p_super_min }
+    }
 }
 
 impl OrderManagerConfig {
@@ -197,7 +265,23 @@ impl OrderManagerConfig {
     pub fn load_with_env() -> anyhow::Result<Self> {
         let mut cfg = Self::load()?;
 
-        // Per-timeframe score overrides (optional)
+        // Per-timeframe p_super_min overrides
+        if let Ok(v) = std::env::var("OM_P_SUPER_MIN_15M") {
+            if let Ok(n) = v.parse() { cfg.p_super_min_15m = n; }
+        }
+        if let Ok(v) = std::env::var("OM_P_SUPER_MIN_1H") {
+            if let Ok(n) = v.parse() { cfg.p_super_min_1h = n; }
+        }
+        if let Ok(v) = std::env::var("OM_P_SUPER_MIN_4H") {
+            if let Ok(n) = v.parse() { cfg.p_super_min_4h = n; }
+        }
+        if let Ok(v) = std::env::var("OM_P_SUPER_MIN_1D") {
+            if let Ok(n) = v.parse() { cfg.p_super_min_1d = n; }
+        }
+        if let Ok(v) = std::env::var("OM_P_SUPER_MIN") {
+            if let Ok(n) = v.parse() { cfg.p_super_min = n; }
+        }
+        // Legacy combined_score overrides (kept for backward compat)
         if let Ok(v) = std::env::var("OM_SCORE_MIN_1H") {
             if let Ok(n) = v.parse() { cfg.signal_score_min_1h = n; }
         }
@@ -253,49 +337,6 @@ impl OrderManagerConfig {
 
     /// Валидация конфигурации
     pub fn validate(&self) -> anyhow::Result<()> {
-        // Validate per-timeframe score ranges
-        if self.signal_score_min_1m >= self.signal_score_max_1m {
-            anyhow::bail!(
-                "signal_score_min_1m ({}) must be < signal_score_max_1m ({})",
-                self.signal_score_min_1m,
-                self.signal_score_max_1m
-            );
-        }
-        if self.signal_score_min_5m >= self.signal_score_max_5m {
-            anyhow::bail!(
-                "signal_score_min_5m ({}) must be < signal_score_max_5m ({})",
-                self.signal_score_min_5m,
-                self.signal_score_max_5m
-            );
-        }
-        if self.signal_score_min_15m >= self.signal_score_max_15m {
-            anyhow::bail!(
-                "signal_score_min_15m ({}) must be < signal_score_max_15m ({})",
-                self.signal_score_min_15m,
-                self.signal_score_max_15m
-            );
-        }
-        if self.signal_score_min_1h >= self.signal_score_max_1h {
-            anyhow::bail!(
-                "signal_score_min_1h ({}) must be < signal_score_max_1h ({})",
-                self.signal_score_min_1h,
-                self.signal_score_max_1h
-            );
-        }
-        if self.signal_score_min_4h >= self.signal_score_max_4h {
-            anyhow::bail!(
-                "signal_score_min_4h ({}) must be < signal_score_max_4h ({})",
-                self.signal_score_min_4h,
-                self.signal_score_max_4h
-            );
-        }
-        if self.signal_score_min_1d >= self.signal_score_max_1d {
-            anyhow::bail!(
-                "signal_score_min_1d ({}) must be < signal_score_max_1d ({})",
-                self.signal_score_min_1d,
-                self.signal_score_max_1d
-            );
-        }
         if self.max_orders_at_a_time == 0 {
             anyhow::bail!("max_orders_at_a_time must be > 0");
         }
@@ -320,17 +361,37 @@ impl OrderManagerConfig {
         if self.max_hold_bars <= 0 {
             anyhow::bail!("max_hold_bars must be > 0");
         }
+        // Validate p_super_min per-TF (must be [0.0, 1.0])
+        for (name, val) in [
+            ("p_super_min_1m", self.p_super_min_1m),
+            ("p_super_min_5m", self.p_super_min_5m),
+            ("p_super_min_15m", self.p_super_min_15m),
+            ("p_super_min_1h", self.p_super_min_1h),
+            ("p_super_min_4h", self.p_super_min_4h),
+            ("p_super_min_1d", self.p_super_min_1d),
+            ("p_super_min", self.p_super_min),
+        ] {
+            if val < 0.0 || val > 1.0 {
+                anyhow::bail!("{} must be in [0.0, 1.0], got {}", name, val);
+            }
+        }
+        // Validate combined_score ranges (internal, permissive)
+        if self.signal_score_min_1m > self.signal_score_max_1m
+            || self.signal_score_min_5m > self.signal_score_max_5m
+            || self.signal_score_min_15m > self.signal_score_max_15m
+            || self.signal_score_min_1h > self.signal_score_max_1h
+            || self.signal_score_min_4h > self.signal_score_max_4h
+            || self.signal_score_min_1d > self.signal_score_max_1d
+        {
+            anyhow::bail!("signal_score_min must be <= signal_score_max for all timeframes");
+        }
         let total_pct = self.tf_1m_pct + self.tf_5m_pct + self.tf_15m_pct + self.tf_1h_pct + self.tf_4h_pct + self.tf_1d_pct;
         if total_pct != 100 {
             anyhow::bail!(
                 "Timeframe percentages must sum to 100, got {} (1m={}%, 5m={}%, 15m={}%, 1h={}%, 4h={}%, 1d={}%)",
                 total_pct,
-                self.tf_1m_pct,
-                self.tf_5m_pct,
-                self.tf_15m_pct,
-                self.tf_1h_pct,
-                self.tf_4h_pct,
-                self.tf_1d_pct
+                self.tf_1m_pct, self.tf_5m_pct, self.tf_15m_pct,
+                self.tf_1h_pct, self.tf_4h_pct, self.tf_1d_pct
             );
         }
         Ok(())
@@ -339,7 +400,6 @@ impl OrderManagerConfig {
     /// Вычислить распределение слотов по таймфреймам
     pub fn timeframe_allocation(&self) -> TimeframeAllocation {
         let total = self.max_orders_at_a_time;
-        // Рассчитываем слоты: каждый таймфрейм получает floor, 1h — остаток
         let slots_1m = (total as f64 * self.tf_1m_pct as f64 / 100.0).floor() as u16;
         let slots_5m = (total as f64 * self.tf_5m_pct as f64 / 100.0).floor() as u16;
         let slots_15m = (total as f64 * self.tf_15m_pct as f64 / 100.0).floor() as u16;
@@ -366,7 +426,6 @@ impl OrderManagerConfig {
     }
 
     /// Lookback-окно для таймфрейма (в минутах).
-    /// Для 15m → 15 мин, для 1h → 60 мин, для 4h → 240 мин
     pub fn lookback_minutes_for_tf(&self, tf_minutes: i16) -> i64 {
         tf_minutes as i64
     }
@@ -396,32 +455,29 @@ mod tests {
         let cfg = OrderManagerConfig::default();
         let alloc = cfg.timeframe_allocation();
         assert_eq!(alloc.total, 10);
-        assert_eq!(alloc.slots_for_tf(1), 0);   // 1m: 0%
-        assert_eq!(alloc.slots_for_tf(5), 0);   // 5m: 0%
-        assert_eq!(alloc.slots_for_tf(15), 1);  // 15m: 10%
-        assert_eq!(alloc.slots_for_tf(60), 7);  // 1h: 70%
-        assert_eq!(alloc.slots_for_tf(240), 2); // 4h: 20%
-        assert_eq!(alloc.slots_for_tf(1440), 0); // 1d: 0%
+        assert_eq!(alloc.slots_for_tf(15), 6);  // 15m: 60%
+        assert_eq!(alloc.slots_for_tf(60), 4);  // 1h: 40%
     }
 
     #[test]
-    fn test_invalid_score_range_1h() {
+    fn test_p_super_min_per_tf() {
         let mut cfg = OrderManagerConfig::default();
-        cfg.signal_score_min_1h = 0.9;
-        cfg.signal_score_max_1h = 0.8;
-        assert!(cfg.validate().is_err());
+        cfg.p_super_min_15m = 0.90;
+        cfg.p_super_min_1h = 0.80;
+        cfg.p_super_min = 0.55; // global fallback
+        assert!((cfg.get_p_super_min_for_tf(15) - 0.90).abs() < 1e-6);
+        assert!((cfg.get_p_super_min_for_tf(60) - 0.80).abs() < 1e-6);
+        // For a TF with per-TF=0.0, should fall back to global
+        cfg.p_super_min_5m = 0.0;
+        assert!((cfg.get_p_super_min_for_tf(5) - 0.55).abs() < 1e-6);
     }
 
     #[test]
     fn test_invalid_pct_sum() {
         let mut cfg = OrderManagerConfig::default();
         cfg.tf_1h_pct = 50;
-        cfg.tf_4h_pct = 20;
         cfg.tf_15m_pct = 10;
-        cfg.tf_1m_pct = 0;
-        cfg.tf_5m_pct = 0;
-        cfg.tf_1d_pct = 0;
-        assert!(cfg.validate().is_err()); // sum = 80 ≠ 100
+        assert!(cfg.validate().is_err()); // sum ≠ 100
     }
 
     #[test]
@@ -429,7 +485,7 @@ mod tests {
         let cfg = OrderManagerConfig::default();
         let toml_str = toml::to_string_pretty(&cfg).unwrap();
         let deserialized: OrderManagerConfig = toml::from_str(&toml_str).unwrap();
-        assert!((deserialized.signal_score_min_1h - cfg.signal_score_min_1h).abs() < 1e-6);
+        assert!((deserialized.p_super_min_15m - cfg.p_super_min_15m).abs() < 1e-6);
         assert_eq!(deserialized.max_orders_at_a_time, cfg.max_orders_at_a_time);
     }
 }

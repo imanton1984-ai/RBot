@@ -7,6 +7,14 @@ use sqlx::{types::Json, PgPool, Row};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 
+/// Check if this is a TimescaleDB decompression limit error that can be retried
+/// with smaller chunk sizes.
+fn is_decompression_limit_error(e: &anyhow::Error) -> bool {
+    let msg = e.to_string();
+    msg.contains("decompression limit exceeded")
+        || msg.contains("tuple decompression limit")
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PersistMode {
     History,
@@ -59,11 +67,13 @@ impl BulkPersistorConfig {
         let mode = PersistMode::from_env_var(std::env::var("DB_PERSIST_MODE").ok());
 
         // chunk size зависит от режима
+        // History default reduced from 20_000 → 2_000 to avoid TimescaleDB
+        // "tuple decompression limit exceeded by operation" errors on compressed chunks
         let chunk_size = match mode {
             PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(20_000),
+                .unwrap_or(2_000),
             PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -101,7 +111,7 @@ impl BulkPersistorConfig {
             PersistMode::History => std::env::var("DB_PERSIST_CHUNK_SIZE_HISTORY")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(20_000),
+                .unwrap_or(2_000),
             PersistMode::Realtime => std::env::var("DB_PERSIST_CHUNK_SIZE_REALTIME")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -426,7 +436,25 @@ async fn flush_predictors(
         let take = vec.len().min(cfg.chunk_size);
         let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
         let chunk_len = chunk.len();
-        flush_predictors_chunk(pool, cfg, chunk).await?;
+        if let Err(e) = flush_predictors_chunk(pool, cfg, chunk.clone()).await {
+            if is_decompression_limit_error(&e) && chunk_len > 50 {
+                tracing::warn!(
+                    "flush_predictors: decompression limit on {} rows, splitting into sub-chunks of {}",
+                    chunk_len, chunk_len / 4
+                );
+                let sub_size = (chunk_len / 4).max(50);
+                let mut remaining = chunk;
+                while !remaining.is_empty() {
+                    let sub_take = remaining.len().min(sub_size);
+                    let sub: Vec<(PersistRecord, i64)> = remaining.drain(0..sub_take).collect();
+                    let sub_len = sub.len();
+                    flush_predictors_chunk(pool, cfg, sub).await?;
+                    written += sub_len;
+                }
+                continue;
+            }
+            return Err(e);
+        }
         written += chunk_len;
     }
     
@@ -599,7 +627,24 @@ async fn flush_raw_signals(
     while !vec.is_empty() {
         let take = vec.len().min(cfg.chunk_size);
         let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
-        flush_raw_signals_chunk(pool, cfg, chunk).await?;
+        let chunk_len = chunk.len();
+        if let Err(e) = flush_raw_signals_chunk(pool, cfg, chunk.clone()).await {
+            if is_decompression_limit_error(&e) && chunk_len > 50 {
+                tracing::warn!(
+                    "flush_raw_signals: decompression limit on {} rows, splitting into sub-chunks of {}",
+                    chunk_len, chunk_len / 4
+                );
+                let sub_size = (chunk_len / 4).max(50);
+                let mut remaining = chunk;
+                while !remaining.is_empty() {
+                    let sub_take = remaining.len().min(sub_size);
+                    let sub: Vec<(PersistRecord, i64)> = remaining.drain(0..sub_take).collect();
+                    flush_raw_signals_chunk(pool, cfg, sub).await?;
+                }
+                continue;
+            }
+            return Err(e);
+        }
     }
 
     Ok(())
@@ -798,7 +843,24 @@ async fn flush_wide_indicators(
     while !records.is_empty() {
         let take = records.len().min(cfg.chunk_size);
         let chunk: Vec<_> = records.drain(0..take).collect();
-        flush_wide_indicators_chunk(pool, cache, cfg, chunk).await?;
+        let chunk_len = chunk.len();
+        if let Err(e) = flush_wide_indicators_chunk(pool, cache, cfg, chunk.clone()).await {
+            if is_decompression_limit_error(&e) && chunk_len > 50 {
+                tracing::warn!(
+                    "flush_wide_indicators: decompression limit on {} rows, splitting into sub-chunks of {}",
+                    chunk_len, chunk_len / 4
+                );
+                let sub_size = (chunk_len / 4).max(50);
+                let mut remaining = chunk;
+                while !remaining.is_empty() {
+                    let sub_take = remaining.len().min(sub_size);
+                    let sub: Vec<_> = remaining.drain(0..sub_take).collect();
+                    flush_wide_indicators_chunk(pool, cache, cfg, sub).await?;
+                }
+                continue;
+            }
+            return Err(e);
+        }
     }
 
     Ok(())
@@ -1331,7 +1393,25 @@ async fn flush_trade_signals(
         let take = vec.len().min(cfg.chunk_size);
         let chunk: Vec<(PersistRecord, i64)> = vec.drain(0..take).collect();
         let chunk_len = chunk.len();
-        flush_trade_signals_chunk(pool, cfg, chunk).await?;
+        if let Err(e) = flush_trade_signals_chunk(pool, cfg, chunk.clone()).await {
+            if is_decompression_limit_error(&e) && chunk_len > 10 {
+                tracing::warn!(
+                    "flush_trade_signals: decompression limit on {} rows, splitting into sub-chunks of {}",
+                    chunk_len, chunk_len / 4
+                );
+                let sub_size = (chunk_len / 4).max(10);
+                let mut remaining = chunk;
+                while !remaining.is_empty() {
+                    let sub_take = remaining.len().min(sub_size);
+                    let sub: Vec<(PersistRecord, i64)> = remaining.drain(0..sub_take).collect();
+                    let sub_len = sub.len();
+                    flush_trade_signals_chunk(pool, cfg, sub).await?;
+                    written += sub_len;
+                }
+                continue;
+            }
+            return Err(e);
+        }
         written += chunk_len;
     }
 

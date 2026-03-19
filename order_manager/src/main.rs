@@ -51,14 +51,11 @@ async fn main() -> Result<()> {
     let allocation = config.timeframe_allocation();
 
     info!("Allocation: {:?}", allocation.slots);
-    info!("Score ranges: 1m=[{}, {}], 5m=[{}, {}], 15m=[{}, {}], 1h=[{}, {}], 4h=[{}, {}], 1d=[{}, {}]",
-        config.signal_score_min_1m, config.signal_score_max_1m,
-        config.signal_score_min_5m, config.signal_score_max_5m,
-        config.signal_score_min_15m, config.signal_score_max_15m,
-        config.signal_score_min_1h, config.signal_score_max_1h,
-        config.signal_score_min_4h, config.signal_score_max_4h,
-        config.signal_score_min_1d, config.signal_score_max_1d);
-    info!("Max drift: {}%, Symbol cooldown: {}h", config.max_price_drift_pct, config.symbol_cooldown_hours);
+    info!("P(super) min per TF: 1m={}, 5m={}, 15m={}, 1h={}, 4h={}, 1d={}",
+        config.p_super_min_1m, config.p_super_min_5m, config.p_super_min_15m,
+        config.p_super_min_1h, config.p_super_min_4h, config.p_super_min_1d);
+    info!("Max drift: {}%, Symbol cooldown: {}h",
+        config.max_price_drift_pct, config.symbol_cooldown_hours);
 
     // Load exchange credentials (retry-friendly — don't crash on failure)
     let exchange_settings = match settings_lib::ExchangeSettings::load_with_env() {

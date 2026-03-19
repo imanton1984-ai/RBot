@@ -1,0 +1,12 @@
+[2m2026-03-19T09:24:08.654604Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Refreshing universe pairs...
+[2m2026-03-19T09:24:15.942137Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260327
+[2m2026-03-19T09:24:15.942166Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260327
+[2m2026-03-19T09:24:15.942179Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 币安人生USDT
+[2m2026-03-19T09:24:15.942193Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: BTCUSDT_260626
+[2m2026-03-19T09:24:15.942198Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: ETHUSDT_260626
+[2m2026-03-19T09:24:15.942205Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 我踏马来了USDT
+[2m2026-03-19T09:24:15.942214Z[0m [33m WARN[0m [2mingestor::market::pairs[0m[2m:[0m Skipping non-alphanumeric symbol: 龙虾USDT
+[2m2026-03-19T09:24:15.991202Z[0m [32m INFO[0m [2mingestor::market::pairs[0m[2m:[0m Pairs refreshed: selected_cnt=208, active_cnt=208
+[2m2026-03-19T09:24:15.991367Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Universe pairs refreshed OK: selected=208, active=208
+[2m2026-03-19T09:24:15.991380Z[0m [32m INFO[0m [2mingestor[0m[2m:[0m Starting ingest (candles monolith)...
+[2m2026-03-19T09:24:16.008205Z[0m [32m INFO[0m [2mingestor::market::candles::candle_runner[0m[2m:[0m Active pairs: 208

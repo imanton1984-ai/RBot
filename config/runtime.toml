@@ -28,7 +28,7 @@ intra_update_sampling_ms = 200
 # HTTP concurrency for API requests (higher = more parallel requests)
 # Note: Binance Futures allows 2400 weight/min. With 50 concurrent requests,
 # the rate limiter still controls actual throughput. Safe to go to 50-80.
-http_concurrency = 30
+http_concurrency = 60
 
 # Per-TF backfill candle limits (overrides backfill_candles for specific TFs)
 # For ML model training (super_entry) we need deep history on key TFs.

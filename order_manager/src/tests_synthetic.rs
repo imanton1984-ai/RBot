@@ -457,6 +457,7 @@ mod synthetic_futures_tests {
     fn test_timeframe_allocation_default() {
         let alloc = TimeframeAllocation::default_10();
         assert_eq!(alloc.total, 10);
+        // default_10() uses legacy 70/20/10 split
         assert_eq!(alloc.slots_for_tf(60), 7);   // 1h = 70%
         assert_eq!(alloc.slots_for_tf(240), 2);  // 4h = 20%
         assert_eq!(alloc.slots_for_tf(15), 1);   // 15m = 10%
@@ -468,6 +469,9 @@ mod synthetic_futures_tests {
         let config = OrderManagerConfig::default();
         let alloc = config.timeframe_allocation();
         assert_eq!(alloc.total, 10);
+        // Config default: 60% 15m, 40% 1h
+        assert_eq!(alloc.slots_for_tf(15), 6);   // 15m: 60%
+        assert_eq!(alloc.slots_for_tf(60), 4);   // 1h: 40% (remainder)
 
         // Ensure proportions: sum of slots = total
         let sum: u16 = alloc.slots.iter().map(|(_, count)| *count).sum();
@@ -478,11 +482,10 @@ mod synthetic_futures_tests {
     fn test_timeframe_allocation_custom() {
         let mut config = OrderManagerConfig::default();
         config.max_orders_at_a_time = 20;
-        // 70% 1h = 14, 20% 4h = 4, 10% 15m = 2
+        // 60% 15m = 12, 40% 1h = 8
         let alloc = config.timeframe_allocation();
-        assert_eq!(alloc.slots_for_tf(60), 14);
-        assert_eq!(alloc.slots_for_tf(240), 4);
-        assert_eq!(alloc.slots_for_tf(15), 2);
+        assert_eq!(alloc.slots_for_tf(15), 12);
+        assert_eq!(alloc.slots_for_tf(60), 8);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -490,27 +493,31 @@ mod synthetic_futures_tests {
     // ═══════════════════════════════════════════════════════════
 
     #[test]
-    fn test_signal_score_in_range() {
+    fn test_signal_p_super_check() {
         let config = OrderManagerConfig::default();
+        // Default p_super_min_1h = 0.55
         let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.75);
+        assert!(signal.p_super >= config.get_p_super_min_for_tf(60),
+            "Signal p_super=0.8 should be >= p_super_min_1h={}", config.p_super_min_1h);
+    }
+
+    #[test]
+    fn test_signal_p_super_below_threshold() {
+        let mut config = OrderManagerConfig::default();
+        config.p_super_min_1h = 0.90;
+        // make_signal uses p_super=0.8
+        let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.60);
+        assert!(signal.p_super < config.get_p_super_min_for_tf(60),
+            "Signal p_super=0.8 should be < p_super_min_1h=0.90");
+    }
+
+    #[test]
+    fn test_signal_combined_score_in_range() {
+        let config = OrderManagerConfig::default();
+        // Default combined_score range: [0.0, 2.0] — very permissive
+        let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.90);
         assert!(signal.combined_score >= config.signal_score_min_1h);
         assert!(signal.combined_score <= config.signal_score_max_1h);
-    }
-
-    #[test]
-    fn test_signal_score_below_range() {
-        let config = OrderManagerConfig::default();
-        let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.60);
-        assert!(signal.combined_score < config.signal_score_min_1h,
-            "Signal with score 0.60 should be below min threshold 0.70");
-    }
-
-    #[test]
-    fn test_signal_score_above_range() {
-        let config = OrderManagerConfig::default();
-        let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.90);
-        assert!(signal.combined_score > config.signal_score_max_1h,
-            "Signal with score 0.90 should be above max threshold 0.80");
     }
 
     #[test]
@@ -670,7 +677,7 @@ mod synthetic_futures_tests {
     #[test]
     fn test_config_invalid_score_range() {
         let mut config = OrderManagerConfig::default();
-        config.signal_score_min_1h = 0.9;
+        config.signal_score_min_1h = 2.5;
         config.signal_score_max_1h = 0.8;
         assert!(config.validate().is_err(), "min > max should fail validation");
     }

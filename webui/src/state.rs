@@ -203,20 +203,16 @@ pub struct TradingOptionsPayload {
 }
 
 /// Order Manager Options (maps to subset of config/order_manager.toml)
+/// WebUI shows only p_super_min per TF (primary filter) + allocation.
+/// combined_score min/max are kept internal — not exposed in UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderManagerOptionsPayload {
-    pub signal_score_min_1m: f64,
-    pub signal_score_max_1m: f64,
-    pub signal_score_min_5m: f64,
-    pub signal_score_max_5m: f64,
-    pub signal_score_min_15m: f64,
-    pub signal_score_max_15m: f64,
-    pub signal_score_min_1h: f64,
-    pub signal_score_max_1h: f64,
-    pub signal_score_min_4h: f64,
-    pub signal_score_max_4h: f64,
-    pub signal_score_min_1d: f64,
-    pub signal_score_max_1d: f64,
+    pub p_super_min_1m: f64,
+    pub p_super_min_5m: f64,
+    pub p_super_min_15m: f64,
+    pub p_super_min_1h: f64,
+    pub p_super_min_4h: f64,
+    pub p_super_min_1d: f64,
     pub max_hold_bars: i32,
     pub tf_1m_pct: u16,
     pub tf_5m_pct: u16,

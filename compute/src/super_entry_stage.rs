@@ -144,8 +144,9 @@ impl SuperEntryStage {
 
     /// Run the stage — consumes feature snapshots and generates signals.
     ///
-    /// For realtime: buffers last 15 candles per (symbol,tf) for dynamic features,
-    ///   then processes via process_single_with_context().
+    /// For realtime: buffers last 60 candles per (symbol,tf) for dynamic features,
+    ///   prefilled from DB at startup to eliminate cold-start.
+    ///   Then processes via process_single_with_context().
     /// For history: buffers candles per (symbol, tf) and batch-processes.
     /// When channel closes, flushes ALL remaining buffers.
     ///
@@ -161,11 +162,54 @@ impl SuperEntryStage {
         let mut candle_buffers: HashMap<(String, i32), Vec<CandleWithIndicators>> =
             HashMap::new();
         
-        // Rolling context buffer for realtime (last ~20 candles per symbol/tf)
-        // Keeps enough history for dynamic feature lookback (max 15 bars)
-        let rt_context_size = 20;
+        // Rolling context buffer for realtime (last ~60 candles per symbol/tf)
+        // Must be > max_dynamic_lookback (50) + 1, otherwise compute_dynamic_features()
+        // returns all zeros because t < max_lb. See dataset.rs:198.
+        let rt_context_size = 60;
         let mut rt_context: HashMap<(String, i32), Vec<CandleWithIndicators>> =
             HashMap::new();
+
+        // ── PREFILL rt_context from database to avoid cold-start ──────
+        // Without this, dynamic features (54 of 106) would be zeros until
+        // enough candles accumulate (e.g., 50+ hours for 1h TF!).
+        // Loads last `rt_context_size` candles per (symbol, tf) from DB.
+        {
+            let production_tfs = SuperEntryConfig::timeframes();
+            let all_tfs: &[i32] = &[1, 5, 15, 60, 240, 1440];
+            let mut total_loaded = 0usize;
+            let mut total_pairs = 0usize;
+
+            for &tf in all_tfs {
+                let is_production_tf = production_tfs.contains(&tf);
+                match ml_entry_strategy::dataset::fetch_all_candles_for_tf(
+                    &self.db_pool, tf, rt_context_size
+                ).await {
+                    Ok(grouped) => {
+                        for (symbol, candles) in grouped {
+                            if candles.is_empty() { continue; }
+                            // Update cross-TF store with the latest candle (all TFs)
+                            if let Some(last) = candles.last() {
+                                self.cross_tf_store.update(last.clone(), tf);
+                            }
+                            // Only fill rt_context for production TFs (where we run inference)
+                            if is_production_tf {
+                                total_pairs += 1;
+                                rt_context.insert((symbol, tf), candles);
+                            }
+                            total_loaded += 1;
+                        }
+                    }
+                    Err(e) => {
+                        warn!(target: "super_entry_stage",
+                            "Failed to prefill rt_context for TF {}m: {}", tf, e);
+                    }
+                }
+            }
+
+            info!(target: "super_entry_stage",
+                "✅ Prefilled rt_context: {} symbol/tf pairs ({} total incl. cross-TF), context_size={}",
+                total_pairs, total_loaded, rt_context_size);
+        }
 
         let warmup = self.pipeline.config().warmup_bars;
         // Larger buffer for history mode — processes in bigger batches for throughput

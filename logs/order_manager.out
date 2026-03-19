@@ -1,0 +1,30 @@
+[2m2026-03-19T09:24:08.746534Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-19T09:24:08.746578Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🤖 Order Manager starting...
+[2m2026-03-19T09:24:08.746586Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-19T09:24:08.746703Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-19T09:24:08.746728Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Allocation: [(1, 0), (5, 0), (15, 7), (60, 3), (240, 0), (1440, 0)]
+[2m2026-03-19T09:24:08.746737Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m P(super) min per TF: 1m=0, 5m=0, 15m=0.8, 1h=0.75, 4h=0.55, 1d=0.55
+[2m2026-03-19T09:24:08.746746Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Max drift: 0.25%, Symbol cooldown: 7h
+[2m2026-03-19T09:24:08.746818Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m API credentials loaded from "/home/anton/.settings.json"
+[2m2026-03-19T09:24:08.746831Z[0m [32m INFO[0m [2msettings::exchange_settings[0m[2m:[0m Loaded exchange settings: taker_fee=0.04%, maker_fee=0.02%, mode=binance_futures
+[2m2026-03-19T09:24:08.746839Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Config: max_orders=10, leverage=5x, trade_size=10 USDT (percent_depo), strategy=ml_super_entry
+[2m2026-03-19T09:24:08.746848Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m ⚠️ Trading mode is OFF — order_manager will run but NOT scan or trade.
+[2m2026-03-19T09:24:08.746854Z[0m [33m WARN[0m [2morder_manager[0m[2m:[0m   Click START TRADING in WebUI or set trading_mode = "auto" in order_manager.toml
+[2m2026-03-19T09:24:08.753508Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m BinanceFuturesClient created (PRODUCTION)
+[2m2026-03-19T09:24:11.985100Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m Binance connection: Spot: ✅ | Futures: ✅ | Auth: ✅ | Trade: ✅ | USDT: 954.69 | Positions: 0
+[2m2026-03-19T09:24:11.993456Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Database connected
+[2m2026-03-19T09:24:11.995653Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Redpanda producer connected
+[2m2026-03-19T09:24:13.376082Z[0m [32m INFO[0m [2mconnections_lib::binance_futures[0m[2m:[0m Exchange info loaded: 692 symbols
+[2m2026-03-19T09:24:13.376363Z[0m [32m INFO[0m [2morder_manager::exchange_info[0m[2m:[0m ExchangeInfoCache: loaded 600 active symbols
+[2m2026-03-19T09:24:13.376377Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ✅ Exchange info cached: 600 symbols
+[2m2026-03-19T09:24:13.383233Z[0m [32m INFO[0m [2morder_manager::order_executor[0m[2m:[0m 📂 Loaded 0 open positions from database
+[2m2026-03-19T09:24:13.383251Z[0m [32m INFO[0m [2morder_manager::position_tracker[0m[2m:[0m PositionTracker: initialized with 0 open positions
+[2m2026-03-19T09:24:13.383258Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📊 Current state: No open positions
+[2m2026-03-19T09:24:13.383277Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-19T09:24:13.383282Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m   🚀 Order Manager running
+[2m2026-03-19T09:24:13.383287Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m ═══════════════════════════════════════════════════
+[2m2026-03-19T09:24:13.383383Z[0m [32m INFO[0m [2morder_manager::config[0m[2m:[0m OrderManagerConfig loaded from config/order_manager.toml
+[2m2026-03-19T09:24:13.383762Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 📥 Listening for commands on topic: orders.cmd
+[2m2026-03-19T09:24:13.389475Z[0m [32m INFO[0m [2morder_manager[0m[2m:[0m 🔍 Scanner: need to fill slots: [(15, 7), (60, 3)]
+[2m2026-03-19T09:24:13.396219Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 🔒 SignalScanner: 13 symbols on cooldown (open or traded within last 7h): ["ARCUSDT", "JCTUSDT", "ROBOUSDT", "PTBUSDT", "XNYUSDT", "ANKRUSDT", "HUMAUSDT", "MUSDT", "A2ZUSDT", "CFGUSDT", "PIPPINUSDT", "COLLECTUSDT", "VVVUSDT"]
+[2m2026-03-19T09:24:13.396249Z[0m [32m INFO[0m [2morder_manager::signal_scanner[0m[2m:[0m 🚫 SignalScanner: BLOCKED A2ZUSDT tf=60m — symbol on cooldown (open or traded within last 7h)
