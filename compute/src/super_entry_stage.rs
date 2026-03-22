@@ -162,10 +162,11 @@ impl SuperEntryStage {
         let mut candle_buffers: HashMap<(String, i32), Vec<CandleWithIndicators>> =
             HashMap::new();
         
-        // Rolling context buffer for realtime (last ~60 candles per symbol/tf)
-        // Must be > max_dynamic_lookback (50) + 1, otherwise compute_dynamic_features()
-        // returns all zeros because t < max_lb. See dataset.rs:198.
-        let rt_context_size = 60;
+        // Rolling context buffer for realtime (last ~120 candles per symbol/tf)
+        // Must be > max_dynamic_lookback (100, for BB squeeze percentile) + margin,
+        // otherwise compute_dynamic_features() returns all zeros because t < max_lb.
+        // See dataset.rs:200 and config.rs BB_SQUEEZE_LOOKBACK.
+        let rt_context_size = 120;
         let mut rt_context: HashMap<(String, i32), Vec<CandleWithIndicators>> =
             HashMap::new();
 

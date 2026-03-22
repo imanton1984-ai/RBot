@@ -1,5 +1,5 @@
 {
-  "schema_id": "c3ea6e433e206f6f2fa09c83f0fc6d5b631f1a49b5897dff2a5f9ffc544ecdd6_tf1",
+  "schema_id": "aa364ad74bf733110125aadc019b8353ca45a399db2ba2ad3eacce6118155135_tf1",
   "features": [
     "rsi",
     "cci",
@@ -106,7 +106,21 @@
     "price_accel",
     "volume_trend_ratio",
     "ema_convergence_change",
-    "high_low_pressure"
+    "high_low_pressure",
+    "price_roc_lb1",
+    "price_roc_lb2",
+    "price_accel_1bar",
+    "price_accel_3bar",
+    "volume_roc_lb1",
+    "volume_roc_lb3",
+    "volume_roc_lb5",
+    "volume_roc_lb10",
+    "volume_accel",
+    "bb_squeeze_pctl",
+    "obv_price_divergence",
+    "macd_hist_roc_lb1",
+    "macd_hist_roc_lb3",
+    "macd_hist_accel"
   ],
   "task": "super_entry",
   "tf_minutes": 1,

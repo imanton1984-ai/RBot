@@ -101,11 +101,17 @@ DYNAMIC_FEATURES = [
     "supertrend_consistency", "trend_alignment",
     "price_accel", "volume_trend_ratio",
     "ema_convergence_change", "high_low_pressure",
+    # v3: Rate-of-Change & Momentum Dynamics (14 features)
+    "price_roc_lb1", "price_roc_lb2", "price_accel_1bar", "price_accel_3bar",
+    "volume_roc_lb1", "volume_roc_lb3", "volume_roc_lb5", "volume_roc_lb10", "volume_accel",
+    "bb_squeeze_pctl",
+    "obv_price_divergence",
+    "macd_hist_roc_lb1", "macd_hist_roc_lb3", "macd_hist_accel",
 ]
 
 # Static features (indicators + derived) — 52 total
 STATIC_FEATURES = INDICATOR_FEATURES + DERIVED_FEATURES
-# All features including dynamic — 90 total
+# All features including dynamic — 120 total
 ALL_FEATURES = STATIC_FEATURES + DYNAMIC_FEATURES
 
 # TF target move percentages (must match Rust config::tf_target_move_pct)

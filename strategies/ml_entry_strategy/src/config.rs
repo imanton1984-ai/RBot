@@ -246,6 +246,12 @@ pub const DERIVED_FEATURES: &[&str] = &[
 /// For 1h candles: lb25 = 1 day, lb50 = 2 days — critical for direction prediction.
 pub const DYNAMIC_LOOKBACK_WINDOWS: &[usize] = &[3, 5, 10, 15, 25, 50];
 
+/// Lookback window for BB Squeeze percentile calculation.
+/// 100 bars captures enough history to determine if current BB width
+/// is a squeeze (low percentile) or expansion (high percentile).
+/// For 15m candles: 100 bars = 25 hours. For 1h: 100 bars = ~4 days.
+pub const BB_SQUEEZE_LOOKBACK: usize = 100;
+
 /// Dynamic (temporal) features — computed from lookback over candle history.
 /// These capture HOW indicators are CHANGING, not just their current value.
 /// Critical for direction prediction: a static snapshot doesn't tell if
@@ -317,6 +323,26 @@ pub const DYNAMIC_FEATURES: &[&str] = &[
     "volume_trend_ratio",       // mean_vol_recent_5 / mean_vol_prev_5
     "ema_convergence_change",   // (ema20-ema50 now) - (ema20-ema50 5 bars ago) / close * 100
     "high_low_pressure",        // bias of wicks over last 10 bars (buying/selling pressure)
+    // --- v3: Rate-of-Change & Momentum Dynamics (14 features) ---
+    // Price RoC — short-term momentum critical for direction
+    "price_roc_lb1",            // 1-bar return: (close[t] - close[t-1]) / close[t-1] * 100
+    "price_roc_lb2",            // 2-bar return: (close[t] - close[t-2]) / close[t-2] * 100
+    "price_accel_1bar",         // 1-bar acceleration: roc_lb1[t] vs roc_lb1[t-1]
+    "price_accel_3bar",         // 3-bar acceleration: return_lb3[t] vs return_lb3 at [t-3]
+    // Volume RoC — volume dynamics (is volume BUILDING or fading?)
+    "volume_roc_lb1",           // volume[t] / volume[t-1] - 1 (single bar change)
+    "volume_roc_lb3",           // volume[t] / mean(volume[t-3..t-1]) - 1
+    "volume_roc_lb5",           // volume[t] / mean(volume[t-5..t-1]) - 1
+    "volume_roc_lb10",          // volume[t] / mean(volume[t-10..t-1]) - 1
+    "volume_accel",             // volume momentum change: vol_roc_recent vs vol_roc_prev
+    // BB Squeeze — low percentile of BB width = volatility compression = breakout imminent
+    "bb_squeeze_pctl",          // percentile(bb_width_pct, lookback=100): 0=squeeze, 1=expansion
+    // OBV Divergence — smart money detection
+    "obv_price_divergence",     // sign mismatch between OBV slope and price slope over 10 bars
+    // MACD Histogram Acceleration — momentum acceleration beyond simple slope
+    "macd_hist_roc_lb1",        // macd_hist[t] - macd_hist[t-1], normalized
+    "macd_hist_roc_lb3",        // macd_hist[t] - macd_hist[t-3], normalized
+    "macd_hist_accel",          // second derivative: roc_lb1[t] - roc_lb1[t-1]
 ];
 
 /// Total number of features = INDICATOR(33) + DERIVED(19) + DYNAMIC(38) = 90
@@ -334,9 +360,12 @@ pub fn dynamic_feature_count() -> usize {
     DYNAMIC_FEATURES.len()
 }
 
-/// Maximum lookback needed for dynamic features
+/// Maximum lookback needed for dynamic features.
+/// Takes the max of the standard lookback windows and the BB squeeze window,
+/// since BB squeeze percentile needs 100 bars of bb_width_pct history.
 pub fn max_dynamic_lookback() -> usize {
-    *DYNAMIC_LOOKBACK_WINDOWS.last().unwrap_or(&15)
+    let window_max = *DYNAMIC_LOOKBACK_WINDOWS.last().unwrap_or(&15);
+    window_max.max(BB_SQUEEZE_LOOKBACK)
 }
 
 #[cfg(test)]
@@ -389,10 +418,12 @@ mod tests {
     fn test_feature_count() {
         assert_eq!(INDICATOR_FEATURES.len(), 33);
         assert_eq!(DERIVED_FEATURES.len(), 19);
-        assert_eq!(DYNAMIC_FEATURES.len(), 54); // 8 metrics × 6 windows + 6 aggregate
+        // 8 metrics × 6 windows + 6 aggregate + 14 v3 (RoC/squeeze/divergence/accel)
+        assert_eq!(DYNAMIC_FEATURES.len(), 68);
         assert_eq!(static_feature_count(), 52);
-        assert_eq!(total_feature_count(), 106); // 52 + 54
-        assert_eq!(dynamic_feature_count(), 54);
-        assert_eq!(max_dynamic_lookback(), 50);
+        assert_eq!(total_feature_count(), 120); // 52 + 68
+        assert_eq!(dynamic_feature_count(), 68);
+        // BB squeeze needs 100 bars, which is > 50 (max lookback window)
+        assert_eq!(max_dynamic_lookback(), 100);
     }
 }

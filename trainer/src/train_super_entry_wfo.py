@@ -122,6 +122,17 @@ DYNAMIC_FEATURES = [
     "supertrend_consistency", "trend_alignment",
     "price_accel", "volume_trend_ratio",
     "ema_convergence_change", "high_low_pressure",
+    # v3: Rate-of-Change & Momentum Dynamics (14 features)
+    # Price RoC — short-term momentum critical for direction
+    "price_roc_lb1", "price_roc_lb2", "price_accel_1bar", "price_accel_3bar",
+    # Volume RoC — volume dynamics
+    "volume_roc_lb1", "volume_roc_lb3", "volume_roc_lb5", "volume_roc_lb10", "volume_accel",
+    # BB Squeeze — volatility compression breakout predictor
+    "bb_squeeze_pctl",
+    # OBV Divergence — smart money detection
+    "obv_price_divergence",
+    # MACD Histogram Acceleration
+    "macd_hist_roc_lb1", "macd_hist_roc_lb3", "macd_hist_accel",
 ]
 
 STATIC_FEATURES = INDICATOR_FEATURES + DERIVED_FEATURES

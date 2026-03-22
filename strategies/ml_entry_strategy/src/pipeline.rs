@@ -176,8 +176,9 @@ impl SuperEntryPipeline {
             features_flat.push(safe_div(close - c.supertrend, close) * 100.0); // price_vs_supertrend
             features_flat.push(safe_div(c.alligator_jaw - c.alligator_lips, close) * 100.0); // alligator_spread
 
-            // Dynamic temporal features (54 features) — computed using candle history lookback
+            // Dynamic temporal features (68 features) — computed using candle history lookback
             // Uses compute_dynamic_features() which reads candles[i-N] for N in {3,5,10,15,25,50}
+            // v3: includes Price RoC, Volume RoC, BB Squeeze, OBV Divergence, MACD Acceleration
             let dyn_feats = crate::dataset::compute_dynamic_features(candles, i);
             for v in &dyn_feats {
                 features_flat.push(*v as f32);
@@ -247,9 +248,10 @@ impl SuperEntryPipeline {
     /// Process a single candle (for real-time use).
     ///
     /// # Arguments
-    /// * `candle_history` - Slice of recent candles (at least 15 for lookback).
-    ///   The LAST element is the candle to predict on.
-    ///   If None or too short, dynamic features will be zeros (degraded mode).
+    /// * `candle_history` - Slice of recent candles (at least 100 for full lookback,
+    ///   including BB squeeze percentile). The LAST element is the candle to predict on.
+    ///   If None or too short (< max_dynamic_lookback), dynamic features will be zeros
+    ///   (degraded mode).
     /// * `candle` - The candle to generate features for (must be the last in history)
     /// * `tf_minutes` - Timeframe in minutes
     /// * `use_gpu` - Whether to use GPU

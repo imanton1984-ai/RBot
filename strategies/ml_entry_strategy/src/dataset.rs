@@ -170,7 +170,7 @@ pub struct SuperEntryExample {
 ///
 /// Returns a Vec<f64> of exactly `crate::config::dynamic_feature_count()` elements.
 ///
-/// The lookback windows are defined in `DYNAMIC_LOOKBACK_WINDOWS` (3, 5, 10, 15).
+/// The lookback windows are defined in `DYNAMIC_LOOKBACK_WINDOWS` (3, 5, 10, 15, 25, 50).
 /// If `t` < max_lookback, returns zeros (safe default for warmup candles).
 ///
 /// # Feature groups (per window N):
@@ -183,13 +183,20 @@ pub struct SuperEntryExample {
 /// 7. macd_hist_slope — MACD momentum
 /// 8. ema20_direction — moving average slope
 ///
-/// # Aggregate features:
-/// 9. supertrend_consistency — directional conviction over 15 bars
+/// # Aggregate features (6):
+/// 9. supertrend_consistency — directional conviction over 50 bars
 /// 10. trend_alignment — agreement between long/short trends
-/// 11. price_accel — momentum acceleration (2nd derivative)
+/// 11. price_accel — momentum acceleration (2nd derivative, 5-bar windows)
 /// 12. volume_trend_ratio — recent vs older volume activity
 /// 13. ema_convergence_change — EMA20/50 convergence/divergence shift
 /// 14. high_low_pressure — wick bias (buying vs selling pressure)
+///
+/// # v3 Rate-of-Change & Dynamics features (14):
+/// 15-18. price_roc — short 1/2-bar returns + acceleration (direction critical)
+/// 19-23. volume_roc — volume dynamics at 1/3/5/10 bars + acceleration
+/// 24. bb_squeeze_pctl — BB width percentile over 100 bars
+/// 25. obv_price_divergence — OBV vs price slope mismatch
+/// 26-28. macd_hist_roc — histogram rate-of-change + acceleration
 pub fn compute_dynamic_features(candles: &[CandleWithIndicators], t: usize) -> Vec<f64> {
     let n_dynamic = crate::config::dynamic_feature_count();
     let max_lb = crate::config::max_dynamic_lookback();
@@ -307,6 +314,208 @@ pub fn compute_dynamic_features(candles: &[CandleWithIndicators], t: usize) -> V
         pressure_sum += safe_div(lower_wick - upper_wick, atr_safe);
     }
     feats.push(pressure_sum / pressure_window as f64);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // v3: Rate-of-Change & Momentum Dynamics (14 features)
+    // These features add the VELOCITY and ACCELERATION of price/volume/indicators —
+    // critical for direction prediction where static snapshots fail (AUC ≈ 0.50).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // --- Price RoC (4 features) ---
+
+    // 15. price_roc_lb1: 1-bar return (%)
+    // Most granular momentum signal. On 15m TF, this is the last 15 min change.
+    let price_roc_lb1 = if t >= 1 && candles[t - 1].close.abs() > 1e-12 {
+        (close - candles[t - 1].close) / candles[t - 1].close * 100.0
+    } else {
+        0.0
+    };
+    feats.push(price_roc_lb1);
+
+    // 16. price_roc_lb2: 2-bar return (%)
+    let price_roc_lb2 = if t >= 2 && candles[t - 2].close.abs() > 1e-12 {
+        (close - candles[t - 2].close) / candles[t - 2].close * 100.0
+    } else {
+        0.0
+    };
+    feats.push(price_roc_lb2);
+
+    // 17. price_accel_1bar: momentum acceleration on 1-bar scale
+    // = roc_lb1[t] - roc_lb1[t-1]
+    // Positive = momentum is ACCELERATING (price moving faster in same direction)
+    // Negative = momentum is DECELERATING (slowdown or reversal)
+    let prev_roc_lb1 = if t >= 2 && candles[t - 2].close.abs() > 1e-12 {
+        (candles[t - 1].close - candles[t - 2].close) / candles[t - 2].close * 100.0
+    } else {
+        0.0
+    };
+    feats.push(price_roc_lb1 - prev_roc_lb1);
+
+    // 18. price_accel_3bar: acceleration on 3-bar scale
+    // = return_lb3_now - return_lb3_prev (3 bars ago)
+    // Captures medium-term momentum acceleration
+    let ret_lb3_now = if t >= 3 {
+        safe_div(close - candles[t - 3].close, close) * 100.0
+    } else {
+        0.0
+    };
+    let ret_lb3_prev = if t >= 6 {
+        safe_div(candles[t - 3].close - candles[t - 6].close, candles[t - 3].close) * 100.0
+    } else {
+        0.0
+    };
+    feats.push(ret_lb3_now - ret_lb3_prev);
+
+    // --- Volume RoC (5 features) ---
+
+    // 19. volume_roc_lb1: single-bar volume change
+    // Shows if volume is surging RIGHT NOW vs previous bar
+    let vol = cur.volume;
+    let vol_roc_lb1 = if t >= 1 && candles[t - 1].volume > 1e-12 {
+        vol / candles[t - 1].volume - 1.0
+    } else {
+        0.0
+    };
+    feats.push(vol_roc_lb1.clamp(-10.0, 10.0)); // clamp to avoid extreme outliers
+
+    // 20. volume_roc_lb3: volume vs average of previous 3 bars
+    let vol_avg_3 = if t >= 3 {
+        let sum: f64 = (1..=3).map(|j| candles[t - j].volume).sum();
+        sum / 3.0
+    } else {
+        vol
+    };
+    let vol_roc_lb3 = if vol_avg_3 > 1e-12 { vol / vol_avg_3 - 1.0 } else { 0.0 };
+    feats.push(vol_roc_lb3.clamp(-10.0, 10.0));
+
+    // 21. volume_roc_lb5: volume vs average of previous 5 bars
+    let vol_avg_5 = if t >= 5 {
+        let sum: f64 = (1..=5).map(|j| candles[t - j].volume).sum();
+        sum / 5.0
+    } else {
+        vol
+    };
+    let vol_roc_lb5 = if vol_avg_5 > 1e-12 { vol / vol_avg_5 - 1.0 } else { 0.0 };
+    feats.push(vol_roc_lb5.clamp(-10.0, 10.0));
+
+    // 22. volume_roc_lb10: volume vs average of previous 10 bars
+    let vol_avg_10 = if t >= 10 {
+        let sum: f64 = (1..=10).map(|j| candles[t - j].volume).sum();
+        sum / 10.0
+    } else {
+        vol
+    };
+    let vol_roc_lb10 = if vol_avg_10 > 1e-12 { vol / vol_avg_10 - 1.0 } else { 0.0 };
+    feats.push(vol_roc_lb10.clamp(-10.0, 10.0));
+
+    // 23. volume_accel: is volume momentum INCREASING or DECREASING?
+    // Compare vol_roc_lb3 now vs vol_roc_lb3 at t-3
+    let prev_vol_roc_lb3 = if t >= 6 {
+        let prev_vol = candles[t - 3].volume;
+        let prev_avg: f64 = (4..=6).map(|j| candles[t - j].volume).sum::<f64>() / 3.0;
+        if prev_avg > 1e-12 { prev_vol / prev_avg - 1.0 } else { 0.0 }
+    } else {
+        0.0
+    };
+    feats.push((vol_roc_lb3 - prev_vol_roc_lb3).clamp(-10.0, 10.0));
+
+    // --- BB Squeeze (1 feature) ---
+
+    // 24. bb_squeeze_pctl: percentile of current BB width within last BB_SQUEEZE_LOOKBACK bars
+    // 0.0 = BB width is at its narrowest → SQUEEZE → breakout imminent
+    // 1.0 = BB width is at its widest → full expansion
+    // This is one of the most reliable breakout predictors missing from the model.
+    let bb_squeeze_lb = crate::config::BB_SQUEEZE_LOOKBACK;
+    let bb_squeeze_pctl = if t >= bb_squeeze_lb {
+        let cur_bb_width = cur.bb_upper - cur.bb_lower;
+        let cur_bb_width_pct = safe_div(cur_bb_width, close) * 100.0;
+
+        // Count how many of the last bb_squeeze_lb bars have a SMALLER bb_width_pct
+        let mut count_below = 0usize;
+        let mut count_valid = 0usize;
+        for j in 1..=bb_squeeze_lb {
+            let c = &candles[t - j];
+            let w = c.bb_upper - c.bb_lower;
+            let w_pct = safe_div(w, c.close) * 100.0;
+            if w_pct < cur_bb_width_pct {
+                count_below += 1;
+            }
+            count_valid += 1;
+        }
+        if count_valid > 0 {
+            count_below as f64 / count_valid as f64
+        } else {
+            0.5
+        }
+    } else {
+        0.5 // neutral default when not enough history
+    };
+    feats.push(bb_squeeze_pctl);
+
+    // --- OBV Divergence (1 feature) ---
+
+    // 25. obv_price_divergence: detect divergence between price direction and OBV direction
+    // When OBV rises but price is flat/down → smart money is accumulating (bullish)
+    // When OBV falls but price is flat/up → smart money is distributing (bearish)
+    //
+    // Implementation: compare sign of (price slope over 10 bars) vs sign of (OBV slope over 10 bars)
+    // Returns: -1 (bearish divergence), 0 (no divergence), +1 (bullish divergence)
+    let obv_div_lb = 10.min(t);
+    let obv_divergence = if obv_div_lb >= 3 {
+        let price_slope = close - candles[t - obv_div_lb].close;
+        let obv_slope = cur.obv - candles[t - obv_div_lb].obv;
+        let price_sign = if price_slope > 0.01 * close { 1.0 }
+                         else if price_slope < -0.01 * close { -1.0 }
+                         else { 0.0 }; // price roughly flat
+        let obv_sign = if obv_slope.abs() > 1e-12 { obv_slope.signum() } else { 0.0 };
+
+        if price_sign == 0.0 && obv_sign > 0.0 {
+            1.0  // Bullish divergence: price flat, OBV rising (accumulation)
+        } else if price_sign == 0.0 && obv_sign < 0.0 {
+            -1.0 // Bearish divergence: price flat, OBV falling (distribution)
+        } else if price_sign > 0.0 && obv_sign < 0.0 {
+            -0.5 // Weak bearish divergence: price up, OBV down
+        } else if price_sign < 0.0 && obv_sign > 0.0 {
+            0.5  // Weak bullish divergence: price down, OBV up
+        } else {
+            0.0  // No divergence: price and OBV agree
+        }
+    } else {
+        0.0
+    };
+    feats.push(obv_divergence);
+
+    // --- MACD Histogram Acceleration (3 features) ---
+    // Goes beyond existing macd_hist_slope by measuring the RATE OF CHANGE
+    // of the histogram, not just the slope. Captures when momentum is
+    // accelerating (histogram growing faster) or decelerating.
+
+    // 26. macd_hist_roc_lb1: 1-bar change in MACD histogram, normalized by price
+    let macd_hist_roc_1 = if t >= 1 {
+        safe_div(cur.macd_hist - candles[t - 1].macd_hist, close) * 1000.0
+    } else {
+        0.0
+    };
+    feats.push(macd_hist_roc_1);
+
+    // 27. macd_hist_roc_lb3: 3-bar change in MACD histogram, normalized by price
+    let macd_hist_roc_3 = if t >= 3 {
+        safe_div(cur.macd_hist - candles[t - 3].macd_hist, close) * 1000.0
+    } else {
+        0.0
+    };
+    feats.push(macd_hist_roc_3);
+
+    // 28. macd_hist_accel: second derivative of MACD histogram
+    // = macd_hist_roc_lb1[t] - macd_hist_roc_lb1[t-1]
+    // Positive = histogram is accelerating in current direction
+    // This catches inflection points in momentum
+    let prev_macd_hist_roc_1 = if t >= 2 {
+        safe_div(candles[t - 1].macd_hist - candles[t - 2].macd_hist, candles[t - 1].close) * 1000.0
+    } else {
+        0.0
+    };
+    feats.push(macd_hist_roc_1 - prev_macd_hist_roc_1);
 
     debug_assert_eq!(feats.len(), n_dynamic,
         "Dynamic feature count mismatch: expected {}, got {}", n_dynamic, feats.len());
@@ -890,7 +1099,7 @@ mod tests {
         let static_features = candle.full_features();
         // Static features (indicators + derived) = 52
         assert_eq!(static_features.len(), crate::config::static_feature_count());
-        // Total with dynamic = 90
+        // Total with dynamic = 120 (52 + 68)
         assert_eq!(
             static_features.len() + crate::config::dynamic_feature_count(),
             crate::config::total_feature_count()
@@ -899,30 +1108,53 @@ mod tests {
 
     #[test]
     fn test_dynamic_features_basic() {
-        // Create 60 candles with default values (need at least 50 for max lookback)
-        let candles: Vec<CandleWithIndicators> = (0..60)
+        // Create 120 candles with default values (need at least 100 for BB squeeze lookback)
+        let candles: Vec<CandleWithIndicators> = (0..120)
             .map(|_| make_test_candle(100.0, 101.0, 99.0))
             .collect();
 
-        // At index 55 (enough lookback=50), dynamic features should be computable
-        let dyn_feats = compute_dynamic_features(&candles, 55);
+        // At index 110 (enough lookback=100), dynamic features should be computable
+        let dyn_feats = compute_dynamic_features(&candles, 110);
         assert_eq!(dyn_feats.len(), crate::config::dynamic_feature_count());
 
         // With identical candles, most deltas should be 0 or near-0
-        for &v in &dyn_feats {
-            assert!(v.is_finite(), "Dynamic feature is not finite: {}", v);
+        for (i, &v) in dyn_feats.iter().enumerate() {
+            assert!(v.is_finite(), "Dynamic feature {} is not finite: {}", i, v);
         }
     }
 
     #[test]
     fn test_dynamic_features_not_enough_lookback() {
-        let candles: Vec<CandleWithIndicators> = (0..30)
+        let candles: Vec<CandleWithIndicators> = (0..80)
             .map(|_| make_test_candle(100.0, 101.0, 99.0))
             .collect();
 
-        // Index 20 has less than 50 bars lookback — should return zeros
-        let dyn_feats = compute_dynamic_features(&candles, 20);
+        // Index 50 has less than 100 bars lookback — should return zeros
+        let dyn_feats = compute_dynamic_features(&candles, 50);
         assert_eq!(dyn_feats.len(), crate::config::dynamic_feature_count());
         assert!(dyn_feats.iter().all(|&v| v == 0.0), "Expected all zeros for insufficient lookback");
+    }
+
+    #[test]
+    fn test_dynamic_features_price_roc() {
+        // Create candles with increasing prices to verify RoC is positive
+        let candles: Vec<CandleWithIndicators> = (0..120)
+            .map(|i| {
+                let price = 100.0 + i as f64 * 0.1; // steadily rising
+                make_test_candle(price, price + 1.0, price - 1.0)
+            })
+            .collect();
+
+        let dyn_feats = compute_dynamic_features(&candles, 110);
+        assert_eq!(dyn_feats.len(), crate::config::dynamic_feature_count());
+
+        // The price_roc_lb1 feature (index: 48 per-window + 6 aggregate = 54)
+        let roc_idx = 54; // first v3 feature: price_roc_lb1
+        assert!(dyn_feats[roc_idx] > 0.0, "price_roc_lb1 should be positive for rising prices, got {}", dyn_feats[roc_idx]);
+
+        // BB squeeze should be ~0.5 (constant width for evenly spaced candles)
+        let squeeze_idx = 63; // bb_squeeze_pctl
+        assert!(dyn_feats[squeeze_idx] >= 0.0 && dyn_feats[squeeze_idx] <= 1.0,
+            "BB squeeze should be in [0,1], got {}", dyn_feats[squeeze_idx]);
     }
 }
