@@ -1585,6 +1585,7 @@ dependencies = [
  "common",
  "csv",
  "dotenvy",
+ "futures",
  "predictors",
  "serde",
  "serde_json",

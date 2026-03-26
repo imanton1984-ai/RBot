@@ -1,5 +1,5 @@
 {
-  "schema_id": "aa364ad74bf733110125aadc019b8353ca45a399db2ba2ad3eacce6118155135_tf15",
+  "schema_id": "e9929f0c80101c40ce449cb53f4113600620cef8e02f1c26250028506f338d0a_tf15",
   "features": [
     "rsi",
     "cci",
@@ -120,7 +120,15 @@
     "obv_price_divergence",
     "macd_hist_roc_lb1",
     "macd_hist_roc_lb3",
-    "macd_hist_accel"
+    "macd_hist_accel",
+    "htf_trend",
+    "htf_supertrend_dir",
+    "htf_ema20_slope",
+    "dist_to_low_50",
+    "dist_to_high_50",
+    "acute_wick_rejection_2bar",
+    "bb_squeeze_x_vwap",
+    "volume_up_vs_down_lb10"
   ],
   "task": "super_entry",
   "tf_minutes": 15,

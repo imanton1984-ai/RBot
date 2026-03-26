@@ -133,6 +133,12 @@ DYNAMIC_FEATURES = [
     "obv_price_divergence",
     # MACD Histogram Acceleration
     "macd_hist_roc_lb1", "macd_hist_roc_lb3", "macd_hist_accel",
+    # v4: HTF (Higher Timeframe) features — cross-TF intelligence in the model
+    "htf_trend", "htf_supertrend_dir", "htf_ema20_slope",
+    # v4: Killer features for direction prediction
+    "dist_to_low_50", "dist_to_high_50",
+    "acute_wick_rejection_2bar", "bb_squeeze_x_vwap",
+    "volume_up_vs_down_lb10",
 ]
 
 STATIC_FEATURES = INDICATOR_FEATURES + DERIVED_FEATURES
@@ -661,11 +667,12 @@ def train_wfo_for_tf(
             save_model(super_model, ALL_FEATURES, tf, "super_entry",
                        super_metrics, fold_models_dir, suffix=f"_fold{fi}")
 
-        # === Train P(direction) model (super-only, conservative) ===
-        # Train ONLY on is_super=True examples — non-super have ambiguous direction.
-        # Conservative regularization preserves directional signal quality.
-        train_super = train_df[train_df["is_super"] == 1].copy()
-        test_super = test_df[test_df["is_super"] == 1].copy()
+        # === Train P(direction) model (super-only, clean direction) ===
+        # Train ONLY on is_super=True AND direction != 0 (exclude whipsaw).
+        # Whipsaw cases (long_win && short_win) have ambiguous direction
+        # and act as pure noise for the direction classifier.
+        train_super = train_df[(train_df["is_super"] == 1) & (train_df["direction"] != 0)].copy()
+        test_super = test_df[(test_df["is_super"] == 1) & (test_df["direction"] != 0)].copy()
 
         dir_metrics: dict = {
             "auc": 0.5, "precision": 0.0, "recall": 0.0, "f1": 0.0,
@@ -677,16 +684,19 @@ def train_wfo_for_tf(
             train_super.loc[:, "label_long"] = (train_super["direction"] == 1).astype(int)
             test_super.loc[:, "label_long"] = (test_super["direction"] == 1).astype(int)
 
-            # Direction model: ANTI-OVERFIT conservative params
+            # Direction model: balanced params (v2)
+            # Previous params (min_child_weight=50, lambda=5, gamma=0.5) were TOO restrictive
+            # for the is_super subset (3-4x smaller than full dataset).
+            # Trees couldn't branch → predicted constant ~0.5 → AUC=0.50.
             dir_params = {
-                "eta": 0.01,
-                "max_depth": 5,
-                "subsample": 0.7,
-                "colsample_bytree": 0.7,
-                "min_child_weight": 50,
-                "lambda": 5.0,
-                "alpha": 1.0,
-                "gamma": 0.5,
+                "eta": 0.02,
+                "max_depth": 4,
+                "subsample": 0.75,
+                "colsample_bytree": 0.75,
+                "min_child_weight": 5,
+                "lambda": 1.0,
+                "alpha": 0.5,
+                "gamma": 0.1,
             }
 
             dir_model, dir_metrics = train_binary(
@@ -775,8 +785,8 @@ def train_wfo_for_tf(
                    final_super_metrics, output_dir)
         print(f"    ✅ Saved: {output_dir}/super_entry_v1_tf{tf}.ubj")
 
-        # Final P(direction) — super-only, conservative
-        all_super = tf_df[tf_df["is_super"] == 1].copy()
+        # Final P(direction) — super-only, excluding whipsaw (direction=0)
+        all_super = tf_df[(tf_df["is_super"] == 1) & (tf_df["direction"] != 0)].copy()
         if len(all_super) >= 100:
             n_val_dir = max(int(len(all_super) * 0.10), 50)
             val_dir = all_super.tail(n_val_dir)
@@ -786,9 +796,9 @@ def train_wfo_for_tf(
             val_dir.loc[:, "label_long"] = (val_dir["direction"] == 1).astype(int)
 
             dir_params = {
-                "eta": 0.01, "max_depth": 5, "subsample": 0.7,
-                "colsample_bytree": 0.7, "min_child_weight": 50,
-                "lambda": 5.0, "alpha": 1.0, "gamma": 0.5,
+                "eta": 0.02, "max_depth": 4, "subsample": 0.75,
+                "colsample_bytree": 0.75, "min_child_weight": 5,
+                "lambda": 1.0, "alpha": 0.5, "gamma": 0.1,
             }
 
             final_dir_model, final_dir_metrics = train_binary(

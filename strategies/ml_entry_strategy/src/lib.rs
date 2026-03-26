@@ -27,6 +27,7 @@ pub mod pipeline;
 pub mod strategy;
 pub mod db_writer;
 pub mod heuristic;
+pub mod direction;
 
 // Re-exports for convenience
 pub use config::SuperEntryConfig;

@@ -23,9 +23,10 @@ use tracing::info;
 
 use ml_entry_strategy::config::SuperEntryConfig;
 use ml_entry_strategy::dataset::{
-    build_labels, fetch_candles_with_indicators, fetch_active_symbols,
+    build_labels_with_htf, fetch_candles_with_indicators, fetch_active_symbols,
     export_dataset_csv, all_feature_names, SuperEntryExample,
 };
+use ml_entry_strategy::heuristic::get_higher_tf;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -91,6 +92,14 @@ async fn main() -> Result<()> {
         let mut tf_total = 0;
         let mut tf_super = 0;
 
+        // Determine higher TF for HTF features (e.g., 15m → 1h, 1h → 4h)
+        let htf = get_higher_tf(tf);
+        if let Some(h) = htf {
+            info!("  HTF for {}m = {}m", tf, h);
+        } else {
+            info!("  No HTF for {}m (highest TF)", tf);
+        }
+
         for symbol in &symbols {
             let candles = fetch_candles_with_indicators(&pool, symbol, tf, limit).await?;
 
@@ -98,13 +107,23 @@ async fn main() -> Result<()> {
                 continue;
             }
 
-            let examples = build_labels(
+            // Load HTF candles for this symbol (if HTF exists)
+            let htf_candles = if let Some(htf_tf) = htf {
+                let htf_limit = dataset_limit_per_tf(htf_tf);
+                let htf_data = fetch_candles_with_indicators(&pool, symbol, htf_tf, htf_limit).await?;
+                if htf_data.len() >= 50 { Some(htf_data) } else { None }
+            } else {
+                None
+            };
+
+            let examples = build_labels_with_htf(
                 &candles,
                 config.warmup_bars,
                 config.lookahead_bars,
                 target_pct,
                 config.sl_fraction,
                 tf,
+                htf_candles.as_deref(),
             );
 
             for ex in &examples {

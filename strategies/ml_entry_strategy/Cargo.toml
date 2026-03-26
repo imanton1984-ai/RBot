@@ -16,6 +16,14 @@ path = "src/bin/service.rs"
 name = "super_entry_dataset"
 path = "src/bin/dataset_builder.rs"
 
+[[bin]]
+name = "direction_dataset"
+path = "src/bin/direction_dataset.rs"
+
+[[bin]]
+name = "direction_backtest"
+path = "src/bin/direction_backtest.rs"
+
 [dependencies]
 # Workspace deps
 tokio = { workspace = true }
@@ -35,3 +43,4 @@ predictors = { path = "../../compute/predictors" }
 
 # Extra
 csv = "1.3"
+futures = { workspace = true }

@@ -359,12 +359,23 @@ async fn main() -> Result<()> {
             None => continue,
         };
 
+        // Get HTF candles for this TF (for HTF feature computation)
+        let htf_tf = get_higher_tf(tf);
+
         for (_symbol, candles) in tf_data {
             if candles.len() < config.warmup_bars + config.lookahead_bars + 1 {
                 continue;
             }
 
-            let results = pipeline.process_candles(candles, tf, use_gpu)?;
+            // Look up HTF candles for this symbol from the store
+            let symbol = &candles[0].symbol;
+            let htf_candles_ref: Option<&[CandleWithIndicators]> = htf_tf.and_then(|htf| {
+                store.get_tf(htf)
+                    .and_then(|tf_map| tf_map.get(symbol))
+                    .map(|v| v.as_slice())
+            });
+
+            let results = pipeline.process_candles_with_htf(candles, tf, use_gpu, htf_candles_ref)?;
             tf_metrics.total_candles += results.len();
 
             for result in &results {

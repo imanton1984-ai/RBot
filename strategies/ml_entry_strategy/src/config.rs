@@ -73,6 +73,12 @@ pub struct SuperEntryConfig {
 
     /// Train/test split ratio (fraction of pairs for training)
     pub train_split_ratio: f64,
+
+    /// Enable "danger zone" filter: skip trades where 3-4 out of 10 indicators
+    /// agree with the direction. This ambiguous zone (neither strong trend nor
+    /// clear reversal) has WR ~34.5% and costs ~$60 over 184 trades.
+    /// Env: SUPER_ENTRY_DANGER_ZONE_FILTER (default: true)
+    pub enable_danger_zone_filter: bool,
 }
 
 impl Default for SuperEntryConfig {
@@ -88,6 +94,7 @@ impl Default for SuperEntryConfig {
             direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),
             min_magnitude_pct: 0.5,
             train_split_ratio: 0.5,
+            enable_danger_zone_filter: true, // Skip trades in ambiguous 3-4 indicator zone
         }
     }
 }
@@ -114,6 +121,9 @@ impl SuperEntryConfig {
         }
         if let Ok(v) = std::env::var("SUPER_ENTRY_TRAIN_SPLIT") {
             if let Ok(n) = v.parse() { cfg.train_split_ratio = n; }
+        }
+        if let Ok(v) = std::env::var("SUPER_ENTRY_DANGER_ZONE_FILTER") {
+            cfg.enable_danger_zone_filter = v == "true" || v == "1";
         }
 
         cfg
@@ -343,9 +353,22 @@ pub const DYNAMIC_FEATURES: &[&str] = &[
     "macd_hist_roc_lb1",        // macd_hist[t] - macd_hist[t-1], normalized
     "macd_hist_roc_lb3",        // macd_hist[t] - macd_hist[t-3], normalized
     "macd_hist_accel",          // second derivative: roc_lb1[t] - roc_lb1[t-1]
+    // --- v4: HTF (Higher Timeframe) features (3) ---
+    // Brings the heuristic filter's cross-TF intelligence directly into the model.
+    // XGBoost can learn non-linear interactions (e.g., HTF bearish + BB squeeze → short).
+    "htf_trend",                // trend direction from higher TF (-1, 0, +1)
+    "htf_supertrend_dir",       // supertrend direction from higher TF (-1 or +1)
+    "htf_ema20_slope",          // EMA20 slope from higher TF (normalized by HTF close)
+    // --- v4: Killer features for direction prediction (5) ---
+    // Structural metrics: WHERE is price relative to liquidity + volume distribution
+    "dist_to_low_50",           // (close - min_low_50) / close * 100 — distance to liquidity below
+    "dist_to_high_50",          // (max_high_50 - close) / close * 100 — distance to liquidity above
+    "acute_wick_rejection_2bar",// wick bias over last 2 bars / ATR — immediate reaction signal
+    "bb_squeeze_x_vwap",       // (1 - bb_squeeze_pctl) * price_vs_vwap — squeeze direction hint
+    "volume_up_vs_down_lb10",  // sum(vol_up) / sum(vol_down) over 10 bars — buyer/seller pressure
 ];
 
-/// Total number of features = INDICATOR(33) + DERIVED(19) + DYNAMIC(38) = 90
+/// Total number of features = INDICATOR(33) + DERIVED(19) + DYNAMIC(76) = 128
 pub fn total_feature_count() -> usize {
     INDICATOR_FEATURES.len() + DERIVED_FEATURES.len() + DYNAMIC_FEATURES.len()
 }
@@ -419,10 +442,11 @@ mod tests {
         assert_eq!(INDICATOR_FEATURES.len(), 33);
         assert_eq!(DERIVED_FEATURES.len(), 19);
         // 8 metrics × 6 windows + 6 aggregate + 14 v3 (RoC/squeeze/divergence/accel)
-        assert_eq!(DYNAMIC_FEATURES.len(), 68);
+        // + 3 v4 HTF + 5 v4 killer = 76
+        assert_eq!(DYNAMIC_FEATURES.len(), 76);
         assert_eq!(static_feature_count(), 52);
-        assert_eq!(total_feature_count(), 120); // 52 + 68
-        assert_eq!(dynamic_feature_count(), 68);
+        assert_eq!(total_feature_count(), 128); // 52 + 76
+        assert_eq!(dynamic_feature_count(), 76);
         // BB squeeze needs 100 bars, which is > 50 (max lookback window)
         assert_eq!(max_dynamic_lookback(), 100);
     }

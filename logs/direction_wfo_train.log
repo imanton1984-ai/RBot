@@ -1,0 +1,492 @@
+2026-03-25 02:53:00 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-25 02:53:00 [INFO] ║  Direction Model v3 — WFO Training                   ║
+2026-03-25 02:53:00 [INFO] ║  32 curated features, 6 domains                      ║
+2026-03-25 02:53:00 [INFO] ║  Regression on direction_quality                     ║
+2026-03-25 02:53:00 [INFO] ║  Target: direction accuracy ≥ 0.60 (honest)          ║
+2026-03-25 02:53:00 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-25 02:53:00 [INFO] Loading dataset/direction_v3_dataset.csv...
+2026-03-25 02:53:12 [INFO]   Loaded 4,916,773 rows, 43 columns in 11.8s
+2026-03-25 02:53:12 [INFO] 
+  Dataset overview:
+2026-03-25 02:53:12 [INFO]     TF     5m: 1,135,467 rows, 161 symbols, super=246393 (21.7%), super+dir=246393 ◄
+2026-03-25 02:53:13 [INFO]     TF    15m: 1,642,733 rows, 153 symbols, super=556342 (33.9%), super+dir=556342 ◄
+2026-03-25 02:53:13 [INFO]     TF    60m: 1,304,858 rows, 156 symbols, super=703904 (53.9%), super+dir=703904 ◄
+2026-03-25 02:53:13 [INFO]     TF   240m:   737,961 rows, 153 symbols, super=488352 (66.2%), super+dir=488352 ◄
+2026-03-25 02:53:13 [INFO]     TF  1440m:    95,754 rows, 108 symbols, super=74340 (77.6%), super+dir=74340 ◄
+2026-03-25 02:53:13 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:53:13 [INFO]   DIRECTION v3 WFO — TF 5m
+2026-03-25 02:53:13 [INFO]   Data: 1135467 rows, 161 symbols
+2026-03-25 02:53:13 [INFO]   Super: 246393, Super+direction: 246393
+2026-03-25 02:53:13 [INFO]   Target: direction accuracy ≥ 60%
+2026-03-25 02:53:13 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:53:14 [INFO]   3 WFO folds:
+2026-03-25 02:53:14 [INFO]     Fold 0: Train 17d | Test 4d
+2026-03-25 02:53:14 [INFO]     Fold 1: Train 21d | Test 4d
+2026-03-25 02:53:14 [INFO]     Fold 2: Train 24d | Test 4d
+2026-03-25 02:53:14 [INFO] 
+  ── Fold 0/2 ──
+2026-03-25 02:53:14 [INFO]   Train: 690715 rows | Test: 132651 rows
+2026-03-25 02:53:14 [INFO]   [BASE] Fold 0: naive best=0.5490 (long_pct=0.549)
+2026-03-25 02:53:15 [INFO]   Fold 0: Training on 152328 super examples (LONG=86995, SHORT=65333)
+2026-03-25 02:53:16 [INFO]   Fold 0: dir_acc(super)=0.5780 ❌  dir_AUC(super)=0.5264  dir_acc(all)=0.5375  RMSE=0.2584  trees=159
+2026-03-25 02:53:16 [INFO]     gate≥0.01: acc=0.5393  coverage=93.4%  n=123922
+2026-03-25 02:53:16 [INFO]     gate≥0.03: acc=0.5408  coverage=79.0%  n=104853
+2026-03-25 02:53:16 [INFO]     gate≥0.05: acc=0.5357  coverage=62.1%  n=82311
+2026-03-25 02:53:16 [INFO]     gate≥0.10: acc=0.4999  coverage=14.8%  n=19570
+2026-03-25 02:53:16 [INFO]     gate≥0.15: acc=0.4778  coverage=1.9%  n=2549
+2026-03-25 02:53:16 [INFO] 
+  ── Fold 1/2 ──
+2026-03-25 02:53:16 [INFO]   Train: 830176 rows | Test: 136418 rows
+2026-03-25 02:53:16 [INFO]   [BASE] Fold 1: naive best=0.5221 (long_pct=0.478)
+2026-03-25 02:53:17 [INFO]   Fold 1: Training on 177961 super examples (LONG=102140, SHORT=75821)
+2026-03-25 02:53:18 [INFO]   Fold 1: dir_acc(super)=0.5229 ❌  dir_AUC(super)=0.5409  dir_acc(all)=0.4917  RMSE=0.2864  trees=168
+2026-03-25 02:53:18 [INFO]     gate≥0.01: acc=0.4899  coverage=92.3%  n=125876
+2026-03-25 02:53:18 [INFO]     gate≥0.03: acc=0.4870  coverage=76.4%  n=104283
+2026-03-25 02:53:18 [INFO]     gate≥0.05: acc=0.4825  coverage=59.4%  n=81002
+2026-03-25 02:53:18 [INFO]     gate≥0.10: acc=0.4729  coverage=15.8%  n=21493
+2026-03-25 02:53:18 [INFO]     gate≥0.15: acc=0.5052  coverage=2.0%  n=2676
+2026-03-25 02:53:18 [INFO] 
+  ── Fold 2/2 ──
+2026-03-25 02:53:19 [INFO]   Train: 973533 rows | Test: 152301 rows
+2026-03-25 02:53:19 [INFO]   [BASE] Fold 2: naive best=0.5089 (long_pct=0.491)
+2026-03-25 02:53:19 [INFO]   Fold 2: Training on 208109 super examples (LONG=117239, SHORT=90870)
+2026-03-25 02:53:20 [INFO]   Fold 2: dir_acc(super)=0.5640 ❌  dir_AUC(super)=0.5574  dir_acc(all)=0.4905  RMSE=0.2950  trees=150
+2026-03-25 02:53:20 [INFO]     gate≥0.01: acc=0.4901  coverage=90.6%  n=138019
+2026-03-25 02:53:20 [INFO]     gate≥0.03: acc=0.4899  coverage=72.6%  n=110529
+2026-03-25 02:53:20 [INFO]     gate≥0.05: acc=0.4907  coverage=54.9%  n=83612
+2026-03-25 02:53:20 [INFO]     gate≥0.10: acc=0.4931  coverage=15.2%  n=23177
+2026-03-25 02:53:20 [INFO]     gate≥0.15: acc=0.5097  coverage=2.0%  n=3106
+2026-03-25 02:53:20 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-25 02:53:20 [INFO]   AGGREGATE OOS RESULTS — TF 5m
+2026-03-25 02:53:20 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-25 02:53:20 [INFO]   Direction v3: dir_acc(super)=0.5549±0.0234 ❌  dir_AUC(super)=0.5416±0.0127  dir_acc(all)=0.5065  [0.5229..0.5780]
+2026-03-25 02:53:20 [INFO]   Baseline (naive):  dir_acc=0.5267
+2026-03-25 02:53:20 [INFO]   Stable top features: price_roc_lb2(3/3), price_roc_lb1(3/3), alt_vs_btc_return_lb5(3/3), alt_vs_btc_return_lb25(3/3), volume_up_vs_down_lb10(3/3), dist_to_high_50(3/3), volume_trend_ratio(3/3), btc_return_lb25(2/3)
+2026-03-25 02:53:20 [INFO]   Confidence gate OOS accuracy:
+2026-03-25 02:53:20 [INFO]     gate_0.01: 0.5064±0.0232
+2026-03-25 02:53:20 [INFO]     gate_0.03: 0.5059±0.0247
+2026-03-25 02:53:20 [INFO]     gate_0.05: 0.5030±0.0234
+2026-03-25 02:53:20 [INFO]     gate_0.10: 0.4887±0.0115
+2026-03-25 02:53:20 [INFO]     gate_0.15: 0.4976±0.0141
+2026-03-25 02:53:20 [INFO] 
+  ── FINAL Direction v3 model (ALL data) ──
+2026-03-25 02:53:20 [INFO]   Fold -1: Training on 227165 super examples (LONG=127153, SHORT=100012)
+2026-03-25 02:53:22 [INFO]   Fold -1: dir_acc(super)=0.5768 ❌  dir_AUC(super)=0.5622  dir_acc(all)=0.4921  RMSE=0.1744  trees=183
+2026-03-25 02:53:22 [INFO]     gate≥0.01: acc=0.4925  coverage=92.7%  n=105284
+2026-03-25 02:53:22 [INFO]     gate≥0.03: acc=0.4918  coverage=78.4%  n=89003
+2026-03-25 02:53:22 [INFO]     gate≥0.05: acc=0.4924  coverage=63.5%  n=72087
+2026-03-25 02:53:22 [INFO]     gate≥0.10: acc=0.4972  coverage=25.0%  n=28430
+2026-03-25 02:53:22 [INFO]     gate≥0.15: acc=0.5149  coverage=3.1%  n=3568
+2026-03-25 02:53:22 [INFO]   ✅ Saved: models/direction_v3_tf5.ubj
+2026-03-25 02:53:22 [INFO]   ✅ Schema: models/direction_v3_tf5.schema.json
+2026-03-25 02:53:22 [INFO] 
+  📊 Report: models/direction_v3_wfo_report_tf5.json
+2026-03-25 02:53:22 [INFO]   ⏱️  Elapsed: 8.5s
+2026-03-25 02:53:22 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:53:22 [INFO]   DIRECTION v3 WFO — TF 15m
+2026-03-25 02:53:22 [INFO]   Data: 1642733 rows, 153 symbols
+2026-03-25 02:53:22 [INFO]   Super: 556342, Super+direction: 556342
+2026-03-25 02:53:22 [INFO]   Target: direction accuracy ≥ 60%
+2026-03-25 02:53:22 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:53:23 [INFO]   5 WFO folds:
+2026-03-25 02:53:23 [INFO]     Fold 0: Train 59d | Test 14d
+2026-03-25 02:53:23 [INFO]     Fold 1: Train 73d | Test 14d
+2026-03-25 02:53:23 [INFO]     Fold 2: Train 87d | Test 14d
+2026-03-25 02:53:23 [INFO]     Fold 3: Train 101d | Test 14d
+2026-03-25 02:53:23 [INFO]     Fold 4: Train 115d | Test 14d
+2026-03-25 02:53:23 [INFO] 
+  ── Fold 0/4 ──
+2026-03-25 02:53:23 [INFO]   Train: 767509 rows | Test: 181300 rows
+2026-03-25 02:53:23 [INFO]   [BASE] Fold 0: naive best=0.5367 (long_pct=0.463)
+2026-03-25 02:53:23 [INFO]   Fold 0: Training on 238186 super examples (LONG=124191, SHORT=113995)
+2026-03-25 02:53:25 [INFO]   Fold 0: dir_acc(super)=0.4958 ❌  dir_AUC(super)=0.5166  dir_acc(all)=0.4928  RMSE=0.2704  trees=156
+2026-03-25 02:53:25 [INFO]     gate≥0.01: acc=0.4914  coverage=89.3%  n=161838
+2026-03-25 02:53:25 [INFO]     gate≥0.03: acc=0.4889  coverage=68.2%  n=123583
+2026-03-25 02:53:25 [INFO]     gate≥0.05: acc=0.4837  coverage=49.3%  n=89443
+2026-03-25 02:53:25 [INFO]     gate≥0.10: acc=0.4783  coverage=18.1%  n=32857
+2026-03-25 02:53:25 [INFO]     gate≥0.15: acc=0.4728  coverage=6.7%  n=12099
+2026-03-25 02:53:25 [INFO] 
+  ── Fold 1/4 ──
+2026-03-25 02:53:26 [INFO]   Train: 955669 rows | Test: 182303 rows
+2026-03-25 02:53:26 [INFO]   [BASE] Fold 1: naive best=0.5832 (long_pct=0.417)
+2026-03-25 02:53:26 [INFO]   Fold 1: Training on 296403 super examples (LONG=153207, SHORT=143196)
+2026-03-25 02:53:30 [INFO]   Fold 1: dir_acc(super)=0.4927 ❌  dir_AUC(super)=0.5563  dir_acc(all)=0.4710  RMSE=0.2754  trees=196
+2026-03-25 02:53:30 [INFO]     gate≥0.01: acc=0.4686  coverage=91.2%  n=166314
+2026-03-25 02:53:30 [INFO]     gate≥0.03: acc=0.4670  coverage=74.1%  n=135076
+2026-03-25 02:53:30 [INFO]     gate≥0.05: acc=0.4700  coverage=58.2%  n=106164
+2026-03-25 02:53:30 [INFO]     gate≥0.10: acc=0.4917  coverage=26.9%  n=49005
+2026-03-25 02:53:30 [INFO]     gate≥0.15: acc=0.5036  coverage=11.4%  n=20799
+2026-03-25 02:53:30 [INFO] 
+  ── Fold 2/4 ──
+2026-03-25 02:53:30 [INFO]   Train: 1144782 rows | Test: 184971 rows
+2026-03-25 02:53:30 [INFO]   [BASE] Fold 2: naive best=0.5051 (long_pct=0.505)
+2026-03-25 02:53:30 [INFO]   Fold 2: Training on 382451 super examples (LONG=188932, SHORT=193519)
+2026-03-25 02:53:33 [INFO]   Fold 2: dir_acc(super)=0.5283 ❌  dir_AUC(super)=0.5133  dir_acc(all)=0.5093  RMSE=0.2644  trees=124
+2026-03-25 02:53:33 [INFO]     gate≥0.01: acc=0.5097  coverage=89.3%  n=165227
+2026-03-25 02:53:33 [INFO]     gate≥0.03: acc=0.5099  coverage=68.1%  n=126047
+2026-03-25 02:53:33 [INFO]     gate≥0.05: acc=0.5051  coverage=49.6%  n=91771
+2026-03-25 02:53:33 [INFO]     gate≥0.10: acc=0.4944  coverage=20.5%  n=37959
+2026-03-25 02:53:33 [INFO]     gate≥0.15: acc=0.4812  coverage=7.1%  n=13072
+2026-03-25 02:53:33 [INFO] 
+  ── Fold 3/4 ──
+2026-03-25 02:53:33 [INFO]   Train: 1336686 rows | Test: 185549 rows
+2026-03-25 02:53:33 [INFO]   [BASE] Fold 3: naive best=0.5006 (long_pct=0.499)
+2026-03-25 02:53:34 [INFO]   Fold 3: Training on 444520 super examples (LONG=221718, SHORT=222802)
+2026-03-25 02:53:37 [INFO]   Fold 3: dir_acc(super)=0.5346 ❌  dir_AUC(super)=0.5184  dir_acc(all)=0.5005  RMSE=0.2697  trees=120
+2026-03-25 02:53:37 [INFO]     gate≥0.01: acc=0.5005  coverage=90.1%  n=167140
+2026-03-25 02:53:37 [INFO]     gate≥0.03: acc=0.4998  coverage=70.9%  n=131527
+2026-03-25 02:53:37 [INFO]     gate≥0.05: acc=0.5010  coverage=53.2%  n=98658
+2026-03-25 02:53:37 [INFO]     gate≥0.10: acc=0.5049  coverage=22.0%  n=40851
+2026-03-25 02:53:37 [INFO]     gate≥0.15: acc=0.4992  coverage=8.2%  n=15123
+2026-03-25 02:53:37 [INFO] 
+  ── Fold 4/4 ──
+2026-03-25 02:53:38 [INFO]   Train: 1529263 rows | Test: 102814 rows
+2026-03-25 02:53:38 [INFO]   [BASE] Fold 4: naive best=0.5542 (long_pct=0.554)
+2026-03-25 02:53:38 [INFO]   Fold 4: Training on 518525 super examples (LONG=264499, SHORT=254026)
+2026-03-25 02:53:42 [INFO]   Fold 4: dir_acc(super)=0.5593 ❌  dir_AUC(super)=0.4865  dir_acc(all)=0.5142  RMSE=0.2925  trees=137
+2026-03-25 02:53:42 [INFO]     gate≥0.01: acc=0.5162  coverage=89.5%  n=92014
+2026-03-25 02:53:42 [INFO]     gate≥0.03: acc=0.5167  coverage=69.0%  n=70967
+2026-03-25 02:53:42 [INFO]     gate≥0.05: acc=0.5196  coverage=50.5%  n=51946
+2026-03-25 02:53:42 [INFO]     gate≥0.10: acc=0.5164  coverage=19.0%  n=19570
+2026-03-25 02:53:42 [INFO]     gate≥0.15: acc=0.5219  coverage=6.0%  n=6153
+2026-03-25 02:53:42 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-25 02:53:42 [INFO]   AGGREGATE OOS RESULTS — TF 15m
+2026-03-25 02:53:42 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-25 02:53:42 [INFO]   Direction v3: dir_acc(super)=0.5221±0.0250 ❌  dir_AUC(super)=0.5182±0.0223  dir_acc(all)=0.4976  [0.4927..0.5593]
+2026-03-25 02:53:42 [INFO]   Baseline (naive):  dir_acc=0.5359
+2026-03-25 02:53:42 [INFO]   Stable top features: btc_return_lb25(5/5), price_roc_lb1(5/5), bb_position(5/5), price_roc_lb2(5/5), btc_return_lb5(5/5), dist_to_low_50(5/5), price_vs_ema20(5/5), btc_supertrend_dir(4/5)
+2026-03-25 02:53:42 [INFO]   Confidence gate OOS accuracy:
+2026-03-25 02:53:42 [INFO]     gate_0.01: 0.4973±0.0166
+2026-03-25 02:53:42 [INFO]     gate_0.03: 0.4965±0.0175
+2026-03-25 02:53:42 [INFO]     gate_0.05: 0.4959±0.0173
+2026-03-25 02:53:42 [INFO]     gate_0.10: 0.4971±0.0128
+2026-03-25 02:53:42 [INFO]     gate_0.15: 0.4958±0.0173
+2026-03-25 02:53:42 [INFO] 
+  ── FINAL Direction v3 model (ALL data) ──
+2026-03-25 02:53:42 [INFO]   Fold -1: Training on 502068 super examples (LONG=259088, SHORT=242980)
+2026-03-25 02:53:49 [INFO]   Fold -1: dir_acc(super)=0.5439 ❌  dir_AUC(super)=0.5531  dir_acc(all)=0.5054  RMSE=0.2079  trees=304
+2026-03-25 02:53:49 [INFO]     gate≥0.01: acc=0.5055  coverage=89.6%  n=147197
+2026-03-25 02:53:49 [INFO]     gate≥0.03: acc=0.5055  coverage=69.6%  n=114333
+2026-03-25 02:53:49 [INFO]     gate≥0.05: acc=0.5076  coverage=51.3%  n=84330
+2026-03-25 02:53:49 [INFO]     gate≥0.10: acc=0.5178  coverage=20.9%  n=34263
+2026-03-25 02:53:49 [INFO]     gate≥0.15: acc=0.5423  coverage=7.5%  n=12378
+2026-03-25 02:53:49 [INFO]   ✅ Saved: models/direction_v3_tf15.ubj
+2026-03-25 02:53:49 [INFO]   ✅ Schema: models/direction_v3_tf15.schema.json
+2026-03-25 02:53:49 [INFO] 
+  📊 Report: models/direction_v3_wfo_report_tf15.json
+2026-03-25 02:53:49 [INFO]   ⏱️  Elapsed: 27.0s
+2026-03-25 02:53:49 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:53:49 [INFO]   DIRECTION v3 WFO — TF 60m
+2026-03-25 02:53:49 [INFO]   Data: 1304858 rows, 156 symbols
+2026-03-25 02:53:49 [INFO]   Super: 703904, Super+direction: 703904
+2026-03-25 02:53:49 [INFO]   Target: direction accuracy ≥ 60%
+2026-03-25 02:53:49 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:53:50 [INFO]   5 WFO folds:
+2026-03-25 02:53:50 [INFO]     Fold 0: Train 198d | Test 60d
+2026-03-25 02:53:50 [INFO]     Fold 1: Train 258d | Test 60d
+2026-03-25 02:53:50 [INFO]     Fold 2: Train 318d | Test 60d
+2026-03-25 02:53:50 [INFO]     Fold 3: Train 378d | Test 60d
+2026-03-25 02:53:50 [INFO]     Fold 4: Train 438d | Test 60d
+2026-03-25 02:53:50 [INFO] 
+  ── Fold 0/4 ──
+2026-03-25 02:53:50 [INFO]   Train: 428014 rows | Test: 145144 rows
+2026-03-25 02:53:50 [INFO]   [BASE] Fold 0: naive best=0.5118 (long_pct=0.512)
+2026-03-25 02:53:50 [INFO]   Fold 0: Training on 254067 super examples (LONG=123737, SHORT=130330)
+2026-03-25 02:53:52 [INFO]   Fold 0: dir_acc(super)=0.5365 ❌  dir_AUC(super)=0.5379  dir_acc(all)=0.5027  RMSE=0.2262  trees=124
+2026-03-25 02:53:52 [INFO]     gate≥0.01: acc=0.5033  coverage=89.0%  n=129247
+2026-03-25 02:53:52 [INFO]     gate≥0.03: acc=0.5048  coverage=67.4%  n=97816
+2026-03-25 02:53:52 [INFO]     gate≥0.05: acc=0.5080  coverage=46.6%  n=67704
+2026-03-25 02:53:52 [INFO]     gate≥0.10: acc=0.5106  coverage=15.0%  n=21823
+2026-03-25 02:53:52 [INFO]     gate≥0.15: acc=0.4902  coverage=5.7%  n=8301
+2026-03-25 02:53:52 [INFO] 
+  ── Fold 1/4 ──
+2026-03-25 02:53:52 [INFO]   Train: 577932 rows | Test: 155816 rows
+2026-03-25 02:53:52 [INFO]   [BASE] Fold 1: naive best=0.5046 (long_pct=0.495)
+2026-03-25 02:53:53 [INFO]   Fold 1: Training on 330489 super examples (LONG=161700, SHORT=168789)
+2026-03-25 02:53:55 [INFO]   Fold 1: dir_acc(super)=0.5205 ❌  dir_AUC(super)=0.5315  dir_acc(all)=0.5112  RMSE=0.2369  trees=126
+2026-03-25 02:53:55 [INFO]     gate≥0.01: acc=0.5119  coverage=91.1%  n=142006
+2026-03-25 02:53:55 [INFO]     gate≥0.03: acc=0.5116  coverage=72.5%  n=112891
+2026-03-25 02:53:55 [INFO]     gate≥0.05: acc=0.5086  coverage=52.5%  n=81817
+2026-03-25 02:53:55 [INFO]     gate≥0.10: acc=0.4933  coverage=19.5%  n=30335
+2026-03-25 02:53:55 [INFO]     gate≥0.15: acc=0.5035  coverage=7.2%  n=11289
+2026-03-25 02:53:55 [INFO] 
+  ── Fold 2/4 ──
+2026-03-25 02:53:55 [INFO]   Train: 738790 rows | Test: 175313 rows
+2026-03-25 02:53:55 [INFO]   [BASE] Fold 2: naive best=0.5394 (long_pct=0.461)
+2026-03-25 02:53:55 [INFO]   Fold 2: Training on 400199 super examples (LONG=193744, SHORT=206455)
+2026-03-25 02:53:59 [INFO]   Fold 2: dir_acc(super)=0.4919 ❌  dir_AUC(super)=0.5175  dir_acc(all)=0.4969  RMSE=0.3187  trees=126
+2026-03-25 02:53:59 [INFO]     gate≥0.01: acc=0.4961  coverage=90.6%  n=158886
+2026-03-25 02:53:59 [INFO]     gate≥0.03: acc=0.4923  coverage=71.7%  n=125686
+2026-03-25 02:53:59 [INFO]     gate≥0.05: acc=0.4914  coverage=53.3%  n=93376
+2026-03-25 02:53:59 [INFO]     gate≥0.10: acc=0.5025  coverage=23.1%  n=40543
+2026-03-25 02:53:59 [INFO]     gate≥0.15: acc=0.5173  coverage=10.8%  n=18913
+2026-03-25 02:53:59 [INFO] 
+  ── Fold 3/4 ──
+2026-03-25 02:53:59 [INFO]   Train: 919489 rows | Test: 189136 rows
+2026-03-25 02:53:59 [INFO]   [BASE] Fold 3: naive best=0.5109 (long_pct=0.489)
+2026-03-25 02:53:59 [INFO]   Fold 3: Training on 502548 super examples (LONG=236457, SHORT=266091)
+2026-03-25 02:54:03 [INFO]   Fold 3: dir_acc(super)=0.4891 ❌  dir_AUC(super)=0.4807  dir_acc(all)=0.4824  RMSE=0.2981  trees=92
+2026-03-25 02:54:03 [INFO]     gate≥0.01: acc=0.4797  coverage=89.2%  n=168705
+2026-03-25 02:54:03 [INFO]     gate≥0.03: acc=0.4750  coverage=68.2%  n=129012
+2026-03-25 02:54:03 [INFO]     gate≥0.05: acc=0.4665  coverage=48.9%  n=92557
+2026-03-25 02:54:03 [INFO]     gate≥0.10: acc=0.4522  coverage=20.0%  n=37915
+2026-03-25 02:54:03 [INFO]     gate≥0.15: acc=0.4398  coverage=8.2%  n=15469
+2026-03-25 02:54:03 [INFO] 
+  ── Fold 4/4 ──
+2026-03-25 02:54:03 [INFO]   Train: 1115132 rows | Test: 179588 rows
+2026-03-25 02:54:03 [INFO]   [BASE] Fold 4: naive best=0.5304 (long_pct=0.470)
+2026-03-25 02:54:03 [INFO]   Fold 4: Training on 595808 super examples (LONG=285169, SHORT=310639)
+2026-03-25 02:54:07 [INFO]   Fold 4: dir_acc(super)=0.5134 ❌  dir_AUC(super)=0.5218  dir_acc(all)=0.5091  RMSE=0.3164  trees=100
+2026-03-25 02:54:07 [INFO]     gate≥0.01: acc=0.5113  coverage=91.2%  n=163806
+2026-03-25 02:54:07 [INFO]     gate≥0.03: acc=0.5115  coverage=73.4%  n=131752
+2026-03-25 02:54:07 [INFO]     gate≥0.05: acc=0.5088  coverage=56.0%  n=100615
+2026-03-25 02:54:07 [INFO]     gate≥0.10: acc=0.5059  coverage=25.6%  n=46015
+2026-03-25 02:54:07 [INFO]     gate≥0.15: acc=0.5193  coverage=11.4%  n=20484
+2026-03-25 02:54:07 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-25 02:54:07 [INFO]   AGGREGATE OOS RESULTS — TF 60m
+2026-03-25 02:54:07 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-25 02:54:07 [INFO]   Direction v3: dir_acc(super)=0.5103±0.0178 ❌  dir_AUC(super)=0.5179±0.0199  dir_acc(all)=0.5005  [0.4891..0.5365]
+2026-03-25 02:54:07 [INFO]   Baseline (naive):  dir_acc=0.5194
+2026-03-25 02:54:07 [INFO]   Stable top features: btc_supertrend_dir(5/5), btc_return_lb25(5/5), dist_to_low_50(5/5), price_vs_ema20(5/5), alt_vs_btc_return_lb5(5/5), btc_return_lb5(5/5), acute_wick_rejection_2bar(5/5), bb_position(4/5)
+2026-03-25 02:54:07 [INFO]   Confidence gate OOS accuracy:
+2026-03-25 02:54:07 [INFO]     gate_0.01: 0.5005±0.0119
+2026-03-25 02:54:07 [INFO]     gate_0.03: 0.4990±0.0139
+2026-03-25 02:54:07 [INFO]     gate_0.05: 0.4967±0.0165
+2026-03-25 02:54:07 [INFO]     gate_0.10: 0.4929±0.0211
+2026-03-25 02:54:07 [INFO]     gate_0.15: 0.4940±0.0291
+2026-03-25 02:54:07 [INFO] 
+  ── FINAL Direction v3 model (ALL data) ──
+2026-03-25 02:54:08 [INFO]   Fold -1: Training on 631393 super examples (LONG=301366, SHORT=330027)
+2026-03-25 02:54:34 [INFO]   Fold -1: dir_acc(super)=0.5421 ❌  dir_AUC(super)=0.5678  dir_acc(all)=0.5219  RMSE=0.2624  trees=1200
+2026-03-25 02:54:34 [INFO]     gate≥0.01: acc=0.5242  coverage=90.5%  n=118109
+2026-03-25 02:54:34 [INFO]     gate≥0.03: acc=0.5297  coverage=72.1%  n=94072
+2026-03-25 02:54:34 [INFO]     gate≥0.05: acc=0.5372  coverage=55.4%  n=72352
+2026-03-25 02:54:34 [INFO]     gate≥0.10: acc=0.5571  coverage=26.6%  n=34759
+2026-03-25 02:54:34 [INFO]     gate≥0.15: acc=0.5871  coverage=12.6%  n=16412
+2026-03-25 02:54:34 [INFO]   ✅ Saved: models/direction_v3_tf60.ubj
+2026-03-25 02:54:34 [INFO]   ✅ Schema: models/direction_v3_tf60.schema.json
+2026-03-25 02:54:34 [INFO] 
+  📊 Report: models/direction_v3_wfo_report_tf60.json
+2026-03-25 02:54:34 [INFO]   ⏱️  Elapsed: 44.3s
+2026-03-25 02:54:34 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:54:34 [INFO]   DIRECTION v3 WFO — TF 240m
+2026-03-25 02:54:34 [INFO]   Data: 737961 rows, 153 symbols
+2026-03-25 02:54:34 [INFO]   Super: 488352, Super+direction: 488352
+2026-03-25 02:54:34 [INFO]   Target: direction accuracy ≥ 60%
+2026-03-25 02:54:34 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:54:35 [INFO]   6 WFO folds:
+2026-03-25 02:54:35 [INFO]     Fold 0: Train 1236d | Test 120d
+2026-03-25 02:54:35 [INFO]     Fold 1: Train 1356d | Test 120d
+2026-03-25 02:54:35 [INFO]     Fold 2: Train 1476d | Test 120d
+2026-03-25 02:54:35 [INFO]     Fold 3: Train 1596d | Test 120d
+2026-03-25 02:54:35 [INFO]     Fold 4: Train 1716d | Test 120d
+2026-03-25 02:54:35 [INFO]     Fold 5: Train 1836d | Test 120d
+2026-03-25 02:54:35 [INFO] 
+  ── Fold 0/5 ──
+2026-03-25 02:54:35 [INFO]   Train: 318867 rows | Test: 46797 rows
+2026-03-25 02:54:35 [INFO]   [BASE] Fold 0: naive best=0.5842 (long_pct=0.416)
+2026-03-25 02:54:35 [INFO]   Fold 0: Training on 203362 super examples (LONG=100848, SHORT=102514)
+2026-03-25 02:54:36 [INFO]   Fold 0: dir_acc(super)=0.5130 ❌  dir_AUC(super)=0.5451  dir_acc(all)=0.5136  RMSE=0.2904  trees=124
+2026-03-25 02:54:36 [INFO]     gate≥0.01: acc=0.5144  coverage=93.1%  n=43563
+2026-03-25 02:54:36 [INFO]     gate≥0.03: acc=0.5218  coverage=78.7%  n=36825
+2026-03-25 02:54:36 [INFO]     gate≥0.05: acc=0.5289  coverage=64.3%  n=30110
+2026-03-25 02:54:36 [INFO]     gate≥0.10: acc=0.5481  coverage=32.3%  n=15100
+2026-03-25 02:54:36 [INFO]     gate≥0.15: acc=0.5655  coverage=14.3%  n=6704
+2026-03-25 02:54:36 [INFO] 
+  ── Fold 1/5 ──
+2026-03-25 02:54:36 [INFO]   Train: 368674 rows | Test: 50642 rows
+2026-03-25 02:54:36 [INFO]   [BASE] Fold 1: naive best=0.5419 (long_pct=0.542)
+2026-03-25 02:54:36 [INFO]   Fold 1: Training on 235469 super examples (LONG=113581, SHORT=121888)
+2026-03-25 02:54:37 [INFO]   Fold 1: dir_acc(super)=0.5289 ❌  dir_AUC(super)=0.5223  dir_acc(all)=0.5191  RMSE=0.2914  trees=76
+2026-03-25 02:54:37 [INFO]     gate≥0.01: acc=0.5201  coverage=93.8%  n=47506
+2026-03-25 02:54:37 [INFO]     gate≥0.03: acc=0.5212  coverage=80.7%  n=40849
+2026-03-25 02:54:37 [INFO]     gate≥0.05: acc=0.5229  coverage=66.4%  n=33603
+2026-03-25 02:54:37 [INFO]     gate≥0.10: acc=0.5270  coverage=35.4%  n=17903
+2026-03-25 02:54:37 [INFO]     gate≥0.15: acc=0.5173  coverage=16.5%  n=8369
+2026-03-25 02:54:37 [INFO] 
+  ── Fold 2/5 ──
+2026-03-25 02:54:37 [INFO]   Train: 422669 rows | Test: 56339 rows
+2026-03-25 02:54:37 [INFO]   [BASE] Fold 2: naive best=0.5631 (long_pct=0.437)
+2026-03-25 02:54:37 [INFO]   Fold 2: Training on 271111 super examples (LONG=131273, SHORT=139838)
+2026-03-25 02:54:39 [INFO]   Fold 2: dir_acc(super)=0.4855 ❌  dir_AUC(super)=0.5008  dir_acc(all)=0.4899  RMSE=0.3535  trees=143
+2026-03-25 02:54:39 [INFO]     gate≥0.01: acc=0.4894  coverage=93.1%  n=52463
+2026-03-25 02:54:39 [INFO]     gate≥0.03: acc=0.4898  coverage=79.7%  n=44927
+2026-03-25 02:54:39 [INFO]     gate≥0.05: acc=0.4900  coverage=66.0%  n=37181
+2026-03-25 02:54:39 [INFO]     gate≥0.10: acc=0.5015  coverage=35.0%  n=19704
+2026-03-25 02:54:39 [INFO]     gate≥0.15: acc=0.5260  coverage=17.3%  n=9728
+2026-03-25 02:54:39 [INFO] 
+  ── Fold 3/5 ──
+2026-03-25 02:54:39 [INFO]   Train: 482554 rows | Test: 65688 rows
+2026-03-25 02:54:39 [INFO]   [BASE] Fold 3: naive best=0.5319 (long_pct=0.532)
+2026-03-25 02:54:39 [INFO]   Fold 3: Training on 314893 super examples (LONG=150315, SHORT=164578)
+2026-03-25 02:54:41 [INFO]   Fold 3: dir_acc(super)=0.5285 ❌  dir_AUC(super)=0.5128  dir_acc(all)=0.5167  RMSE=0.2927  trees=84
+2026-03-25 02:54:41 [INFO]     gate≥0.01: acc=0.5175  coverage=94.0%  n=61776
+2026-03-25 02:54:41 [INFO]     gate≥0.03: acc=0.5180  coverage=82.6%  n=54276
+2026-03-25 02:54:41 [INFO]     gate≥0.05: acc=0.5181  coverage=70.4%  n=46269
+2026-03-25 02:54:41 [INFO]     gate≥0.10: acc=0.5176  coverage=38.2%  n=25081
+2026-03-25 02:54:41 [INFO]     gate≥0.15: acc=0.5235  coverage=17.0%  n=11142
+2026-03-25 02:54:41 [INFO] 
+  ── Fold 4/5 ──
+2026-03-25 02:54:41 [INFO]   Train: 552506 rows | Test: 74854 rows
+2026-03-25 02:54:41 [INFO]   [BASE] Fold 4: naive best=0.5304 (long_pct=0.470)
+2026-03-25 02:54:41 [INFO]   Fold 4: Training on 363321 super examples (LONG=175811, SHORT=187510)
+2026-03-25 02:54:44 [INFO]   Fold 4: dir_acc(super)=0.4888 ❌  dir_AUC(super)=0.4970  dir_acc(all)=0.4975  RMSE=0.3202  trees=117
+2026-03-25 02:54:44 [INFO]     gate≥0.01: acc=0.4982  coverage=93.6%  n=70074
+2026-03-25 02:54:44 [INFO]     gate≥0.03: acc=0.4998  coverage=80.8%  n=60492
+2026-03-25 02:54:44 [INFO]     gate≥0.05: acc=0.5009  coverage=68.3%  n=51102
+2026-03-25 02:54:44 [INFO]     gate≥0.10: acc=0.5080  coverage=38.0%  n=28461
+2026-03-25 02:54:44 [INFO]     gate≥0.15: acc=0.5198  coverage=19.7%  n=14751
+2026-03-25 02:54:44 [INFO] 
+  ── Fold 5/5 ──
+2026-03-25 02:54:45 [INFO]   Train: 631926 rows | Test: 96814 rows
+2026-03-25 02:54:45 [INFO]   [BASE] Fold 5: naive best=0.5337 (long_pct=0.466)
+2026-03-25 02:54:45 [INFO]   Fold 5: Training on 415687 super examples (LONG=199298, SHORT=216389)
+2026-03-25 02:54:47 [INFO]   Fold 5: dir_acc(super)=0.4864 ❌  dir_AUC(super)=0.4940  dir_acc(all)=0.4873  RMSE=0.3465  trees=85
+2026-03-25 02:54:47 [INFO]     gate≥0.01: acc=0.4878  coverage=93.7%  n=90689
+2026-03-25 02:54:47 [INFO]     gate≥0.03: acc=0.4856  coverage=80.3%  n=77758
+2026-03-25 02:54:47 [INFO]     gate≥0.05: acc=0.4844  coverage=66.4%  n=64292
+2026-03-25 02:54:47 [INFO]     gate≥0.10: acc=0.4874  coverage=35.9%  n=34762
+2026-03-25 02:54:47 [INFO]     gate≥0.15: acc=0.4970  coverage=18.5%  n=17920
+2026-03-25 02:54:47 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-25 02:54:47 [INFO]   AGGREGATE OOS RESULTS — TF 240m
+2026-03-25 02:54:47 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-25 02:54:47 [INFO]   Direction v3: dir_acc(super)=0.5052±0.0191 ❌  dir_AUC(super)=0.5120±0.0177  dir_acc(all)=0.5040  [0.4855..0.5289]
+2026-03-25 02:54:47 [INFO]   Baseline (naive):  dir_acc=0.5475
+2026-03-25 02:54:47 [INFO]   Stable top features: bb_position(6/6), dist_to_low_50(6/6), price_vs_ema20(6/6), btc_return_lb5(6/6), btc_return_lb25(6/6), btc_supertrend_dir(6/6), macd_hist_roc_lb1(6/6), atr_ratio_lb5(5/6)
+2026-03-25 02:54:47 [INFO]   Confidence gate OOS accuracy:
+2026-03-25 02:54:47 [INFO]     gate_0.01: 0.5046±0.0133
+2026-03-25 02:54:47 [INFO]     gate_0.03: 0.5060±0.0150
+2026-03-25 02:54:47 [INFO]     gate_0.05: 0.5075±0.0168
+2026-03-25 02:54:47 [INFO]     gate_0.10: 0.5149±0.0193
+2026-03-25 02:54:47 [INFO]     gate_0.15: 0.5248±0.0205
+2026-03-25 02:54:47 [INFO] 
+  ── FINAL Direction v3 model (ALL data) ──
+2026-03-25 02:54:47 [INFO]   Fold -1: Training on 442268 super examples (LONG=210145, SHORT=232123)
+2026-03-25 02:55:05 [INFO]   Fold -1: dir_acc(super)=0.5700 ❌  dir_AUC(super)=0.6041  dir_acc(all)=0.5444  RMSE=0.2993  trees=1200
+2026-03-25 02:55:05 [INFO]     gate≥0.01: acc=0.5469  coverage=93.3%  n=68867
+2026-03-25 02:55:05 [INFO]     gate≥0.03: acc=0.5517  coverage=80.3%  n=59287
+2026-03-25 02:55:05 [INFO]     gate≥0.05: acc=0.5590  coverage=68.2%  n=50300
+2026-03-25 02:55:05 [INFO]     gate≥0.10: acc=0.5781  coverage=41.5%  n=30611
+2026-03-25 02:55:05 [INFO]     gate≥0.15: acc=0.5998  coverage=23.9%  n=17648
+2026-03-25 02:55:05 [INFO]   ✅ Saved: models/direction_v3_tf240.ubj
+2026-03-25 02:55:05 [INFO]   ✅ Schema: models/direction_v3_tf240.schema.json
+2026-03-25 02:55:05 [INFO] 
+  📊 Report: models/direction_v3_wfo_report_tf240.json
+2026-03-25 02:55:05 [INFO]   ⏱️  Elapsed: 31.3s
+2026-03-25 02:55:05 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:55:05 [INFO]   DIRECTION v3 WFO — TF 1440m
+2026-03-25 02:55:05 [INFO]   Data: 95754 rows, 108 symbols
+2026-03-25 02:55:05 [INFO]   Super: 74340, Super+direction: 74340
+2026-03-25 02:55:05 [INFO]   Target: direction accuracy ≥ 60%
+2026-03-25 02:55:05 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-25 02:55:05 [INFO]   5 WFO folds:
+2026-03-25 02:55:05 [INFO]     Fold 0: Train 1083d | Test 180d
+2026-03-25 02:55:05 [INFO]     Fold 1: Train 1263d | Test 180d
+2026-03-25 02:55:05 [INFO]     Fold 2: Train 1443d | Test 180d
+2026-03-25 02:55:05 [INFO]     Fold 3: Train 1623d | Test 180d
+2026-03-25 02:55:05 [INFO]     Fold 4: Train 1803d | Test 180d
+2026-03-25 02:55:05 [INFO] 
+  ── Fold 0/4 ──
+2026-03-25 02:55:05 [INFO]   Train: 32402 rows | Test: 6354 rows
+2026-03-25 02:55:05 [INFO]   [BASE] Fold 0: naive best=0.5962 (long_pct=0.596)
+2026-03-25 02:55:05 [INFO]   Fold 0: Training on 25467 super examples (LONG=11779, SHORT=13688)
+2026-03-25 02:55:06 [INFO]   Fold 0: dir_acc(super)=0.5457 ❌  dir_AUC(super)=0.5615  dir_acc(all)=0.5338  RMSE=0.5060  trees=65
+2026-03-25 02:55:06 [INFO]     gate≥0.01: acc=0.5363  coverage=95.5%  n=6069
+2026-03-25 02:55:06 [INFO]     gate≥0.03: acc=0.5395  coverage=85.6%  n=5442
+2026-03-25 02:55:06 [INFO]     gate≥0.05: acc=0.5501  coverage=76.5%  n=4863
+2026-03-25 02:55:06 [INFO]     gate≥0.10: acc=0.5802  coverage=55.0%  n=3497
+2026-03-25 02:55:06 [INFO]     gate≥0.15: acc=0.5963  coverage=36.8%  n=2341
+2026-03-25 02:55:06 [INFO] 
+  ── Fold 1/4 ──
+2026-03-25 02:55:06 [INFO]   Train: 40981 rows | Test: 7315 rows
+2026-03-25 02:55:06 [INFO]   [BASE] Fold 1: naive best=0.6149 (long_pct=0.385)
+2026-03-25 02:55:06 [INFO]   Fold 1: Training on 31586 super examples (LONG=15571, SHORT=16015)
+2026-03-25 02:55:06 [INFO]   Fold 1: dir_acc(super)=0.5017 ❌  dir_AUC(super)=0.4892  dir_acc(all)=0.4983  RMSE=0.4640  trees=111
+2026-03-25 02:55:06 [INFO]     gate≥0.01: acc=0.4990  coverage=95.0%  n=6948
+2026-03-25 02:55:06 [INFO]     gate≥0.03: acc=0.4979  coverage=83.5%  n=6106
+2026-03-25 02:55:06 [INFO]     gate≥0.05: acc=0.5006  coverage=72.7%  n=5320
+2026-03-25 02:55:06 [INFO]     gate≥0.10: acc=0.4957  coverage=49.7%  n=3635
+2026-03-25 02:55:06 [INFO]     gate≥0.15: acc=0.4767  coverage=30.5%  n=2234
+2026-03-25 02:55:06 [INFO] 
+  ── Fold 2/4 ──
+2026-03-25 02:55:06 [INFO]   Train: 50632 rows | Test: 9137 rows
+2026-03-25 02:55:06 [INFO]   [BASE] Fold 2: naive best=0.5560 (long_pct=0.444)
+2026-03-25 02:55:06 [INFO]   Fold 2: Training on 39261 super examples (LONG=18495, SHORT=20766)
+2026-03-25 02:55:07 [INFO]   Fold 2: dir_acc(super)=0.5599 ❌  dir_AUC(super)=0.5847  dir_acc(all)=0.5468  RMSE=0.6127  trees=230
+2026-03-25 02:55:07 [INFO]     gate≥0.01: acc=0.5494  coverage=94.8%  n=8666
+2026-03-25 02:55:07 [INFO]     gate≥0.03: acc=0.5553  coverage=85.0%  n=7764
+2026-03-25 02:55:07 [INFO]     gate≥0.05: acc=0.5599  coverage=74.9%  n=6842
+2026-03-25 02:55:07 [INFO]     gate≥0.10: acc=0.5755  coverage=53.9%  n=4926
+2026-03-25 02:55:07 [INFO]     gate≥0.15: acc=0.5835  coverage=38.2%  n=3493
+2026-03-25 02:55:07 [INFO] 
+  ── Fold 3/4 ──
+2026-03-25 02:55:07 [INFO]   Train: 62481 rows | Test: 10478 rows
+2026-03-25 02:55:07 [INFO]   [BASE] Fold 3: naive best=0.5352 (long_pct=0.535)
+2026-03-25 02:55:07 [INFO]   Fold 3: Training on 48455 super examples (LONG=23108, SHORT=25347)
+2026-03-25 02:55:07 [INFO]   Fold 3: dir_acc(super)=0.5012 ❌  dir_AUC(super)=0.5173  dir_acc(all)=0.5094  RMSE=0.4812  trees=54
+2026-03-25 02:55:07 [INFO]     gate≥0.01: acc=0.5082  coverage=94.4%  n=9890
+2026-03-25 02:55:07 [INFO]     gate≥0.03: acc=0.5114  coverage=84.5%  n=8849
+2026-03-25 02:55:07 [INFO]     gate≥0.05: acc=0.5142  coverage=74.8%  n=7840
+2026-03-25 02:55:07 [INFO]     gate≥0.10: acc=0.5295  coverage=51.6%  n=5409
+2026-03-25 02:55:07 [INFO]     gate≥0.15: acc=0.5414  coverage=33.2%  n=3482
+2026-03-25 02:55:07 [INFO] 
+  ── Fold 4/4 ──
+2026-03-25 02:55:07 [INFO]   Train: 76402 rows | Test: 13042 rows
+2026-03-25 02:55:07 [INFO]   [BASE] Fold 4: naive best=0.6043 (long_pct=0.396)
+2026-03-25 02:55:07 [INFO]   Fold 4: Training on 59278 super examples (LONG=28680, SHORT=30598)
+2026-03-25 02:55:08 [INFO]   Fold 4: dir_acc(super)=0.5130 ❌  dir_AUC(super)=0.5200  dir_acc(all)=0.5151  RMSE=0.5255  trees=91
+2026-03-25 02:55:08 [INFO]     gate≥0.01: acc=0.5157  coverage=94.5%  n=12325
+2026-03-25 02:55:08 [INFO]     gate≥0.03: acc=0.5154  coverage=83.2%  n=10855
+2026-03-25 02:55:08 [INFO]     gate≥0.05: acc=0.5150  coverage=72.3%  n=9424
+2026-03-25 02:55:08 [INFO]     gate≥0.10: acc=0.5072  coverage=49.2%  n=6422
+2026-03-25 02:55:08 [INFO]     gate≥0.15: acc=0.5117  coverage=32.2%  n=4198
+2026-03-25 02:55:08 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-25 02:55:08 [INFO]   AGGREGATE OOS RESULTS — TF 1440m
+2026-03-25 02:55:08 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-25 02:55:08 [INFO]   Direction v3: dir_acc(super)=0.5243±0.0241 ❌  dir_AUC(super)=0.5345±0.0341  dir_acc(all)=0.5207  [0.5012..0.5599]
+2026-03-25 02:55:08 [INFO]   Baseline (naive):  dir_acc=0.5813
+2026-03-25 02:55:08 [INFO]   Stable top features: btc_return_lb25(5/5), btc_return_lb5(5/5), price_roc_lb2(5/5), bb_position(5/5), macd_hist_roc_lb1(5/5), price_roc_lb1(5/5), supertrend_consistency(4/5), dist_to_low_50(4/5)
+2026-03-25 02:55:08 [INFO]   Confidence gate OOS accuracy:
+2026-03-25 02:55:08 [INFO]     gate_0.01: 0.5217±0.0185
+2026-03-25 02:55:08 [INFO]     gate_0.03: 0.5239±0.0207
+2026-03-25 02:55:08 [INFO]     gate_0.05: 0.5279±0.0229
+2026-03-25 02:55:08 [INFO]     gate_0.10: 0.5376±0.0346
+2026-03-25 02:55:08 [INFO]     gate_0.15: 0.5419±0.0444
+2026-03-25 02:55:08 [INFO] 
+  ── FINAL Direction v3 model (ALL data) ──
+2026-03-25 02:55:08 [INFO]   Fold -1: Training on 67062 super examples (LONG=31134, SHORT=35928)
+2026-03-25 02:55:11 [INFO]   Fold -1: dir_acc(super)=0.6639 ✅  dir_AUC(super)=0.7322  dir_acc(all)=0.6280  RMSE=0.4225  trees=1200
+2026-03-25 02:55:11 [INFO]     gate≥0.01: acc=0.6332  coverage=96.7%  n=9263
+2026-03-25 02:55:11 [INFO]     gate≥0.03: acc=0.6408  coverage=90.7%  n=8681
+2026-03-25 02:55:11 [INFO]     gate≥0.05: acc=0.6492  coverage=84.1%  n=8050
+2026-03-25 02:55:11 [INFO]     gate≥0.10: acc=0.6688  coverage=69.1%  n=6621
+2026-03-25 02:55:11 [INFO]     gate≥0.15: acc=0.6888  coverage=55.7%  n=5335
+2026-03-25 02:55:11 [INFO]   ✅ Saved: models/direction_v3_tf1440.ubj
+2026-03-25 02:55:11 [INFO]   ✅ Schema: models/direction_v3_tf1440.schema.json
+2026-03-25 02:55:11 [INFO] 
+  📊 Report: models/direction_v3_wfo_report_tf1440.json
+2026-03-25 02:55:11 [INFO]   ⏱️  Elapsed: 5.4s
+2026-03-25 02:55:11 [INFO] 
+╔═══════════════════════════════════════════════════════════╗
+2026-03-25 02:55:11 [INFO] ║  DIRECTION v3 — FINAL SUMMARY                            ║
+2026-03-25 02:55:11 [INFO] ╚═══════════════════════════════════════════════════════════╝
+2026-03-25 02:55:11 [INFO]   TF     5m: acc(super)=0.5549  AUC(super)=0.5416  acc(all)=0.5065  baseline=0.5267  ❌
+2026-03-25 02:55:11 [INFO]   TF    15m: acc(super)=0.5221  AUC(super)=0.5182  acc(all)=0.4976  baseline=0.5359  ❌
+2026-03-25 02:55:11 [INFO]   TF    60m: acc(super)=0.5103  AUC(super)=0.5179  acc(all)=0.5005  baseline=0.5194  ❌
+2026-03-25 02:55:11 [INFO]   TF   240m: acc(super)=0.5052  AUC(super)=0.5120  acc(all)=0.5040  baseline=0.5475  ❌
+2026-03-25 02:55:11 [INFO]   TF  1440m: acc(super)=0.5243  AUC(super)=0.5345  acc(all)=0.5207  baseline=0.5813  ❌
+2026-03-25 02:55:11 [INFO] 
+  Total time: 117.8s (2.0min)
+2026-03-25 02:55:11 [INFO]   Target: direction accuracy ≥ 60%
+2026-03-25 02:55:11 [INFO]   Model files: models/direction_v3_tf{X}.ubj
+2026-03-25 02:55:11 [INFO]   Done ✅

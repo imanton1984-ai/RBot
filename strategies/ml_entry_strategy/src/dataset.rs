@@ -147,6 +147,60 @@ impl CandleWithIndicators {
         feats.extend(self.derived_features());
         feats
     }
+
+    /// Compute how many of 10 key indicators agree with the trade direction.
+    ///
+    /// Used by the "danger zone" filter: when agrees_count is 3 or 4,
+    /// the market is in an ambiguous zone where neither contrarian nor
+    /// momentum logic works well (WR ~34.5%). Skipping these signals
+    /// improves overall PnL by ~$60 over 184 trades.
+    ///
+    /// # Arguments
+    /// * `entry_price` - The close price at the signal candle
+    /// * `side` - Trade direction: 1 = LONG, -1 = SHORT
+    ///
+    /// # Returns
+    /// Count of indicators (0..10) that agree with `side`
+    pub fn compute_agrees_count(&self, entry_price: f64, side: i8) -> usize {
+        let is_long = side == 1;
+        [
+            // 1. Supertrend direction matches side
+            (self.supertrend_dir > 0.0) == is_long,
+            // 2. Medium-term trend matches side
+            (self.trend > 0.0) == is_long,
+            // 3. Short-term trend matches side
+            (self.trend_short > 0.0) == is_long,
+            // 4. Price vs Bollinger mid: above = bullish, below = bearish
+            (entry_price > self.bb_mid) == is_long,
+            // 5. Price vs EMA-20
+            (entry_price > self.ema_20) == is_long,
+            // 6. Price vs EMA-50
+            (entry_price > self.ema_50) == is_long,
+            // 7. Price vs EMA-200
+            (entry_price > self.ema_200) == is_long,
+            // 8. Stochastic K > 50 = bullish
+            (self.stoch_k > 50.0) == is_long,
+            // 9. RSI > 50 = bullish
+            (self.rsi > 50.0) == is_long,
+            // 10. Alligator lips > teeth = bullish
+            (self.alligator_lips > self.alligator_teeth) == is_long,
+        ]
+        .iter()
+        .filter(|&&x| x)
+        .count()
+    }
+
+    /// Check if the trade is in the "danger zone" (agrees_count == 3 or 4).
+    ///
+    /// In this zone, the market doesn't show a clear trend or reversal signal.
+    /// ML models tend to enter poorly here (WR ~34.5% vs ~50% elsewhere).
+    ///
+    /// # Returns
+    /// `true` if the signal should be SKIPPED (danger zone)
+    pub fn is_danger_zone(&self, entry_price: f64, side: i8) -> bool {
+        let agrees = self.compute_agrees_count(entry_price, side);
+        agrees == 3 || agrees == 4
+    }
 }
 
 /// A labeled training example
@@ -197,7 +251,35 @@ pub struct SuperEntryExample {
 /// 24. bb_squeeze_pctl — BB width percentile over 100 bars
 /// 25. obv_price_divergence — OBV vs price slope mismatch
 /// 26-28. macd_hist_roc — histogram rate-of-change + acceleration
+///
+/// # v4 HTF (Higher Timeframe) features (3):
+/// 29. htf_trend — trend direction from higher TF
+/// 30. htf_supertrend_dir — supertrend direction from higher TF
+/// 31. htf_ema20_slope — EMA20 slope from higher TF (normalized)
+///
+/// # v4 Killer features for direction (5):
+/// 32. dist_to_low_50 — distance to 50-bar low (liquidity pool below)
+/// 33. dist_to_high_50 — distance to 50-bar high (liquidity pool above)
+/// 34. acute_wick_rejection_2bar — wick bias over last 2 bars (acute reaction)
+/// 35. bb_squeeze_x_vwap — BB squeeze × price_vs_vwap interaction
+/// 36. volume_up_vs_down_lb10 — ratio of up-volume to down-volume over 10 bars
 pub fn compute_dynamic_features(candles: &[CandleWithIndicators], t: usize) -> Vec<f64> {
+    // Delegate to the full version with no HTF context
+    compute_dynamic_features_with_htf(candles, t, None)
+}
+
+/// Compute dynamic features with optional HTF (Higher Timeframe) candle context.
+///
+/// When `htf_candle` is Some, HTF features (trend, supertrend_dir, ema20_slope)
+/// are populated from the higher TF. When None, they default to 0.0.
+///
+/// This is the core feature computation function. `compute_dynamic_features()`
+/// is a convenience wrapper that passes `htf_candle = None`.
+pub fn compute_dynamic_features_with_htf(
+    candles: &[CandleWithIndicators],
+    t: usize,
+    htf_candle: Option<&CandleWithIndicators>,
+) -> Vec<f64> {
     let n_dynamic = crate::config::dynamic_feature_count();
     let max_lb = crate::config::max_dynamic_lookback();
 
@@ -517,6 +599,112 @@ pub fn compute_dynamic_features(candles: &[CandleWithIndicators], t: usize) -> V
     };
     feats.push(macd_hist_roc_1 - prev_macd_hist_roc_1);
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // v4: HTF (Higher Timeframe) features (3 features)
+    // The direction model was blind to higher TF context. The heuristic filter
+    // (compute_heuristic_inner) proved HTF data is valuable (+3.5% WR).
+    // Now we feed it directly into the model so XGBoost can learn non-linear
+    // interactions (e.g., HTF bearish + BB squeeze → short breakout).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // 29. htf_trend: trend direction from higher TF (-1, 0, +1)
+    let htf_trend = htf_candle.map_or(0.0, |c| c.trend);
+    feats.push(htf_trend);
+
+    // 30. htf_supertrend_dir: supertrend direction from higher TF (-1 or +1)
+    let htf_st_dir = htf_candle.map_or(0.0, |c| c.supertrend_dir);
+    feats.push(htf_st_dir);
+
+    // 31. htf_ema20_slope: EMA20 slope from higher TF, normalized by HTF close
+    // Captures the momentum of the higher TF moving average.
+    // Positive = HTF EMA20 rising = bullish structural context.
+    let htf_ema20_slope = htf_candle.map_or(0.0, |c| {
+        // We use (ema20 - close) / close as a proxy for slope direction
+        // since we only have a single HTF candle snapshot.
+        safe_div(c.ema_20 - c.close, c.close) * 100.0
+    });
+    feats.push(htf_ema20_slope);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // v4: Killer features for direction prediction (5 features)
+    // Structural metrics that capture WHERE price is relative to liquidity
+    // pools and how volume is distributed between buyers and sellers.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // 32. dist_to_low_50: distance from close to 50-bar low (% of close)
+    // Low value = price is near the bottom of recent range → liquidity pool below is close
+    // Breakouts tend to go TOWARD the nearest liquidity pool (Donchian logic).
+    let dist_to_low_50 = if t >= 50 {
+        let min_low = (0..50).map(|j| candles[t - j].low).fold(f64::MAX, f64::min);
+        safe_div(close - min_low, close) * 100.0
+    } else {
+        0.0
+    };
+    feats.push(dist_to_low_50);
+
+    // 33. dist_to_high_50: distance from close to 50-bar high (% of close)
+    // Low value = price is near the top of recent range → liquidity pool above is close
+    let dist_to_high_50 = if t >= 50 {
+        let max_high = (0..50).map(|j| candles[t - j].high).fold(f64::MIN, f64::max);
+        safe_div(max_high - close, close) * 100.0
+    } else {
+        0.0
+    };
+    feats.push(dist_to_high_50);
+
+    // 34. acute_wick_rejection_2bar: wick bias over last 2 bars, normalized by ATR
+    // Unlike high_low_pressure (10 bars), this captures the IMMEDIATE reaction
+    // right before a potential breakout. A long lower wick at BB squeeze boundary
+    // almost always means stop-hunt before a long breakout.
+    let acute_wick = if t >= 1 {
+        let mut wick_sum = 0.0;
+        for j in 0..2.min(t + 1) {
+            let c = &candles[t - j];
+            let upper_wick = c.high - c.close.max(c.open);
+            let lower_wick = c.close.min(c.open) - c.low;
+            let atr_safe = if c.atr > 1e-12 { c.atr } else { 1.0 };
+            wick_sum += safe_div(lower_wick - upper_wick, atr_safe);
+        }
+        wick_sum / 2.0
+    } else {
+        0.0
+    };
+    feats.push(acute_wick);
+
+    // 35. bb_squeeze_x_vwap: interaction between BB squeeze and price vs VWAP
+    // When BB is squeezed (low percentile) AND price is above VWAP → bullish bias
+    // When BB is squeezed AND price is below VWAP → bearish bias
+    // XGBoost can find this interaction itself, but the cross-feature gives a hint.
+    let price_vs_vwap_pct = safe_div(close - cur.vwap, close) * 100.0;
+    let bb_squeeze_x_vwap = (1.0 - bb_squeeze_pctl) * price_vs_vwap_pct;
+    feats.push(bb_squeeze_x_vwap);
+
+    // 36. volume_up_vs_down_lb10: ratio of up-candle volume to down-candle volume
+    // over last 10 bars. More precise than OBV for measuring local buyer/seller pressure.
+    // > 1.0 = buyers dominate, < 1.0 = sellers dominate
+    let vol_up_down = if t >= 10 {
+        let mut vol_up = 0.0f64;
+        let mut vol_down = 0.0f64;
+        for j in 0..10 {
+            let c = &candles[t - j];
+            if c.close >= c.open {
+                vol_up += c.volume;
+            } else {
+                vol_down += c.volume;
+            }
+        }
+        if vol_down > 1e-12 {
+            (vol_up / vol_down).clamp(0.1, 10.0) // clamp to avoid extreme outliers
+        } else if vol_up > 1e-12 {
+            10.0 // all up candles
+        } else {
+            1.0 // no volume
+        }
+    } else {
+        1.0 // neutral default
+    };
+    feats.push(vol_up_down);
+
     debug_assert_eq!(feats.len(), n_dynamic,
         "Dynamic feature count mismatch: expected {}, got {}", n_dynamic, feats.len());
     feats
@@ -545,6 +733,26 @@ pub fn build_labels(
     target_move_pct: f64,
     sl_fraction: f64,
     tf_minutes: i32,
+) -> Vec<SuperEntryExample> {
+    build_labels_with_htf(candles, start_idx, lookahead, target_move_pct, sl_fraction, tf_minutes, None)
+}
+
+/// Build labels with optional HTF (Higher Timeframe) candle context.
+///
+/// When `htf_candles` is provided, HTF features are populated via AS-OF lookup
+/// (binary search for the latest HTF candle at or before each current TF candle time).
+///
+/// # Arguments
+/// * `htf_candles` - Optional sorted (by time ASC) HTF candles for the same symbol.
+///   If None, HTF features default to 0.0.
+pub fn build_labels_with_htf(
+    candles: &[CandleWithIndicators],
+    start_idx: usize,
+    lookahead: usize,
+    target_move_pct: f64,
+    sl_fraction: f64,
+    tf_minutes: i32,
+    htf_candles: Option<&[CandleWithIndicators]>,
 ) -> Vec<SuperEntryExample> {
     let n = candles.len();
     if n < start_idx + lookahead + 1 {
@@ -627,12 +835,13 @@ pub fn build_labels(
             // Only SHORT won - clear super signal
             (true, -1i8, target_move_pct)
         } else if long_win && short_win {
-            // Both would have won - take the one with biggest absolute move
-            if max_up >= max_down {
-                (true, 1i8, max_up)
-            } else {
-                (true, -1i8, max_down)
-            }
+            // Both TP would have been hit — whipsaw / helicopter candle.
+            // Direction is ambiguous: market went far enough in BOTH directions.
+            // Mark direction = 0 so the direction model can EXCLUDE these noisy samples
+            // during training (filter: is_super==1 AND direction!=0).
+            // Magnitude = max of both moves (for is_super threshold).
+            let mag = max_up.max(max_down);
+            (true, 0i8, mag)
         } else {
             // Neither won (choppy or immediate stop loss)
             // Provide fallback direction for the 'direction' model to learn from
@@ -649,8 +858,16 @@ pub fn build_labels(
             (candles[future_close_idx].close - entry_price) / entry_price * 100.0;
 
         // Static features (indicators + derived) + dynamic temporal features
+        // HTF lookup: find the latest HTF candle at or before current candle time
+        let htf_candle_ref = htf_candles.and_then(|htf| {
+            let target_time = candles[t].time;
+            // Binary search: find rightmost HTF candle with time <= target_time
+            let idx = htf.partition_point(|c| c.time <= target_time);
+            if idx > 0 { Some(&htf[idx - 1]) } else { None }
+        });
+
         let mut features = candles[t].full_features();
-        features.extend(compute_dynamic_features(candles, t));
+        features.extend(compute_dynamic_features_with_htf(candles, t, htf_candle_ref));
 
         examples.push(SuperEntryExample {
             symbol: candles[t].symbol.clone(),
@@ -1099,7 +1316,7 @@ mod tests {
         let static_features = candle.full_features();
         // Static features (indicators + derived) = 52
         assert_eq!(static_features.len(), crate::config::static_feature_count());
-        // Total with dynamic = 120 (52 + 68)
+        // Total with dynamic = 128 (52 + 76)
         assert_eq!(
             static_features.len() + crate::config::dynamic_feature_count(),
             crate::config::total_feature_count()

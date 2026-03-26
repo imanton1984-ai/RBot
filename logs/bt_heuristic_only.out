@@ -1,0 +1,88 @@
+╔══════════════════════════════════════════════════════════════╗
+║   SUPER ENTRY STRATEGY BACKTESTER v2 (Cross-TF Heuristic)   ║
+╚══════════════════════════════════════════════════════════════╝
+
+  Config:
+    P threshold:       0.55
+    Warmup bars:       300
+    Lookahead:         25
+    Max hold bars:     25
+    SL fraction:       0.65
+    GPU:               false
+    Heuristic mode:    Override
+    Heuristic min conf: 0.00
+    WFO OOS from:      (ALL data — no WFO filter)
+
+    TF     5m:  TP=2.80%  SL=1.82%  candles=12000   higher=Some(15)  lower=Some(1)
+    TF    15m:  TP=3.50%  SL=2.27%  candles=12000   higher=Some(60)  lower=Some(5)
+    TF    60m:  TP=5.00%  SL=3.25%  candles=12000   higher=Some(240)  lower=Some(15)
+    TF   240m:  TP=7.50%  SL=4.88%  candles=12000   higher=Some(1440)  lower=Some(60)
+    TF  1440m:  TP=10.00%  SL=6.50%  candles=3700    higher=None  lower=Some(240)
+
+  Loading candle data for all TFs...
+    TF     1m: 164 symbols, 802916 candles (27.2s)
+    TF     5m: 164 symbols, 1234807 candles (31.4s)
+    TF    15m: 164 symbols, 1695982 candles (39.8s)
+    TF    60m: 164 symbols, 1327042 candles (34.5s)
+    TF   240m: 164 symbols, 754391 candles (25.3s)
+    TF  1440m: 164 symbols, 133942 candles (14.6s)
+  All data loaded in 172.8s
+
+  TF     5m: 53518 trades in 5.4s (heuristic_overrides=13047, filter_rejects=0)
+  TF    15m: 114215 trades in 9.3s (heuristic_overrides=49221, filter_rejects=0)
+  TF    60m: 130516 trades in 7.3s (heuristic_overrides=56792, filter_rejects=0)
+  TF   240m: 100829 trades in 4.3s (heuristic_overrides=47986, filter_rejects=0)
+  TF  1440m: 29356 trades in 0.6s (heuristic_overrides=14643, filter_rejects=0)
+
+  Total backtest time: 27.0s
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              SUPER ENTRY BACKTEST RESULTS v2 (Cross-TF Heuristic)            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+  Heuristic mode: Override, min_confidence=0.00
+
+TF      Trades   Wins   Loss   Exprd  WinRate   AvgPnL%   Sharpe   Cover%  HeurOv FltRej
+-----------------------------------------------------------------------------------------------
+5m       53518  14275  20636   18607    26.7%   0.1474%    0.077    4.51%   13047      0
+15m     114215  39019  55375   19821    34.2%   0.1786%    0.068    6.93%   49221      0
+1h      130516  55481  67391    7644    42.5%   0.5027%    0.125   10.20%   56792      0
+4h      100829  43761  54748    2320    43.4%   0.6385%    0.105   14.27%   47986      0
+1d       29356  13778  15323     255    46.9%   1.3004%    0.158   31.57%   14643      0
+-----------------------------------------------------------------------------------------------
+TOTAL   428434 166314 213473   48647    38.8%   0.4585%
+
+======== P(SUPER) BUCKET ANALYSIS ========
+TF      0.55-0.60  0.60-0.70  0.70-0.80  0.80-0.90      0.90+
+5m     18%(13006)  23%(16618)  28%(8491)  35%(9967)  39%(5436) 
+15m    25%(21640)  30%(33482)  36%(26885)  43%(28117)  51%(4091) 
+1h     39%(26194)  42%(54158)  45%(41461)  45%(7510)  24%(1193) 
+4h     40%(32169)  44%(57467)  50%(10037)  49%(1010)    4%(146) 
+1d     43%(7270)  47%(13223)  51%(6863)  51%(1775)   46%(225) 
+
+======== DIRECTION: ML vs HEURISTIC ========
+TF      ML=Heur  ML≠Heur   MLonly     ->WR    HeurWR%  MLonlyWR%
+5m        40471    13047        0    30.3%      15.6%       0.0%
+15m       64994    49221        0    50.0%      13.3%       0.0%
+1h        73724    56792        0    62.8%      16.1%       0.0%
+4h        52843    47986        0    67.4%      17.0%       0.0%
+1d        14713    14643        0    84.2%       9.5%       0.0%
+
+======== HEURISTIC CONFIDENCE BUCKETS (WinRate by confidence) ========
+TF         conf<0.2      0.2-0.4      0.4-0.6      0.6-0.8      0.8-1.0
+5m        20%(800)   25%(22125)      22%(89)   28%(30504)          -   
+15m     33%(26087)   32%(14120)   30%(21782)   35%(18543)   38%(33683) 
+1h      39%(23801)   37%(18316)   46%(24383)   45%(24023)   43%(39993) 
+4h      42%(16645)   45%(14434)   42%(16676)   44%(19447)   44%(33627) 
+1d       53%(7853)   47%(14440)    40%(7063)          -            -   
+
+======== DIRECTION BREAKDOWN (LONG vs SHORT) ========
+TF         LONG    SHORT    LongWR%   ShortWR%   LongPnL%  ShortPnL%
+5m        29989    23529      24.7%      29.2%    0.0906%    0.2198%
+15m       39490    74725      35.7%      33.4%    0.2773%    0.1265%
+1h        36069    94447      38.8%      43.9%    0.1813%    0.6254%
+4h        31109    69720      38.1%      45.8%   -0.0566%    0.9486%
+1d         5929    23427      38.0%      49.2%   -0.2064%    1.6817%
+
+╔══════════════════════════════════════════════════════════════╗
+║         BACKTEST COMPLETE                                    ║
+╚══════════════════════════════════════════════════════════════╝
