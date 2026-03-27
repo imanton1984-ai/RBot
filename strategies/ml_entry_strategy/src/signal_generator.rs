@@ -44,8 +44,13 @@ pub struct SuperEntrySignal {
     pub final_score: f32,
     /// P(super) from the model
     pub p_super: f32,
-    /// P(LONG) from the model (for directional confidence)
+    /// P(LONG) / P(UP) from the direction model
     pub p_long: f32,
+    /// Direction confidence from model:
+    ///   v4: P(predicted_class) ∈ [0.5, 1.0]
+    ///   v3: abs(regression)
+    ///   legacy: |p_long - 0.5|
+    pub dir_confidence: f32,
     /// Strategy metadata as JSON
     pub reason: serde_json::Value,
 }
@@ -146,10 +151,11 @@ impl SignalGenerator {
             (tp, sl)
         };
 
+        // p_long: for v4 this is P(UP) directly, for legacy it's 0.5 ± confidence
         let p_long = if direction == 1 {
-            0.5 + dir_confidence
+            0.5 + dir_confidence.min(0.5)
         } else {
-            0.5 - dir_confidence
+            0.5 - dir_confidence.min(0.5)
         };
 
         let reason = json!({
@@ -182,6 +188,7 @@ impl SignalGenerator {
             final_score: combined_score,
             p_super,
             p_long: p_long as f32,
+            dir_confidence,
             reason,
         })
     }

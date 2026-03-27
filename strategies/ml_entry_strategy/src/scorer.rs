@@ -1,18 +1,23 @@
 // strategies/ml_entry_strategy/src/scorer.rs
 //
-// Scorer for Super Entry Strategy
+// Scorer for Super Entry Strategy (v2 — ML-only)
 //
-// Decision logic:
+// Decision logic (SIMPLIFIED — only ML models matter):
 //   1. If p_super >= p_threshold → potential super signal
-//   2. Direction from Direction v3 model (regression, confidence gate)
-//   3. Confidence = dir_confidence (from abs(regression prediction))
+//   2. Direction from Direction model (v4 preferred, v3/legacy fallback)
+//   3. Confidence gate: dir_confidence >= per-TF threshold
+//      - 15m: ≥ 0.75
+//      - 1h:  ≥ 0.70
+//      - 4h:  ≥ 0.65
+//   4. Generate signal with combined score
 //
-// Direction v3 additions:
-//   - Confidence gate: if dir_confidence < min_dir_confidence → WeakDirection
-//   - HTF hard filter: never LONG against HTF bearish supertrend (and vice versa)
-//     Removes ~50% of wrong-direction trades from model noise
+// REMOVED (v2):
+//   - Overheated (indicator) filter — was indicator-based, not ML
+//   - HTF hard filter — now subsumed by direction v4 model's pattern learning
+//   - Danger zone filter — indicator agrees_count removed from pipeline
+//   - Heuristic cross-TF filter — removed from super_entry_stage.rs
 //
-// Legacy mode (no direction v3): uses p_long from binary classifier as before.
+// Only P(super) and Direction model confidence affect signal generation.
 
 use crate::config::SuperEntryConfig;
 use crate::model::SuperEntryPrediction;
@@ -27,7 +32,10 @@ pub enum SuperEntryDecision {
         direction: i8,
         /// P(super) confidence
         p_super: f32,
-        /// Directional confidence (v3: abs(regression), legacy: |p_long - 0.5|)
+        /// Directional confidence
+        /// v4: P(predicted_class) ∈ [0.5, 1.0]
+        /// v3: abs(regression)
+        /// legacy: |p_long - 0.5|
         dir_confidence: f32,
         /// Combined score (p_super * dir_confidence_factor)
         combined_score: f32,
@@ -45,15 +53,13 @@ pub enum SuperEntryDecision {
 pub enum RejectReason {
     /// P(super) below threshold
     BelowThreshold,
-    /// Directional confidence too low
+    /// Directional confidence too low (per-TF threshold)
     WeakDirection,
-    /// Indicators suggest overheated entry
+    /// DEPRECATED: Indicators suggest overheated entry (no longer used)
     Overheated,
-    /// Direction conflicts with HTF supertrend
+    /// DEPRECATED: Direction conflicts with HTF supertrend (no longer used)
     HtfConflict,
-    /// Indicator agrees_count is in the "danger zone" (3-4 out of 10).
-    /// Market is ambiguous — neither clear trend nor clear reversal.
-    /// Skipping these improves PnL by ~$60 on backtest (29 bad trades avoided).
+    /// DEPRECATED: Indicator agrees_count in danger zone (no longer used)
     DangerZone,
 }
 
@@ -85,27 +91,20 @@ impl SuperEntryDecision {
 pub struct ScorerConfig {
     /// Minimum P(super) to consider as a potential signal
     pub p_threshold: f64,
-    /// Minimum directional confidence
-    /// For v3: abs(regression prediction) must be >= this
-    /// For legacy: |p_long - 0.5| must be >= this
-    pub min_dir_confidence: f32,
-    /// Maximum marginal P(super) above threshold for overheated filter
-    pub overheated_margin: f32,
-    /// Enable overheated detection
-    pub enable_overheated_filter: bool,
-    /// Enable HTF hard filter (reject LONG against HTF bearish, SHORT against HTF bullish)
-    /// Only applied when direction_v3 model is used (it provides htf_supertrend_dir)
-    pub enable_htf_filter: bool,
+    /// Per-TF direction confidence thresholds (from SuperEntryConfig)
+    /// Key = tf_minutes, Value = min P(predicted_class)
+    pub direction_confidence_thresholds: std::collections::HashMap<i32, f64>,
+    /// Fallback minimum directional confidence if TF not in thresholds map
+    pub default_min_dir_confidence: f64,
 }
 
 impl Default for ScorerConfig {
     fn default() -> Self {
+        let cfg = SuperEntryConfig::default();
         Self {
             p_threshold: 0.55,
-            min_dir_confidence: 0.05, // v3: abs(prediction) >= 0.05 (was 0.10 for legacy p_long)
-            overheated_margin: 0.05,
-            enable_overheated_filter: true,
-            enable_htf_filter: true,
+            direction_confidence_thresholds: cfg.direction_confidence_thresholds,
+            default_min_dir_confidence: 0.65,
         }
     }
 }
@@ -114,7 +113,8 @@ impl From<&SuperEntryConfig> for ScorerConfig {
     fn from(cfg: &SuperEntryConfig) -> Self {
         Self {
             p_threshold: cfg.p_threshold,
-            ..Default::default()
+            direction_confidence_thresholds: cfg.direction_confidence_thresholds.clone(),
+            default_min_dir_confidence: 0.65,
         }
     }
 }
@@ -122,6 +122,7 @@ impl From<&SuperEntryConfig> for ScorerConfig {
 /// Super Entry Scorer
 ///
 /// Evaluates predictions from the model and makes entry decisions.
+/// Only ML model outputs (P(super) + direction confidence) affect decisions.
 pub struct SuperEntryScorer {
     config: ScorerConfig,
 }
@@ -139,13 +140,16 @@ impl SuperEntryScorer {
 
     /// Score a prediction and return a decision.
     ///
+    /// Only ML models (P(super) + direction) influence the decision.
+    /// No indicator-based filters (overheated, danger zone, heuristic).
+    ///
     /// # Arguments
     /// * `prediction` - Model prediction output (includes dir_confidence)
-    /// * `features` - Raw feature values (for overheated detection)
+    /// * `tf_minutes` - Timeframe for per-TF confidence threshold
     pub fn score(
         &self,
         prediction: &SuperEntryPrediction,
-        features: Option<&OverheatedFeatures>,
+        tf_minutes: i32,
     ) -> SuperEntryDecision {
         let p_super = prediction.p_super;
         let direction = prediction.direction;
@@ -159,27 +163,21 @@ impl SuperEntryScorer {
             };
         }
 
-        // 2. Check directional confidence (confidence gate)
-        if dir_confidence < self.config.min_dir_confidence {
+        // 2. Check directional confidence (per-TF threshold)
+        let min_confidence = self.config.direction_confidence_thresholds
+            .get(&tf_minutes)
+            .copied()
+            .unwrap_or(self.config.default_min_dir_confidence);
+
+        if (dir_confidence as f64) < min_confidence {
             return SuperEntryDecision::NoSignal {
                 reason: RejectReason::WeakDirection,
                 p_super,
             };
         }
 
-        // 3. Overheated filter
-        if self.config.enable_overheated_filter {
-            if let Some(oh) = features {
-                if oh.is_overheated(direction) {
-                    return SuperEntryDecision::NoSignal {
-                        reason: RejectReason::Overheated,
-                        p_super,
-                    };
-                }
-            }
-        }
-
-        // 4. Calculate combined score
+        // 3. Calculate combined score
+        // For v4: dir_confidence is P(predicted_class) ∈ [0.5, 1.0]
         // For v3: dir_confidence is abs(regression prediction), typically 0..0.5
         // For legacy: dir_confidence is |p_long - 0.5|, typically 0..0.5
         let dir_factor = 1.0 + dir_confidence.min(0.5); // Range [1.0, 1.5]
@@ -193,13 +191,24 @@ impl SuperEntryScorer {
         }
     }
 
+    /// Legacy score method that accepts OverheatedFeatures for backward compatibility.
+    /// Ignores the features — only ML models affect decision.
+    pub fn score_legacy(
+        &self,
+        prediction: &SuperEntryPrediction,
+        _features: Option<&OverheatedFeatures>,
+        tf_minutes: i32,
+    ) -> SuperEntryDecision {
+        self.score(prediction, tf_minutes)
+    }
+
     /// Get the config
     pub fn config(&self) -> &ScorerConfig {
         &self.config
     }
 }
 
-/// Features used for overheated detection.
+/// Features used for overheated detection (DEPRECATED — kept for backward compat).
 pub struct OverheatedFeatures {
     pub rsi: f64,
     pub stoch_k: f64,
@@ -210,35 +219,17 @@ pub struct OverheatedFeatures {
 }
 
 impl OverheatedFeatures {
-    /// Check if indicators suggest an "overheated" entry.
-    ///
-    /// An entry is overheated if multiple extreme readings are detected:
-    ///   - For LONG: RSI > 75, Stoch > 85, CCI > 150, or BB position > 0.95
-    ///   - For SHORT: RSI < 25, Stoch < 15, CCI < -150, or BB position < 0.05
-    pub fn is_overheated(&self, direction: i8) -> bool {
-        let mut extreme_count = 0;
-
-        if direction == 1 {
-            if self.rsi > 75.0 { extreme_count += 1; }
-            if self.stoch_k > 85.0 { extreme_count += 1; }
-            if self.cci > 150.0 { extreme_count += 1; }
-            if self.williams > -10.0 { extreme_count += 1; }
-            if self.bb_position > 0.95 { extreme_count += 1; }
-        } else {
-            if self.rsi < 25.0 { extreme_count += 1; }
-            if self.stoch_k < 15.0 { extreme_count += 1; }
-            if self.cci < -150.0 { extreme_count += 1; }
-            if self.williams < -90.0 { extreme_count += 1; }
-            if self.bb_position < 0.05 { extreme_count += 1; }
-        }
-
-        extreme_count >= 2
+    /// DEPRECATED: Always returns false. Overheated filter is disabled.
+    /// Only ML model confidence gates are used for signal filtering.
+    pub fn is_overheated(&self, _direction: i8) -> bool {
+        false
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::DirectionModelVersion;
 
     #[test]
     fn test_super_entry_above_threshold() {
@@ -247,12 +238,12 @@ mod tests {
             p_super: 0.75,
             p_long: 0.80,
             direction: 1,
-            dir_confidence: 0.30,
+            dir_confidence: 0.80, // v4: P(UP) = 0.80, above any TF threshold
             estimated_magnitude_pct: 2.0,
-            direction_v3: true,
+            direction_model_version: DirectionModelVersion::V4,
         };
 
-        let decision = scorer.score(&pred, None);
+        let decision = scorer.score(&pred, 60); // 1h TF
         assert!(decision.is_super_entry());
         assert_eq!(decision.direction(), Some(1));
     }
@@ -264,12 +255,12 @@ mod tests {
             p_super: 0.40,
             p_long: 0.80,
             direction: 1,
-            dir_confidence: 0.30,
+            dir_confidence: 0.80,
             estimated_magnitude_pct: 1.0,
-            direction_v3: true,
+            direction_model_version: DirectionModelVersion::V4,
         };
 
-        let decision = scorer.score(&pred, None);
+        let decision = scorer.score(&pred, 60);
         assert!(!decision.is_super_entry());
         match decision {
             SuperEntryDecision::NoSignal { reason, .. } => {
@@ -280,115 +271,74 @@ mod tests {
     }
 
     #[test]
-    fn test_weak_direction_v3() {
-        let scorer = SuperEntryScorer::new(ScorerConfig {
-            min_dir_confidence: 0.05,
-            ..Default::default()
-        });
+    fn test_weak_direction_per_tf() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+
+        // v4 model: P(UP) = 0.68 → confidence = 0.68
         let pred = SuperEntryPrediction {
             p_super: 0.75,
-            p_long: 0.51,
+            p_long: 0.68,
             direction: 1,
-            dir_confidence: 0.02, // below 0.05 threshold
+            dir_confidence: 0.68,
             estimated_magnitude_pct: 2.0,
-            direction_v3: true,
+            direction_model_version: DirectionModelVersion::V4,
         };
 
-        let decision = scorer.score(&pred, None);
-        assert!(!decision.is_super_entry());
-        match decision {
+        // For 15m (threshold 0.75): should be rejected (0.68 < 0.75)
+        let decision_15m = scorer.score(&pred, 15);
+        assert!(!decision_15m.is_super_entry());
+        match decision_15m {
             SuperEntryDecision::NoSignal { reason, .. } => {
                 assert_eq!(reason, RejectReason::WeakDirection);
             }
-            _ => panic!("Expected NoSignal for weak direction"),
+            _ => panic!("Expected WeakDirection for 15m"),
         }
+
+        // For 1h (threshold 0.70): should be rejected (0.68 < 0.70)
+        let decision_1h = scorer.score(&pred, 60);
+        assert!(!decision_1h.is_super_entry());
+
+        // For 4h (threshold 0.65): should PASS (0.68 >= 0.65)
+        let decision_4h = scorer.score(&pred, 240);
+        assert!(decision_4h.is_super_entry());
     }
 
     #[test]
-    fn test_overheated_filter() {
-        let scorer = SuperEntryScorer::new(ScorerConfig {
-            p_threshold: 0.55,
-            enable_overheated_filter: true,
-            ..Default::default()
-        });
-
-        let pred = SuperEntryPrediction {
-            p_super: 0.57,
-            p_long: 0.80,
-            direction: 1,
-            dir_confidence: 0.30,
-            estimated_magnitude_pct: 1.0,
-            direction_v3: true,
-        };
-
-        let oh = OverheatedFeatures {
-            rsi: 82.0,
-            stoch_k: 90.0,
-            cci: 160.0,
-            williams: -5.0,
-            bb_position: 0.98,
-            atr_pct: 2.0,
-        };
-
-        let decision = scorer.score(&pred, Some(&oh));
-        assert!(!decision.is_super_entry());
-        match decision {
-            SuperEntryDecision::NoSignal { reason, .. } => {
-                assert_eq!(reason, RejectReason::Overheated);
-            }
-            _ => panic!("Expected Overheated rejection"),
-        }
-    }
-
-    #[test]
-    fn test_not_overheated_when_strong_signal() {
-        let scorer = SuperEntryScorer::new(ScorerConfig {
-            p_threshold: 0.55,
-            enable_overheated_filter: true,
-            ..Default::default()
-        });
+    fn test_no_overheated_filter() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
 
         let pred = SuperEntryPrediction {
             p_super: 0.80,
             p_long: 0.85,
             direction: 1,
-            dir_confidence: 0.35,
+            dir_confidence: 0.85, // v4 confidence
             estimated_magnitude_pct: 3.0,
-            direction_v3: true,
+            direction_model_version: DirectionModelVersion::V4,
         };
 
-        let oh = OverheatedFeatures {
-            rsi: 82.0,
-            stoch_k: 90.0,
-            cci: 160.0,
-            williams: -5.0,
-            bb_position: 0.98,
-            atr_pct: 2.0,
-        };
-
-        let decision = scorer.score(&pred, Some(&oh));
-        // Overheated filter is ALWAYS applied regardless of p_super level
-        assert!(!decision.is_super_entry());
+        // Should pass even with "overheated" indicators — no indicator filter
+        let decision = scorer.score(&pred, 240);
+        assert!(decision.is_super_entry());
     }
 
     #[test]
-    fn test_combined_score_with_v3_confidence() {
+    fn test_combined_score_with_v4_confidence() {
         let scorer = SuperEntryScorer::new(ScorerConfig::default());
         let pred = SuperEntryPrediction {
             p_super: 0.80,
             p_long: 0.75,
             direction: 1,
-            dir_confidence: 0.25,
+            dir_confidence: 0.75,
             estimated_magnitude_pct: 3.0,
-            direction_v3: true,
+            direction_model_version: DirectionModelVersion::V4,
         };
 
-        let decision = scorer.score(&pred, None);
+        let decision = scorer.score(&pred, 240);
         match decision {
             SuperEntryDecision::SuperEntry { combined_score, .. } => {
-                // combined = p_super * (1 + min(confidence, 0.5))
-                // = 0.80 * (1 + 0.25) = 1.0
-                assert!((combined_score - 1.0).abs() < 0.01);
+                // combined = p_super * (1 + min(0.75, 0.5))
+                // = 0.80 * 1.5 = 1.2
+                assert!((combined_score - 1.2).abs() < 0.01);
             }
             _ => panic!("Expected SuperEntry"),
         }

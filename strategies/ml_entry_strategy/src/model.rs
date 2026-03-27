@@ -1,23 +1,23 @@
 // strategies/ml_entry_strategy/src/model.rs
 //
-// Model wrapper for Super Entry + Direction v3 XGBoost models.
+// Model wrapper for Super Entry + Direction v4 XGBoost models.
 //
 // Models:
 //   - super_entry_v1_tf{X}.ubj — binary classifier: P(super move) [128 features]
-//   - direction_v3_tf{X}.ubj  — regressor: direction_quality [32 features]
+//   - direction_v4_tf{X}.ubj  — binary classifier: P(UP) [W*fpc pattern features]
 //
-// Direction v3 uses DIFFERENT features from super_entry:
-//   - 26 features extracted from the 128-feature vector (subset)
-//   - 5 BTC relative features (not in 128-feature set, need BTC candle data)
-//   - 1 HTF feature (from 128-feature set)
+// Direction v4 uses CNN-like sliding window OHLCV pattern features:
+//   - compute_pattern_features() → window_size * features_per_candle values
+//   - Output: P(UP) ∈ [0, 1] (binary:logistic)
+//   - Direction: UP if P(UP) >= 0.5, DOWN otherwise
+//   - Confidence: P(predicted_class) = max(P(UP), 1 - P(UP))
 //
-// At inference:
-//   - prediction = direction_v3_model.predict(32_features)
-//   - direction = sign(prediction): +1 = LONG, -1 = SHORT
-//   - confidence = abs(prediction): higher = more certain
-//   - If confidence < threshold → skip (direction uncertain)
+// Per-TF confidence thresholds (only ML models affect signal):
+//   - 4h (240m): dir_confidence >= 0.65
+//   - 1h (60m):  dir_confidence >= 0.70
+//   - 15m:       dir_confidence >= 0.75
 //
-// Falls back to legacy super_dir_v1_tf{X}.ubj if direction_v3 not found.
+// Falls back to direction_v3_tf{X}.ubj → super_dir_v1_tf{X}.ubj if v4 not found.
 
 use anyhow::Result;
 use tracing::{info, warn};
@@ -32,25 +32,44 @@ use crate::direction::features::DIRECTION_V3_FEATURE_COUNT;
 pub struct SuperEntryPrediction {
     /// Probability that this is a "super" move (P >= target move %)
     pub p_super: f32,
-    /// For v3: raw regression output (sign = direction, abs = confidence)
+    /// For v4: P(UP) ∈ [0, 1] directly from binary classifier
+    /// For v3: raw regression output rescaled to [0, 1]
     /// For legacy: P(direction=LONG) in [0, 1]
     pub p_long: f32,
     /// Derived: direction (1 = LONG, -1 = SHORT)
     pub direction: i8,
-    /// Derived: direction confidence (abs of regression prediction, or |p_long - 0.5| for legacy)
+    /// Derived: direction confidence
+    /// For v4: P(predicted_class) = max(P(UP), 1-P(UP)) ∈ [0.5, 1.0]
+    /// For v3: abs(regression prediction)
+    /// For legacy: |p_long - 0.5|
     pub dir_confidence: f32,
     /// Derived: expected magnitude estimate (optional, from p_super * target)
     pub estimated_magnitude_pct: f64,
-    /// Whether direction model v3 was used (True) or legacy/none (False)
-    pub direction_v3: bool,
+    /// Which direction model version was used
+    pub direction_model_version: DirectionModelVersion,
+}
+
+/// Which direction model was used for prediction
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DirectionModelVersion {
+    /// Direction v4 — CNN-like pattern model (preferred)
+    V4,
+    /// Direction v3 — 32-feature regression model
+    V3,
+    /// Legacy binary classifier (128 features, same as super_entry)
+    Legacy,
+    /// No direction model available — neutral direction
+    None,
 }
 
 /// Loaded model pair for one TF
 struct TfModels {
     super_model: Booster,
-    /// Direction v3 model (regression, 32 features) — preferred
+    /// Direction v4 model (binary, pattern features) — preferred
+    dir_v4_model: Option<Booster>,
+    /// Direction v3 model (regression, 32 features) — fallback
     dir_v3_model: Option<Booster>,
-    /// Legacy direction model (binary, 128 features) — fallback
+    /// Legacy direction model (binary, 128 features) — last resort
     dir_legacy_model: Option<Booster>,
 }
 
@@ -73,6 +92,7 @@ impl SuperEntryModelManager {
 
         for &tf in timeframes {
             let super_path = config.model_path(tf);
+            let dir_v4_path = format!("models/direction_v4_tf{}.ubj", tf);
             let dir_v3_path = format!("models/direction_v3_tf{}.ubj", tf);
             let dir_legacy_path = config.direction_model_path(tf);
 
@@ -90,11 +110,29 @@ impl SuperEntryModelManager {
                 None => continue,
             };
 
-            // Try to load Direction v3 model first (preferred)
-            let dir_v3_model = if std::path::Path::new(&dir_v3_path).exists() {
+            // ── Direction model loading: v4 → v3 → legacy ──
+
+            // Try Direction v4 first (preferred — CNN-like pattern features)
+            let dir_v4_model = if std::path::Path::new(&dir_v4_path).exists() {
+                match load_booster(&dir_v4_path, device, use_gpu) {
+                    Some(b) => {
+                        info!("✅ Loaded direction_v4 TF {}m: {} (pattern features, binary)",
+                              tf, dir_v4_path);
+                        Some(b)
+                    }
+                    None => None,
+                }
+            } else {
+                None
+            };
+
+            // Try Direction v3 if v4 not available
+            let dir_v3_model = if dir_v4_model.is_none()
+                && std::path::Path::new(&dir_v3_path).exists()
+            {
                 match load_booster(&dir_v3_path, device, use_gpu) {
                     Some(b) => {
-                        info!("✅ Loaded direction_v3 TF {}m: {} (32 features, regression)",
+                        info!("⚠️  Loaded direction_v3 TF {}m: {} (32 features, regression fallback)",
                               tf, dir_v3_path);
                         Some(b)
                     }
@@ -105,12 +143,13 @@ impl SuperEntryModelManager {
             };
 
             // Fallback to legacy direction model
-            let dir_legacy_model = if dir_v3_model.is_none()
+            let dir_legacy_model = if dir_v4_model.is_none()
+                && dir_v3_model.is_none()
                 && std::path::Path::new(&dir_legacy_path).exists()
             {
                 match load_booster(&dir_legacy_path, device, use_gpu) {
                     Some(b) => {
-                        info!("⚠️  Loaded legacy super_dir TF {}m: {} (128 features, binary)",
+                        info!("⚠️  Loaded legacy super_dir TF {}m: {} (128 features, binary fallback)",
                               tf, dir_legacy_path);
                         Some(b)
                     }
@@ -120,12 +159,13 @@ impl SuperEntryModelManager {
                 None
             };
 
-            if dir_v3_model.is_none() && dir_legacy_model.is_none() {
+            if dir_v4_model.is_none() && dir_v3_model.is_none() && dir_legacy_model.is_none() {
                 warn!("⚠️  No direction model for TF {}m — using neutral direction", tf);
             }
 
             models.insert(tf, TfModels {
                 super_model,
+                dir_v4_model,
                 dir_v3_model,
                 dir_legacy_model,
             });
@@ -135,8 +175,9 @@ impl SuperEntryModelManager {
         }
 
         info!(
-            "Models loaded: {} TFs, {} with direction_v3, {} with legacy direction",
+            "Models loaded: {} TFs, {} with direction_v4, {} with direction_v3, {} with legacy direction",
             models.len(),
+            models.values().filter(|m| m.dir_v4_model.is_some()).count(),
             models.values().filter(|m| m.dir_v3_model.is_some()).count(),
             models.values().filter(|m| m.dir_legacy_model.is_some()).count(),
         );
@@ -154,11 +195,25 @@ impl SuperEntryModelManager {
         self.models.contains_key(&tf_minutes)
     }
 
+    /// Check if direction v4 model is available for a specific timeframe
+    pub fn has_direction_v4_for_tf(&self, tf_minutes: i32) -> bool {
+        self.models
+            .get(&tf_minutes)
+            .map_or(false, |m| m.dir_v4_model.is_some())
+    }
+
     /// Check if direction v3 model is available for a specific timeframe
     pub fn has_direction_v3_for_tf(&self, tf_minutes: i32) -> bool {
         self.models
             .get(&tf_minutes)
             .map_or(false, |m| m.dir_v3_model.is_some())
+    }
+
+    /// Check if any direction model (v4/v3/legacy) available for TF
+    pub fn has_any_direction_for_tf(&self, tf_minutes: i32) -> bool {
+        self.models.get(&tf_minutes).map_or(false, |m| {
+            m.dir_v4_model.is_some() || m.dir_v3_model.is_some() || m.dir_legacy_model.is_some()
+        })
     }
 
     /// Get available timeframes with loaded models
@@ -174,12 +229,16 @@ impl SuperEntryModelManager {
     /// * `tf_minutes` — timeframe
     /// * `features` — 128 super_entry features (f32)
     /// * `dir_v3_features` — optional 32 direction v3 features (f64, will be converted)
+    /// * `dir_v4_features` — optional v4 pattern features (f32)
+    /// * `dir_v4_ncol` — number of v4 feature columns
     /// * `_use_gpu` — reserved
     pub fn predict(
         &self,
         tf_minutes: i32,
         features: &[f32],
         dir_v3_features: Option<&[f64]>,
+        dir_v4_features: Option<&[f32]>,
+        dir_v4_ncol: usize,
         _use_gpu: bool,
     ) -> Result<Option<SuperEntryPrediction>> {
         let tf_models = match self.models.get(&tf_minutes) {
@@ -197,9 +256,9 @@ impl SuperEntryModelManager {
             .unwrap_or(0.0)
             .clamp(0.0, 1.0);
 
-        // Direction prediction
-        let (p_long, direction, dir_confidence, direction_v3) =
-            self.predict_direction(tf_models, features, ncol, dir_v3_features)?;
+        // Direction prediction (v4 → v3 → legacy → neutral)
+        let (p_long, direction, dir_confidence, version) =
+            self.predict_direction(tf_models, features, ncol, dir_v3_features, dir_v4_features, dir_v4_ncol)?;
 
         let target = self.config.target_pct_for_tf(tf_minutes);
 
@@ -209,14 +268,14 @@ impl SuperEntryModelManager {
             direction,
             dir_confidence,
             estimated_magnitude_pct: target * p_super as f64,
-            direction_v3,
+            direction_model_version: version,
         }))
     }
 
     /// Batch inference for multiple feature rows.
     ///
-    /// For direction v3 batch inference, pass `dir_v3_features_batch` with
-    /// batch_size * 32 f32 values.
+    /// For direction v4 batch inference, pass `dir_v4_features_batch` with
+    /// batch_size * v4_ncol f32 values.
     pub fn predict_batch(
         &self,
         tf_minutes: i32,
@@ -224,6 +283,8 @@ impl SuperEntryModelManager {
         nrow: usize,
         ncol: usize,
         dir_v3_features_batch: Option<&[f32]>,
+        dir_v4_features_batch: Option<&[f32]>,
+        dir_v4_ncol: usize,
         _use_gpu: bool,
     ) -> Result<Vec<SuperEntryPrediction>> {
         let tf_models = match self.models.get(&tf_minutes) {
@@ -236,9 +297,10 @@ impl SuperEntryModelManager {
             .predict_dense_cpu(features_batch, nrow, ncol, ModelKind::Regressor1)?;
 
         // Batch direction prediction
-        let (p_long_vec, directions, dir_confidences, used_v3) =
+        let (p_long_vec, directions, dir_confidences, version) =
             self.predict_direction_batch(
-                tf_models, features_batch, nrow, ncol, dir_v3_features_batch,
+                tf_models, features_batch, nrow, ncol,
+                dir_v3_features_batch, dir_v4_features_batch, dir_v4_ncol,
             )?;
 
         let target = self.config.target_pct_for_tf(tf_minutes);
@@ -256,22 +318,45 @@ impl SuperEntryModelManager {
                 direction,
                 dir_confidence,
                 estimated_magnitude_pct: target * p_super as f64,
-                direction_v3: used_v3,
+                direction_model_version: version,
             });
         }
 
         Ok(predictions)
     }
 
-    /// Predict direction using v3 model (preferred) or legacy model (fallback).
+    /// Predict direction using v4 (preferred) → v3 → legacy → neutral.
     fn predict_direction(
         &self,
         tf_models: &TfModels,
         features_128: &[f32],
         ncol_128: usize,
         dir_v3_features: Option<&[f64]>,
-    ) -> Result<(f32, i8, f32, bool)> {
-        // Try direction v3 model first
+        dir_v4_features: Option<&[f32]>,
+        dir_v4_ncol: usize,
+    ) -> Result<(f32, i8, f32, DirectionModelVersion)> {
+        // ── Try Direction v4 first (CNN-like pattern model) ──
+        if let (Some(dir_model), Some(v4_feats)) = (&tf_models.dir_v4_model, dir_v4_features) {
+            if !v4_feats.is_empty() && v4_feats.len() == dir_v4_ncol {
+                let raw_pred = dir_model
+                    .predict_dense_cpu(v4_feats, 1, dir_v4_ncol, ModelKind::Regressor1)?
+                    .first()
+                    .copied()
+                    .unwrap_or(0.5);
+
+                // Binary model: P(UP) ∈ [0, 1]
+                let p_up = raw_pred.clamp(0.0, 1.0);
+                let (direction, confidence): (i8, f32) = if p_up >= 0.5 {
+                    (1, p_up)          // UP with confidence = P(UP)
+                } else {
+                    (-1, 1.0 - p_up)   // DOWN with confidence = P(DOWN) = 1 - P(UP)
+                };
+
+                return Ok((p_up, direction, confidence, DirectionModelVersion::V4));
+            }
+        }
+
+        // ── Try Direction v3 (32-feature regression) ──
         if let (Some(dir_model), Some(v3_feats)) = (&tf_models.dir_v3_model, dir_v3_features) {
             if v3_feats.len() == DIRECTION_V3_FEATURE_COUNT {
                 let v3_f32: Vec<f32> = v3_feats.iter().map(|&v| v as f32).collect();
@@ -283,14 +368,13 @@ impl SuperEntryModelManager {
 
                 let direction: i8 = if raw_pred >= 0.0 { 1 } else { -1 };
                 let confidence = raw_pred.abs();
-                // Store raw_pred as p_long for compatibility (rescaled to 0..1 range)
                 let p_long = 0.5 + raw_pred.clamp(-0.5, 0.5);
 
-                return Ok((p_long, direction, confidence, true));
+                return Ok((p_long, direction, confidence, DirectionModelVersion::V3));
             }
         }
 
-        // Fallback to legacy direction model (128 features, binary)
+        // ── Fallback to legacy direction model (128 features, binary) ──
         if let Some(dir_model) = &tf_models.dir_legacy_model {
             let p_long = dir_model
                 .predict_dense_cpu(features_128, 1, ncol_128, ModelKind::Regressor1)?
@@ -302,11 +386,11 @@ impl SuperEntryModelManager {
             let direction: i8 = if p_long >= 0.5 { 1 } else { -1 };
             let confidence = (p_long - 0.5).abs();
 
-            return Ok((p_long, direction, confidence, false));
+            return Ok((p_long, direction, confidence, DirectionModelVersion::Legacy));
         }
 
         // No direction model — neutral
-        Ok((0.5, 1, 0.0, false))
+        Ok((0.5, 1, 0.0, DirectionModelVersion::None))
     }
 
     /// Batch direction prediction.
@@ -317,8 +401,38 @@ impl SuperEntryModelManager {
         nrow: usize,
         ncol_128: usize,
         dir_v3_features_batch: Option<&[f32]>,
-    ) -> Result<(Vec<f32>, Vec<i8>, Vec<f32>, bool)> {
-        // Try direction v3 model first
+        dir_v4_features_batch: Option<&[f32]>,
+        dir_v4_ncol: usize,
+    ) -> Result<(Vec<f32>, Vec<i8>, Vec<f32>, DirectionModelVersion)> {
+        // ── Try Direction v4 first ──
+        if let (Some(dir_model), Some(v4_batch)) = (&tf_models.dir_v4_model, dir_v4_features_batch) {
+            let expected_len = nrow * dir_v4_ncol;
+            if v4_batch.len() == expected_len && dir_v4_ncol > 0 {
+                let raw_preds = dir_model.predict_dense_cpu(
+                    v4_batch, nrow, dir_v4_ncol, ModelKind::Regressor1,
+                )?;
+
+                let mut p_longs = Vec::with_capacity(nrow);
+                let mut directions = Vec::with_capacity(nrow);
+                let mut confidences = Vec::with_capacity(nrow);
+
+                for &raw in &raw_preds {
+                    let p_up = raw.clamp(0.0, 1.0);
+                    let (dir, conf): (i8, f32) = if p_up >= 0.5 {
+                        (1, p_up)
+                    } else {
+                        (-1, 1.0 - p_up)
+                    };
+                    p_longs.push(p_up);
+                    directions.push(dir);
+                    confidences.push(conf);
+                }
+
+                return Ok((p_longs, directions, confidences, DirectionModelVersion::V4));
+            }
+        }
+
+        // ── Try Direction v3 ──
         if let (Some(dir_model), Some(v3_batch)) = (&tf_models.dir_v3_model, dir_v3_features_batch) {
             let expected_len = nrow * DIRECTION_V3_FEATURE_COUNT;
             if v3_batch.len() == expected_len {
@@ -339,11 +453,11 @@ impl SuperEntryModelManager {
                     confidences.push(conf);
                 }
 
-                return Ok((p_longs, directions, confidences, true));
+                return Ok((p_longs, directions, confidences, DirectionModelVersion::V3));
             }
         }
 
-        // Fallback to legacy
+        // ── Fallback to legacy ──
         if let Some(dir_model) = &tf_models.dir_legacy_model {
             let p_long_vec = dir_model.predict_dense_cpu(
                 features_128_batch, nrow, ncol_128, ModelKind::Regressor1,
@@ -359,7 +473,7 @@ impl SuperEntryModelManager {
             }
 
             let p_longs: Vec<f32> = p_long_vec.iter().map(|&p| p.clamp(0.0, 1.0)).collect();
-            return Ok((p_longs, directions, confidences, false));
+            return Ok((p_longs, directions, confidences, DirectionModelVersion::Legacy));
         }
 
         // No direction model
@@ -367,7 +481,7 @@ impl SuperEntryModelManager {
             vec![0.5f32; nrow],
             vec![1i8; nrow],
             vec![0.0f32; nrow],
-            false,
+            DirectionModelVersion::None,
         ))
     }
 
@@ -403,32 +517,44 @@ mod tests {
             p_super: 0.8,
             p_long: 0.7,
             direction: 1,
-            dir_confidence: 0.2,
+            dir_confidence: 0.7,
             estimated_magnitude_pct: 3.0,
-            direction_v3: false,
+            direction_model_version: DirectionModelVersion::V4,
         };
         assert_eq!(pred.direction, 1);
         assert!(pred.p_super > 0.5);
+        assert_eq!(pred.direction_model_version, DirectionModelVersion::V4);
     }
 
     #[test]
-    fn test_prediction_v3_direction() {
-        // Simulate v3 regression prediction
-        let raw_pred = 0.15f32; // positive = LONG
-        let direction: i8 = if raw_pred >= 0.0 { 1 } else { -1 };
-        let confidence = raw_pred.abs();
+    fn test_prediction_v4_direction() {
+        // Simulate v4 binary prediction
+        let p_up = 0.72f32; // P(UP) = 0.72 → LONG, confidence = 0.72
+        let direction: i8 = if p_up >= 0.5 { 1 } else { -1 };
+        let confidence = if p_up >= 0.5 { p_up } else { 1.0 - p_up };
 
         let pred = SuperEntryPrediction {
             p_super: 0.75,
-            p_long: 0.5 + raw_pred.clamp(-0.5, 0.5),
+            p_long: p_up,
             direction,
             dir_confidence: confidence,
             estimated_magnitude_pct: 3.5,
-            direction_v3: true,
+            direction_model_version: DirectionModelVersion::V4,
         };
 
         assert_eq!(pred.direction, 1);
-        assert!(pred.dir_confidence > 0.1);
-        assert!(pred.direction_v3);
+        assert!((pred.dir_confidence - 0.72).abs() < 1e-6);
+        assert_eq!(pred.direction_model_version, DirectionModelVersion::V4);
+    }
+
+    #[test]
+    fn test_prediction_v4_short() {
+        // P(UP) = 0.30 → SHORT, confidence = P(DOWN) = 0.70
+        let p_up = 0.30f32;
+        let direction: i8 = if p_up >= 0.5 { 1 } else { -1 };
+        let confidence = if p_up >= 0.5 { p_up } else { 1.0 - p_up };
+
+        assert_eq!(direction, -1);
+        assert!((confidence - 0.70).abs() < 1e-6);
     }
 }

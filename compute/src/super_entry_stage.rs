@@ -30,10 +30,7 @@ use ml_entry_strategy::{
     SuperEntryConfig,
     SuperEntryPipeline,
     dataset::CandleWithIndicators,
-    heuristic::{
-        CrossTfStore, HeuristicMode,
-        apply_heuristic_filter, heuristic_min_confidence_from_env,
-    },
+    heuristic::CrossTfStore,
 };
 // SuperEntryConfig::timeframes() used to filter production TFs in the run loop
 use crate::predictors::pipeline::FeatureSnapshot;
@@ -60,13 +57,9 @@ pub struct SuperEntryStage {
     /// Cache: symbol name → symbol_id from market.pairs
     /// Prevents repeated DB lookups for the same symbol.
     symbol_id_cache: HashMap<String, i64>,
-    /// Cross-TF store for heuristic direction filter.
+    /// Cross-TF store for potential cross-TF context.
     /// Updated on every incoming FeatureSnapshot (even non-active TFs).
     cross_tf_store: CrossTfStore,
-    /// Heuristic filtering mode
-    heuristic_mode: HeuristicMode,
-    /// Minimum heuristic confidence to trigger filter/override
-    heuristic_min_confidence: f32,
 }
 
 impl SuperEntryStage {
@@ -78,12 +71,9 @@ impl SuperEntryStage {
         use_gpu: bool,
     ) -> Result<Self> {
         let pipeline = Arc::new(SuperEntryPipeline::new(config.clone(), use_gpu)?);
-        let heuristic_mode = HeuristicMode::from_env();
-        let heuristic_min_confidence = heuristic_min_confidence_from_env();
 
         info!(target: "super_entry_stage",
-            "Heuristic filter: mode={:?}, min_confidence={:.2}",
-            heuristic_mode, heuristic_min_confidence);
+            "ML-only mode: P(super) + Direction confidence gates (no heuristic filter)");
 
         Ok(Self {
             pipeline,
@@ -93,8 +83,6 @@ impl SuperEntryStage {
             use_gpu,
             symbol_id_cache: HashMap::new(),
             cross_tf_store: CrossTfStore::new(),
-            heuristic_mode,
-            heuristic_min_confidence,
         })
     }
 
@@ -153,7 +141,7 @@ impl SuperEntryStage {
     /// v2: Every incoming candle updates cross_tf_store (even non-active TFs).
     /// After signal generation, heuristic filter is applied before DB persistence.
     pub async fn run(mut self) -> Result<()> {
-        info!(target: "super_entry_stage", "Super Entry Stage started (heuristic={:?})", self.heuristic_mode);
+        info!(target: "super_entry_stage", "Super Entry Stage started (ML-only, no heuristic filter)");
         
         // Pre-load symbol_ids to avoid per-candle DB lookups
         self.preload_symbol_ids().await;
@@ -215,9 +203,10 @@ impl SuperEntryStage {
         let warmup = self.pipeline.config().warmup_bars;
         // Larger buffer for history mode — processes in bigger batches for throughput
         let max_buffer_size = 5000;
-        let mut total_signals_generated = 0u64;
-        let mut total_signals_filtered = 0u64;
-        let mut total_candles_received = 0u64;
+    let mut total_signals_generated = 0u64;
+    #[allow(unused_assignments)]
+    let mut total_signals_filtered = 0u64;
+    let mut total_candles_received = 0u64;
         let mut total_batches_processed = 0u64;
 
         while let Some(snapshot) = self.feature_rx.recv().await {
@@ -273,36 +262,18 @@ impl SuperEntryStage {
                 ) {
                     Ok(result) => {
                         if let Some(signal) = result.signal {
-                            // ── HEURISTIC FILTER ──
-                            match apply_heuristic_filter(
-                                signal,
-                                &candle,
-                                tf_minutes,
-                                &self.cross_tf_store,
-                                self.heuristic_mode,
-                                self.heuristic_min_confidence,
-                                &self.config,
-                            ) {
-                                Some(filtered_signal) => {
-                                    debug!(target: "super_entry_stage",
-                                        "RT signal: {} {}m side={} p_super={:.3} (heuristic passed)",
-                                        snapshot.symbol, tf_minutes,
-                                        filtered_signal.side, filtered_signal.p_super);
+                            // ML-only: no heuristic filter, signal goes directly to DB
+                            debug!(target: "super_entry_stage",
+                                "RT signal: {} {}m side={} p_super={:.3} dir_conf={:.3}",
+                                snapshot.symbol, tf_minutes,
+                                signal.side, signal.p_super, signal.dir_confidence);
 
-                                    if let Err(e) = ml_entry_strategy::db_writer::insert_signals_batch(
-                                        &self.db_pool, &[filtered_signal]
-                                    ).await {
-                                        error!(target: "super_entry_stage", "Failed to persist RT signal: {}", e);
-                                    } else {
-                                        total_signals_generated += 1;
-                                    }
-                                }
-                                None => {
-                                    total_signals_filtered += 1;
-                                    debug!(target: "super_entry_stage",
-                                        "RT signal REJECTED by heuristic: {} {}m",
-                                        snapshot.symbol, tf_minutes);
-                                }
+                            if let Err(e) = ml_entry_strategy::db_writer::insert_signals_batch(
+                                &self.db_pool, &[signal]
+                            ).await {
+                                error!(target: "super_entry_stage", "Failed to persist RT signal: {}", e);
+                            } else {
+                                total_signals_generated += 1;
                             }
                         }
                     }
@@ -359,10 +330,9 @@ impl SuperEntryStage {
         
         info!(target: "super_entry_stage", 
             "Super Entry Stage stopped. Total: received={} candles, processed={} batches, \
-             generated={} signals, heuristic_filtered={} signals (mode={:?})",
+             generated={} signals (ML-only, no heuristic filter)",
             total_candles_received, total_batches_processed,
-            total_signals_generated, total_signals_filtered,
-            self.heuristic_mode);
+            total_signals_generated);
         Ok(())
     }
 
@@ -384,40 +354,11 @@ impl SuperEntryStage {
 
         let (signals_count, filtered_count) = match result {
             Ok(results) => {
-                // Collect signals with their corresponding candle data for heuristic filter
-                let mut kept_signals = Vec::new();
-                let mut n_filtered = 0usize;
-
-                for r in results {
-                    if let Some(signal) = r.signal {
-                        let candle_idx = r.candle_index;
-
-                        // Get the candle that generated this signal for heuristic analysis
-                        if candle_idx < buffer.len() {
-                            let candle = &buffer[candle_idx];
-
-                            match apply_heuristic_filter(
-                                signal,
-                                candle,
-                                tf_minutes,
-                                &self.cross_tf_store,
-                                self.heuristic_mode,
-                                self.heuristic_min_confidence,
-                                &self.config,
-                            ) {
-                                Some(filtered_signal) => {
-                                    kept_signals.push(filtered_signal);
-                                }
-                                None => {
-                                    n_filtered += 1;
-                                }
-                            }
-                        } else {
-                            // Safety fallback: can't find candle, skip filter
-                            kept_signals.push(signal);
-                        }
-                    }
-                }
+                // ML-only: collect all signals directly (no heuristic filter)
+                let kept_signals: Vec<_> = results
+                    .into_iter()
+                    .filter_map(|r| r.signal)
+                    .collect();
 
                 if !kept_signals.is_empty() {
                     let count = kept_signals.len();
@@ -426,23 +367,22 @@ impl SuperEntryStage {
                     ).await {
                         Ok(written) => {
                             info!(target: "super_entry_stage",
-                                "{} {}m: {} candles → {} signals ({} heuristic-filtered) → {} written to DB",
-                                symbol, tf_minutes, buffer.len(), count + n_filtered,
-                                n_filtered, written);
-                            (count, n_filtered)
+                                "{} {}m: {} candles → {} signals → {} written to DB",
+                                symbol, tf_minutes, buffer.len(), count, written);
+                            (count, 0)
                         }
                         Err(e) => {
                             error!(target: "super_entry_stage",
                                 "Failed to persist {} signals for {} {}m: {}",
                                 count, symbol, tf_minutes, e);
-                            (0, n_filtered)
+                            (0, 0)
                         }
                     }
                 } else {
                     debug!(target: "super_entry_stage",
-                        "{} {}m: {} candles → 0 signals (filtered={})",
-                        symbol, tf_minutes, buffer.len(), n_filtered);
-                    (0, n_filtered)
+                        "{} {}m: {} candles → 0 signals",
+                        symbol, tf_minutes, buffer.len());
+                    (0, 0)
                 }
             }
             Err(e) => {
@@ -554,10 +494,9 @@ pub async fn setup_super_entry_stage(
                 return None;
             }
             
-            let heuristic_mode = stage.heuristic_mode;
             info!(target: "super_entry_stage",
-                "✅ Super Entry stage initialized (GPU={}, heuristic={:?})",
-                use_gpu, heuristic_mode);
+                "✅ Super Entry stage initialized (GPU={}, ML-only mode)",
+                use_gpu);
             Some(tokio::spawn(async move { stage.run().await }))
         }
         Err(e) => {

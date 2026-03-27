@@ -1,276 +1,188 @@
 // strategies/ml_entry_strategy/src/direction/dataset.rs
 //
-// Direction Model v3 — Dataset Builder
+// Direction Model v4 — Pattern Dataset Builder
 //
 // Builds a CSV dataset with:
-//   - 32 direction v3 features (from features.rs)
-//   - Labels:
-//       * future_return_25: close[t+25]/close[t] - 1 in %
-//       * direction: 1=LONG, -1=SHORT
-//       * is_super: from TP/SL simulation
-//       * bars_to_tp: how many bars until TP hit
-//       * magnitude_pct: max of up/down move
-//       * direction_quality: direction * (1.0 / bars_to_tp) — regression target
+//   - CNN-like sliding window features (pure OHLCV, no indicators)
+//   - Labels: UP (1) / FLAT (0) / DOWN (-1) based on future return
 //
-// OPTIMIZATION vs super_entry dataset builder:
-//   - Computes only 32 features vs 128 → ~4x faster per candle
-//   - No per-window 8-metric × 6-window expansion
-//   - BTC candles loaded once per TF, reused for all symbols
-//   - HTF candles loaded per symbol (for htf_supertrend_dir)
-//   - No SR levels loading (removed: sparse, low signal)
+// DATA SOURCE:
+//   Only needs OHLCV candles from market.candles_Xm tables.
+//   Does NOT need indicators_wide — this is the key advantage.
+//   We query candles directly with a lightweight SQL.
+//
+// STATIONARITY:
+//   All prices normalized relative to window[0].open.
+//   The model sees patterns like "2% dip then consolidation" not "price=65432.50"
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::io::Write;
-use std::sync::Arc;
 use tracing::info;
 
-use crate::config::SuperEntryConfig;
-use crate::dataset::{CandleWithIndicators, fetch_candles_with_indicators, fetch_active_symbols};
-use crate::heuristic::get_higher_tf;
-use crate::direction::features::{
-    compute_direction_v3_features, resolve_btc_context, resolve_htf_context,
-    DIRECTION_V3_FEATURES,
-};
+use super::DirectionConfig;
+use super::features::{compute_pattern_features, compute_label, direction_v4_feature_names};
+use crate::dataset::{CandleWithIndicators, fetch_active_symbols};
 
-/// A single training example for Direction v3
+/// Lightweight candle — only OHLCV, no indicators.
+/// Used for dataset building where we don't need 33 indicator columns.
+#[derive(Debug, Clone)]
+pub struct RawCandle {
+    pub time: DateTime<Utc>,
+    pub symbol: String,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+}
+
+impl RawCandle {
+    /// Convert to CandleWithIndicators (indicators set to defaults).
+    /// Required because compute_pattern_features works with CandleWithIndicators.
+    pub fn to_candle_with_indicators(&self, symbol_id: i64) -> CandleWithIndicators {
+        let c = self.close;
+        CandleWithIndicators {
+            time: self.time,
+            symbol: self.symbol.clone(),
+            symbol_id,
+            open: self.open,
+            high: self.high,
+            low: self.low,
+            close: self.close,
+            volume: self.volume,
+            // Indicators — defaults (not used by v4 pattern model)
+            rsi: 50.0, cci: 0.0, stoch_k: 50.0, stoch_d: 50.0, williams: -50.0,
+            macd: 0.0, macd_signal: 0.0, macd_hist: 0.0,
+            adx: 25.0, sma: c, ema_20: c, ema_50: c, ema_200: c,
+            bb_upper: c * 1.02, bb_mid: c, bb_lower: c * 0.98,
+            atr: c * 0.01, obv: 0.0, vwap: c, volume_spike: 1.0,
+            trend: 0.0, trend_short: 0.0, poc: c,
+            alligator_jaw: c, alligator_teeth: c, alligator_lips: c,
+            mfi: 50.0, fibo_pivot: c, fibo_r1: c * 1.01, fibo_s1: c * 0.99,
+            supertrend: c, supertrend_dir: 0.0, cmf: 0.0,
+        }
+    }
+}
+
+/// A single training example for Direction v4 pattern model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DirectionExample {
+pub struct DirectionPatternExample {
     pub symbol: String,
     pub tf_minutes: i32,
     pub timestamp: String, // ISO8601
 
-    /// 32 direction v3 features
+    /// Pattern features (flattened sliding window)
     pub features: Vec<f64>,
 
     // ── Labels ──
-    /// Regression target: close[t+25]/close[t] - 1 in %
-    pub future_return_25: f64,
-    /// 1=LONG, -1=SHORT (sign of future_return, or from TP logic)
-    pub direction: i8,
-    /// From super model: did price move beyond TF target threshold?
-    pub is_super: bool,
-    /// How many bars until TP was hit (None if TP never hit within lookahead)
-    pub bars_to_tp: Option<i32>,
-    /// max of up/down move within lookahead
-    pub magnitude_pct: f64,
-    /// Quality-weighted direction target:
-    ///   direction * (1.0 / bars_to_tp) — fast TP = high |score|
-    /// Only meaningful for is_super=true examples.
-    pub direction_quality: f64,
-    /// Max up move within lookahead (%)
-    pub max_up_move_pct: f64,
-    /// Max down move within lookahead (%)
-    pub max_down_move_pct: f64,
+    /// Predicted class: 1=UP, 0=FLAT, -1=DOWN
+    pub label: i8,
+    /// Future return at prediction_horizon bars (%)
+    pub future_return_pct: f64,
+    /// Max upward excursion within horizon (%)
+    pub max_up_pct: f64,
+    /// Max downward excursion within horizon (%)
+    pub max_down_pct: f64,
 }
 
-/// Build direction labels with TP-first-touch logic + bars_to_tp tracking.
+// ── Legacy re-export for backward compat with bin/direction_dataset.rs ──
+pub type DirectionExample = DirectionPatternExample;
+
+/// Build pattern dataset for a slice of candles (one symbol).
 ///
-/// For each candle at index t ∈ [start_idx, n - lookahead):
-///   1. Compute 32 direction v3 features
-///   2. Simulate LONG and SHORT trades with TP/SL
-///   3. Record labels: direction, is_super, bars_to_tp, direction_quality
-pub fn build_direction_labels(
+/// For each valid position t where we have enough history (window_size)
+/// and enough future (prediction_horizon), compute features and labels.
+pub fn build_pattern_labels(
     candles: &[CandleWithIndicators],
-    btc_candles: Option<&[CandleWithIndicators]>,
-    htf_candles: Option<&[CandleWithIndicators]>,
-    start_idx: usize,
-    lookahead: usize,
-    target_move_pct: f64,
-    sl_fraction: f64,
+    config: &DirectionConfig,
     tf_minutes: i32,
-) -> Vec<DirectionExample> {
+) -> Vec<DirectionPatternExample> {
     let n = candles.len();
-    if n < start_idx + lookahead + 1 {
+    let min_required = config.min_candles_required();
+
+    if n < min_required {
         return Vec::new();
     }
 
-    let end_idx = n - lookahead;
+    // Start from the first position where we have a full window
+    let start_idx = config.window_size - 1;
+    // End before the prediction horizon boundary
+    let end_idx = n - config.prediction_horizon;
+
+    if start_idx >= end_idx {
+        return Vec::new();
+    }
+
     let mut examples = Vec::with_capacity(end_idx - start_idx);
 
     for t in start_idx..end_idx {
-        let entry_price = candles[t].close;
-        if entry_price <= 0.0 {
-            continue;
-        }
-
-        // ── TP/SL levels ──
-        let tp_long = entry_price * (1.0 + target_move_pct / 100.0);
-        let sl_long = entry_price * (1.0 - (target_move_pct * sl_fraction) / 100.0);
-        let tp_short = entry_price * (1.0 - target_move_pct / 100.0);
-        let sl_short = entry_price * (1.0 + (target_move_pct * sl_fraction) / 100.0);
-
-        let mut long_win = false;
-        let mut short_win = false;
-        let mut long_active = true;
-        let mut short_active = true;
-        let mut max_up: f64 = 0.0;
-        let mut max_down: f64 = 0.0;
-
-        // Track bars_to_tp for each direction
-        let mut bars_to_tp_long: Option<i32> = None;
-        let mut bars_to_tp_short: Option<i32> = None;
-
-        // Simulate trade candle-by-candle
-        for k in 1..=lookahead {
-            let idx = t + k;
-            if idx >= n {
-                break;
-            }
-
-            let high = candles[idx].high;
-            let low = candles[idx].low;
-
-            let up_move = (high - entry_price) / entry_price * 100.0;
-            let down_move = (entry_price - low) / entry_price * 100.0;
-            if up_move > max_up {
-                max_up = up_move;
-            }
-            if down_move > max_down {
-                max_down = down_move;
-            }
-
-            // LONG simulation (conservative: SL checked before TP on same bar)
-            if long_active {
-                if low <= sl_long {
-                    long_active = false;
-                } else if high >= tp_long {
-                    long_win = true;
-                    long_active = false;
-                    bars_to_tp_long = Some(k as i32);
-                }
-            }
-
-            // SHORT simulation
-            if short_active {
-                if high >= sl_short {
-                    short_active = false;
-                } else if low <= tp_short {
-                    short_win = true;
-                    short_active = false;
-                    bars_to_tp_short = Some(k as i32);
-                }
-            }
-
-            if !long_active && !short_active {
-                break;
-            }
-        }
-
-        // Determine direction and super status
-        let (is_super, direction, magnitude, bars_to_tp) = if long_win && !short_win {
-            (true, 1i8, target_move_pct, bars_to_tp_long)
-        } else if short_win && !long_win {
-            (true, -1i8, target_move_pct, bars_to_tp_short)
-        } else if long_win && short_win {
-            // Whipsaw: both TP hit → ambiguous, direction=0
-            let mag = max_up.max(max_down);
-            (true, 0i8, mag, None)
-        } else {
-            // Neither won
-            if max_up >= max_down {
-                (false, 1i8, max_up, None)
-            } else {
-                (false, -1i8, max_down, None)
-            }
+        // Compute features
+        let features = match compute_pattern_features(candles, t, config) {
+            Some(f) => f,
+            None => continue,
         };
 
-        // Regression target: future return at exactly lookahead bars
-        let future_close_idx = (t + lookahead).min(n - 1);
-        let future_return_25 =
-            (candles[future_close_idx].close - entry_price) / entry_price * 100.0;
-
-        // Quality-weighted target: direction * speed_weight
-        // Fast TP hit = high weight. No TP = weight ≈ 0.
-        let direction_quality = match bars_to_tp {
-            Some(bars) if bars > 0 => {
-                direction as f64 * (1.0 / bars as f64)
-            }
-            _ => {
-                // Fallback: use direction * small weight for non-super
-                direction as f64 * 0.01
-            }
+        // Compute label
+        let (label, future_return_pct, max_up_pct, max_down_pct) = match compute_label(candles, t, config) {
+            Some(l) => l,
+            None => continue,
         };
 
-        // ── Compute 32 direction v3 features ──
-        let btc_ctx = btc_candles
-            .and_then(|btc| resolve_btc_context(btc, candles[t].time));
-
-        let htf_ctx = htf_candles
-            .and_then(|htf| resolve_htf_context(htf, candles[t].time));
-
-        let features = compute_direction_v3_features(
-            candles,
-            t,
-            btc_ctx.as_ref(),
-            htf_ctx.as_ref(),
-        );
-
-        examples.push(DirectionExample {
+        examples.push(DirectionPatternExample {
             symbol: candles[t].symbol.clone(),
             tf_minutes,
             timestamp: candles[t].time.to_rfc3339(),
             features,
-            future_return_25,
-            direction,
-            is_super,
-            bars_to_tp,
-            magnitude_pct: magnitude,
-            direction_quality,
-            max_up_move_pct: max_up,
-            max_down_move_pct: max_down,
+            label,
+            future_return_pct,
+            max_up_pct,
+            max_down_pct,
         });
     }
 
     examples
 }
 
-/// Export direction dataset to CSV.
+/// Export pattern dataset to CSV.
 ///
 /// CSV columns:
 ///   symbol, tf_minutes, timestamp,
-///   [32 direction v3 feature columns],
-///   future_return_25, direction, is_super, bars_to_tp,
-///   magnitude_pct, direction_quality, max_up_move_pct, max_down_move_pct
+///   [pattern feature columns: w0_open_rel, w0_high_rel, ...],
+///   label, future_return_pct, max_up_pct, max_down_pct
 pub fn export_direction_csv(
-    examples: &[DirectionExample],
+    examples: &[DirectionPatternExample],
     output_path: &str,
+    config: &DirectionConfig,
 ) -> Result<()> {
-    let mut file = std::fs::File::create(output_path)?;
+    let file = std::fs::File::create(output_path)?;
+    let mut buf = std::io::BufWriter::with_capacity(1 << 20, file); // 1MB buffer
 
     // Header
+    let feature_names = direction_v4_feature_names(config);
     let mut header = String::from("symbol,tf_minutes,timestamp");
-    for name in DIRECTION_V3_FEATURES {
+    for name in &feature_names {
         header.push(',');
         header.push_str(name);
     }
-    header.push_str(",future_return_25,direction,is_super,bars_to_tp,magnitude_pct,direction_quality,max_up_move_pct,max_down_move_pct");
-    writeln!(file, "{}", header)?;
+    header.push_str(",label,future_return_pct,max_up_pct,max_down_pct");
+    writeln!(buf, "{}", header)?;
 
-    // Rows — use buffered writer for performance
-    let mut buf = std::io::BufWriter::with_capacity(1 << 20, file); // 1MB buffer
-
+    // Rows
     for ex in examples {
         let mut line = format!("{},{},{}", ex.symbol, ex.tf_minutes, ex.timestamp);
         for &val in &ex.features {
             line.push_str(&format!(",{:.6}", val));
         }
-        let bars_str = match ex.bars_to_tp {
-            Some(b) => b.to_string(),
-            None => String::new(), // empty = NULL in CSV
-        };
         line.push_str(&format!(
-            ",{:.6},{},{},{},{:.6},{:.6},{:.6},{:.6}",
-            ex.future_return_25,
-            ex.direction,
-            if ex.is_super { 1 } else { 0 },
-            bars_str,
-            ex.magnitude_pct,
-            ex.direction_quality,
-            ex.max_up_move_pct,
-            ex.max_down_move_pct,
+            ",{},{:.6},{:.6},{:.6}",
+            ex.label,
+            ex.future_return_pct,
+            ex.max_up_pct,
+            ex.max_down_pct,
         ));
         writeln!(buf, "{}", line)?;
     }
@@ -279,87 +191,154 @@ pub fn export_direction_csv(
     Ok(())
 }
 
-/// Fetch all data and build the complete direction v3 dataset for one TF.
+/// Fetch raw candles (OHLCV only, no indicators) for one symbol.
+/// Much faster than fetch_candles_with_indicators since no JOIN needed.
+pub async fn fetch_raw_candles(
+    pool: &PgPool,
+    symbol: &str,
+    tf_minutes: i32,
+    limit: usize,
+) -> Result<Vec<RawCandle>> {
+    let candle_table = match tf_minutes {
+        1 => "market.candles_1m",
+        5 => "market.candles_5m",
+        15 => "market.candles_15m",
+        60 => "market.candles_1h",
+        240 => "market.candles_4h",
+        1440 => "market.candles_1d",
+        _ => anyhow::bail!("Unsupported timeframe: {}", tf_minutes),
+    };
+
+    let sql = format!(
+        "SELECT time, symbol, open, high, low, close, volume \
+         FROM {candle_table} \
+         WHERE symbol = $1 \
+         ORDER BY time ASC \
+         LIMIT $2"
+    );
+
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        time: DateTime<Utc>,
+        symbol: String,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: f64,
+    }
+
+    let rows = sqlx::query_as::<_, Row>(&sql)
+        .bind(symbol)
+        .bind(limit as i64)
+        .fetch_all(pool)
+        .await?;
+
+    Ok(rows.into_iter().map(|r| RawCandle {
+        time: r.time, symbol: r.symbol,
+        open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume,
+    }).collect())
+}
+
+/// Fetch raw candles for ALL active symbols in one TF.
+/// Returns data grouped by symbol. Uses a single query with window function.
+pub async fn fetch_all_raw_candles_for_tf(
+    pool: &PgPool,
+    tf_minutes: i32,
+    limit_per_symbol: usize,
+) -> Result<std::collections::HashMap<String, Vec<RawCandle>>> {
+    let candle_table = match tf_minutes {
+        1 => "market.candles_1m",
+        5 => "market.candles_5m",
+        15 => "market.candles_15m",
+        60 => "market.candles_1h",
+        240 => "market.candles_4h",
+        1440 => "market.candles_1d",
+        _ => anyhow::bail!("Unsupported timeframe: {}", tf_minutes),
+    };
+
+    let sql = format!(
+        r#"
+        WITH ranked AS (
+            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,
+                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn
+            FROM {candle_table} c
+            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true
+        )
+        SELECT time, symbol, open, high, low, close, volume
+        FROM ranked
+        WHERE rn <= $1
+        ORDER BY symbol, time ASC
+        "#
+    );
+
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        time: DateTime<Utc>,
+        symbol: String,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: f64,
+    }
+
+    let rows = sqlx::query_as::<_, Row>(&sql)
+        .bind(limit_per_symbol as i64)
+        .fetch_all(pool)
+        .await?;
+
+    let mut grouped: std::collections::HashMap<String, Vec<RawCandle>> =
+        std::collections::HashMap::new();
+
+    for r in rows {
+        grouped.entry(r.symbol.clone()).or_default().push(RawCandle {
+            time: r.time, symbol: r.symbol,
+            open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume,
+        });
+    }
+
+    Ok(grouped)
+}
+
+/// Build the complete direction v4 pattern dataset for one TF.
 ///
 /// Steps:
-///   1. Fetch all active symbols
-///   2. Load BTC candles for this TF (for relative strength features)
-///   3. For each symbol: load candles + HTF candles, compute features + labels
-///
-/// OPTIMIZATION vs v2:
-///   - No SR levels loading (removed — sparse, low signal)
-///   - HTF candles loaded per-symbol (for htf_supertrend_dir)
-///   - Only 32 features computed vs 128
-///   - BufWriter for CSV output
+///   1. Fetch active symbols
+///   2. For each symbol: fetch raw candles, convert, compute features + labels
+///   3. Aggregate all examples
 pub async fn build_direction_dataset_for_tf(
     pool: &PgPool,
     tf_minutes: i32,
-    config: &SuperEntryConfig,
+    config: &DirectionConfig,
     limit_per_symbol: usize,
-) -> Result<Vec<DirectionExample>> {
-    let target_pct = config.target_pct_for_tf(tf_minutes);
-
-    info!("Building direction v3 dataset for TF {}m (target={:.1}%, limit={})",
-          tf_minutes, target_pct, limit_per_symbol);
+) -> Result<Vec<DirectionPatternExample>> {
+    info!("Building direction v4 pattern dataset for TF {}m (window={}, horizon={}, features={})",
+          tf_minutes, config.window_size, config.prediction_horizon, config.total_features());
 
     // 1. Load active symbols
     let symbols = fetch_active_symbols(pool).await?;
     info!("  {} active symbols", symbols.len());
 
-    // 2. Load BTC candles as cross-reference (loaded ONCE, reused for all symbols)
-    let btc_candles = fetch_candles_with_indicators(pool, "BTCUSDT", tf_minutes, limit_per_symbol)
-        .await
-        .unwrap_or_default();
-    info!("  BTC candles loaded: {} rows", btc_candles.len());
-
-    let btc_ref = if btc_candles.len() >= 50 {
-        Some(btc_candles.as_slice())
-    } else {
-        info!("  ⚠ Not enough BTC candles (<50). BTC features will be 0.0");
-        None
-    };
-
-    // Determine HTF for this TF
-    let htf = get_higher_tf(tf_minutes);
-    if let Some(h) = htf {
-        info!("  HTF for {}m = {}m", tf_minutes, h);
-    } else {
-        info!("  No HTF for {}m (highest TF)", tf_minutes);
-    }
-
-    // 3. Process symbols CONCURRENTLY (up to 16 in parallel)
-    // This is the key optimization: sequential = ~8s/symbol, concurrent = ~8s/batch_of_16
+    // 2. Process symbols concurrently
     let concurrency = std::env::var("DATASET_CONCURRENCY")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(16);
 
-    let btc_arc: Arc<Option<Vec<CandleWithIndicators>>> = Arc::new(
-        if btc_ref.is_some() { Some(btc_candles) } else { None }
-    );
+    info!("  Processing with concurrency={}", concurrency);
 
-    let warmup_bars = config.warmup_bars;
-    let lookahead_bars = config.lookahead_bars;
-    let sl_fraction = config.sl_fraction;
+    let dir_config = config.clone();
 
-    // Filter out BTCUSDT and create owned symbol list
-    let symbols_to_process: Vec<String> = symbols
-        .into_iter()
-        .filter(|s| s != "BTCUSDT")
-        .collect();
-
-    info!("  Processing {} symbols with concurrency={}", symbols_to_process.len(), concurrency);
-
-    // Create a stream of futures, each fetching + processing one symbol
-    let results: Vec<Vec<DirectionExample>> = stream::iter(symbols_to_process)
+    let results: Vec<Vec<DirectionPatternExample>> = stream::iter(symbols)
         .map(|symbol| {
             let pool = pool.clone();
-            let btc_arc = Arc::clone(&btc_arc);
-            let min_required = warmup_bars + lookahead_bars + 1;
+            let cfg = dir_config.clone();
+            let min_required = cfg.min_candles_required();
 
             async move {
-                // Fetch main TF candles
-                let candles = match fetch_candles_with_indicators(&pool, &symbol, tf_minutes, limit_per_symbol).await {
+                // Fetch raw candles (no indicators needed!)
+                let raw_candles = match fetch_raw_candles(&pool, &symbol, tf_minutes, limit_per_symbol).await {
                     Ok(c) => c,
                     Err(e) => {
                         tracing::warn!("  Failed to fetch {}: {}", symbol, e);
@@ -367,65 +346,129 @@ pub async fn build_direction_dataset_for_tf(
                     }
                 };
 
-                if candles.len() < min_required {
+                if raw_candles.len() < min_required {
                     return Vec::new();
                 }
 
-                // Fetch HTF candles for htf_supertrend_dir
-                let htf_candles = if let Some(htf_tf) = htf {
-                    match fetch_candles_with_indicators(&pool, &symbol, htf_tf, limit_per_symbol).await {
-                        Ok(data) if data.len() >= 50 => Some(data),
-                        _ => None,
-                    }
-                } else {
-                    None
-                };
+                // Convert to CandleWithIndicators (indicators will be defaults)
+                // symbol_id=0 is fine since we don't use it in feature computation
+                let candles: Vec<CandleWithIndicators> = raw_candles
+                    .iter()
+                    .map(|r| r.to_candle_with_indicators(0))
+                    .collect();
 
-                // CPU-bound feature computation — run in-line since it's fast (~32 features)
-                let btc_slice = btc_arc.as_ref().as_deref();
-                build_direction_labels(
-                    &candles,
-                    btc_slice,
-                    htf_candles.as_deref(),
-                    warmup_bars,
-                    lookahead_bars,
-                    target_pct,
-                    sl_fraction,
-                    tf_minutes,
-                )
+                // Build pattern labels
+                build_pattern_labels(&candles, &cfg, tf_minutes)
             }
         })
         .buffer_unordered(concurrency)
         .collect()
         .await;
 
-    // Aggregate results
-    let mut all_examples: Vec<DirectionExample> = Vec::new();
+    // Aggregate
+    let mut all_examples: Vec<DirectionPatternExample> = Vec::new();
     let mut n_symbols_ok = 0u32;
-    let mut n_super = 0usize;
+    let mut n_up = 0usize;
+    let mut n_down = 0usize;
+    let mut n_flat = 0usize;
 
     for examples in results {
-        for ex in &examples {
-            if ex.is_super {
-                n_super += 1;
-            }
-        }
         if !examples.is_empty() {
             n_symbols_ok += 1;
+        }
+        for ex in &examples {
+            match ex.label {
+                1 => n_up += 1,
+                -1 => n_down += 1,
+                _ => n_flat += 1,
+            }
         }
         all_examples.extend(examples);
     }
 
-    let super_rate = if !all_examples.is_empty() {
-        n_super as f64 / all_examples.len() as f64 * 100.0
-    } else {
-        0.0
-    };
-
+    let total = all_examples.len();
     info!(
-        "  TF {}m: {} examples from {} symbols, {} super ({:.1}%)",
-        tf_minutes, all_examples.len(), n_symbols_ok, n_super, super_rate
+        "  TF {}m: {} examples from {} symbols",
+        tf_minutes, total, n_symbols_ok
+    );
+    info!(
+        "  Label distribution: UP={} ({:.1}%), FLAT={} ({:.1}%), DOWN={} ({:.1}%)",
+        n_up, if total > 0 { n_up as f64 / total as f64 * 100.0 } else { 0.0 },
+        n_flat, if total > 0 { n_flat as f64 / total as f64 * 100.0 } else { 0.0 },
+        n_down, if total > 0 { n_down as f64 / total as f64 * 100.0 } else { 0.0 },
     );
 
     Ok(all_examples)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_candles(n: usize, base_price: f64) -> Vec<CandleWithIndicators> {
+        (0..n).map(|i| {
+            let p = base_price + (i as f64 * 0.1).sin() * 2.0;
+            CandleWithIndicators {
+                time: chrono::Utc::now(),
+                symbol: "TESTUSDT".to_string(),
+                symbol_id: 1,
+                open: p,
+                high: p + 1.0,
+                low: p - 0.5,
+                close: p + 0.3,
+                volume: 1000.0,
+                rsi: 50.0, cci: 0.0, stoch_k: 50.0, stoch_d: 50.0, williams: -50.0,
+                macd: 0.0, macd_signal: 0.0, macd_hist: 0.0,
+                adx: 25.0, sma: p, ema_20: p, ema_50: p, ema_200: p,
+                bb_upper: p * 1.02, bb_mid: p, bb_lower: p * 0.98,
+                atr: p * 0.01, obv: 0.0, vwap: p, volume_spike: 1.0,
+                trend: 0.0, trend_short: 0.0, poc: p,
+                alligator_jaw: p, alligator_teeth: p, alligator_lips: p,
+                mfi: 50.0, fibo_pivot: p, fibo_r1: p * 1.01, fibo_s1: p * 0.99,
+                supertrend: p, supertrend_dir: 1.0, cmf: 0.0,
+            }
+        }).collect()
+    }
+
+    #[test]
+    fn test_build_pattern_labels() {
+        let config = DirectionConfig {
+            window_size: 10,
+            prediction_horizon: 5,
+            up_threshold_pct: 0.0, // any positive = UP
+            down_threshold_pct: 0.0,
+            ..Default::default()
+        };
+
+        let candles = make_test_candles(50, 100.0);
+        let examples = build_pattern_labels(&candles, &config, 15);
+
+        // Should produce examples from t=9 to t=44 (50 - 5 - 1)
+        assert!(!examples.is_empty());
+
+        // Check feature count
+        for ex in &examples {
+            assert_eq!(ex.features.len(), config.total_features());
+        }
+
+        // Check labels are valid
+        for ex in &examples {
+            assert!(ex.label == 1 || ex.label == 0 || ex.label == -1,
+                "Invalid label: {}", ex.label);
+        }
+    }
+
+    #[test]
+    fn test_build_pattern_labels_too_few_candles() {
+        let config = DirectionConfig {
+            window_size: 30,
+            prediction_horizon: 10,
+            ..Default::default()
+        };
+
+        let candles = make_test_candles(35, 100.0); // Need 40, have 35
+        let examples = build_pattern_labels(&candles, &config, 15);
+        // 35 - 10 = 25 is end_idx, start_idx = 29 → 29 >= 25, no examples
+        assert!(examples.is_empty());
+    }
 }

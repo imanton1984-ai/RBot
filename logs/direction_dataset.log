@@ -1888,3 +1888,445 @@
 2026-03-24T23:52:00.820183Z  INFO Next step: train models with:
 2026-03-24T23:52:00.820192Z  INFO   python trainer/src/train_direction_wfo.py --csv dataset/direction_v3_dataset.csv --gpu
 2026-03-24T23:52:00.820202Z  INFO Done ✅
+2026-03-26T08:52:27.781258Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T08:52:27.781284Z  INFO ║  Direction v4 Pattern Dataset Builder                 ║
+2026-03-26T08:52:27.781293Z  INFO ║  CNN-like sliding window — pure OHLCV, no indicators  ║
+2026-03-26T08:52:27.781301Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T08:52:27.781308Z  INFO Timeframes: [5, 15, 60, 240, 1440]
+2026-03-26T08:52:27.781316Z  INFO Direction v4 Config:
+2026-03-26T08:52:27.781323Z  INFO   window_size: 30
+2026-03-26T08:52:27.781329Z  INFO   prediction_horizon: 10
+2026-03-26T08:52:27.781337Z  INFO   feature_set: OhlcVolume (5 per candle)
+2026-03-26T08:52:27.781347Z  INFO   total_features: 150
+2026-03-26T08:52:27.781354Z  INFO   up_threshold: 0.30%
+2026-03-26T08:52:27.781361Z  INFO   down_threshold: 0.30%
+2026-03-26T08:52:27.781368Z  INFO   label_method: FinalReturn
+2026-03-26T08:52:27.781374Z  INFO   exclude_flat: false
+2026-03-26T08:52:27.781382Z  INFO Output: dataset/direction_v4_dataset.csv
+2026-03-26T08:52:27.781389Z  INFO Log: logs/direction_dataset.log
+2026-03-26T08:52:27.785602Z  INFO Connected to database (pool max_connections=40)
+2026-03-26T08:52:27.785623Z  INFO ━━━ Processing TF 5m (limit=12000) ━━━
+2026-03-26T08:52:27.785633Z  INFO Building direction v4 pattern dataset for TF 5m (window=30, horizon=10, features=150)
+2026-03-26T08:52:27.798276Z  INFO   173 active symbols
+2026-03-26T08:52:27.798316Z  INFO   Processing with concurrency=16
+2026-03-26T08:52:29.782016Z  INFO   TF 5m: 1228411 examples from 164 symbols
+2026-03-26T08:52:29.782050Z  INFO   Label distribution: UP=406553 (33.1%), FLAT=396856 (32.3%), DOWN=425002 (34.6%)
+2026-03-26T08:52:29.794614Z  INFO   TF 5m results:
+2026-03-26T08:52:29.794636Z  INFO     Total examples: 1228411
+2026-03-26T08:52:29.794645Z  INFO     UP: 406553 (33.1%)
+2026-03-26T08:52:29.794652Z  INFO     FLAT: 396856 (32.3%)
+2026-03-26T08:52:29.794659Z  INFO     DOWN: 425002 (34.6%)
+2026-03-26T08:52:29.794666Z  INFO     Elapsed: 2.0s
+2026-03-26T08:52:29.856414Z  INFO ━━━ Processing TF 15m (limit=12000) ━━━
+2026-03-26T08:52:29.856437Z  INFO Building direction v4 pattern dataset for TF 15m (window=30, horizon=10, features=150)
+2026-03-26T08:52:29.858712Z  INFO   173 active symbols
+2026-03-26T08:52:29.858731Z  INFO   Processing with concurrency=16
+2026-03-26T08:52:32.459656Z  INFO   TF 15m: 1689586 examples from 164 symbols
+2026-03-26T08:52:32.459691Z  INFO   Label distribution: UP=642490 (38.0%), FLAT=347045 (20.5%), DOWN=700051 (41.4%)
+2026-03-26T08:52:32.476305Z  INFO   TF 15m results:
+2026-03-26T08:52:32.476329Z  INFO     Total examples: 1689586
+2026-03-26T08:52:32.476339Z  INFO     UP: 642490 (38.0%)
+2026-03-26T08:52:32.476346Z  INFO     FLAT: 347045 (20.5%)
+2026-03-26T08:52:32.476352Z  INFO     DOWN: 700051 (41.4%)
+2026-03-26T08:52:32.476360Z  INFO     Elapsed: 2.6s
+2026-03-26T08:52:32.578147Z  INFO ━━━ Processing TF 60m (limit=12000) ━━━
+2026-03-26T08:52:32.578170Z  INFO Building direction v4 pattern dataset for TF 60m (window=30, horizon=10, features=150)
+2026-03-26T08:52:32.580137Z  INFO   173 active symbols
+2026-03-26T08:52:32.580151Z  INFO   Processing with concurrency=16
+2026-03-26T08:52:34.604701Z  INFO   TF 60m: 1320667 examples from 160 symbols
+2026-03-26T08:52:34.604735Z  INFO   Label distribution: UP=580656 (44.0%), FLAT=120794 (9.1%), DOWN=619217 (46.9%)
+2026-03-26T08:52:34.618137Z  INFO   TF 60m results:
+2026-03-26T08:52:34.618158Z  INFO     Total examples: 1320667
+2026-03-26T08:52:34.618166Z  INFO     UP: 580656 (44.0%)
+2026-03-26T08:52:34.618172Z  INFO     FLAT: 120794 (9.1%)
+2026-03-26T08:52:34.618177Z  INFO     DOWN: 619217 (46.9%)
+2026-03-26T08:52:34.618183Z  INFO     Elapsed: 2.0s
+2026-03-26T08:52:34.685920Z  INFO ━━━ Processing TF 240m (limit=12000) ━━━
+2026-03-26T08:52:34.685942Z  INFO Building direction v4 pattern dataset for TF 240m (window=30, horizon=10, features=150)
+2026-03-26T08:52:34.687609Z  INFO   173 active symbols
+2026-03-26T08:52:34.687627Z  INFO   Processing with concurrency=16
+2026-03-26T08:52:35.996091Z  INFO   TF 240m: 748001 examples from 163 symbols
+2026-03-26T08:52:35.996122Z  INFO   Label distribution: UP=342781 (45.8%), FLAT=36897 (4.9%), DOWN=368323 (49.2%)
+2026-03-26T08:52:36.003230Z  INFO   TF 240m results:
+2026-03-26T08:52:36.003252Z  INFO     Total examples: 748001
+2026-03-26T08:52:36.003259Z  INFO     UP: 342781 (45.8%)
+2026-03-26T08:52:36.003265Z  INFO     FLAT: 36897 (4.9%)
+2026-03-26T08:52:36.003271Z  INFO     DOWN: 368323 (49.2%)
+2026-03-26T08:52:36.003277Z  INFO     Elapsed: 1.3s
+2026-03-26T08:52:36.042819Z  INFO ━━━ Processing TF 1440m (limit=3700) ━━━
+2026-03-26T08:52:36.042838Z  INFO Building direction v4 pattern dataset for TF 1440m (window=30, horizon=10, features=150)
+2026-03-26T08:52:36.044582Z  INFO   173 active symbols
+2026-03-26T08:52:36.044599Z  INFO   Processing with concurrency=16
+2026-03-26T08:52:36.412291Z  INFO   TF 1440m: 127663 examples from 158 symbols
+2026-03-26T08:52:36.412325Z  INFO   Label distribution: UP=57767 (45.2%), FLAT=2378 (1.9%), DOWN=67518 (52.9%)
+2026-03-26T08:52:36.413088Z  INFO   TF 1440m results:
+2026-03-26T08:52:36.413101Z  INFO     Total examples: 127663
+2026-03-26T08:52:36.413110Z  INFO     UP: 57767 (45.2%)
+2026-03-26T08:52:36.413116Z  INFO     FLAT: 2378 (1.9%)
+2026-03-26T08:52:36.413122Z  INFO     DOWN: 67518 (52.9%)
+2026-03-26T08:52:36.413128Z  INFO     Elapsed: 0.4s
+2026-03-26T08:53:44.677960Z  INFO 
+2026-03-26T08:53:44.677979Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T08:53:44.677987Z  INFO ║  Direction v4 Pattern Dataset Summary                 ║
+2026-03-26T08:53:44.677994Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T08:53:44.678000Z  INFO Total examples: 5114328
+2026-03-26T08:53:44.678006Z  INFO Features per row: 150 (window=30 × 5=OhlcVolume)
+2026-03-26T08:53:44.678019Z  INFO Output: dataset/direction_v4_dataset.csv (7271.2 MB)
+2026-03-26T08:53:44.678027Z  INFO   TF     5m:   1228411 total, UP= 406553 (33.1%), FLAT= 396856 (32.3%), DOWN= 425002 (34.6%)
+2026-03-26T08:53:44.678034Z  INFO   TF    15m:   1689586 total, UP= 642490 (38.0%), FLAT= 347045 (20.5%), DOWN= 700051 (41.4%)
+2026-03-26T08:53:44.678041Z  INFO   TF    60m:   1320667 total, UP= 580656 (44.0%), FLAT= 120794 (9.1%), DOWN= 619217 (46.9%)
+2026-03-26T08:53:44.678048Z  INFO   TF   240m:    748001 total, UP= 342781 (45.8%), FLAT=  36897 (4.9%), DOWN= 368323 (49.2%)
+2026-03-26T08:53:44.678054Z  INFO   TF  1440m:    127663 total, UP=  57767 (45.2%), FLAT=   2378 (1.9%), DOWN=  67518 (52.9%)
+2026-03-26T08:53:44.678061Z  INFO Total time: 76.9s (1.3min)
+2026-03-26T08:53:44.678067Z  INFO 
+2026-03-26T08:53:44.678073Z  INFO Next step: train models with:
+2026-03-26T08:53:44.678078Z  INFO   python trainer/src/train_direction_wfo.py --csv dataset/direction_v4_dataset.csv --gpu
+2026-03-26T08:53:44.678088Z  INFO Done ✅
+2026-03-26T09:12:42.784510Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T09:12:42.784540Z  INFO ║  Direction v4 Pattern Dataset Builder                 ║
+2026-03-26T09:12:42.784555Z  INFO ║  CNN-like sliding window — pure OHLCV, no indicators  ║
+2026-03-26T09:12:42.784566Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T09:12:42.784577Z  INFO Timeframes: [5, 15, 60, 240, 1440]
+2026-03-26T09:12:42.784589Z  INFO Direction v4 Config:
+2026-03-26T09:12:42.784602Z  INFO   window_size: 20
+2026-03-26T09:12:42.784615Z  INFO   prediction_horizon: 25
+2026-03-26T09:12:42.784643Z  INFO   feature_set: OhlcVolume (5 per candle)
+2026-03-26T09:12:42.784662Z  INFO   total_features: 100
+2026-03-26T09:12:42.784676Z  INFO   up_threshold: 3.50% (default, per-TF from P(super))
+2026-03-26T09:12:42.784688Z  INFO   down_threshold: 3.50%
+2026-03-26T09:12:42.784699Z  INFO   label_method: MaxExcursion
+2026-03-26T09:12:42.784710Z  INFO   exclude_flat: false
+2026-03-26T09:12:42.784719Z  INFO   Per-TF thresholds (from P(super)):
+2026-03-26T09:12:42.784732Z  INFO     TF     5m: 2.8%
+2026-03-26T09:12:42.784741Z  INFO     TF    15m: 3.5%
+2026-03-26T09:12:42.784750Z  INFO     TF    60m: 5.0%
+2026-03-26T09:12:42.784760Z  INFO     TF   240m: 7.5%
+2026-03-26T09:12:42.784770Z  INFO     TF  1440m: 10.0%
+2026-03-26T09:12:42.784778Z  INFO Output: dataset/direction_v4_dataset.csv
+2026-03-26T09:12:42.784787Z  INFO Log: logs/direction_dataset.log
+2026-03-26T09:12:42.788523Z  INFO Connected to database (pool max_connections=40)
+2026-03-26T09:12:42.788542Z  INFO ━━━ Processing TF 5m (limit=12000, threshold=2.8%) ━━━
+2026-03-26T09:12:42.788552Z  INFO Building direction v4 pattern dataset for TF 5m (window=20, horizon=25, features=100)
+2026-03-26T09:12:42.794526Z  INFO   173 active symbols
+2026-03-26T09:12:42.794549Z  INFO   Processing with concurrency=16
+2026-03-26T09:12:44.539304Z  INFO   TF 5m: 1227591 examples from 164 symbols
+2026-03-26T09:12:44.539342Z  INFO   Label distribution: UP=165217 (13.5%), FLAT=930543 (75.8%), DOWN=131831 (10.7%)
+2026-03-26T09:12:44.551880Z  INFO   TF 5m results:
+2026-03-26T09:12:44.551900Z  INFO     Total examples: 1227591
+2026-03-26T09:12:44.551908Z  INFO     UP: 165217 (13.5%)
+2026-03-26T09:12:44.551915Z  INFO     FLAT: 930543 (75.8%)
+2026-03-26T09:12:44.551922Z  INFO     DOWN: 131831 (10.7%)
+2026-03-26T09:12:44.551929Z  INFO     Elapsed: 1.8s
+2026-03-26T09:12:44.614122Z  INFO ━━━ Processing TF 15m (limit=12000, threshold=3.5%) ━━━
+2026-03-26T09:12:44.614145Z  INFO Building direction v4 pattern dataset for TF 15m (window=20, horizon=25, features=100)
+2026-03-26T09:12:44.616021Z  INFO   173 active symbols
+2026-03-26T09:12:44.616038Z  INFO   Processing with concurrency=16
+2026-03-26T09:12:46.904909Z  INFO   TF 15m: 1688766 examples from 164 symbols
+2026-03-26T09:12:46.904942Z  INFO   Label distribution: UP=333247 (19.7%), FLAT=1034629 (61.3%), DOWN=320890 (19.0%)
+2026-03-26T09:12:46.921713Z  INFO   TF 15m results:
+2026-03-26T09:12:46.921746Z  INFO     Total examples: 1688766
+2026-03-26T09:12:46.921759Z  INFO     UP: 333247 (19.7%)
+2026-03-26T09:12:46.921769Z  INFO     FLAT: 1034629 (61.3%)
+2026-03-26T09:12:46.921779Z  INFO     DOWN: 320890 (19.0%)
+2026-03-26T09:12:46.921819Z  INFO     Elapsed: 2.3s
+2026-03-26T09:12:47.011139Z  INFO ━━━ Processing TF 60m (limit=12000, threshold=5.0%) ━━━
+2026-03-26T09:12:47.011165Z  INFO Building direction v4 pattern dataset for TF 60m (window=20, horizon=25, features=100)
+2026-03-26T09:12:47.012934Z  INFO   173 active symbols
+2026-03-26T09:12:47.012948Z  INFO   Processing with concurrency=16
+2026-03-26T09:12:48.803798Z  INFO   TF 60m: 1319867 examples from 160 symbols
+2026-03-26T09:12:48.803830Z  INFO   Label distribution: UP=400365 (30.3%), FLAT=500060 (37.9%), DOWN=419442 (31.8%)
+2026-03-26T09:12:48.817215Z  INFO   TF 60m results:
+2026-03-26T09:12:48.817238Z  INFO     Total examples: 1319867
+2026-03-26T09:12:48.817245Z  INFO     UP: 400365 (30.3%)
+2026-03-26T09:12:48.817251Z  INFO     FLAT: 500060 (37.9%)
+2026-03-26T09:12:48.817257Z  INFO     DOWN: 419442 (31.8%)
+2026-03-26T09:12:48.817263Z  INFO     Elapsed: 1.8s
+2026-03-26T09:12:48.900168Z  INFO ━━━ Processing TF 240m (limit=12000, threshold=7.5%) ━━━
+2026-03-26T09:12:48.900193Z  INFO Building direction v4 pattern dataset for TF 240m (window=20, horizon=25, features=100)
+2026-03-26T09:12:48.902062Z  INFO   173 active symbols
+2026-03-26T09:12:48.902077Z  INFO   Processing with concurrency=16
+2026-03-26T09:12:50.067510Z  INFO   TF 240m: 747186 examples from 163 symbols
+2026-03-26T09:12:50.067545Z  INFO   Label distribution: UP=283174 (37.9%), FLAT=168094 (22.5%), DOWN=295918 (39.6%)
+2026-03-26T09:12:50.074566Z  INFO   TF 240m results:
+2026-03-26T09:12:50.074589Z  INFO     Total examples: 747186
+2026-03-26T09:12:50.074597Z  INFO     UP: 283174 (37.9%)
+2026-03-26T09:12:50.074604Z  INFO     FLAT: 168094 (22.5%)
+2026-03-26T09:12:50.074610Z  INFO     DOWN: 295918 (39.6%)
+2026-03-26T09:12:50.074616Z  INFO     Elapsed: 1.2s
+2026-03-26T09:12:50.112376Z  INFO ━━━ Processing TF 1440m (limit=3700, threshold=10.0%) ━━━
+2026-03-26T09:12:50.112399Z  INFO Building direction v4 pattern dataset for TF 1440m (window=20, horizon=25, features=100)
+2026-03-26T09:12:50.114134Z  INFO   173 active symbols
+2026-03-26T09:12:50.114150Z  INFO   Processing with concurrency=16
+2026-03-26T09:12:50.441582Z  INFO   TF 1440m: 126874 examples from 157 symbols
+2026-03-26T09:12:50.441612Z  INFO   Label distribution: UP=59423 (46.8%), FLAT=3204 (2.5%), DOWN=64247 (50.6%)
+2026-03-26T09:12:50.442373Z  INFO   TF 1440m results:
+2026-03-26T09:12:50.442385Z  INFO     Total examples: 126874
+2026-03-26T09:12:50.442391Z  INFO     UP: 59423 (46.8%)
+2026-03-26T09:12:50.442396Z  INFO     FLAT: 3204 (2.5%)
+2026-03-26T09:12:50.442402Z  INFO     DOWN: 64247 (50.6%)
+2026-03-26T09:12:50.442407Z  INFO     Elapsed: 0.3s
+2026-03-26T09:13:37.305318Z  INFO 
+2026-03-26T09:13:37.305353Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T09:13:37.305367Z  INFO ║  Direction v4 Pattern Dataset Summary                 ║
+2026-03-26T09:13:37.305383Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T09:13:37.305395Z  INFO Total examples: 5110284
+2026-03-26T09:13:37.305407Z  INFO Features per row: 100 (window=20 × 5=OhlcVolume)
+2026-03-26T09:13:37.305428Z  INFO Output: dataset/direction_v4_dataset.csv (4950.9 MB)
+2026-03-26T09:13:37.305492Z  INFO   TF     5m:   1227591 total, UP= 165217 (13.5%), FLAT= 930543 (75.8%), DOWN= 131831 (10.7%)
+2026-03-26T09:13:37.305514Z  INFO   TF    15m:   1688766 total, UP= 333247 (19.7%), FLAT=1034629 (61.3%), DOWN= 320890 (19.0%)
+2026-03-26T09:13:37.305527Z  INFO   TF    60m:   1319867 total, UP= 400365 (30.3%), FLAT= 500060 (37.9%), DOWN= 419442 (31.8%)
+2026-03-26T09:13:37.305536Z  INFO   TF   240m:    747186 total, UP= 283174 (37.9%), FLAT= 168094 (22.5%), DOWN= 295918 (39.6%)
+2026-03-26T09:13:37.305546Z  INFO   TF  1440m:    126874 total, UP=  59423 (46.8%), FLAT=   3204 (2.5%), DOWN=  64247 (50.6%)
+2026-03-26T09:13:37.305556Z  INFO Total time: 54.5s (0.9min)
+2026-03-26T09:13:37.305564Z  INFO 
+2026-03-26T09:13:37.305573Z  INFO Next step: train models with:
+2026-03-26T09:13:37.305583Z  INFO   python trainer/src/train_direction_wfo.py --csv dataset/direction_v4_dataset.csv --gpu
+2026-03-26T09:13:37.305591Z  INFO Done ✅
+2026-03-26T10:00:13.512226Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T10:00:13.512271Z  INFO ║  Direction v4 Pattern Dataset Builder                 ║
+2026-03-26T10:00:13.512284Z  INFO ║  CNN-like sliding window — pure OHLCV, no indicators  ║
+2026-03-26T10:00:13.512297Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T10:00:13.512309Z  INFO Timeframes: [15, 60, 240]
+2026-03-26T10:00:13.512321Z  INFO Direction v4 Config:
+2026-03-26T10:00:13.512331Z  INFO   window_size: 25
+2026-03-26T10:00:13.512344Z  INFO   prediction_horizon: 12
+2026-03-26T10:00:13.512355Z  INFO   feature_set: Full (10 per candle)
+2026-03-26T10:00:13.512365Z  INFO   total_features: 250
+2026-03-26T10:00:13.512379Z  INFO   up_threshold: 3.50% (default, per-TF from P(super))
+2026-03-26T10:00:13.512397Z  INFO   down_threshold: 3.50%
+2026-03-26T10:00:13.512457Z  INFO   label_method: MaxExcursion
+2026-03-26T10:00:13.512479Z  INFO   exclude_flat: false
+2026-03-26T10:00:13.512492Z  INFO   Per-TF thresholds (from P(super)):
+2026-03-26T10:00:13.512509Z  INFO     TF     5m: 2.8%
+2026-03-26T10:00:13.512529Z  INFO     TF    15m: 3.5%
+2026-03-26T10:00:13.512543Z  INFO     TF    60m: 5.0%
+2026-03-26T10:00:13.512559Z  INFO     TF   240m: 7.5%
+2026-03-26T10:00:13.512574Z  INFO     TF  1440m: 10.0%
+2026-03-26T10:00:13.512591Z  INFO Output: dataset/direction_v4_dataset.csv
+2026-03-26T10:00:13.512605Z  INFO Log: logs/direction_dataset.log
+2026-03-26T10:00:13.522946Z  INFO Connected to database (pool max_connections=40)
+2026-03-26T10:00:13.522978Z  INFO ━━━ Processing TF 15m (limit=12000, threshold=3.5%) ━━━
+2026-03-26T10:00:13.522988Z  INFO Building direction v4 pattern dataset for TF 15m (window=25, horizon=12, features=250)
+2026-03-26T10:00:13.529575Z  INFO   173 active symbols
+2026-03-26T10:00:13.529609Z  INFO   Processing with concurrency=16
+2026-03-26T10:00:16.914514Z  INFO   TF 15m: 1690078 examples from 164 symbols
+2026-03-26T10:00:16.914548Z  INFO   Label distribution: UP=192392 (11.4%), FLAT=1323082 (78.3%), DOWN=174604 (10.3%)
+2026-03-26T10:00:16.931395Z  INFO   TF 15m results:
+2026-03-26T10:00:16.931423Z  INFO     Total examples: 1690078
+2026-03-26T10:00:16.931431Z  INFO     UP: 192392 (11.4%)
+2026-03-26T10:00:16.931437Z  INFO     FLAT: 1323082 (78.3%)
+2026-03-26T10:00:16.931451Z  INFO     DOWN: 174604 (10.3%)
+2026-03-26T10:00:16.931458Z  INFO     Elapsed: 3.4s
+2026-03-26T10:00:17.016946Z  INFO ━━━ Processing TF 60m (limit=12000, threshold=5.0%) ━━━
+2026-03-26T10:00:17.016971Z  INFO Building direction v4 pattern dataset for TF 60m (window=25, horizon=12, features=250)
+2026-03-26T10:00:17.018891Z  INFO   173 active symbols
+2026-03-26T10:00:17.018914Z  INFO   Processing with concurrency=16
+2026-03-26T10:00:19.517401Z  INFO   TF 60m: 1321147 examples from 160 symbols
+2026-03-26T10:00:19.517436Z  INFO   Label distribution: UP=252200 (19.1%), FLAT=816352 (61.8%), DOWN=252595 (19.1%)
+2026-03-26T10:00:19.530297Z  INFO   TF 60m results:
+2026-03-26T10:00:19.530322Z  INFO     Total examples: 1321147
+2026-03-26T10:00:19.530330Z  INFO     UP: 252200 (19.1%)
+2026-03-26T10:00:19.530335Z  INFO     FLAT: 816352 (61.8%)
+2026-03-26T10:00:19.530342Z  INFO     DOWN: 252595 (19.1%)
+2026-03-26T10:00:19.530348Z  INFO     Elapsed: 2.5s
+2026-03-26T10:00:19.602596Z  INFO ━━━ Processing TF 240m (limit=12000, threshold=7.5%) ━━━
+2026-03-26T10:00:19.602617Z  INFO Building direction v4 pattern dataset for TF 240m (window=25, horizon=12, features=250)
+2026-03-26T10:00:19.604246Z  INFO   173 active symbols
+2026-03-26T10:00:19.604263Z  INFO   Processing with concurrency=16
+2026-03-26T10:00:21.094535Z  INFO   TF 240m: 748490 examples from 163 symbols
+2026-03-26T10:00:21.094567Z  INFO   Label distribution: UP=200176 (26.7%), FLAT=343444 (45.9%), DOWN=204870 (27.4%)
+2026-03-26T10:00:21.100980Z  INFO   TF 240m results:
+2026-03-26T10:00:21.101005Z  INFO     Total examples: 748490
+2026-03-26T10:00:21.101014Z  INFO     UP: 200176 (26.7%)
+2026-03-26T10:00:21.101021Z  INFO     FLAT: 343444 (45.9%)
+2026-03-26T10:00:21.101034Z  INFO     DOWN: 204870 (27.4%)
+2026-03-26T10:00:21.101041Z  INFO     Elapsed: 1.5s
+2026-03-26T10:01:43.349569Z  INFO 
+2026-03-26T10:01:43.349596Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T10:01:43.349608Z  INFO ║  Direction v4 Pattern Dataset Summary                 ║
+2026-03-26T10:01:43.349617Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T10:01:43.349625Z  INFO Total examples: 3759715
+2026-03-26T10:01:43.349637Z  INFO Features per row: 250 (window=25 × 10=Full)
+2026-03-26T10:01:43.349652Z  INFO Output: dataset/direction_v4_dataset.csv (8641.6 MB)
+2026-03-26T10:01:43.349665Z  INFO   TF    15m:   1690078 total, UP= 192392 (11.4%), FLAT=1323082 (78.3%), DOWN= 174604 (10.3%)
+2026-03-26T10:01:43.349677Z  INFO   TF    60m:   1321147 total, UP= 252200 (19.1%), FLAT= 816352 (61.8%), DOWN= 252595 (19.1%)
+2026-03-26T10:01:43.349686Z  INFO   TF   240m:    748490 total, UP= 200176 (26.7%), FLAT= 343444 (45.9%), DOWN= 204870 (27.4%)
+2026-03-26T10:01:43.349695Z  INFO Total time: 89.8s (1.5min)
+2026-03-26T10:01:43.349705Z  INFO 
+2026-03-26T10:01:43.349713Z  INFO Next step: train models with:
+2026-03-26T10:01:43.349721Z  INFO   python trainer/src/train_direction_wfo.py --csv dataset/direction_v4_dataset.csv --gpu
+2026-03-26T10:01:43.349729Z  INFO Done ✅
+2026-03-26T10:26:50.337556Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T10:26:50.337589Z  INFO ║  Direction v4 Pattern Dataset Builder                 ║
+2026-03-26T10:26:50.337601Z  INFO ║  CNN-like sliding window — pure OHLCV, no indicators  ║
+2026-03-26T10:26:50.337611Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T10:26:50.337622Z  INFO Timeframes: [15, 60, 240]
+2026-03-26T10:26:50.337631Z  INFO Direction v4 Config:
+2026-03-26T10:26:50.337640Z  INFO   window_size: 20
+2026-03-26T10:26:50.337651Z  INFO   prediction_horizon: 25
+2026-03-26T10:26:50.337661Z  INFO   feature_set: Full (10 per candle)
+2026-03-26T10:26:50.337672Z  INFO   total_features: 200
+2026-03-26T10:26:50.337683Z  INFO   up_threshold: 3.50% (default, per-TF from P(super))
+2026-03-26T10:26:50.337694Z  INFO   down_threshold: 3.50%
+2026-03-26T10:26:50.337705Z  INFO   label_method: MaxExcursion
+2026-03-26T10:26:50.337715Z  INFO   exclude_flat: false
+2026-03-26T10:26:50.337728Z  INFO   Per-TF thresholds (from P(super)):
+2026-03-26T10:26:50.337846Z  INFO     TF     5m: 2.8%
+2026-03-26T10:26:50.337865Z  INFO     TF    15m: 3.5%
+2026-03-26T10:26:50.337878Z  INFO     TF    60m: 5.0%
+2026-03-26T10:26:50.337894Z  INFO     TF   240m: 7.5%
+2026-03-26T10:26:50.337909Z  INFO     TF  1440m: 10.0%
+2026-03-26T10:26:50.337921Z  INFO Output: dataset/direction_v4_dataset.csv
+2026-03-26T10:26:50.337934Z  INFO Log: logs/direction_dataset.log
+2026-03-26T10:26:50.352485Z  INFO Connected to database (pool max_connections=40)
+2026-03-26T10:26:50.352513Z  INFO ━━━ Processing TF 15m (limit=12000, threshold=3.5%) ━━━
+2026-03-26T10:26:50.352525Z  INFO Building direction v4 pattern dataset for TF 15m (window=20, horizon=25, features=200)
+2026-03-26T10:26:50.391055Z  INFO   173 active symbols
+2026-03-26T10:26:50.391083Z  INFO   Processing with concurrency=16
+2026-03-26T10:26:53.533269Z  INFO   TF 15m: 1688766 examples from 164 symbols
+2026-03-26T10:26:53.533305Z  INFO   Label distribution: UP=333247 (19.7%), FLAT=1034629 (61.3%), DOWN=320890 (19.0%)
+2026-03-26T10:26:53.550804Z  INFO   TF 15m results:
+2026-03-26T10:26:53.550831Z  INFO     Total examples: 1688766
+2026-03-26T10:26:53.550843Z  INFO     UP: 333247 (19.7%)
+2026-03-26T10:26:53.550867Z  INFO     FLAT: 1034629 (61.3%)
+2026-03-26T10:26:53.550876Z  INFO     DOWN: 320890 (19.0%)
+2026-03-26T10:26:53.550884Z  INFO     Elapsed: 3.2s
+2026-03-26T10:26:53.637051Z  INFO ━━━ Processing TF 60m (limit=12000, threshold=5.0%) ━━━
+2026-03-26T10:26:53.637077Z  INFO Building direction v4 pattern dataset for TF 60m (window=20, horizon=25, features=200)
+2026-03-26T10:26:53.638807Z  INFO   173 active symbols
+2026-03-26T10:26:53.638826Z  INFO   Processing with concurrency=16
+2026-03-26T10:26:55.994695Z  INFO   TF 60m: 1319867 examples from 160 symbols
+2026-03-26T10:26:55.994726Z  INFO   Label distribution: UP=400365 (30.3%), FLAT=500060 (37.9%), DOWN=419442 (31.8%)
+2026-03-26T10:26:56.007973Z  INFO   TF 60m results:
+2026-03-26T10:26:56.007997Z  INFO     Total examples: 1319867
+2026-03-26T10:26:56.008005Z  INFO     UP: 400365 (30.3%)
+2026-03-26T10:26:56.008011Z  INFO     FLAT: 500060 (37.9%)
+2026-03-26T10:26:56.008017Z  INFO     DOWN: 419442 (31.8%)
+2026-03-26T10:26:56.008024Z  INFO     Elapsed: 2.4s
+2026-03-26T10:26:56.075463Z  INFO ━━━ Processing TF 240m (limit=12000, threshold=7.5%) ━━━
+2026-03-26T10:26:56.075488Z  INFO Building direction v4 pattern dataset for TF 240m (window=20, horizon=25, features=200)
+2026-03-26T10:26:56.077716Z  INFO   173 active symbols
+2026-03-26T10:26:56.077732Z  INFO   Processing with concurrency=16
+2026-03-26T10:26:57.593830Z  INFO   TF 240m: 747186 examples from 163 symbols
+2026-03-26T10:26:57.593861Z  INFO   Label distribution: UP=283174 (37.9%), FLAT=168094 (22.5%), DOWN=295918 (39.6%)
+2026-03-26T10:26:57.600614Z  INFO   TF 240m results:
+2026-03-26T10:26:57.600636Z  INFO     Total examples: 747186
+2026-03-26T10:26:57.600644Z  INFO     UP: 283174 (37.9%)
+2026-03-26T10:26:57.600650Z  INFO     FLAT: 168094 (22.5%)
+2026-03-26T10:26:57.600656Z  INFO     DOWN: 295918 (39.6%)
+2026-03-26T10:26:57.600662Z  INFO     Elapsed: 1.5s
+2026-03-26T10:28:04.647401Z  INFO 
+2026-03-26T10:28:04.647431Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T10:28:04.647448Z  INFO ║  Direction v4 Pattern Dataset Summary                 ║
+2026-03-26T10:28:04.647458Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T10:28:04.647468Z  INFO Total examples: 3755819
+2026-03-26T10:28:04.647476Z  INFO Features per row: 200 (window=20 × 10=Full)
+2026-03-26T10:28:04.647493Z  INFO Output: dataset/direction_v4_dataset.csv (6954.0 MB)
+2026-03-26T10:28:04.647506Z  INFO   TF    15m:   1688766 total, UP= 333247 (19.7%), FLAT=1034629 (61.3%), DOWN= 320890 (19.0%)
+2026-03-26T10:28:04.647515Z  INFO   TF    60m:   1319867 total, UP= 400365 (30.3%), FLAT= 500060 (37.9%), DOWN= 419442 (31.8%)
+2026-03-26T10:28:04.647525Z  INFO   TF   240m:    747186 total, UP= 283174 (37.9%), FLAT= 168094 (22.5%), DOWN= 295918 (39.6%)
+2026-03-26T10:28:04.647535Z  INFO Total time: 74.3s (1.2min)
+2026-03-26T10:28:04.647547Z  INFO 
+2026-03-26T10:28:04.647555Z  INFO Next step: train models with:
+2026-03-26T10:28:04.647565Z  INFO   python trainer/src/train_direction_wfo.py --csv dataset/direction_v4_dataset.csv --gpu
+2026-03-26T10:28:04.647573Z  INFO Done ✅
+2026-03-26T12:26:38.538435Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T12:26:38.538469Z  INFO ║  Direction v4 Pattern Dataset Builder                 ║
+2026-03-26T12:26:38.538479Z  INFO ║  CNN-like sliding window — pure OHLCV, no indicators  ║
+2026-03-26T12:26:38.538486Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T12:26:38.538494Z  INFO Timeframes: [5, 15, 60, 240, 1440]
+2026-03-26T12:26:38.538501Z  INFO Direction v4 Config:
+2026-03-26T12:26:38.538514Z  INFO   window_size: 20
+2026-03-26T12:26:38.538519Z  INFO   prediction_horizon: 25
+2026-03-26T12:26:38.538527Z  INFO   feature_set: OhlcVolume (5 per candle)
+2026-03-26T12:26:38.538532Z  INFO   total_features: 100
+2026-03-26T12:26:38.538540Z  INFO   up_threshold: 3.50% (default, per-TF from P(super))
+2026-03-26T12:26:38.538546Z  INFO   down_threshold: 3.50%
+2026-03-26T12:26:38.538552Z  INFO   label_method: MaxExcursion
+2026-03-26T12:26:38.538559Z  INFO   exclude_flat: false
+2026-03-26T12:26:38.538565Z  INFO   Per-TF thresholds (from P(super)):
+2026-03-26T12:26:38.538572Z  INFO     TF     5m: 2.8%
+2026-03-26T12:26:38.538579Z  INFO     TF    15m: 3.5%
+2026-03-26T12:26:38.538585Z  INFO     TF    60m: 5.0%
+2026-03-26T12:26:38.538595Z  INFO     TF   240m: 7.5%
+2026-03-26T12:26:38.538602Z  INFO     TF  1440m: 10.0%
+2026-03-26T12:26:38.538608Z  INFO Output: dataset/direction_v4_dataset.csv
+2026-03-26T12:26:38.538614Z  INFO Log: logs/direction_dataset.log
+2026-03-26T12:26:38.542653Z  INFO Connected to database (pool max_connections=40)
+2026-03-26T12:26:38.542687Z  INFO ━━━ Processing TF 5m (limit=12000, threshold=2.8%) ━━━
+2026-03-26T12:26:38.542699Z  INFO Building direction v4 pattern dataset for TF 5m (window=20, horizon=25, features=100)
+2026-03-26T12:26:38.549542Z  INFO   173 active symbols
+2026-03-26T12:26:38.549579Z  INFO   Processing with concurrency=16
+2026-03-26T12:26:40.329874Z  INFO   TF 5m: 1227591 examples from 164 symbols
+2026-03-26T12:26:40.329907Z  INFO   Label distribution: UP=165217 (13.5%), FLAT=930543 (75.8%), DOWN=131831 (10.7%)
+2026-03-26T12:26:40.342751Z  INFO   TF 5m results:
+2026-03-26T12:26:40.342774Z  INFO     Total examples: 1227591
+2026-03-26T12:26:40.342782Z  INFO     UP: 165217 (13.5%)
+2026-03-26T12:26:40.342788Z  INFO     FLAT: 930543 (75.8%)
+2026-03-26T12:26:40.342794Z  INFO     DOWN: 131831 (10.7%)
+2026-03-26T12:26:40.342800Z  INFO     Elapsed: 1.8s
+2026-03-26T12:26:40.406405Z  INFO ━━━ Processing TF 15m (limit=12000, threshold=3.5%) ━━━
+2026-03-26T12:26:40.406427Z  INFO Building direction v4 pattern dataset for TF 15m (window=20, horizon=25, features=100)
+2026-03-26T12:26:40.408166Z  INFO   173 active symbols
+2026-03-26T12:26:40.408179Z  INFO   Processing with concurrency=16
+2026-03-26T12:26:42.605749Z  INFO   TF 15m: 1688766 examples from 164 symbols
+2026-03-26T12:26:42.605777Z  INFO   Label distribution: UP=333247 (19.7%), FLAT=1034629 (61.3%), DOWN=320890 (19.0%)
+2026-03-26T12:26:42.622439Z  INFO   TF 15m results:
+2026-03-26T12:26:42.622467Z  INFO     Total examples: 1688766
+2026-03-26T12:26:42.622475Z  INFO     UP: 333247 (19.7%)
+2026-03-26T12:26:42.622482Z  INFO     FLAT: 1034629 (61.3%)
+2026-03-26T12:26:42.622488Z  INFO     DOWN: 320890 (19.0%)
+2026-03-26T12:26:42.622494Z  INFO     Elapsed: 2.2s
+2026-03-26T12:26:42.712083Z  INFO ━━━ Processing TF 60m (limit=12000, threshold=5.0%) ━━━
+2026-03-26T12:26:42.712109Z  INFO Building direction v4 pattern dataset for TF 60m (window=20, horizon=25, features=100)
+2026-03-26T12:26:42.713822Z  INFO   173 active symbols
+2026-03-26T12:26:42.713838Z  INFO   Processing with concurrency=16
+2026-03-26T12:26:44.480992Z  INFO   TF 60m: 1319867 examples from 160 symbols
+2026-03-26T12:26:44.481024Z  INFO   Label distribution: UP=400365 (30.3%), FLAT=500060 (37.9%), DOWN=419442 (31.8%)
+2026-03-26T12:26:44.494471Z  INFO   TF 60m results:
+2026-03-26T12:26:44.494495Z  INFO     Total examples: 1319867
+2026-03-26T12:26:44.494503Z  INFO     UP: 400365 (30.3%)
+2026-03-26T12:26:44.494510Z  INFO     FLAT: 500060 (37.9%)
+2026-03-26T12:26:44.494516Z  INFO     DOWN: 419442 (31.8%)
+2026-03-26T12:26:44.494521Z  INFO     Elapsed: 1.8s
+2026-03-26T12:26:44.576130Z  INFO ━━━ Processing TF 240m (limit=12000, threshold=7.5%) ━━━
+2026-03-26T12:26:44.576155Z  INFO Building direction v4 pattern dataset for TF 240m (window=20, horizon=25, features=100)
+2026-03-26T12:26:44.577929Z  INFO   173 active symbols
+2026-03-26T12:26:44.577943Z  INFO   Processing with concurrency=16
+2026-03-26T12:26:45.740935Z  INFO   TF 240m: 747186 examples from 163 symbols
+2026-03-26T12:26:45.740977Z  INFO   Label distribution: UP=283174 (37.9%), FLAT=168094 (22.5%), DOWN=295918 (39.6%)
+2026-03-26T12:26:45.748134Z  INFO   TF 240m results:
+2026-03-26T12:26:45.748160Z  INFO     Total examples: 747186
+2026-03-26T12:26:45.748168Z  INFO     UP: 283174 (37.9%)
+2026-03-26T12:26:45.748174Z  INFO     FLAT: 168094 (22.5%)
+2026-03-26T12:26:45.748180Z  INFO     DOWN: 295918 (39.6%)
+2026-03-26T12:26:45.748186Z  INFO     Elapsed: 1.2s
+2026-03-26T12:26:45.786046Z  INFO ━━━ Processing TF 1440m (limit=3700, threshold=10.0%) ━━━
+2026-03-26T12:26:45.786072Z  INFO Building direction v4 pattern dataset for TF 1440m (window=20, horizon=25, features=100)
+2026-03-26T12:26:45.787836Z  INFO   173 active symbols
+2026-03-26T12:26:45.787854Z  INFO   Processing with concurrency=16
+2026-03-26T12:26:46.138373Z  INFO   TF 1440m: 126874 examples from 157 symbols
+2026-03-26T12:26:46.138402Z  INFO   Label distribution: UP=59423 (46.8%), FLAT=3204 (2.5%), DOWN=64247 (50.6%)
+2026-03-26T12:26:46.139300Z  INFO   TF 1440m results:
+2026-03-26T12:26:46.139313Z  INFO     Total examples: 126874
+2026-03-26T12:26:46.139320Z  INFO     UP: 59423 (46.8%)
+2026-03-26T12:26:46.139326Z  INFO     FLAT: 3204 (2.5%)
+2026-03-26T12:26:46.139332Z  INFO     DOWN: 64247 (50.6%)
+2026-03-26T12:26:46.139338Z  INFO     Elapsed: 0.4s
+2026-03-26T12:27:34.283903Z  INFO 
+2026-03-26T12:27:34.283937Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T12:27:34.283974Z  INFO ║  Direction v4 Pattern Dataset Summary                 ║
+2026-03-26T12:27:34.283992Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T12:27:34.284004Z  INFO Total examples: 5110284
+2026-03-26T12:27:34.284015Z  INFO Features per row: 100 (window=20 × 5=OhlcVolume)
+2026-03-26T12:27:34.284034Z  INFO Output: dataset/direction_v4_dataset.csv (4950.9 MB)
+2026-03-26T12:27:34.284047Z  INFO   TF     5m:   1227591 total, UP= 165217 (13.5%), FLAT= 930543 (75.8%), DOWN= 131831 (10.7%)
+2026-03-26T12:27:34.284057Z  INFO   TF    15m:   1688766 total, UP= 333247 (19.7%), FLAT=1034629 (61.3%), DOWN= 320890 (19.0%)
+2026-03-26T12:27:34.284069Z  INFO   TF    60m:   1319867 total, UP= 400365 (30.3%), FLAT= 500060 (37.9%), DOWN= 419442 (31.8%)
+2026-03-26T12:27:34.284078Z  INFO   TF   240m:    747186 total, UP= 283174 (37.9%), FLAT= 168094 (22.5%), DOWN= 295918 (39.6%)
+2026-03-26T12:27:34.284089Z  INFO   TF  1440m:    126874 total, UP=  59423 (46.8%), FLAT=   3204 (2.5%), DOWN=  64247 (50.6%)
+2026-03-26T12:27:34.284098Z  INFO Total time: 55.7s (0.9min)
+2026-03-26T12:27:34.284107Z  INFO 
+2026-03-26T12:27:34.284116Z  INFO Next step: train models with:
+2026-03-26T12:27:34.284125Z  INFO   python trainer/src/train_direction_wfo.py --csv dataset/direction_v4_dataset.csv --gpu
+2026-03-26T12:27:34.284136Z  INFO Done ✅

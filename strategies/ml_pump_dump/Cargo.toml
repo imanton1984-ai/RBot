@@ -1,0 +1,34 @@
+[package]
+name = "ml_pump_dump"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pump_dump_dataset"
+path = "src/bin/dataset_builder.rs"
+
+[[bin]]
+name = "pump_dump_backtest"
+path = "src/bin/backtest.rs"
+
+[dependencies]
+# Workspace deps
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+dotenvy = { workspace = true }
+
+# Local crates
+common = { path = "../../common" }
+predictors = { path = "../../compute/predictors" }
+
+# Extra
+csv = "1.3"
+futures = { workspace = true }

@@ -1,0 +1,334 @@
+
+2026-03-25T00:18:57.430260Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-25T00:18:57.430293Z  INFO ║  Direction v3 Backtester — BATCH GPU                 ║
+2026-03-25T00:18:57.430305Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-25T00:18:57.430315Z  INFO Timeframes: [15, 60, 240]
+2026-03-25T00:18:57.430325Z  INFO Device: Cpu (DIRECTION_GPU=0)
+2026-03-25T00:18:57.434660Z  INFO 
+2026-03-25T00:18:57.434688Z  INFO ════════════════════════════════════════════════════════════
+2026-03-25T00:18:57.434706Z  INFO   TF 15m  TP=3.50%  SL=2.27%
+2026-03-25T00:18:57.434721Z  INFO ════════════════════════════════════════════════════════════
+2026-03-25T00:18:57.452423Z  INFO XGB Booster loaded: path=models/super_entry_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:18:57.452544Z  INFO   ✅ super model: models/super_entry_v1_tf15.ubj (Cpu)
+2026-03-25T00:18:57.473658Z  INFO XGB Booster loaded: path=models/super_dir_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:18:57.473715Z  INFO   ✅ baseline direction: models/super_dir_v1_tf15.ubj
+2026-03-25T00:18:57.481091Z  INFO XGB Booster loaded: path=models/direction_v3_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:18:57.481137Z  INFO   ✅ direction v3: models/direction_v3_tf15.ubj (32 features, regression)
+2026-03-25T00:19:30.214677Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,\n                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,\n                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,\n                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,\n                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,\n                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,\n                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,\n                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,\n                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,\n                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_15m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc,\n               alligator_jaw, alligator_teeth, alligator_lips,\n               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1706189 rows_returned=1706189 elapsed=32.730209895s elapsed_secs=32.730209895 slow_threshold=1s
+2026-03-25T00:19:30.577588Z  INFO   Loaded 169 symbols, 1706189 candles in 33.1s
+2026-03-25T00:19:30.579761Z  INFO   BTC candles: 12000
+2026-03-25T00:19:55.286722Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,\n                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,\n                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,\n                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,\n                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,\n                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,\n                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,\n                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,\n                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,\n                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc,\n               alligator_jaw, alligator_teeth, alligator_lips,\n               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1368283 rows_returned=1368283 elapsed=24.706766705s elapsed_secs=24.706766705 slow_threshold=1s
+2026-03-25T00:19:55.577255Z  INFO   HTF 60m: 169 symbols loaded
+2026-03-25T00:19:56.924906Z  INFO   Phase 1: 1642805 candidate points, features computed in 1.3s
+2026-03-25T00:20:00.351165Z  INFO   Phase 2: 552566 super points (33.6%), batch predict in 3.4s
+2026-03-25T00:21:55.407694Z  INFO   Phase 3: batch direction predict in 115.1s
+2026-03-25T00:21:55.446650Z  INFO   Phase 4: trade simulation in 0.0s
+2026-03-25T00:21:55.446685Z  INFO 
+2026-03-25T00:21:55.446698Z  INFO   TF 15m — 552566 super points
+2026-03-25T00:21:55.446709Z  INFO 
+2026-03-25T00:21:55.446719Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-25T00:21:55.446734Z  INFO   ----------------------------------------------------------------------------
+2026-03-25T00:21:55.446746Z  INFO   Baseline (128f)        552566   214144   232716   105706      38.8%    0.5006% ❌
+2026-03-25T00:21:55.446759Z  INFO   Direction v3 (32f)     552566   187916   264874    99776      34.0%    0.1748% ❌
+2026-03-25T00:21:55.446770Z  INFO 
+2026-03-25T00:21:55.446779Z  INFO   Confidence-gated v3:
+2026-03-25T00:21:55.446803Z  INFO     v3 gate≥0.01         512387   175837   245068    91482      34.3%    0.1853% ❌ cov=93%
+2026-03-25T00:21:55.446814Z  INFO     v3 gate≥0.03         432942   151210   206380    75352      34.9%    0.2050% ❌ cov=78%
+2026-03-25T00:21:55.446826Z  INFO     v3 gate≥0.05         356170   126812   169339    60019      35.6%    0.2267% ❌ cov=64%
+2026-03-25T00:21:55.446837Z  INFO     v3 gate≥0.10         190714    72166    89456    29092      37.8%    0.3126% ❌ cov=35%
+2026-03-25T00:21:55.446851Z  INFO     v3 gate≥0.15          84588    34533    39179    10876      40.8%    0.4187% ❌ cov=15%
+2026-03-25T00:21:55.446861Z  INFO     v3 gate≥0.20          31982    14580    13948     3454      45.6%    0.6420% ❌ cov=6%
+2026-03-25T00:21:55.446873Z  INFO   Base-V3 agree: 334459/552566 (60.5%)
+2026-03-25T00:21:55.691002Z  INFO 
+2026-03-25T00:21:55.691036Z  INFO ════════════════════════════════════════════════════════════
+2026-03-25T00:21:55.691050Z  INFO   TF 60m  TP=5.00%  SL=3.25%
+2026-03-25T00:21:55.691059Z  INFO ════════════════════════════════════════════════════════════
+2026-03-25T00:21:55.694709Z  INFO XGB Booster loaded: path=models/super_entry_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:21:55.694745Z  INFO   ✅ super model: models/super_entry_v1_tf60.ubj (Cpu)
+2026-03-25T00:21:55.710797Z  INFO XGB Booster loaded: path=models/super_dir_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:21:55.710853Z  INFO   ✅ baseline direction: models/super_dir_v1_tf60.ubj
+2026-03-25T00:21:55.719004Z  INFO XGB Booster loaded: path=models/direction_v3_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:21:55.719045Z  INFO   ✅ direction v3: models/direction_v3_tf60.ubj (32 features, regression)
+2026-03-25T00:22:20.674341Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,\n                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,\n                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,\n                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,\n                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,\n                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,\n                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,\n                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,\n                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,\n                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc,\n               alligator_jaw, alligator_teeth, alligator_lips,\n               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1368283 rows_returned=1368283 elapsed=24.951511658s elapsed_secs=24.951511658 slow_threshold=1s
+2026-03-25T00:22:20.901321Z  INFO   Loaded 169 symbols, 1368283 candles in 25.2s
+2026-03-25T00:22:20.903039Z  INFO   BTC candles: 12000
+2026-03-25T00:22:36.434505Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,\n                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,\n                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,\n                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,\n                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,\n                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,\n                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,\n                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,\n                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,\n                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_4h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc,\n               alligator_jaw, alligator_teeth, alligator_lips,\n               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" rows_affected=801193 rows_returned=801193 elapsed=15.531253588s elapsed_secs=15.531253588 slow_threshold=1s
+2026-03-25T00:22:36.595420Z  INFO   HTF 240m: 163 symbols loaded
+2026-03-25T00:22:37.622439Z  INFO   Phase 1: 1304937 candidate points, features computed in 1.0s
+2026-03-25T00:22:40.289982Z  INFO   Phase 2: 564914 super points (43.3%), batch predict in 2.7s
+2026-03-25T00:24:10.184082Z  INFO   Phase 3: batch direction predict in 89.9s
+2026-03-25T00:24:10.215844Z  INFO   Phase 4: trade simulation in 0.0s
+2026-03-25T00:24:10.215872Z  INFO 
+2026-03-25T00:24:10.215881Z  INFO   TF 60m — 564914 super points
+2026-03-25T00:24:10.215888Z  INFO 
+2026-03-25T00:24:10.215895Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-25T00:24:10.215903Z  INFO   ----------------------------------------------------------------------------
+2026-03-25T00:24:10.215916Z  INFO   Baseline (128f)        564914   272836   250022    42056      48.3%    1.0468% ❌
+2026-03-25T00:24:10.215925Z  INFO   Direction v3 (32f)     564914   234923   291502    38489      41.6%    0.4527% ❌
+2026-03-25T00:24:10.215934Z  INFO 
+2026-03-25T00:24:10.215940Z  INFO   Confidence-gated v3:
+2026-03-25T00:24:10.215950Z  INFO     v3 gate≥0.01         526637   220918   270299    35420      41.9%    0.4782% ❌ cov=93%
+2026-03-25T00:24:10.215961Z  INFO     v3 gate≥0.03         450538   193044   228223    29271      42.8%    0.5411% ❌ cov=80%
+2026-03-25T00:24:10.215971Z  INFO     v3 gate≥0.05         376967   165900   187631    23436      44.0%    0.6246% ❌ cov=67%
+2026-03-25T00:24:10.215979Z  INFO     v3 gate≥0.10         220993   105573   103612    11808      47.8%    0.8979% ❌ cov=39%
+2026-03-25T00:24:10.215988Z  INFO     v3 gate≥0.15         119223    63565    50389     5269      53.3%    1.3162% ❌ cov=21%
+2026-03-25T00:24:10.215997Z  INFO     v3 gate≥0.20          61662    37792    21624     2246      61.3%    1.9442% ⚠  cov=11%
+2026-03-25T00:24:10.216007Z  INFO   Base-V3 agree: 332670/564914 (58.9%)
+2026-03-25T00:24:10.351024Z  INFO 
+2026-03-25T00:24:10.351047Z  INFO ════════════════════════════════════════════════════════════
+2026-03-25T00:24:10.351060Z  INFO   TF 240m  TP=7.50%  SL=4.88%
+2026-03-25T00:24:10.351068Z  INFO ════════════════════════════════════════════════════════════
+2026-03-25T00:24:10.354546Z  INFO XGB Booster loaded: path=models/super_entry_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:24:10.354576Z  INFO   ✅ super model: models/super_entry_v1_tf240.ubj (Cpu)
+2026-03-25T00:24:10.367501Z  INFO XGB Booster loaded: path=models/super_dir_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:24:10.367545Z  INFO   ✅ baseline direction: models/super_dir_v1_tf240.ubj
+2026-03-25T00:24:10.376501Z  INFO XGB Booster loaded: path=models/direction_v3_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-25T00:24:10.376544Z  INFO   ✅ direction v3: models/direction_v3_tf240.ubj (32 features, regression)
+2026-03-25T00:24:25.850664Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,\n                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,\n                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,\n                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,\n                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,\n                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,\n                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,\n                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,\n                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,\n                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_4h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc,\n               alligator_jaw, alligator_teeth, alligator_lips,\n               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" rows_affected=801193 rows_returned=801193 elapsed=15.473889497s elapsed_secs=15.473889497 slow_threshold=1s
+2026-03-25T00:24:25.900247Z  INFO   Loaded 163 symbols, 801193 candles in 15.5s
+2026-03-25T00:24:25.900737Z  INFO   BTC candles: 12000
+2026-03-25T00:24:53.117458Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                COALESCE(i.rsi, 50.0)::FLOAT8 as rsi,\n                COALESCE(i.cci, 0.0)::FLOAT8 as cci,\n                COALESCE(i.stoch_k, 50.0)::FLOAT8 as stoch_k,\n                COALESCE(i.stoch_d, 50.0)::FLOAT8 as stoch_d,\n                COALESCE(i.williams, -50.0)::FLOAT8 as williams,\n                COALESCE(i.macd, 0.0)::FLOAT8 as macd,\n                COALESCE(i.macd_signal, 0.0)::FLOAT8 as macd_signal,\n                COALESCE(i.macd_hist, 0.0)::FLOAT8 as macd_hist,\n                COALESCE(i.adx, 25.0)::FLOAT8 as adx,\n                COALESCE(i.sma, c.close)::FLOAT8 as sma,\n                COALESCE(i.ema_20, c.close)::FLOAT8 as ema_20,\n                COALESCE(i.ema_50, c.close)::FLOAT8 as ema_50,\n                COALESCE(i.ema_200, c.close)::FLOAT8 as ema_200,\n                COALESCE(i.bb_upper, c.close)::FLOAT8 as bb_upper,\n                COALESCE(i.bb_mid, c.close)::FLOAT8 as bb_mid,\n                COALESCE(i.bb_lower, c.close)::FLOAT8 as bb_lower,\n                COALESCE(i.atr, 0.001)::FLOAT8 as atr,\n                COALESCE(i.obv, 0.0)::FLOAT8 as obv,\n                COALESCE(i.vwap, c.close)::FLOAT8 as vwap,\n                COALESCE(i.volume_spike, 1.0)::FLOAT8 as volume_spike,\n                COALESCE(i.trend, 0.0)::FLOAT8 as trend,\n                COALESCE(i.trend_short, 0.0)::FLOAT8 as trend_short,\n                COALESCE(i.poc, c.close)::FLOAT8 as poc,\n                COALESCE(i.alligator_jaw, c.close)::FLOAT8 as alligator_jaw,\n                COALESCE(i.alligator_teeth, c.close)::FLOAT8 as alligator_teeth,\n                COALESCE(i.alligator_lips, c.close)::FLOAT8 as alligator_lips,\n                COALESCE(i.mfi, 50.0)::FLOAT8 as mfi,\n                COALESCE(i.fibo_pivot, c.close)::FLOAT8 as fibo_pivot,\n                COALESCE(i.fibo_r1, c.close)::FLOAT8 as fibo_r1,\n                COALESCE(i.fibo_s1, c.close)::FLOAT8 as fibo_s1,\n                COALESCE(i.supertrend, c.close)::FLOAT8 as supertrend,\n                COALESCE(i.supertrend_dir, 0.0)::FLOAT8 as supertrend_dir,\n                COALESCE(i.cmf, 0.0)::FLOAT8 as cmf,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1d c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n            LEFT JOIN market.indicators_wide i\n                ON i.symbol_id = p.symbol_id AND i.time = c.time AND i.tf_minutes = $1\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume,\n               rsi, cci, stoch_k, stoch_d, williams, macd, macd_signal, macd_hist,\n               adx, sma, ema_20, ema_50, ema_200, bb_upper, bb_mid, bb_lower, atr,\n               obv, vwap, volume_spike, trend, trend_short, poc,\n               alligator_jaw, alligator_teeth, alligator_lips,\n               mfi, fibo_pivot, fibo_r1, fibo_s1, supertrend, supertrend_dir, cmf\n        FROM ranked\n        WHERE rn <= $2\n        ORDER BY symbol, time ASC\n        \n" rows_affected=141766 rows_returned=141766 elapsed=27.216524494s elapsed_secs=27.216524494 slow_threshold=1s
+2026-03-25T00:24:53.125927Z  INFO   HTF 1440m: 163 symbols loaded
+2026-03-25T00:24:53.705065Z  INFO   Phase 1: 737961 candidate points, features computed in 0.6s
+2026-03-25T00:24:55.220708Z  INFO   Phase 2: 379583 super points (51.4%), batch predict in 1.5s
+2026-03-25T00:25:30.139287Z  INFO   Phase 3: batch direction predict in 34.9s
+2026-03-25T00:25:30.162832Z  INFO   Phase 4: trade simulation in 0.0s
+2026-03-25T00:25:30.162865Z  INFO 
+2026-03-25T00:25:30.162878Z  INFO   TF 240m — 379583 super points
+2026-03-25T00:25:30.162886Z  INFO 
+2026-03-25T00:25:30.162894Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-25T00:25:30.162905Z  INFO   ----------------------------------------------------------------------------
+2026-03-25T00:25:30.162915Z  INFO   Baseline (128f)        379583   203130   166495     9958      53.5%    1.9142% ❌
+2026-03-25T00:25:30.162923Z  INFO   Direction v3 (32f)     379583   180011   190728     8844      47.4%    1.1340% ❌
+2026-03-25T00:25:30.162931Z  INFO 
+2026-03-25T00:25:30.162938Z  INFO   Confidence-gated v3:
+2026-03-25T00:25:30.162948Z  INFO     v3 gate≥0.01         359159   171747   179147     8265      47.8%    1.1809% ❌ cov=95%
+2026-03-25T00:25:30.162957Z  INFO     v3 gate≥0.03         318690   155199   156365     7126      48.7%    1.2854% ❌ cov=84%
+2026-03-25T00:25:30.162974Z  INFO     v3 gate≥0.05         279103   138575   134394     6134      49.7%    1.4001% ❌ cov=74%
+2026-03-25T00:25:30.162982Z  INFO     v3 gate≥0.10         188853    99626    85471     3756      52.8%    1.7707% ❌ cov=50%
+2026-03-25T00:25:30.162991Z  INFO     v3 gate≥0.15         118899    67743    49103     2053      57.0%    2.2774% ⚠  cov=31%
+2026-03-25T00:25:30.162998Z  INFO     v3 gate≥0.20          72417    45211    26125     1081      62.4%    2.9375% ⚠  cov=19%
+2026-03-25T00:25:30.163005Z  INFO   Base-V3 agree: 224406/379583 (59.1%)
+2026-03-25T00:25:30.207251Z  INFO 
+2026-03-25T00:25:30.207277Z  INFO Direction v3 backtest complete in 392.8s (6.5min)
+2026-03-25T00:25:30.207286Z  INFO Target: direction accuracy >= 60% (WR on super points)
+2026-03-26T09:02:06.988921Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T09:02:06.989089Z  INFO ║  Direction v4 Pattern Backtester                      ║
+2026-03-26T09:02:06.989108Z  INFO ║  CNN-like sliding window on XGBoost                   ║
+2026-03-26T09:02:06.989120Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T09:02:06.989133Z  INFO Mode: STANDALONE (all candles)
+2026-03-26T09:02:06.989149Z  INFO Device: Cpu
+2026-03-26T09:02:06.989160Z  INFO Direction v4 Config:
+2026-03-26T09:02:06.989171Z  INFO   window_size: 30
+2026-03-26T09:02:06.989183Z  INFO   prediction_horizon: 10
+2026-03-26T09:02:06.989194Z  INFO   feature_set: OhlcVolume (5 per candle)
+2026-03-26T09:02:06.989205Z  INFO   total_features: 150
+2026-03-26T09:02:06.989217Z  INFO   up_threshold: 0.30%
+2026-03-26T09:02:06.989227Z  INFO   down_threshold: 0.30%
+2026-03-26T09:02:06.989237Z  INFO   label_method: FinalReturn
+2026-03-26T09:02:06.989244Z  INFO   exclude_flat: false
+2026-03-26T09:02:06.995036Z  INFO 
+2026-03-26T09:02:06.995053Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:02:06.995063Z  INFO   TF 15m  TP=3.50%  SL=2.27%
+2026-03-26T09:02:06.995077Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:02:07.010160Z  INFO XGB Booster loaded: path=models/direction_v4_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-26T09:02:07.010283Z  INFO   ✅ direction v4 model: models/direction_v4_tf15.ubj (Cpu)
+2026-03-26T09:02:10.664760Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,\n                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_15m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1695982 rows_returned=1695982 elapsed=3.653507929s elapsed_secs=3.653507929 slow_threshold=1s
+2026-03-26T09:02:10.772317Z  INFO   Loaded 164 symbols, 1695982 raw candles in 3.8s
+2026-03-26T09:02:14.428985Z  INFO   Evaluation: 1687126 points from 164 symbols in 3.4s
+2026-03-26T09:02:14.429029Z  INFO 
+2026-03-26T09:02:14.429040Z  INFO   TF 15m — 1687126 points
+2026-03-26T09:02:14.429049Z  INFO 
+2026-03-26T09:02:14.429058Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-26T09:02:14.429067Z  INFO     Overall: 52.1% (878594/1687126)
+2026-03-26T09:02:14.429076Z  INFO     UP recall: 38.8% (311635/802318)
+2026-03-26T09:02:14.429088Z  INFO     DOWN recall: 64.1% (566959/884808)
+2026-03-26T09:02:14.429096Z  INFO 
+2026-03-26T09:02:14.429107Z  INFO   📊 Trade Simulation (TP=3.50% SL=2.27% hold=25):
+2026-03-26T09:02:14.429118Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-26T09:02:14.429130Z  INFO   ----------------------------------------------------------------------------
+2026-03-26T09:02:14.429144Z  INFO   Direction v4          1687126   309318   536442   841366      18.3%    0.0871% ❌
+2026-03-26T09:02:14.429153Z  INFO 
+2026-03-26T09:02:14.429160Z  INFO   Confidence-gated results:
+2026-03-26T09:02:14.429169Z  INFO     gate≥0.50             18434 WR=43.8% Acc=66.4% PnL=0.3177% cov=1% ✅
+2026-03-26T09:02:14.429178Z  INFO     gate≥0.55             16508 WR=43.8% Acc=66.9% PnL=0.3086% cov=1% ✅
+2026-03-26T09:02:14.429188Z  INFO     gate≥0.60             14957 WR=43.4% Acc=67.4% PnL=0.2756% cov=1% ✅
+2026-03-26T09:02:14.429196Z  INFO     gate≥0.65             13660 WR=43.2% Acc=67.8% PnL=0.2609% cov=1% ✅
+2026-03-26T09:02:14.429204Z  INFO     gate≥0.70             12551 WR=43.2% Acc=68.4% PnL=0.2574% cov=1% ✅
+2026-03-26T09:02:14.429215Z  INFO     gate≥0.75             11610 WR=43.1% Acc=68.8% PnL=0.2515% cov=1% ✅
+2026-03-26T09:02:14.429223Z  INFO     gate≥0.80             10769 WR=42.9% Acc=68.9% PnL=0.2325% cov=1% ✅
+2026-03-26T09:02:14.511321Z  INFO 
+2026-03-26T09:02:14.511341Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:02:14.511351Z  INFO   TF 60m  TP=5.00%  SL=3.25%
+2026-03-26T09:02:14.511359Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:02:14.524139Z  INFO XGB Booster loaded: path=models/direction_v4_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-26T09:02:14.524171Z  INFO   ✅ direction v4 model: models/direction_v4_tf60.ubj (Cpu)
+2026-03-26T09:02:16.050934Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,\n                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1327042 rows_returned=1327042 elapsed=1.525789674s elapsed_secs=1.5257896739999999 slow_threshold=1s
+2026-03-26T09:02:16.139283Z  INFO   Loaded 164 symbols, 1327042 raw candles in 1.6s
+2026-03-26T09:02:22.029859Z  INFO   Evaluation: 1318275 points from 164 symbols in 5.7s
+2026-03-26T09:02:22.029974Z  INFO 
+2026-03-26T09:02:22.030034Z  INFO   TF 60m — 1318275 points
+2026-03-26T09:02:22.030088Z  INFO 
+2026-03-26T09:02:22.030142Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-26T09:02:22.030196Z  INFO     Overall: 54.2% (714971/1318275)
+2026-03-26T09:02:22.030249Z  INFO     UP recall: 53.5% (340209/636105)
+2026-03-26T09:02:22.030297Z  INFO     DOWN recall: 54.9% (374762/682170)
+2026-03-26T09:02:22.030353Z  INFO 
+2026-03-26T09:02:22.030408Z  INFO   📊 Trade Simulation (TP=5.00% SL=3.25% hold=25):
+2026-03-26T09:02:22.030478Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-26T09:02:22.030539Z  INFO   ----------------------------------------------------------------------------
+2026-03-26T09:02:22.030600Z  INFO   Direction v4          1318275   399831   576506   341938      30.3%    0.2596% ❌
+2026-03-26T09:02:22.030673Z  INFO 
+2026-03-26T09:02:22.030734Z  INFO   Confidence-gated results:
+2026-03-26T09:02:22.030794Z  INFO     gate≥0.50            180511 WR=45.2% Acc=65.1% PnL=0.8101% cov=14% ✅
+2026-03-26T09:02:22.030856Z  INFO     gate≥0.55            156940 WR=46.4% Acc=66.3% PnL=0.8568% cov=12% ✅
+2026-03-26T09:02:22.030918Z  INFO     gate≥0.60            138383 WR=47.4% Acc=67.5% PnL=0.8995% cov=10% ✅
+2026-03-26T09:02:22.030980Z  INFO     gate≥0.65            123493 WR=48.3% Acc=68.5% PnL=0.9439% cov=9% ✅
+2026-03-26T09:02:22.031042Z  INFO     gate≥0.70            111539 WR=49.1% Acc=69.4% PnL=0.9869% cov=8% ✅
+2026-03-26T09:02:22.031101Z  INFO     gate≥0.75            101829 WR=49.8% Acc=70.3% PnL=1.0196% cov=8% ✅
+2026-03-26T09:02:22.031163Z  INFO     gate≥0.80             93396 WR=50.4% Acc=71.2% PnL=1.0550% cov=7% ✅
+2026-03-26T09:02:22.085405Z  INFO 
+2026-03-26T09:02:22.085427Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:02:22.085437Z  INFO   TF 240m  TP=7.50%  SL=4.88%
+2026-03-26T09:02:22.085449Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:02:22.086600Z  INFO XGB Booster loaded: path=models/direction_v4_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-26T09:02:22.086621Z  INFO   ✅ direction v4 model: models/direction_v4_tf240.ubj (Cpu)
+2026-03-26T09:02:23.015375Z  INFO   Loaded 164 symbols, 754391 raw candles in 0.9s
+2026-03-26T09:02:24.769723Z  INFO   Evaluation: 745559 points from 164 symbols in 1.7s
+2026-03-26T09:02:24.770043Z  INFO 
+2026-03-26T09:02:24.770280Z  INFO   TF 240m — 745559 points
+2026-03-26T09:02:24.770517Z  INFO 
+2026-03-26T09:02:24.770754Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-26T09:02:24.770986Z  INFO     Overall: 52.2% (388962/745559)
+2026-03-26T09:02:24.771226Z  INFO     UP recall: 64.9% (233121/359239)
+2026-03-26T09:02:24.771470Z  INFO     DOWN recall: 40.3% (155841/386320)
+2026-03-26T09:02:24.771705Z  INFO 
+2026-03-26T09:02:24.771979Z  INFO   📊 Trade Simulation (TP=7.50% SL=4.88% hold=25):
+2026-03-26T09:02:24.772240Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-26T09:02:24.772483Z  INFO   ----------------------------------------------------------------------------
+2026-03-26T09:02:24.772746Z  INFO   Direction v4           745559   259955   384955   100649      34.9%    0.2362% ❌
+2026-03-26T09:02:24.772981Z  INFO 
+2026-03-26T09:02:24.773227Z  INFO   Confidence-gated results:
+2026-03-26T09:02:24.773341Z  INFO     gate≥0.50            138384 WR=40.5% Acc=56.2% PnL=0.4159% cov=19% ⚠ 
+2026-03-26T09:02:24.773412Z  INFO     gate≥0.55            119833 WR=40.9% Acc=56.4% PnL=0.3984% cov=16% ⚠ 
+2026-03-26T09:02:24.773499Z  INFO     gate≥0.60            105257 WR=41.2% Acc=56.5% PnL=0.3827% cov=14% ⚠ 
+2026-03-26T09:02:24.773565Z  INFO     gate≥0.65             93986 WR=41.4% Acc=56.6% PnL=0.3760% cov=13% ⚠ 
+2026-03-26T09:02:24.773640Z  INFO     gate≥0.70             85076 WR=41.6% Acc=56.9% PnL=0.3750% cov=11% ⚠ 
+2026-03-26T09:02:24.773705Z  INFO     gate≥0.75             77922 WR=41.7% Acc=57.0% PnL=0.3758% cov=10% ⚠ 
+2026-03-26T09:02:24.773719Z  INFO     gate≥0.80             72022 WR=41.8% Acc=57.2% PnL=0.3766% cov=10% ⚠ 
+2026-03-26T09:02:24.805669Z  INFO 
+2026-03-26T09:02:24.805692Z  INFO Direction v4 backtest complete in 17.8s (0.3min)
+2026-03-26T09:02:24.805700Z  INFO Target: direction accuracy >= 55-60% (beating random 50%)
+2026-03-26T09:21:58.156118Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-26T09:21:58.156144Z  INFO ║  Direction v4 Pattern Backtester                      ║
+2026-03-26T09:21:58.156153Z  INFO ║  CNN-like sliding window on XGBoost                   ║
+2026-03-26T09:21:58.156160Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-26T09:21:58.156167Z  INFO Mode: STANDALONE (all candles)
+2026-03-26T09:21:58.156174Z  INFO Device: Cpu
+2026-03-26T09:21:58.156180Z  INFO Direction v4 Config:
+2026-03-26T09:21:58.156187Z  INFO   window_size: 20
+2026-03-26T09:21:58.156193Z  INFO   prediction_horizon: 25
+2026-03-26T09:21:58.156202Z  INFO   feature_set: OhlcVolume (5 per candle)
+2026-03-26T09:21:58.156210Z  INFO   total_features: 100
+2026-03-26T09:21:58.156219Z  INFO   up_threshold: 3.50% (default, per-TF from P(super))
+2026-03-26T09:21:58.156226Z  INFO   down_threshold: 3.50%
+2026-03-26T09:21:58.156233Z  INFO   label_method: MaxExcursion
+2026-03-26T09:21:58.156240Z  INFO   exclude_flat: false
+2026-03-26T09:21:58.156247Z  INFO   Per-TF thresholds (from P(super)):
+2026-03-26T09:21:58.156254Z  INFO     TF     5m: 2.8%
+2026-03-26T09:21:58.156262Z  INFO     TF    15m: 3.5%
+2026-03-26T09:21:58.156270Z  INFO     TF    60m: 5.0%
+2026-03-26T09:21:58.156277Z  INFO     TF   240m: 7.5%
+2026-03-26T09:21:58.156284Z  INFO     TF  1440m: 10.0%
+2026-03-26T09:21:58.160425Z  INFO 
+2026-03-26T09:21:58.160449Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:21:58.160461Z  INFO   TF 15m  TP=3.50%  SL=2.27%
+2026-03-26T09:21:58.160469Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:21:58.186837Z  INFO XGB Booster loaded: path=models/direction_v4_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-26T09:21:58.186876Z  INFO   ✅ direction v4 model: models/direction_v4_tf15.ubj (Cpu)
+2026-03-26T09:22:02.131308Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,\n                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_15m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1695982 rows_returned=1695982 elapsed=3.942810073s elapsed_secs=3.942810073 slow_threshold=1s
+2026-03-26T09:22:02.246562Z  INFO   Loaded 164 symbols, 1695982 raw candles in 4.1s
+2026-03-26T09:22:08.458588Z  INFO   Evaluation: 1688766 points from 164 symbols in 6.0s
+2026-03-26T09:22:08.458700Z  INFO 
+2026-03-26T09:22:08.458766Z  INFO   TF 15m — 1688766 points
+2026-03-26T09:22:08.458827Z  INFO 
+2026-03-26T09:22:08.458885Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-26T09:22:08.458944Z  INFO     Overall: 47.2% (796532/1688766)
+2026-03-26T09:22:08.459004Z  INFO     UP recall: 100.0% (796532/796532)
+2026-03-26T09:22:08.459063Z  INFO     DOWN recall: 0.0% (0/892234)
+2026-03-26T09:22:08.459121Z  INFO 
+2026-03-26T09:22:08.459180Z  INFO   📊 Trade Simulation (TP=3.50% SL=2.27% hold=25):
+2026-03-26T09:22:08.459240Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-26T09:22:08.459299Z  INFO   ----------------------------------------------------------------------------
+2026-03-26T09:22:08.459361Z  INFO   Direction v4          1688766   302701   561689   824376      17.9%   -0.0213% ❌
+2026-03-26T09:22:08.459421Z  INFO 
+2026-03-26T09:22:08.459490Z  INFO   Confidence-gated results:
+2026-03-26T09:22:08.459516Z  INFO     gate≥0.50            777721 WR=23.7% Acc=51.4% PnL=0.2256% cov=46% ❌
+2026-03-26T09:22:08.459534Z  INFO     gate≥0.55            335849 WR=26.4% Acc=55.3% PnL=0.4332% cov=20% ⚠ 
+2026-03-26T09:22:08.459593Z  INFO     gate≥0.60            112341 WR=29.8% Acc=60.5% PnL=0.6890% cov=7% ✅
+2026-03-26T09:22:08.459614Z  INFO     gate≥0.65             34612 WR=35.4% Acc=67.3% PnL=1.0234% cov=2% ✅
+2026-03-26T09:22:08.459632Z  INFO     gate≥0.70             11741 WR=44.7% Acc=75.7% PnL=1.4486% cov=1% ✅
+2026-03-26T09:22:08.459689Z  INFO     gate≥0.75              4987 WR=56.3% Acc=83.0% PnL=1.9325% cov=0% ✅
+2026-03-26T09:22:08.459710Z  INFO     gate≥0.80              2449 WR=69.5% Acc=90.0% PnL=2.4843% cov=0% ✅
+2026-03-26T09:22:08.524224Z  INFO 
+2026-03-26T09:22:08.524253Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:22:08.524267Z  INFO   TF 60m  TP=5.00%  SL=3.25%
+2026-03-26T09:22:08.524275Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:22:08.533668Z  INFO XGB Booster loaded: path=models/direction_v4_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-26T09:22:08.533690Z  INFO   ✅ direction v4 model: models/direction_v4_tf60.ubj (Cpu)
+2026-03-26T09:22:10.163205Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,\n                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1327042 rows_returned=1327042 elapsed=1.629006033s elapsed_secs=1.629006033 slow_threshold=1s
+2026-03-26T09:22:10.235818Z  INFO   Loaded 164 symbols, 1327042 raw candles in 1.7s
+2026-03-26T09:22:15.140885Z  INFO   Evaluation: 1319865 points from 164 symbols in 4.7s
+2026-03-26T09:22:15.141019Z  INFO 
+2026-03-26T09:22:15.141078Z  INFO   TF 60m — 1319865 points
+2026-03-26T09:22:15.141145Z  INFO 
+2026-03-26T09:22:15.141217Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-26T09:22:15.141287Z  INFO     Overall: 47.4% (625781/1319865)
+2026-03-26T09:22:15.141368Z  INFO     UP recall: 100.0% (625781/625781)
+2026-03-26T09:22:15.141438Z  INFO     DOWN recall: 0.0% (0/694084)
+2026-03-26T09:22:15.141519Z  INFO 
+2026-03-26T09:22:15.141591Z  INFO   📊 Trade Simulation (TP=5.00% SL=3.25% hold=25):
+2026-03-26T09:22:15.141654Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-26T09:22:15.141673Z  INFO   ----------------------------------------------------------------------------
+2026-03-26T09:22:15.141739Z  INFO   Direction v4          1319865   346540   641799   331526      26.3%   -0.1113% ❌
+2026-03-26T09:22:15.141757Z  INFO 
+2026-03-26T09:22:15.141772Z  INFO   Confidence-gated results:
+2026-03-26T09:22:15.141837Z  INFO     gate≥0.50            577558 WR=35.5% Acc=54.7% PnL=0.4850% cov=44% ❌
+2026-03-26T09:22:15.141857Z  INFO     gate≥0.55            208381 WR=42.8% Acc=61.5% PnL=0.9923% cov=16% ✅
+2026-03-26T09:22:15.141874Z  INFO     gate≥0.60             54133 WR=52.3% Acc=70.4% PnL=1.6066% cov=4% ✅
+2026-03-26T09:22:15.141938Z  INFO     gate≥0.65             15500 WR=63.5% Acc=79.3% PnL=2.2508% cov=1% ✅
+2026-03-26T09:22:15.141958Z  INFO     gate≥0.70              6842 WR=69.6% Acc=83.4% PnL=2.6071% cov=1% ✅
+2026-03-26T09:22:15.141975Z  INFO     gate≥0.75              3798 WR=71.2% Acc=85.8% PnL=2.6901% cov=0% ✅
+2026-03-26T09:22:15.142038Z  INFO     gate≥0.80              2214 WR=70.1% Acc=88.1% PnL=2.5538% cov=0% ✅
+2026-03-26T09:22:15.188229Z  INFO 
+2026-03-26T09:22:15.188257Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:22:15.188270Z  INFO   TF 240m  TP=7.50%  SL=4.88%
+2026-03-26T09:22:15.188277Z  INFO ════════════════════════════════════════════════════════════
+2026-03-26T09:22:15.200710Z  INFO XGB Booster loaded: path=models/direction_v4_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-26T09:22:15.200745Z  INFO   ✅ direction v4 model: models/direction_v4_tf240.ubj (Cpu)
+2026-03-26T09:22:16.100165Z  INFO   Loaded 164 symbols, 754391 raw candles in 0.9s
+2026-03-26T09:22:19.003729Z  INFO   Evaluation: 747179 points from 164 symbols in 2.8s
+2026-03-26T09:22:19.003779Z  INFO 
+2026-03-26T09:22:19.003796Z  INFO   TF 240m — 747179 points
+2026-03-26T09:22:19.003811Z  INFO 
+2026-03-26T09:22:19.003828Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-26T09:22:19.003844Z  INFO     Overall: 47.0% (350835/747179)
+2026-03-26T09:22:19.003862Z  INFO     UP recall: 100.0% (350835/350835)
+2026-03-26T09:22:19.003878Z  INFO     DOWN recall: 0.0% (0/396344)
+2026-03-26T09:22:19.003894Z  INFO 
+2026-03-26T09:22:19.003912Z  INFO   📊 Trade Simulation (TP=7.50% SL=4.88% hold=25):
+2026-03-26T09:22:19.003929Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-26T09:22:19.003946Z  INFO   ----------------------------------------------------------------------------
+2026-03-26T09:22:19.003963Z  INFO   Direction v4           747179   236399   414789    95991      31.6%   -0.2125% ❌
+2026-03-26T09:22:19.003981Z  INFO 
+2026-03-26T09:22:19.003997Z  INFO   Confidence-gated results:
+2026-03-26T09:22:19.004014Z  INFO     gate≥0.50            371523 WR=40.4% Acc=56.7% PnL=0.8787% cov=50% ⚠ 
+2026-03-26T09:22:19.004033Z  INFO     gate≥0.55            172124 WR=46.2% Acc=63.3% PnL=1.5337% cov=23% ✅
+2026-03-26T09:22:19.004051Z  INFO     gate≥0.60             60096 WR=53.1% Acc=71.5% PnL=2.1890% cov=8% ✅
+2026-03-26T09:22:19.004068Z  INFO     gate≥0.65             20623 WR=59.6% Acc=79.2% PnL=2.7150% cov=3% ✅
+2026-03-26T09:22:19.004086Z  INFO     gate≥0.70              8788 WR=65.1% Acc=84.5% PnL=3.2616% cov=1% ✅
+2026-03-26T09:22:19.004104Z  INFO     gate≥0.75              4419 WR=69.5% Acc=88.2% PnL=3.7616% cov=1% ✅
+2026-03-26T09:22:19.004121Z  INFO     gate≥0.80              2170 WR=73.6% Acc=88.9% PnL=4.2583% cov=0% ✅
+2026-03-26T09:22:19.025916Z  INFO 
+2026-03-26T09:22:19.025945Z  INFO Direction v4 backtest complete in 20.9s (0.3min)
+2026-03-26T09:22:19.025959Z  INFO Target: direction accuracy >= 55-60% (beating random 50%)

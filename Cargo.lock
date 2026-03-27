@@ -1597,6 +1597,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ml_pump_dump"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "common",
+ "csv",
+ "dotenvy",
+ "futures",
+ "predictors",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ndarray"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

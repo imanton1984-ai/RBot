@@ -54,63 +54,76 @@ pub async fn insert_signals_batch(pool: &PgPool, signals: &[SuperEntrySignal]) -
             p_super_v.push(sig.p_super);
             p_long_v.push(sig.p_long);
             score_v.push(sig.final_score);
-            // Recover dir_confidence from p_long
-            dir_conf_v.push((sig.p_long - 0.5).abs());
+            // Use actual dir_confidence from model (not derived from p_long)
+            dir_conf_v.push(sig.dir_confidence);
             strategy_v.push("super_entry_v1".to_string());
             reason_v.push(sig.reason.clone());
         }
 
-        let result = sqlx::query(
-            r#"
-            INSERT INTO trade.super_entry_signals
-            (time, time_ms, symbol, symbol_id, tf_minutes, side,
-             entry_price, sl_price, tp_price,
-             p_super, p_long, combined_score, dir_confidence,
-             strategy, reason)
-            SELECT * FROM UNNEST(
-                $1::timestamptz[], $2::bigint[], $3::text[], $4::bigint[],
-                $5::smallint[], $6::smallint[],
-                $7::float8[], $8::float8[], $9::float8[],
-                $10::real[], $11::real[], $12::real[], $13::real[],
-                $14::text[], $15::jsonb[]
+        // Retry up to 3 times on deadlock
+        let mut retries = 0;
+        let max_retries = 3;
+        loop {
+            let result = sqlx::query(
+                r#"
+                INSERT INTO trade.super_entry_signals
+                (time, time_ms, symbol, symbol_id, tf_minutes, side,
+                 entry_price, sl_price, tp_price,
+                 p_super, p_long, combined_score, dir_confidence,
+                 strategy, reason)
+                SELECT * FROM UNNEST(
+                    $1::timestamptz[], $2::bigint[], $3::text[], $4::bigint[],
+                    $5::smallint[], $6::smallint[],
+                    $7::float8[], $8::float8[], $9::float8[],
+                    $10::real[], $11::real[], $12::real[], $13::real[],
+                    $14::text[], $15::jsonb[]
+                )
+                ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
+                    side = EXCLUDED.side,
+                    entry_price = EXCLUDED.entry_price,
+                    sl_price = EXCLUDED.sl_price,
+                    tp_price = EXCLUDED.tp_price,
+                    p_super = EXCLUDED.p_super,
+                    p_long = EXCLUDED.p_long,
+                    combined_score = EXCLUDED.combined_score,
+                    dir_confidence = EXCLUDED.dir_confidence,
+                    reason = EXCLUDED.reason
+                "#,
             )
-            ON CONFLICT (symbol_id, tf_minutes, time) DO UPDATE SET
-                side = EXCLUDED.side,
-                entry_price = EXCLUDED.entry_price,
-                sl_price = EXCLUDED.sl_price,
-                tp_price = EXCLUDED.tp_price,
-                p_super = EXCLUDED.p_super,
-                p_long = EXCLUDED.p_long,
-                combined_score = EXCLUDED.combined_score,
-                dir_confidence = EXCLUDED.dir_confidence,
-                reason = EXCLUDED.reason
-            "#,
-        )
-        .bind(&time_v)
-        .bind(&time_ms_v)
-        .bind(&symbol_v)
-        .bind(&symbol_id_v)
-        .bind(&tf_v)
-        .bind(&side_v)
-        .bind(&entry_v)
-        .bind(&sl_v)
-        .bind(&tp_v)
-        .bind(&p_super_v)
-        .bind(&p_long_v)
-        .bind(&score_v)
-        .bind(&dir_conf_v)
-        .bind(&strategy_v)
-        .bind(&reason_v)
-        .execute(pool)
-        .await;
+            .bind(&time_v)
+            .bind(&time_ms_v)
+            .bind(&symbol_v)
+            .bind(&symbol_id_v)
+            .bind(&tf_v)
+            .bind(&side_v)
+            .bind(&entry_v)
+            .bind(&sl_v)
+            .bind(&tp_v)
+            .bind(&p_super_v)
+            .bind(&p_long_v)
+            .bind(&score_v)
+            .bind(&dir_conf_v)
+            .bind(&strategy_v)
+            .bind(&reason_v)
+            .execute(pool)
+            .await;
 
-        match result {
-            Ok(r) => {
-                inserted += r.rows_affected() as usize;
-            }
-            Err(e) => {
-                warn!("Failed to insert super_entry_signals batch: {}", e);
-                return Err(e.into());
+            match result {
+                Ok(r) => {
+                    inserted += r.rows_affected() as usize;
+                    break;
+                }
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if err_str.contains("deadlock") && retries < max_retries {
+                        retries += 1;
+                        warn!("Deadlock on super_entry_signals insert, retry {}/{}", retries, max_retries);
+                        tokio::time::sleep(std::time::Duration::from_millis(50 * retries as u64)).await;
+                        continue;
+                    }
+                    warn!("Failed to insert super_entry_signals batch: {}", e);
+                    return Err(e.into());
+                }
             }
         }
     }

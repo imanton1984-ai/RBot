@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
 """
-train_direction_wfo.py — Walk-Forward Optimization for Direction Model v3.
+train_direction_wfo.py — Walk-Forward Optimization for Direction Model v4.
 
-APPROACH:
-  - 32 curated features from 6 domains (trend, momentum, structure, volume, BTC, volatility)
-  - Regression on direction_quality = direction * (1/bars_to_tp)
-  - Fast TP = high |quality| = clean signal, slow/no TP ≈ 0 = noise
-  - Inference: sign(prediction) = direction, abs(prediction) = confidence
+APPROACH (CNN-like Pattern Recognition on XGBoost):
+  - Sliding window of W candles → flatten into wide row (W × features_per_candle)
+  - All prices normalized relative to window[0].open → stationarity
+  - No indicators! Only pure OHLCV price action patterns
+  - XGBoost trees find combinations within the temporal window → mimics 1D-CNN
 
-WHY REGRESSION (not binary classification):
-  Binary classification on LONG/SHORT gives ~50% because short-TF returns
-  are random walk. The signal is in the SPEED of move, not just direction.
-  Regression on direction_quality creates a natural confidence gate:
-  predictions near 0 = uncertain → skip.
+WHY THIS APPROACH:
+  Previous v1-v3 with indicator features achieved ~0.50 accuracy (random).
+  Indicators are lagging and noisy for short-term direction prediction.
+  Raw normalized price patterns should contain more signal with less noise.
 
-CHANGES FROM v2:
-  - Removed Oracle variant B (complexity without clear gain)
-  - Removed temporal features (hour/dow sin/cos — noise)
-  - Removed funding_rate/SR features (placeholder zeros)
-  - Added 12 features from super_entry 128-set that had signal
-  - Added HTF supertrend (was only in heuristic filter, now in model)
-  - Target: direction accuracy ≥ 0.60 on WFO OOS (was 0.65)
+TRAINING:
+  - Walk-Forward Optimization (expanding window):
+    Train on past → Test on future → no lookahead bias
+  - Purge + embargo between train/test splits
+  - Regression on future return (sign = direction, magnitude = confidence)
+  - Binary classification variant: UP vs DOWN (exclude FLAT)
 
 Usage:
-    python trainer/src/train_direction_wfo.py --csv dataset/direction_v3_dataset.csv --gpu
+    python trainer/src/train_direction_wfo.py --csv dataset/direction_v4_dataset.csv --gpu
     python trainer/src/train_direction_wfo.py --timeframes 15,60 --evaluate-only
+    python trainer/src/train_direction_wfo.py --csv dataset/direction_v4_dataset.csv --mode binary --gpu
 """
 
 import argparse
+import gc
 import json
 import logging
 import os
@@ -42,7 +42,8 @@ import pandas as pd
 try:
     import xgboost as xgb
     from sklearn.metrics import (
-        roc_auc_score, mean_squared_error,
+        accuracy_score, roc_auc_score, mean_squared_error,
+        classification_report, confusion_matrix,
     )
 except ImportError:
     print("ERROR: Required packages not installed.")
@@ -51,86 +52,47 @@ except ImportError:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# LOGGING SETUP
+# LOGGING
 # ═════════════════════════════════════════════════════════════════════════════
 
 def setup_logging(log_path: str = "logs/direction_wfo_train.log"):
-    """Setup dual logging: stdout + file."""
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-
     logger = logging.getLogger("direction_wfo")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
-
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
     logger.addHandler(ch)
-
     fh = logging.FileHandler(log_path, mode="a")
     fh.setFormatter(fmt)
     logger.addHandler(fh)
-
     return logger
-
 
 log = setup_logging()
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# FEATURE DEFINITIONS — must match Rust direction/features.rs EXACTLY
+# CONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════════
-
-DIRECTION_V3_FEATURES = [
-    # GROUP 1: Trend alignment (6)
-    "supertrend_dir", "htf_supertrend_dir",
-    "trend", "trend_short", "trend_alignment", "ema_convergence_change",
-    # GROUP 2: Momentum (6)
-    "price_roc_lb1", "price_roc_lb2", "price_accel_1bar",
-    "macd_hist", "macd_hist_roc_lb1", "rsi_slope_lb3",
-    # GROUP 3: Market structure (6)
-    "dist_to_low_50", "dist_to_high_50", "bb_position",
-    "price_vs_vwap", "price_vs_ema20", "high_low_pressure",
-    # GROUP 4: Volume/Pressure (4)
-    "volume_up_vs_down_lb10", "obv_price_divergence",
-    "acute_wick_rejection_2bar", "cmf",
-    # GROUP 5: BTC relative (5)
-    "btc_return_lb5", "btc_return_lb25", "btc_supertrend_dir",
-    "alt_vs_btc_return_lb5", "alt_vs_btc_return_lb25",
-    # GROUP 6: Volatility context (5)
-    "bb_squeeze_pctl", "atr_ratio_lb5", "bb_width_pct",
-    "supertrend_consistency", "volume_trend_ratio",
-]
-
-assert len(DIRECTION_V3_FEATURES) == 32, f"Expected 32 features, got {len(DIRECTION_V3_FEATURES)}"
 
 TIMEFRAMES = [5, 15, 60, 240, 1440]
 
-TF_TARGET_MOVE_PCT = {
-    1: 1.2, 5: 2.8, 15: 3.5, 60: 5.0, 240: 7.5, 1440: 10.0,
-}
-
-# WFO parameters
-LOOKAHEAD_BARS = 25
-MAX_LOOKBACK = 50  # for embargo
-
-# Direction accuracy target (honest, no overfitting)
-DIRECTION_ACC_TARGET = 0.60
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# WFO CONFIG
-# ═════════════════════════════════════════════════════════════════════════════
-
+# WFO fold config per TF — same structure as v3, proven to work
 WFO_CONFIG: Dict[int, dict] = {
-    1: {"n_splits": 2, "test_days": 0.75, "min_train_days": 1.5},
-    5: {"n_splits": 3, "test_days": 3.5, "min_train_days": 6.0},
-    15: {"n_splits": 5, "test_days": 14.0, "min_train_days": 30.0},
-    60: {"n_splits": 5, "test_days": 60.0, "min_train_days": 120.0},
-    240: {"n_splits": 6, "test_days": 120.0, "min_train_days": 365.0},
+    1:    {"n_splits": 2, "test_days": 0.75,  "min_train_days": 1.5},
+    5:    {"n_splits": 3, "test_days": 3.5,   "min_train_days": 6.0},
+    15:   {"n_splits": 5, "test_days": 14.0,  "min_train_days": 30.0},
+    60:   {"n_splits": 5, "test_days": 60.0,  "min_train_days": 120.0},
+    240:  {"n_splits": 6, "test_days": 120.0, "min_train_days": 365.0},
     1440: {"n_splits": 5, "test_days": 180.0, "min_train_days": 365.0},
 }
+
+# Default prediction horizon (must match Rust config — 25 bars, same as P(super) lookahead)
+DEFAULT_HORIZON = 25
+
+# Direction accuracy target
+DIRECTION_ACC_TARGET = 0.55
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -138,7 +100,7 @@ WFO_CONFIG: Dict[int, dict] = {
 # ═════════════════════════════════════════════════════════════════════════════
 
 def compute_wfo_folds(timestamps: pd.Series, tf_minutes: int, config: dict) -> List[Dict]:
-    """Expanding-window WFO fold boundaries."""
+    """Expanding-window WFO fold boundaries with purge + embargo."""
     n_splits = config["n_splits"]
     test_days = config["test_days"]
     min_train_days = config["min_train_days"]
@@ -187,11 +149,14 @@ def compute_wfo_folds(timestamps: pd.Series, tf_minutes: int, config: dict) -> L
 
 
 def apply_fold_split(
-    df: pd.DataFrame, fold: Dict, tf_minutes: int, ts_col: str = "ts",
+    df: pd.DataFrame, fold: Dict, tf_minutes: int,
+    prediction_horizon: int, ts_col: str = "ts",
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Split with purge & embargo."""
-    purge_delta = timedelta(minutes=LOOKAHEAD_BARS * tf_minutes)
-    embargo_delta = timedelta(minutes=MAX_LOOKBACK * tf_minutes)
+    """Split with purge & embargo. No lookahead bias."""
+    # Purge: remove examples whose prediction window overlaps with test start
+    purge_delta = timedelta(minutes=prediction_horizon * tf_minutes)
+    # Embargo: skip a gap between train and test to avoid any leakage
+    embargo_delta = timedelta(minutes=50 * tf_minutes)  # 50 bars buffer
 
     effective_train_end = fold["train_end_raw"] - purge_delta
     effective_test_start = fold["test_start_raw"] + embargo_delta
@@ -203,180 +168,155 @@ def apply_fold_split(
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# DIRECTION MODEL v3: REGRESSION ON direction_quality
+# DETECT FEATURE COLUMNS from CSV header
 # ═════════════════════════════════════════════════════════════════════════════
 
-def train_direction_v3(
+def detect_feature_columns(df: pd.DataFrame) -> List[str]:
+    """Auto-detect pattern feature columns (w{i}_{type})."""
+    feat_cols = [c for c in df.columns if c.startswith("w") and "_" in c]
+    # Sort by window index then feature name
+    def sort_key(col):
+        parts = col.split("_", 1)
+        try:
+            idx = int(parts[0][1:])
+            return (idx, parts[1] if len(parts) > 1 else "")
+        except ValueError:
+            return (9999, col)
+    feat_cols.sort(key=sort_key)
+    return feat_cols
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TRAINING: REGRESSION MODE
+# ═════════════════════════════════════════════════════════════════════════════
+
+def train_regression(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     feature_cols: List[str],
     use_gpu: bool = False,
     fold_idx: int = 0,
+    exclude_flat: bool = False,
 ) -> Tuple[Optional[xgb.Booster], dict]:
     """
-    Direction v3: Regression on direction_quality.
-
-    Training only on is_super=True AND direction != 0 (exclude whipsaw).
-    Target: direction_quality = direction * (1/bars_to_tp)
-
-    Inference:
-      - sign(prediction) = direction (LONG/SHORT)
-      - abs(prediction) = confidence (higher = model more certain)
-      - If abs(prediction) < threshold → skip (uncertain)
+    Regression on future_return_pct.
+    Direction = sign(prediction), confidence = abs(prediction).
     """
-    # Filter: train only on super examples with clear direction
-    train_super = train_df[
-        (train_df["is_super"] == 1) & (train_df["direction"] != 0)
-    ].copy()
-    test_super = test_df[
-        (test_df["is_super"] == 1) & (test_df["direction"] != 0)
-    ].copy()
+    if exclude_flat:
+        train_df = train_df[train_df["label"] != 0].copy()
 
-    # But also evaluate on ALL test data (for comparison)
-    test_all = test_df[test_df["direction"] != 0].copy()
+    if len(train_df) < 200 or len(test_df) < 50:
+        log.warning(f"  Fold {fold_idx}: Not enough data (train={len(train_df)}, test={len(test_df)}). Skipping.")
+        return None, {"error": "not enough data"}
 
-    if len(train_super) < 100 or len(test_super) < 30:
-        log.warning(f"  Fold {fold_idx}: Not enough super examples "
-                    f"(train={len(train_super)}, test_super={len(test_super)}). Skipping.")
-        return None, {
-            "dir_accuracy": 0.5,
-            "dir_auc": 0.5,
-            "error": f"not enough super data (train={len(train_super)}, test={len(test_super)})",
-        }
-
-    X_train = train_super[feature_cols].values.astype(np.float32)
-    y_train = train_super["direction_quality"].values.astype(np.float32)
-
-    X_test_super = test_super[feature_cols].values.astype(np.float32)
-    y_test_super = test_super["direction_quality"].values.astype(np.float32)
-
-    X_test_all = test_all[feature_cols].values.astype(np.float32)
+    X_train = train_df[feature_cols].values.astype(np.float32)
+    y_train = train_df["future_return_pct"].values.astype(np.float32)
+    X_test = test_df[feature_cols].values.astype(np.float32)
+    y_test = test_df["future_return_pct"].values.astype(np.float32)
+    labels_test = test_df["label"].values
 
     # Clean NaN/inf
     X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
     y_train = np.nan_to_num(y_train, nan=0.0, posinf=0.0, neginf=0.0)
-    X_test_super = np.nan_to_num(X_test_super, nan=0.0, posinf=0.0, neginf=0.0)
-    y_test_super = np.nan_to_num(y_test_super, nan=0.0, posinf=0.0, neginf=0.0)
-    X_test_all = np.nan_to_num(X_test_all, nan=0.0, posinf=0.0, neginf=0.0)
+    X_test = np.nan_to_num(X_test, nan=0.0, posinf=0.0, neginf=0.0)
+    y_test = np.nan_to_num(y_test, nan=0.0, posinf=0.0, neginf=0.0)
 
-    # Use sample_weight: fast TP = high weight (via 1/bars_to_tp)
-    # Direction quality already encodes this, but we want the model
-    # to focus more on high-quality examples
-    bars = train_super["bars_to_tp"].fillna(LOOKAHEAD_BARS).values.astype(np.float32)
-    bars = np.clip(bars, 1, LOOKAHEAD_BARS)
-    sample_weights = 1.0 / bars  # fast TP = higher weight
-    sample_weights = sample_weights / sample_weights.mean()  # normalize to mean=1
-
-    dtrain = xgb.DMatrix(X_train, label=y_train, weight=sample_weights,
-                         feature_names=feature_cols)
-    dtest_super = xgb.DMatrix(X_test_super, label=y_test_super,
-                              feature_names=feature_cols)
-    dtest_all = xgb.DMatrix(X_test_all, feature_names=feature_cols)
+    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_cols)
+    dtest = xgb.DMatrix(X_test, label=y_test, feature_names=feature_cols)
 
     params = {
         "objective": "reg:squarederror",
         "eval_metric": "rmse",
         "eta": 0.03,
-        "max_depth": 5,
+        "max_depth": 6,
         "subsample": 0.8,
-        "colsample_bytree": 0.8,
-        "min_child_weight": 10,
-        "lambda": 1.5,        # L2 regularization — prevent overfitting
-        "alpha": 0.5,         # L1 regularization — feature selection
-        "gamma": 0.1,         # Min loss reduction for split
+        "colsample_bytree": 0.7,
+        "min_child_weight": 20,
+        "lambda": 2.0,        # L2 — strong regularization for pattern features
+        "alpha": 0.5,         # L1 — sparse feature selection
+        "gamma": 0.2,         # Min loss reduction — prevents overfitting on noise
+        "max_bin": 128,       # Reduce histogram bins: less memory
         "tree_method": "hist",
         "device": "cuda" if use_gpu else "cpu",
         "verbosity": 0,
     }
 
-    log.info(f"  Fold {fold_idx}: Training on {len(y_train)} super examples "
-             f"(LONG={int((train_super['direction'] == 1).sum())}, "
-             f"SHORT={int((train_super['direction'] == -1).sum())})")
+    n_long = int((train_df["label"] == 1).sum())
+    n_short = int((train_df["label"] == -1).sum())
+    n_flat = int((train_df["label"] == 0).sum())
+    log.info(f"  Fold {fold_idx}: Training regression on {len(y_train)} examples "
+             f"(UP={n_long}, FLAT={n_flat}, DOWN={n_short})")
 
     model = xgb.train(
         params, dtrain,
-        num_boost_round=1200,
-        evals=[(dtrain, "train"), (dtest_super, "test")],
-        early_stopping_rounds=80,
+        num_boost_round=2000,
+        evals=[(dtrain, "train"), (dtest, "test")],
+        early_stopping_rounds=150,
         verbose_eval=0,
     )
 
-    # ── Evaluate on SUPER test set ──
-    pred_super = model.predict(dtest_super)
-    rmse_super = float(np.sqrt(mean_squared_error(y_test_super, pred_super)))
+    # ── Evaluate ──
+    pred = model.predict(dtest)
+    rmse = float(np.sqrt(mean_squared_error(y_test, pred)))
 
-    # Direction accuracy on super examples
-    pred_dir_super = np.sign(pred_super)
-    actual_dir_super = np.sign(y_test_super)
-    nonzero_super = actual_dir_super != 0
-    if nonzero_super.sum() > 0:
-        dir_acc_super = float((pred_dir_super[nonzero_super] == actual_dir_super[nonzero_super]).mean())
+    # Direction accuracy: sign(prediction) vs sign(actual return)
+    pred_dir = np.sign(pred)
+    actual_dir = np.sign(y_test)
+    # Exclude zero returns for accuracy
+    nonzero = actual_dir != 0
+    if nonzero.sum() > 0:
+        dir_acc = float((pred_dir[nonzero] == actual_dir[nonzero]).mean())
     else:
-        dir_acc_super = 0.5
+        dir_acc = 0.5
 
-    # Direction AUC on super examples
-    dir_auc_super = 0.5
-    if nonzero_super.sum() > 20:
-        y_binary = (actual_dir_super[nonzero_super] > 0).astype(int)
-        pred_scores = pred_super[nonzero_super]
+    # AUC
+    dir_auc = 0.5
+    if nonzero.sum() > 20:
+        y_binary = (actual_dir[nonzero] > 0).astype(int)
+        pred_scores = pred[nonzero]
         try:
             if len(np.unique(y_binary)) > 1:
-                dir_auc_super = float(roc_auc_score(y_binary, pred_scores))
+                dir_auc = float(roc_auc_score(y_binary, pred_scores))
         except Exception:
             pass
 
-    # ── Evaluate on ALL test set ──
-    pred_all = model.predict(dtest_all)
-    actual_dir_all = test_all["direction"].values
-    pred_dir_all = np.sign(pred_all)
-    nonzero_all = actual_dir_all != 0
-    if nonzero_all.sum() > 0:
-        dir_acc_all = float((pred_dir_all[nonzero_all] == actual_dir_all[nonzero_all]).mean())
-    else:
-        dir_acc_all = 0.5
-
-    # ── Confidence gate analysis ──
-    # How much does filtering by abs(prediction) improve accuracy?
-    confidence_thresholds = [0.01, 0.03, 0.05, 0.10, 0.15]
+    # Confidence gate analysis
+    confidence_thresholds = [0.05, 0.10, 0.15, 0.20, 0.30, 0.50]
     gate_analysis = {}
     for thresh in confidence_thresholds:
-        mask = np.abs(pred_all) >= thresh
+        mask = np.abs(pred) >= thresh
         if mask.sum() > 20:
-            gated_dir = pred_dir_all[mask & nonzero_all]
-            gated_actual = actual_dir_all[mask & nonzero_all]
-            if len(gated_dir) > 0:
-                gated_acc = float((gated_dir == gated_actual).mean())
+            gated_pred_dir = pred_dir[mask & nonzero]
+            gated_actual_dir = actual_dir[mask & nonzero]
+            if len(gated_pred_dir) > 0:
+                gated_acc = float((gated_pred_dir == gated_actual_dir).mean())
                 gate_analysis[f"gate_{thresh:.2f}"] = {
                     "accuracy": gated_acc,
-                    "coverage": float(mask.sum()) / float(len(pred_all)),
+                    "coverage": float(mask.sum()) / float(len(pred)),
                     "n_samples": int(mask.sum()),
                 }
 
-    # Feature importance
+    # Top features
     importance = model.get_score(importance_type="gain")
     sorted_imp = sorted(importance.items(), key=lambda x: x[1], reverse=True)
-    top10 = [(name, round(gain, 2)) for name, gain in sorted_imp[:10]]
+    top15 = [(name, round(gain, 2)) for name, gain in sorted_imp[:15]]
 
     metrics = {
-        "dir_accuracy_super": dir_acc_super,
-        "dir_auc_super": dir_auc_super,
-        "dir_accuracy_all": dir_acc_all,
-        "rmse_super": rmse_super,
+        "mode": "regression",
+        "dir_accuracy": dir_acc,
+        "dir_auc": dir_auc,
+        "rmse": rmse,
         "train_size": int(len(y_train)),
-        "test_super_size": int(len(y_test_super)),
-        "test_all_size": int(len(test_all)),
+        "test_size": int(len(y_test)),
         "best_iteration": int(model.best_iteration),
-        "top10_features": top10,
+        "top15_features": top15,
         "confidence_gates": gate_analysis,
     }
 
-    target_met = "✅" if dir_acc_super >= DIRECTION_ACC_TARGET else "❌"
-    log.info(f"  Fold {fold_idx}: dir_acc(super)={dir_acc_super:.4f} {target_met}  "
-             f"dir_AUC(super)={dir_auc_super:.4f}  "
-             f"dir_acc(all)={dir_acc_all:.4f}  "
-             f"RMSE={rmse_super:.4f}  trees={model.best_iteration + 1}")
+    target_met = "✅" if dir_acc >= DIRECTION_ACC_TARGET else "❌"
+    log.info(f"  Fold {fold_idx}: dir_acc={dir_acc:.4f} {target_met}  "
+             f"AUC={dir_auc:.4f}  RMSE={rmse:.4f}  trees={model.best_iteration + 1}")
 
-    # Log confidence gate results
     for thresh in confidence_thresholds:
         key = f"gate_{thresh:.2f}"
         if key in gate_analysis:
@@ -388,49 +328,224 @@ def train_direction_v3(
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# BASELINE
+# TRAINING: BINARY CLASSIFICATION MODE
 # ═════════════════════════════════════════════════════════════════════════════
 
-def compute_baseline(test_df: pd.DataFrame) -> dict:
-    """Baseline: random direction prediction → ~50% accuracy."""
-    y_actual = test_df["direction"].values
-    nonzero = y_actual != 0
-    if nonzero.sum() == 0:
-        return {"dir_accuracy": 0.5, "baseline_dir_accuracy": 0.5}
+def train_binary(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    feature_cols: List[str],
+    use_gpu: bool = False,
+    fold_idx: int = 0,
+) -> Tuple[Optional[xgb.Booster], dict]:
+    """
+    Binary classification: UP (1) vs DOWN (0).
+    Excludes FLAT (label=0) from both train and test.
+    """
+    # Filter to only UP and DOWN
+    train_bin = train_df[train_df["label"] != 0].copy()
+    test_bin = test_df[test_df["label"] != 0].copy()
 
-    long_pct = float((y_actual[nonzero] == 1).mean())
-    return {
-        "long_pct_in_test": long_pct,
-        "baseline_dir_accuracy": max(long_pct, 1 - long_pct),
+    # Convert labels: 1 → 1 (UP), -1 → 0 (DOWN)
+    train_bin["y"] = (train_bin["label"] == 1).astype(int)
+    test_bin["y"] = (test_bin["label"] == 1).astype(int)
+
+    if len(train_bin) < 200 or len(test_bin) < 50:
+        log.warning(f"  Fold {fold_idx}: Not enough UP/DOWN data "
+                    f"(train={len(train_bin)}, test={len(test_bin)}). Skipping.")
+        return None, {"error": "not enough data"}
+
+    X_train = train_bin[feature_cols].values.astype(np.float32)
+    y_train = train_bin["y"].values.astype(np.float32)
+    X_test = test_bin[feature_cols].values.astype(np.float32)
+    y_test = test_bin["y"].values.astype(np.float32)
+
+    # Free intermediate DataFrames ASAP
+    del train_bin, test_bin
+    gc.collect()
+
+    X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
+    X_test = np.nan_to_num(X_test, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # Class balance weight
+    n_up = int(y_train.sum())
+    n_down = len(y_train) - n_up
+    n_train_total = len(y_train)
+    scale_pos = n_down / max(n_up, 1)
+
+    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_cols)
+    dtest = xgb.DMatrix(X_test, label=y_test, feature_names=feature_cols)
+
+    # Free numpy arrays — XGBoost DMatrix has its own copy
+    del X_train, y_train, X_test
+    gc.collect()
+
+    params = {
+        "objective": "binary:logistic",
+        "eval_metric": "auc",
+        "eta": 0.03,
+        "max_depth": 6,
+        "subsample": 0.8,
+        "colsample_bytree": 0.7,
+        "min_child_weight": 20,
+        "lambda": 2.0,        # L2 — strong regularization for pattern features
+        "alpha": 0.5,         # L1 — sparse feature selection
+        "gamma": 0.2,         # Min loss reduction — prevents overfitting on noise
+        "max_bin": 128,       # Reduce histogram bins: less memory, mild speed impact
+        "scale_pos_weight": scale_pos,
+        "tree_method": "hist",
+        "device": "cuda" if use_gpu else "cpu",
+        "verbosity": 0,
     }
 
+    log.info(f"  Fold {fold_idx}: Training binary (UP vs DOWN) on {n_train_total} examples "
+             f"(UP={n_up}, DOWN={n_down}, scale_pos={scale_pos:.2f})")
+
+    model = xgb.train(
+        params, dtrain,
+        num_boost_round=2000,
+        evals=[(dtrain, "train"), (dtest, "test")],
+        early_stopping_rounds=150,
+        verbose_eval=0,
+    )
+
+    # ── Evaluate ──
+    pred_proba = model.predict(dtest)
+    pred_class = (pred_proba >= 0.5).astype(int)
+
+    accuracy = float(accuracy_score(y_test, pred_class))
+    try:
+        auc = float(roc_auc_score(y_test, pred_proba))
+    except Exception:
+        auc = 0.5
+
+    # Per-class analysis — critical for detecting UP/DOWN imbalance
+    n_pred_up = int(pred_class.sum())
+    n_pred_down = int(len(pred_class) - pred_class.sum())
+    up_mask = y_test == 1
+    down_mask = y_test == 0
+    up_recall = float(pred_class[up_mask].mean()) if up_mask.sum() > 0 else 0.0
+    down_recall = float((1 - pred_class[down_mask]).mean()) if down_mask.sum() > 0 else 0.0
+
+    # Confidence gates — separately for UP and DOWN
+    gate_analysis = {}
+    confidence_thresholds = [0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
+    for thresh in confidence_thresholds:
+        # Confident UP = P(UP) >= thresh
+        confident_up = pred_proba >= thresh
+        # Confident DOWN = P(DOWN) >= thresh ↔ P(UP) <= (1-thresh)
+        confident_down = pred_proba <= (1 - thresh)
+        confident = confident_up | confident_down
+
+        gate_info = {}
+
+        # Combined gate
+        if confident.sum() > 10:
+            gated_pred = pred_class[confident]
+            gated_actual = y_test[confident]
+            gated_acc = float(accuracy_score(gated_actual, gated_pred))
+            gate_info["accuracy"] = gated_acc
+            gate_info["coverage"] = float(confident.sum()) / float(len(pred_proba))
+            gate_info["n_samples"] = int(confident.sum())
+
+        # UP-only gate
+        if confident_up.sum() > 5:
+            up_pred = pred_class[confident_up]
+            up_actual = y_test[confident_up]
+            gate_info["up_accuracy"] = float(accuracy_score(up_actual, up_pred))
+            gate_info["up_n"] = int(confident_up.sum())
+            gate_info["up_coverage"] = float(confident_up.sum()) / float(len(pred_proba))
+
+        # DOWN-only gate
+        if confident_down.sum() > 5:
+            down_pred = pred_class[confident_down]
+            down_actual = y_test[confident_down]
+            gate_info["down_accuracy"] = float(accuracy_score(down_actual, down_pred))
+            gate_info["down_n"] = int(confident_down.sum())
+            gate_info["down_coverage"] = float(confident_down.sum()) / float(len(pred_proba))
+
+        if gate_info:
+            gate_analysis[f"gate_{thresh:.2f}"] = gate_info
+
+    importance = model.get_score(importance_type="gain")
+    sorted_imp = sorted(importance.items(), key=lambda x: x[1], reverse=True)
+    top15 = [(name, round(gain, 2)) for name, gain in sorted_imp[:15]]
+
+    metrics = {
+        "mode": "binary",
+        "accuracy": accuracy,
+        "auc": auc,
+        "up_recall": up_recall,
+        "down_recall": down_recall,
+        "n_pred_up": n_pred_up,
+        "n_pred_down": n_pred_down,
+        "train_size": n_train_total,
+        "test_size": int(len(y_test)),
+        "best_iteration": int(model.best_iteration),
+        "top15_features": top15,
+        "confidence_gates": gate_analysis,
+    }
+
+    target_met = "✅" if accuracy >= DIRECTION_ACC_TARGET else "❌"
+    log.info(f"  Fold {fold_idx}: accuracy={accuracy:.4f} {target_met}  "
+             f"AUC={auc:.4f}  trees={model.best_iteration + 1}")
+    log.info(f"    Predictions: UP={n_pred_up} DOWN={n_pred_down}  "
+             f"UP_recall={up_recall:.3f}  DOWN_recall={down_recall:.3f}")
+    if n_pred_down == 0:
+        log.warning(f"    ⚠️  Model predicts ZERO DOWN signals! Possible class collapse.")
+
+    for thresh in confidence_thresholds:
+        key = f"gate_{thresh:.2f}"
+        if key in gate_analysis:
+            g = gate_analysis[key]
+            parts = []
+            if "accuracy" in g:
+                parts.append(f"all={g['accuracy']:.4f}({g['n_samples']})")
+            if "up_accuracy" in g:
+                parts.append(f"UP={g['up_accuracy']:.4f}({g['up_n']})")
+            if "down_accuracy" in g:
+                parts.append(f"DOWN={g['down_accuracy']:.4f}({g['down_n']})")
+            cov = g.get("coverage", 0)
+            log.info(f"    gate≥{thresh:.2f}: {' | '.join(parts)}  cov={cov:.1%}")
+
+    return model, metrics
+
 
 # ═════════════════════════════════════════════════════════════════════════════
-# WFO TRAINING PIPELINE (per TF)
+# WFO PIPELINE (per TF)
 # ═════════════════════════════════════════════════════════════════════════════
 
 def train_wfo_for_tf(
     tf: int,
     tf_df: pd.DataFrame,
+    feature_cols: List[str],
+    mode: str = "regression",
     use_gpu: bool = False,
     output_dir: str = "models",
     evaluate_only: bool = False,
+    prediction_horizon: int = DEFAULT_HORIZON,
+    exclude_flat: bool = False,
 ) -> dict:
-    """Run WFO for one timeframe."""
+    """Run Walk-Forward Optimization for one timeframe."""
     config = WFO_CONFIG.get(tf)
     if config is None:
         log.warning(f"No WFO config for TF {tf}m. Skipping.")
         return {}
 
     t_start = time_module.time()
+    n_features = len(feature_cols)
 
     log.info(f"\n{'═' * 75}")
-    log.info(f"  DIRECTION v3 WFO — TF {tf}m")
+    log.info(f"  DIRECTION v4 WFO — TF {tf}m — {mode.upper()} mode")
     log.info(f"  Data: {len(tf_df)} rows, {tf_df['symbol'].nunique()} symbols")
-    n_super = int(tf_df["is_super"].sum())
-    n_super_dir = int(((tf_df["is_super"] == 1) & (tf_df["direction"] != 0)).sum())
-    log.info(f"  Super: {n_super}, Super+direction: {n_super_dir}")
-    log.info(f"  Target: direction accuracy ≥ {DIRECTION_ACC_TARGET:.0%}")
+    log.info(f"  Features: {n_features} pattern features")
+    n_up = int((tf_df["label"] == 1).sum())
+    n_flat = int((tf_df["label"] == 0).sum())
+    n_down = int((tf_df["label"] == -1).sum())
+    log.info(f"  Labels: UP={n_up} ({n_up/len(tf_df)*100:.1f}%), "
+             f"FLAT={n_flat} ({n_flat/len(tf_df)*100:.1f}%), "
+             f"DOWN={n_down} ({n_down/len(tf_df)*100:.1f}%)")
+    log.info(f"  Target: accuracy ≥ {DIRECTION_ACC_TARGET:.0%}")
     log.info(f"{'═' * 75}")
 
     tf_df = tf_df.copy()
@@ -449,14 +564,13 @@ def train_wfo_for_tf(
 
     # ── Per-fold training ──
     fold_metrics: List[dict] = []
-    baseline_metrics: List[dict] = []
     fold_details: List[dict] = []
 
     for fold in folds:
         fi = fold["fold_idx"]
         log.info(f"\n  ── Fold {fi}/{len(folds) - 1} ──")
 
-        train_df, test_df = apply_fold_split(tf_df, fold, tf, ts_col="ts")
+        train_df, test_df = apply_fold_split(tf_df, fold, tf, prediction_horizon, ts_col="ts")
 
         if len(train_df) < 200 or len(test_df) < 50:
             log.warning(f"  Too few samples (train={len(train_df)}, test={len(test_df)}). Skipping.")
@@ -464,129 +578,165 @@ def train_wfo_for_tf(
 
         log.info(f"  Train: {len(train_df)} rows | Test: {len(test_df)} rows")
 
-        # Baseline
-        base = compute_baseline(test_df)
-        baseline_metrics.append(base)
-        log.info(f"  [BASE] Fold {fi}: naive best="
-                 f"{base.get('baseline_dir_accuracy', 0.5):.4f} "
-                 f"(long_pct={base.get('long_pct_in_test', 0.5):.3f})")
+        # Baseline: majority class accuracy
+        test_labels = test_df["label"].values
+        nonzero_test = test_labels != 0
+        if nonzero_test.sum() > 0:
+            majority_up = (test_labels[nonzero_test] == 1).mean()
+            baseline = max(majority_up, 1 - majority_up)
+        else:
+            baseline = 0.5
+        log.info(f"  Baseline (majority class): {baseline:.4f}")
 
-        # Train direction v3
-        model, metrics = train_direction_v3(
-            train_df, test_df, DIRECTION_V3_FEATURES,
-            use_gpu=use_gpu, fold_idx=fi,
-        )
+        # Train model
+        if mode == "binary":
+            model, metrics = train_binary(
+                train_df, test_df, feature_cols,
+                use_gpu=use_gpu, fold_idx=fi,
+            )
+        else:
+            model, metrics = train_regression(
+                train_df, test_df, feature_cols,
+                use_gpu=use_gpu, fold_idx=fi,
+                exclude_flat=exclude_flat,
+            )
+
+        metrics["baseline"] = baseline
         fold_metrics.append(metrics)
-
         fold_details.append({
             "fold_idx": fi,
             "train_rows": len(train_df),
             "test_rows": len(test_df),
-            "baseline": base,
+            "baseline": baseline,
             "metrics": metrics,
         })
 
+        # ── Memory cleanup between folds ──
+        del train_df, test_df, model
+        gc.collect()
+
     # ══ AGGREGATE ══
     log.info(f"\n  {'─' * 60}")
-    log.info(f"  AGGREGATE OOS RESULTS — TF {tf}m")
+    log.info(f"  AGGREGATE OOS RESULTS — TF {tf}m ({mode})")
     log.info(f"  {'─' * 60}")
 
-    def aggregate(metrics_list, name):
-        if not metrics_list:
-            return {}
-        accs = [m.get("dir_accuracy_super", 0.5) for m in metrics_list
-                if "error" not in m]
-        aucs = [m.get("dir_auc_super", 0.5) for m in metrics_list
-                if "error" not in m]
-        accs_all = [m.get("dir_accuracy_all", 0.5) for m in metrics_list
-                    if "error" not in m]
-        agg = {}
-        if accs:
-            agg["dir_acc_super_mean"] = float(np.mean(accs))
-            agg["dir_acc_super_std"] = float(np.std(accs))
-            agg["dir_acc_super_min"] = float(np.min(accs))
-            agg["dir_acc_super_max"] = float(np.max(accs))
-        if aucs:
-            agg["dir_auc_super_mean"] = float(np.mean(aucs))
-            agg["dir_auc_super_std"] = float(np.std(aucs))
-        if accs_all:
-            agg["dir_acc_all_mean"] = float(np.mean(accs_all))
+    valid_metrics = [m for m in fold_metrics if "error" not in m]
+    if not valid_metrics:
+        log.error("  No valid folds completed!")
+        return {}
 
-        met = "✅" if agg.get("dir_acc_super_mean", 0) >= DIRECTION_ACC_TARGET else "❌"
-        log.info(f"  {name}: "
-                 f"dir_acc(super)={agg.get('dir_acc_super_mean', 0):.4f}"
-                 f"±{agg.get('dir_acc_super_std', 0):.4f} {met}  "
-                 f"dir_AUC(super)={agg.get('dir_auc_super_mean', 0):.4f}"
-                 f"±{agg.get('dir_auc_super_std', 0):.4f}  "
-                 f"dir_acc(all)={agg.get('dir_acc_all_mean', 0):.4f}  "
-                 f"[{agg.get('dir_acc_super_min', 0):.4f}..{agg.get('dir_acc_super_max', 0):.4f}]")
-        return agg
+    if mode == "binary":
+        accs = [m["accuracy"] for m in valid_metrics]
+        aucs = [m["auc"] for m in valid_metrics]
+        acc_key = "accuracy"
+    else:
+        accs = [m["dir_accuracy"] for m in valid_metrics]
+        aucs = [m["dir_auc"] for m in valid_metrics]
+        acc_key = "dir_accuracy"
 
-    agg = aggregate(fold_metrics, "Direction v3")
+    baselines = [m.get("baseline", 0.5) for m in valid_metrics]
 
-    base_accs = [m.get("baseline_dir_accuracy", 0.5) for m in baseline_metrics]
-    if base_accs:
-        log.info(f"  Baseline (naive):  dir_acc={np.mean(base_accs):.4f}")
+    agg = {
+        "acc_mean": float(np.mean(accs)),
+        "acc_std": float(np.std(accs)),
+        "acc_min": float(np.min(accs)),
+        "acc_max": float(np.max(accs)),
+        "auc_mean": float(np.mean(aucs)),
+        "auc_std": float(np.std(aucs)),
+        "baseline_mean": float(np.mean(baselines)),
+    }
+
+    met = "✅" if agg["acc_mean"] >= DIRECTION_ACC_TARGET else "❌"
+    log.info(f"  Accuracy: {agg['acc_mean']:.4f}±{agg['acc_std']:.4f} {met}  "
+             f"[{agg['acc_min']:.4f}..{agg['acc_max']:.4f}]")
+    log.info(f"  AUC: {agg['auc_mean']:.4f}±{agg['auc_std']:.4f}")
+    log.info(f"  Baseline: {agg['baseline_mean']:.4f}")
+    lift = agg['acc_mean'] - agg['baseline_mean']
+    log.info(f"  Lift over baseline: {lift:+.4f} {'📈' if lift > 0 else '📉'}")
+
+    # Per-class recall analysis (binary mode)
+    if mode == "binary":
+        up_recalls = [m.get("up_recall", 0) for m in valid_metrics if "up_recall" in m]
+        down_recalls = [m.get("down_recall", 0) for m in valid_metrics if "down_recall" in m]
+        n_pred_ups = [m.get("n_pred_up", 0) for m in valid_metrics if "n_pred_up" in m]
+        n_pred_downs = [m.get("n_pred_down", 0) for m in valid_metrics if "n_pred_down" in m]
+        if up_recalls:
+            log.info(f"  UP recall:   {np.mean(up_recalls):.4f}±{np.std(up_recalls):.4f}")
+        if down_recalls:
+            log.info(f"  DOWN recall: {np.mean(down_recalls):.4f}±{np.std(down_recalls):.4f}")
+        total_up = sum(n_pred_ups)
+        total_down = sum(n_pred_downs)
+        log.info(f"  Predictions: UP={total_up} DOWN={total_down} "
+                 f"(UP%={total_up/(total_up+total_down)*100:.1f}% if total_up+total_down > 0)")
+        if total_down == 0:
+            log.warning(f"  ⚠️  ALL predictions are UP! Model has class collapse → no SHORT signals.")
+            log.warning(f"     Possible causes: class imbalance, features with directional bias,")
+            log.warning(f"     or scale_pos_weight not compensating enough.")
 
     # Feature importance stability
-    counts: Dict[str, int] = {}
-    for m in fold_metrics:
-        if "error" in m:
-            continue
-        for feat, _ in m.get("top10_features", []):
-            counts[feat] = counts.get(feat, 0) + 1
-    if counts:
-        stable = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    feat_counts: Dict[str, int] = {}
+    for m in valid_metrics:
+        for feat, _ in m.get("top15_features", []):
+            feat_counts[feat] = feat_counts.get(feat, 0) + 1
+    if feat_counts:
+        stable = sorted(feat_counts.items(), key=lambda x: x[1], reverse=True)
         log.info(f"  Stable top features: "
-                 + ", ".join(f"{f}({c}/{len(fold_metrics)})" for f, c in stable[:8]))
+                 + ", ".join(f"{f}({c}/{len(valid_metrics)})" for f, c in stable[:10]))
 
-    # Aggregate confidence gate analysis
+    # Aggregate confidence gates
     gate_accs: Dict[str, List[float]] = {}
-    for m in fold_metrics:
-        if "error" in m:
-            continue
+    for m in valid_metrics:
         for key, val in m.get("confidence_gates", {}).items():
+            if "accuracy" not in val:
+                continue
             if key not in gate_accs:
                 gate_accs[key] = []
             gate_accs[key].append(val["accuracy"])
     if gate_accs:
         log.info(f"  Confidence gate OOS accuracy:")
         for key in sorted(gate_accs.keys()):
-            accs = gate_accs[key]
-            log.info(f"    {key}: {np.mean(accs):.4f}±{np.std(accs):.4f}")
+            vals = gate_accs[key]
+            log.info(f"    {key}: {np.mean(vals):.4f}±{np.std(vals):.4f}")
 
-    # ══ SAVE MODELS (if not evaluate-only) ══
-    if not evaluate_only and fold_metrics:
+    # ══ SAVE MODEL ══
+    if not evaluate_only and valid_metrics:
         os.makedirs(output_dir, exist_ok=True)
 
-        # Train final model on ALL data
-        log.info(f"\n  ── FINAL Direction v3 model (ALL data) ──")
+        log.info(f"\n  ── FINAL model (ALL data) ──")
         n_val = max(int(len(tf_df) * 0.10), 100)
         val_df = tf_df.tail(n_val)
         train_all_df = tf_df.head(len(tf_df) - n_val)
 
-        final_model, final_metrics = train_direction_v3(
-            train_all_df, val_df, DIRECTION_V3_FEATURES,
-            use_gpu=use_gpu, fold_idx=-1,
-        )
+        if mode == "binary":
+            final_model, final_metrics = train_binary(
+                train_all_df, val_df, feature_cols,
+                use_gpu=use_gpu, fold_idx=-1,
+            )
+        else:
+            final_model, final_metrics = train_regression(
+                train_all_df, val_df, feature_cols,
+                use_gpu=use_gpu, fold_idx=-1,
+                exclude_flat=exclude_flat,
+            )
+
         if final_model:
-            # Save as direction_v3_tf{X}.ubj
-            path = os.path.join(output_dir, f"direction_v3_tf{tf}.ubj")
+            path = os.path.join(output_dir, f"direction_v4_tf{tf}.ubj")
             final_model.save_model(path)
             log.info(f"  ✅ Saved: {path}")
 
             # Save schema
             schema = {
-                "features": DIRECTION_V3_FEATURES,
-                "feature_count": len(DIRECTION_V3_FEATURES),
-                "task": "direction_v3_regression",
-                "objective": "reg:squarederror",
+                "features": feature_cols,
+                "feature_count": len(feature_cols),
+                "task": f"direction_v4_{mode}",
+                "objective": "reg:squarederror" if mode == "regression" else "binary:logistic",
                 "tf_minutes": tf,
-                "version": "v3",
-                "training_approach": "regression on direction_quality",
-                "wfo_dir_acc_super_mean": agg.get("dir_acc_super_mean", 0),
-                "wfo_dir_auc_super_mean": agg.get("dir_auc_super_mean", 0),
-                "wfo_folds": len(fold_metrics),
+                "version": "v4_pattern",
+                "training_approach": f"CNN-like pattern ({mode})",
+                "wfo_acc_mean": agg["acc_mean"],
+                "wfo_auc_mean": agg["auc_mean"],
+                "wfo_baseline": agg["baseline_mean"],
+                "wfo_folds": len(valid_metrics),
                 "confidence_gates": {k: float(np.mean(v)) for k, v in gate_accs.items()},
             }
             schema_path = path.replace(".ubj", ".schema.json")
@@ -594,24 +744,24 @@ def train_wfo_for_tf(
                 json.dump(schema, f, indent=2)
             log.info(f"  ✅ Schema: {schema_path}")
 
-    # ══ SAVE WFO REPORT ══
+    # ══ SAVE REPORT ══
     elapsed = time_module.time() - t_start
     report = {
         "timeframe_minutes": tf,
         "training_method": "walk_forward_optimization",
-        "model_version": "direction_v3",
-        "feature_count": len(DIRECTION_V3_FEATURES),
-        "target_dir_accuracy": DIRECTION_ACC_TARGET,
+        "model_version": "direction_v4_pattern",
+        "mode": mode,
+        "feature_count": n_features,
+        "target_accuracy": DIRECTION_ACC_TARGET,
         "total_rows": len(tf_df),
         "total_symbols": int(tf_df["symbol"].nunique()),
         "aggregate_oos": agg,
-        "baseline_mean_acc": float(np.mean(base_accs)) if base_accs else 0.5,
         "fold_details": fold_details,
         "elapsed_seconds": round(elapsed, 1),
     }
 
     os.makedirs(output_dir, exist_ok=True)
-    report_path = os.path.join(output_dir, f"direction_v3_wfo_report_tf{tf}.json")
+    report_path = os.path.join(output_dir, f"direction_v4_wfo_report_tf{tf}.json")
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2, default=str)
     log.info(f"\n  📊 Report: {report_path}")
@@ -626,26 +776,35 @@ def train_wfo_for_tf(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Direction Model v3 — WFO Training (Regression on direction_quality)",
+        description="Direction Model v4 — CNN-like Pattern WFO Training",
     )
-    parser.add_argument("--csv", default="dataset/direction_v3_dataset.csv",
-                        help="Path to direction_v3_dataset.csv")
+    parser.add_argument("--csv", default="dataset/direction_v4_dataset.csv",
+                        help="Path to direction_v4_dataset.csv")
     parser.add_argument("--output-dir", default="models",
                         help="Output directory for models")
     parser.add_argument("--gpu", action="store_true",
                         help="Use GPU (CUDA) for XGBoost")
     parser.add_argument("--timeframes", default="all",
                         help="Comma-separated TFs (e.g., '15,60') or 'all'")
+    parser.add_argument("--mode", default="binary",
+                        choices=["regression", "binary"],
+                        help="Training mode: regression or binary classification (default: binary)")
     parser.add_argument("--evaluate-only", action="store_true",
-                        help="Only WFO metrics, no final model")
+                        help="Only WFO evaluation, no final model save")
+    parser.add_argument("--exclude-flat", action="store_true",
+                        help="Exclude FLAT examples from training (regression mode)")
+    parser.add_argument("--horizon", type=int, default=DEFAULT_HORIZON,
+                        help=f"Prediction horizon in bars (default: {DEFAULT_HORIZON})")
     args = parser.parse_args()
 
     log.info("╔═══════════════════════════════════════════════════════╗")
-    log.info("║  Direction Model v3 — WFO Training                   ║")
-    log.info("║  32 curated features, 6 domains                      ║")
-    log.info("║  Regression on direction_quality                     ║")
-    log.info("║  Target: direction accuracy ≥ 0.60 (honest)          ║")
+    log.info("║  Direction Model v4 — CNN-like Pattern WFO Training   ║")
+    log.info("║  Pure OHLCV sliding window → XGBoost                  ║")
+    log.info("║  No indicators, no noise — just price patterns        ║")
     log.info("╚═══════════════════════════════════════════════════════╝")
+    log.info(f"Mode: {args.mode}")
+    log.info(f"Prediction horizon: {args.horizon} bars")
+    log.info(f"Exclude FLAT: {args.exclude_flat}")
 
     if not os.path.exists(args.csv):
         log.error(f"Dataset not found: {args.csv}")
@@ -660,38 +819,54 @@ def main():
     else:
         target_tfs = sorted([int(x.strip()) for x in args.timeframes.split(",")])
 
-    # Load data
+    # Load data — use float32 for feature columns to save ~50% memory
     log.info(f"Loading {args.csv}...")
     load_start = time_module.time()
     df = pd.read_csv(args.csv)
     load_t = time_module.time() - load_start
     log.info(f"  Loaded {len(df):,} rows, {len(df.columns)} columns in {load_t:.1f}s")
 
-    # Validate columns
-    required = DIRECTION_V3_FEATURES + [
-        "symbol", "tf_minutes", "timestamp",
-        "future_return_25", "direction", "is_super",
-        "bars_to_tp", "direction_quality",
-    ]
+    # Auto-detect feature columns
+    feature_cols = detect_feature_columns(df)
+    log.info(f"  Detected {len(feature_cols)} pattern feature columns")
+    if len(feature_cols) == 0:
+        log.error("No pattern feature columns found! Expected columns like w0_open_rel, w0_high_rel, ...")
+        sys.exit(1)
+
+    # Validate required columns
+    required = ["symbol", "tf_minutes", "timestamp", "label", "future_return_pct"]
     missing = [c for c in required if c not in df.columns]
     if missing:
-        log.warning(f"Missing columns (filled with 0): {missing}")
-        for c in missing:
-            df[c] = 0.0
+        log.error(f"Missing required columns: {missing}")
+        sys.exit(1)
+
+    # ── Memory optimization: convert features to float32 (saves ~50% RAM) ──
+    mem_before = df.memory_usage(deep=True).sum() / 1e9
+    for col in feature_cols:
+        df[col] = df[col].astype(np.float32)
+    df["future_return_pct"] = df["future_return_pct"].astype(np.float32)
+    if "max_up_pct" in df.columns:
+        df["max_up_pct"] = df["max_up_pct"].astype(np.float32)
+    if "max_down_pct" in df.columns:
+        df["max_down_pct"] = df["max_down_pct"].astype(np.float32)
+    mem_after = df.memory_usage(deep=True).sum() / 1e9
+    log.info(f"  Memory: {mem_before:.1f} GB → {mem_after:.1f} GB (float32 conversion)")
+    gc.collect()
 
     # Dataset overview
     log.info(f"\n  Dataset overview:")
     for tf_val in sorted(df["tf_minutes"].unique()):
         sub = df[df["tf_minutes"] == tf_val]
-        n_super = int(sub["is_super"].sum())
-        n_super_dir = int(((sub["is_super"] == 1) & (sub["direction"] != 0)).sum())
+        n_up = int((sub["label"] == 1).sum())
+        n_flat = int((sub["label"] == 0).sum())
+        n_down = int((sub["label"] == -1).sum())
         marker = " ◄" if tf_val in target_tfs else ""
-        log.info(f"    TF {tf_val:>5}m: {len(sub):>9,} rows, "
-                 f"{sub['symbol'].nunique():>3} symbols, "
-                 f"super={n_super} ({n_super / len(sub) * 100:.1f}%), "
-                 f"super+dir={n_super_dir}{marker}")
+        log.info(f"    TF {tf_val:>5}m: {len(sub):>9,} rows, {sub['symbol'].nunique():>3} symbols, "
+                 f"UP={n_up}({n_up/len(sub)*100:.0f}%) "
+                 f"FLAT={n_flat}({n_flat/len(sub)*100:.0f}%) "
+                 f"DOWN={n_down}({n_down/len(sub)*100:.0f}%){marker}")
 
-    # Run WFO
+    # Run WFO — process each TF separately to control memory
     all_reports: Dict[int, dict] = {}
     total_start = time_module.time()
 
@@ -701,39 +876,44 @@ def main():
             log.warning(f"Skipping TF {tf}m: only {len(tf_df)} rows")
             continue
         report = train_wfo_for_tf(
-            tf, tf_df,
+            tf, tf_df, feature_cols,
+            mode=args.mode,
             use_gpu=args.gpu,
             output_dir=args.output_dir,
             evaluate_only=args.evaluate_only,
+            prediction_horizon=args.horizon,
+            exclude_flat=args.exclude_flat,
         )
         if report:
             all_reports[tf] = report
+
+        # Free TF-specific data between timeframes
+        del tf_df
+        gc.collect()
+        log.info(f"  [Memory] gc.collect() after TF {tf}m")
 
     total_elapsed = time_module.time() - total_start
 
     # ══ FINAL SUMMARY ══
     log.info(f"\n╔═══════════════════════════════════════════════════════════╗")
-    log.info(f"║  DIRECTION v3 — FINAL SUMMARY                            ║")
+    log.info(f"║  DIRECTION v4 — FINAL SUMMARY ({args.mode.upper()})        ║")
     log.info(f"╚═══════════════════════════════════════════════════════════╝")
 
     for tf in sorted(all_reports.keys()):
         r = all_reports[tf]
         agg = r.get("aggregate_oos", {})
-        base = r.get("baseline_mean_acc", 0.5)
+        acc = agg.get("acc_mean", 0)
+        auc = agg.get("auc_mean", 0)
+        base = agg.get("baseline_mean", 0.5)
+        lift = acc - base
+        met = "✅" if acc >= DIRECTION_ACC_TARGET else "❌"
 
-        acc_super = agg.get("dir_acc_super_mean", 0)
-        auc_super = agg.get("dir_auc_super_mean", 0)
-        acc_all = agg.get("dir_acc_all_mean", 0)
-        met = "✅" if acc_super >= DIRECTION_ACC_TARGET else "❌"
-
-        log.info(f"  TF {tf:>5}m: acc(super)={acc_super:.4f}  "
-                 f"AUC(super)={auc_super:.4f}  "
-                 f"acc(all)={acc_all:.4f}  "
-                 f"baseline={base:.4f}  {met}")
+        log.info(f"  TF {tf:>5}m: acc={acc:.4f}  AUC={auc:.4f}  "
+                 f"base={base:.4f}  lift={lift:+.4f}  {met}")
 
     log.info(f"\n  Total time: {total_elapsed:.1f}s ({total_elapsed / 60:.1f}min)")
-    log.info(f"  Target: direction accuracy ≥ {DIRECTION_ACC_TARGET:.0%}")
-    log.info(f"  Model files: models/direction_v3_tf{{X}}.ubj")
+    log.info(f"  Target: accuracy ≥ {DIRECTION_ACC_TARGET:.0%}")
+    log.info(f"  Model files: models/direction_v4_tf{{X}}.ubj")
     log.info(f"  Done ✅")
 
 

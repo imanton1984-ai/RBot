@@ -3,12 +3,13 @@
 // Signal Scanner — сканирует trade.super_entry_signals на предмет свежих,
 // квалифицированных сигналов для открытия позиций.
 //
-// Логика фильтрации:
-//   1. combined_score в диапазоне [signal_score_min_X, signal_score_max_X] для каждого таймфрейма
-//   2. Таймфреймы: 1m, 5m, 15m, 1h, 4h, 1d
-//   3. Только сигналы в окне lookback (для 4h смотрим -4ч от текущего времени)
-//   4. Проверка дрифта цены: |current_price - entry_price| / entry_price <= max_price_drift_pct
-//   5. Не используем сигнал, если для него уже открыта позиция
+// Логика фильтрации (два ML-фильтра):
+//   1. p_super >= p_super_min_X для каждого таймфрейма (P(super move) от XGBoost)
+//   2. dir_confidence >= dir_confidence_min_X для каждого TF (P(predicted_class) от Direction model)
+//   3. Таймфреймы: 1m, 5m, 15m, 1h, 4h, 1d
+//   4. Только сигналы в окне lookback (для 4h смотрим -4ч от текущего времени)
+//   5. Проверка дрифта цены: |current_price - entry_price| / entry_price <= max_price_drift_pct
+//   6. Не используем сигнал, если для него уже открыта позиция
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -189,14 +190,9 @@ impl SignalScanner {
         lookback_minutes: i64,
         limit: u16,
     ) -> Result<Vec<RawSignalRow>> {
-        // Get per-timeframe score range
-        let (score_min, score_max) = self.get_score_range_for_tf(tf_minutes);
-
-        // p_super_min — прямой фильтр по вероятности ML-модели (per-TF).
-        // combined_score = p_super * (1 + dir_confidence), поэтому фильтрация
-        // только по combined_score может пропускать сигналы с низким p_super
-        // но высоким dir_confidence. p_super_min = 0.0 = отключён.
+        // Two ML filters: P(super) and direction confidence (per-TF)
         let p_super_min = self.config.get_p_super_min_for_tf(tf_minutes);
+        let dir_confidence_min = self.config.get_dir_confidence_min_for_tf(tf_minutes);
 
         let rows = sqlx::query(
             r#"
@@ -206,20 +202,18 @@ impl SignalScanner {
                 p_super, combined_score
             FROM trade.super_entry_signals
             WHERE tf_minutes = $1
-              AND combined_score >= $2
-              AND combined_score <= $3
-              AND p_super >= $6
+              AND p_super >= $2
+              AND dir_confidence >= $3
               AND time >= now() - make_interval(mins => $4::int)
             ORDER BY combined_score DESC, time DESC
             LIMIT $5
             "#,
         )
         .bind(tf_minutes)
-        .bind(score_min)
-        .bind(score_max)
+        .bind(p_super_min)
+        .bind(dir_confidence_min)
         .bind(lookback_minutes as i32)
         .bind(limit as i64)
-        .bind(p_super_min)
         .fetch_all(&self.pool)
         .await?;
 
@@ -241,19 +235,6 @@ impl SignalScanner {
             .collect();
 
         Ok(signals)
-    }
-
-    /// Get per-timeframe score range from config
-    fn get_score_range_for_tf(&self, tf_minutes: i16) -> (f32, f32) {
-        match tf_minutes {
-            1 => (self.config.signal_score_min_1m, self.config.signal_score_max_1m),
-            5 => (self.config.signal_score_min_5m, self.config.signal_score_max_5m),
-            15 => (self.config.signal_score_min_15m, self.config.signal_score_max_15m),
-            60 => (self.config.signal_score_min_1h, self.config.signal_score_max_1h),
-            240 => (self.config.signal_score_min_4h, self.config.signal_score_max_4h),
-            1440 => (self.config.signal_score_min_1d, self.config.signal_score_max_1d),
-            _ => (0.70, 0.80), // default fallback
-        }
     }
 
     /// Получить все символы, заблокированные для торговли:

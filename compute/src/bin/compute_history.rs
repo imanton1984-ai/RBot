@@ -420,8 +420,8 @@ async fn main() -> Result<()> {
 
     // Step 2: Wait for SuperEntryStage to finish processing
     if let Some(handle) = super_entry_handle {
-        tracing::info!("compute_history: Waiting for SuperEntryStage to finish (timeout: 300s)...");
-        match tokio::time::timeout(Duration::from_secs(300), handle).await {
+        tracing::info!("compute_history: Waiting for SuperEntryStage to finish (timeout: 600s)...");
+        match tokio::time::timeout(Duration::from_secs(600), handle).await {
             Ok(Ok(Ok(()))) => {
                 tracing::info!("compute_history: ✅ SuperEntryStage completed successfully");
             }

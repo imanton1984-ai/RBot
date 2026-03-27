@@ -391,8 +391,8 @@ def main():
         # - Fewer colsample (0.7) as regularization through feature sampling
         # - Higher min_child_weight (50) to prevent fitting noise
         dir_params = {
-            "eta": 0.01,
-            "max_depth": 5,
+            "eta": 0.03,
+            "max_depth": 6,
             "subsample": 0.7,
             "colsample_bytree": 0.7,
             "min_child_weight": 50,

@@ -74,11 +74,21 @@ pub struct SuperEntryConfig {
     /// Train/test split ratio (fraction of pairs for training)
     pub train_split_ratio: f64,
 
-    /// Enable "danger zone" filter: skip trades where 3-4 out of 10 indicators
-    /// agree with the direction. This ambiguous zone (neither strong trend nor
-    /// clear reversal) has WR ~34.5% and costs ~$60 over 184 trades.
-    /// Env: SUPER_ENTRY_DANGER_ZONE_FILTER (default: true)
+    /// DEPRECATED: Danger zone filter is removed.
+    /// Only ML models (P(super) + direction) influence signal decisions.
     pub enable_danger_zone_filter: bool,
+
+    /// Per-TF direction confidence thresholds.
+    /// Only open trades when direction model confidence >= threshold for that TF.
+    /// For v4 binary model: confidence = P(predicted_class) ∈ [0.5, 1.0].
+    ///
+    /// Default:
+    ///   15m  → 0.75
+    ///   60m  → 0.70
+    ///   240m → 0.65
+    ///
+    /// Env override: SUPER_ENTRY_DIR_CONF_{TF}=0.70 (e.g. SUPER_ENTRY_DIR_CONF_60=0.70)
+    pub direction_confidence_thresholds: HashMap<i32, f64>,
 }
 
 impl Default for SuperEntryConfig {
@@ -94,7 +104,8 @@ impl Default for SuperEntryConfig {
             direction_model_path_template: "models/super_dir_v1_tf{tf}.ubj".to_string(),
             min_magnitude_pct: 0.5,
             train_split_ratio: 0.5,
-            enable_danger_zone_filter: true, // Skip trades in ambiguous 3-4 indicator zone
+            enable_danger_zone_filter: false, // DEPRECATED: only ML models affect signal
+            direction_confidence_thresholds: Self::default_direction_confidence_thresholds(),
         }
     }
 }
@@ -126,7 +137,40 @@ impl SuperEntryConfig {
             cfg.enable_danger_zone_filter = v == "true" || v == "1";
         }
 
+        // Per-TF direction confidence thresholds:
+        // SUPER_ENTRY_DIR_CONF_15=0.75, SUPER_ENTRY_DIR_CONF_60=0.70, etc.
+        for &tf in &[5, 15, 60, 240, 1440] {
+            let env_key = format!("SUPER_ENTRY_DIR_CONF_{}", tf);
+            if let Ok(v) = std::env::var(&env_key) {
+                if let Ok(n) = v.parse::<f64>() {
+                    cfg.direction_confidence_thresholds.insert(tf, n.clamp(0.5, 1.0));
+                }
+            }
+        }
+
         cfg
+    }
+
+    /// Default direction confidence thresholds per TF.
+    /// Higher TFs are more reliable → lower confidence threshold.
+    /// Lower TFs are noisy → require stronger model confidence.
+    fn default_direction_confidence_thresholds() -> HashMap<i32, f64> {
+        let mut m = HashMap::new();
+        m.insert(5, 0.80);     // 5m: very noisy, require P(class) >= 0.80
+        m.insert(15, 0.75);    // 15m: require P(class) >= 0.75
+        m.insert(60, 0.70);    // 1h: require P(class) >= 0.70
+        m.insert(240, 0.65);   // 4h: require P(class) >= 0.65
+        m.insert(1440, 0.65);  // 1d: require P(class) >= 0.65
+        m
+    }
+
+    /// Get direction confidence threshold for a specific TF.
+    /// Returns the per-TF threshold, or 0.65 as default fallback.
+    pub fn dir_confidence_for_tf(&self, tf_minutes: i32) -> f64 {
+        self.direction_confidence_thresholds
+            .get(&tf_minutes)
+            .copied()
+            .unwrap_or(0.65)
     }
 
     /// Effective max hold bars for backtesting.

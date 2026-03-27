@@ -1,25 +1,33 @@
 // strategies/ml_entry_strategy/src/bin/direction_backtest.rs
 //
-// Direction v3 Backtester — FAST BATCH VERSION
+// Direction v4 Pattern Backtester
 //
-// Uses batch data loading (single SQL query per TF, all symbols at once)
-// AND batch model inference (all super points predicted in one GPU call).
+// Tests the CNN-like pattern direction model:
+//   1. Load raw candles (OHLCV only — no indicators needed)
+//   2. For each super point (from existing super model), compute pattern features
+//   3. Predict direction with v4 model
+//   4. Simulate trades and measure win rate
 //
-// Compares direction predictions:
-//   - Baseline v1: existing super_dir model (128 features, ~0.50 AUC)
-//   - Direction v3: regression model (32 features → sign = direction, abs = confidence)
-//   - With confidence gate analysis at different thresholds
+// ALSO supports standalone mode (without super model):
+//   When DIRECTION_STANDALONE=1, tests direction predictions on ALL candles
+//   instead of only on super points. This is useful for evaluating the
+//   pure direction accuracy without the super filter.
 //
 // USAGE:
 //   cargo build --release -p ml_entry_strategy --bin direction_backtest
-//   ./target/release/direction_backtest
+//   DIRECTION_STANDALONE=1 ./target/release/direction_backtest
 //   DIRECTION_GPU=1 ./target/release/direction_backtest
 //
 // ENV VARS:
-//   DATABASE_URL            — postgres connection string
-//   WFO_MIN_DATE=2026-01-13 — only count trades after this date
-//   DIRECTION_TF=15,60,240  — timeframes to test (default: 15,60,240)
-//   DIRECTION_GPU=1         — use GPU for model inference (default: CPU)
+//   DATABASE_URL              — postgres connection string
+//   WFO_MIN_DATE=2026-01-13  — only count trades after this date
+//   DIRECTION_TF=15,60,240   — timeframes to test (default: 15,60,240)
+//   DIRECTION_GPU=1           — use GPU for model inference
+//   DIRECTION_STANDALONE=1    — test without super model (all candles)
+//   DIRECTION_MODE=binary     — model mode: "binary" (default) or "regression"
+//   DIR_WINDOW_SIZE           — must match training config
+//   DIR_PREDICTION_HORIZON    — must match training config
+//   DIR_FEATURE_SET           — must match training config
 
 use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
@@ -28,15 +36,10 @@ use sqlx::PgPool;
 use tracing::info;
 
 use ml_entry_strategy::config::SuperEntryConfig;
-use ml_entry_strategy::dataset::{
-    CandleWithIndicators, compute_dynamic_features_with_htf,
-    fetch_all_candles_for_tf,
-};
-use ml_entry_strategy::direction::features::{
-    compute_direction_v3_features, resolve_btc_context, resolve_htf_context,
-    DIRECTION_V3_FEATURE_COUNT,
-};
-use ml_entry_strategy::heuristic::get_higher_tf;
+use ml_entry_strategy::dataset::CandleWithIndicators;
+use ml_entry_strategy::direction::DirectionConfig;
+use ml_entry_strategy::direction::features::compute_pattern_features;
+use ml_entry_strategy::direction::dataset::fetch_all_raw_candles_for_tf;
 
 use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
 
@@ -106,10 +109,42 @@ impl Metrics {
     fn avg_pnl(&self) -> f64 { if self.n > 0 { self.total_pnl / self.n as f64 } else { 0.0 } }
 }
 
-/// A super point that passed P(super) threshold — ready for direction prediction
-struct SuperPoint {
-    symbol_idx: usize,      // index into symbols vec
-    candle_idx: usize,       // index into that symbol's candle vec
+// ─────────────────────────────────────────────────────────────────────
+// Accuracy metrics (direction correctness without trade simulation)
+// ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Default)]
+struct AccuracyMetrics {
+    total: usize,
+    correct: usize,
+    up_correct: usize,
+    up_total: usize,
+    down_correct: usize,
+    down_total: usize,
+}
+
+impl AccuracyMetrics {
+    fn add(&mut self, predicted: i8, actual_return: f64) {
+        // Actual direction based on return sign
+        let actual_dir: i8 = if actual_return > 0.0 { 1 } else { -1 };
+
+        self.total += 1;
+        if predicted == actual_dir {
+            self.correct += 1;
+        }
+
+        if actual_dir == 1 {
+            self.up_total += 1;
+            if predicted == 1 { self.up_correct += 1; }
+        } else {
+            self.down_total += 1;
+            if predicted == -1 { self.down_correct += 1; }
+        }
+    }
+
+    fn accuracy(&self) -> f64 {
+        if self.total > 0 { self.correct as f64 / self.total as f64 * 100.0 } else { 0.0 }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -150,19 +185,31 @@ async fn main() -> Result<()> {
     let use_gpu = std::env::var("DIRECTION_GPU")
         .map_or(false, |v| v == "1" || v.to_lowercase() == "true");
 
-    let config = SuperEntryConfig::from_env();
+    let standalone = std::env::var("DIRECTION_STANDALONE")
+        .map_or(false, |v| v == "1" || v.to_lowercase() == "true");
+
+    // Model mode: "binary" (binary:logistic, output P(UP) ∈ [0,1])
+    //             "regression" (reg:squarederror, output ∈ (-∞, +∞), sign = direction)
+    let is_binary_mode = std::env::var("DIRECTION_MODE")
+        .map_or(true, |v| v.to_lowercase() != "regression");
+
+    let device = if use_gpu { Device::Cuda } else { Device::Cpu };
+
+    let dir_config = DirectionConfig::from_env();
+    let super_config = SuperEntryConfig::from_env();
 
     let wfo_min_date: Option<DateTime<Utc>> = std::env::var("WFO_MIN_DATE").ok()
         .and_then(|s| NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d").ok()
             .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc()));
 
-    let device = if use_gpu { Device::Cuda } else { Device::Cpu };
-
     info!("╔═══════════════════════════════════════════════════════╗");
-    info!("║  Direction v3 Backtester — BATCH GPU                 ║");
+    info!("║  Direction v4 Pattern Backtester                      ║");
+    info!("║  CNN-like sliding window on XGBoost                   ║");
     info!("╚═══════════════════════════════════════════════════════╝");
-    info!("Timeframes: {:?}", timeframes);
-    info!("Device: {:?} (DIRECTION_GPU={})", device, if use_gpu { "1" } else { "0" });
+    info!("Mode: {}", if standalone { "STANDALONE (all candles)" } else { "SUPER-FILTERED (super points only)" });
+    info!("Model output: {}", if is_binary_mode { "BINARY (P(UP) ∈ [0,1], threshold=0.5)" } else { "REGRESSION (sign=direction)" });
+    info!("Device: {:?}", device);
+    dir_config.log_summary();
     if let Some(d) = &wfo_min_date {
         info!("WFO OOS filter: trades after {}", d.format("%Y-%m-%d"));
     }
@@ -171,8 +218,8 @@ async fn main() -> Result<()> {
     let total_start = std::time::Instant::now();
 
     for &tf in &timeframes {
-        let tp_pct = config.target_pct_for_tf(tf);
-        let sl_pct = config.sl_pct_for_tf(tf);
+        let tp_pct = super_config.target_pct_for_tf(tf);
+        let sl_pct = super_config.sl_pct_for_tf(tf);
         let limit = match tf { 1=>5000, 5=>12000, 15=>12000, 60=>12000, 240=>12000, 1440=>3700, _=>5000 };
 
         let sep = "═".repeat(60);
@@ -181,97 +228,87 @@ async fn main() -> Result<()> {
         info!("  TF {}m  TP={:.2}%  SL={:.2}%", tf, tp_pct, sl_pct);
         info!("{}", sep);
 
-        // ── Load models ──
-        let super_path = config.model_path(tf);
-        let super_model = match Booster::load(&super_path, device) {
-            Ok(b) => { info!("  ✅ super model: {} ({:?})", super_path, device); b }
-            Err(e) => {
-                if use_gpu {
-                    match Booster::load(&super_path, Device::Cpu) {
-                        Ok(b) => { info!("  ✅ super model: {} (CPU fallback)", super_path); b }
-                        Err(_) => { info!("  ❌ super model not found: {}", e); continue; }
-                    }
-                } else {
-                    info!("  ❌ super model not found: {}", e);
-                    continue;
-                }
+        // ── Load direction v4 model ──
+        let v4_path = format!("models/direction_v4_tf{}.ubj", tf);
+        let v4_model = match Booster::load(&v4_path, device) {
+            Ok(b) => { info!("  ✅ direction v4 model: {} ({:?})", v4_path, device); Some(b) }
+            Err(_) => match Booster::load(&v4_path, Device::Cpu) {
+                Ok(b) => { info!("  ✅ direction v4 model: {} (CPU fallback)", v4_path); Some(b) }
+                Err(e) => { info!("  ❌ No direction v4 model: {} — {}", v4_path, e); None }
             }
         };
 
-        // Legacy baseline direction model
-        let base_dir_path = config.direction_model_path(tf);
-        let base_dir_model = Booster::load(&base_dir_path, device)
-            .or_else(|_| Booster::load(&base_dir_path, Device::Cpu)).ok();
-        info!("  {} baseline direction: {}",
-              if base_dir_model.is_some() { "✅" } else { "⚠ " }, base_dir_path);
-
-        // Direction v3 model
-        let v3_path = format!("models/direction_v3_tf{}.ubj", tf);
-        let v3_model = Booster::load(&v3_path, device)
-            .or_else(|_| Booster::load(&v3_path, Device::Cpu)).ok();
-        info!("  {} direction v3: {} (32 features, regression)",
-              if v3_model.is_some() { "✅" } else { "⚠ " }, v3_path);
-
-        if v3_model.is_none() && base_dir_model.is_none() {
-            info!("  No direction models for TF {}m. Skipping.", tf);
+        if v4_model.is_none() {
+            info!("  No model for TF {}m. Skipping.", tf);
             continue;
         }
+        let v4_model = v4_model.unwrap();
 
-        // ── BATCH LOAD all candles for this TF ──
+        // ── Load raw candles (OHLCV only) ──
         let t_load = std::time::Instant::now();
-        let all_candles = fetch_all_candles_for_tf(&pool, tf, limit).await?;
-        let n_symbols = all_candles.len();
-        let n_candles: usize = all_candles.values().map(|v| v.len()).sum();
-        info!("  Loaded {} symbols, {} candles in {:.1}s",
+        let all_raw = fetch_all_raw_candles_for_tf(&pool, tf, limit).await?;
+        let n_symbols = all_raw.len();
+        let n_candles: usize = all_raw.values().map(|v| v.len()).sum();
+        info!("  Loaded {} symbols, {} raw candles in {:.1}s",
               n_symbols, n_candles, t_load.elapsed().as_secs_f64());
 
-        // ── Load BTC candles ──
-        let btc_candles = all_candles.get("BTCUSDT").cloned().unwrap_or_default();
-        let btc_ref = if btc_candles.len() >= 50 { Some(btc_candles.as_slice()) } else { None };
-        info!("  BTC candles: {}", btc_candles.len());
-
-        // ── Load HTF candles ──
-        let htf_tf = get_higher_tf(tf);
-        let htf_all = if let Some(htf) = htf_tf {
-            let htf_data = fetch_all_candles_for_tf(&pool, htf, limit).await?;
-            info!("  HTF {}m: {} symbols loaded", htf, htf_data.len());
-            Some(htf_data)
-        } else {
-            None
-        };
-
-        let total_features = ml_entry_strategy::config::total_feature_count();
-
-        // ══════════════════════════════════════════════════════════════
-        // PHASE 1: Scan all candles, compute 128 features, find super points
-        // ══════════════════════════════════════════════════════════════
-        let t_phase1 = std::time::Instant::now();
-
-        // Collect symbols into ordered vec for indexing
-        let symbols: Vec<(&String, &Vec<CandleWithIndicators>)> = all_candles.iter()
-            .filter(|(s, _)| s.as_str() != "BTCUSDT")
+        // Convert to CandleWithIndicators (indicators filled with defaults)
+        let all_candles: std::collections::HashMap<String, Vec<CandleWithIndicators>> = all_raw
+            .into_iter()
+            .map(|(sym, raws)| {
+                let cwi: Vec<CandleWithIndicators> = raws.iter()
+                    .map(|r| r.to_candle_with_indicators(0))
+                    .collect();
+                (sym, cwi)
+            })
             .collect();
 
-        // Pre-compute all 128-feature vectors and find super points
-        // Accumulate feature batches for batch prediction
-        let mut all_128_features: Vec<f32> = Vec::new();
-        let mut super_point_indices: Vec<SuperPoint> = Vec::new();
-        let mut point_candle_refs: Vec<(usize, usize)> = Vec::new(); // (symbol_idx, candle_idx)
+        // ══════════════════════════════════════════════════════════════
+        // Compute features + predict + simulate
+        // ══════════════════════════════════════════════════════════════
+        let t_eval = std::time::Instant::now();
 
-        for (sym_idx, (symbol, candles)) in symbols.iter().enumerate() {
-            if candles.len() < config.warmup_bars + config.lookahead_bars + 1 {
+        let n_features = dir_config.total_features();
+        let min_candles = dir_config.min_candles_required();
+        let max_hold = super_config.effective_max_hold();
+
+        let mut metrics_v4 = Metrics::default();
+        let mut accuracy = AccuracyMetrics::default();
+
+        // Separate UP/DOWN metrics for per-direction analysis
+        let mut metrics_up_only = Metrics::default();
+        let mut metrics_down_only = Metrics::default();
+        let mut n_pred_up = 0usize;
+        let mut n_pred_down = 0usize;
+
+        // Confidence gate thresholds — represent P(predicted_class)
+        // e.g., gate≥0.60 means model is ≥60% confident in the predicted direction
+        let gates = [0.50f32, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80];
+        let mut metrics_gated: Vec<Metrics> = gates.iter().map(|_| Metrics::default()).collect();
+        let mut accuracy_gated: Vec<AccuracyMetrics> = gates.iter().map(|_| AccuracyMetrics::default()).collect();
+        // UP-only and DOWN-only gated metrics
+        let mut metrics_gated_up: Vec<Metrics> = gates.iter().map(|_| Metrics::default()).collect();
+        let mut metrics_gated_down: Vec<Metrics> = gates.iter().map(|_| Metrics::default()).collect();
+
+        let mut n_total_points = 0usize;
+
+        for (_symbol, candles) in &all_candles {
+            if candles.len() < min_candles + max_hold {
                 continue;
             }
 
-            let htf_candles_ref: Option<&[CandleWithIndicators]> = htf_all.as_ref()
-                .and_then(|htf_map| htf_map.get(symbol.as_str()))
-                .filter(|v| v.len() >= 50)
-                .map(|v| v.as_slice());
+            let start_idx = dir_config.window_size - 1;
+            let end_idx = candles.len() - max_hold;
 
-            let start = config.warmup_bars;
-            let end = candles.len() - config.lookahead_bars;
+            if start_idx >= end_idx {
+                continue;
+            }
 
-            for t in start..end {
+            // Batch compute features
+            let mut batch_features: Vec<f32> = Vec::new();
+            let mut batch_indices: Vec<usize> = Vec::new();
+
+            for t in start_idx..end_idx {
                 if candles[t].close <= 0.0 { continue; }
 
                 // WFO date filter
@@ -279,243 +316,134 @@ async fn main() -> Result<()> {
                     if candles[t].time < min_d { continue; }
                 }
 
-                // Compute 128 features inline — fast, no allocation
-                let c = &candles[t];
-                let close = c.close;
-                let safe_div = |a: f64, b: f64| -> f32 {
-                    if b.abs() > 1e-12 { (a / b) as f32 } else { 0.0f32 }
+                // Compute pattern features
+                if let Some(feats) = compute_pattern_features(candles, t, &dir_config) {
+                    for &v in &feats {
+                        batch_features.push(v as f32);
+                    }
+                    batch_indices.push(t);
+                }
+            }
+
+            if batch_indices.is_empty() {
+                continue;
+            }
+
+            let batch_size = batch_indices.len();
+            n_total_points += batch_size;
+
+            // Batch predict
+            // Try as regressor first (output: single value, sign = direction)
+            // If that fails, try as classifier (output: probabilities)
+            let predictions = v4_model.predict_dense_cpu(
+                &batch_features, batch_size, n_features, ModelKind::Regressor1,
+            )?;
+
+            // Process predictions
+            for (i, &t) in batch_indices.iter().enumerate() {
+                let pred_raw = predictions[i];
+
+                // ── Direction from model output ──
+                // Binary mode (binary:logistic): pred_raw = P(UP) ∈ [0, 1]
+                //   direction = UP if P(UP) >= 0.5, DOWN if P(UP) < 0.5
+                //   confidence = P(predicted_class) = max(P(UP), P(DOWN))
+                // Regression mode (reg:squarederror): pred_raw ∈ (-∞, +∞)
+                //   direction = sign(pred_raw)
+                //   confidence = |pred_raw|
+                let (v4_dir, confidence): (i8, f32) = if is_binary_mode {
+                    let p_up = pred_raw.clamp(0.0, 1.0);
+                    if p_up >= 0.5 {
+                        (1, p_up)              // UP with confidence = P(UP)
+                    } else {
+                        (-1, 1.0 - p_up)       // DOWN with confidence = P(DOWN)
+                    }
+                } else {
+                    // Regression: sign = direction, abs = confidence
+                    let dir: i8 = if pred_raw >= 0.0 { 1 } else { -1 };
+                    (dir, pred_raw.abs())
                 };
 
-                // Raw indicators (33)
-                all_128_features.push(c.rsi as f32);
-                all_128_features.push(c.cci as f32);
-                all_128_features.push(c.stoch_k as f32);
-                all_128_features.push(c.stoch_d as f32);
-                all_128_features.push(c.williams as f32);
-                all_128_features.push(c.macd as f32);
-                all_128_features.push(c.macd_signal as f32);
-                all_128_features.push(c.macd_hist as f32);
-                all_128_features.push(c.adx as f32);
-                all_128_features.push(c.sma as f32);
-                all_128_features.push(c.ema_20 as f32);
-                all_128_features.push(c.ema_50 as f32);
-                all_128_features.push(c.ema_200 as f32);
-                all_128_features.push(c.bb_upper as f32);
-                all_128_features.push(c.bb_mid as f32);
-                all_128_features.push(c.bb_lower as f32);
-                all_128_features.push(c.atr as f32);
-                all_128_features.push(c.obv as f32);
-                all_128_features.push(c.vwap as f32);
-                all_128_features.push(c.volume_spike as f32);
-                all_128_features.push(c.trend as f32);
-                all_128_features.push(c.trend_short as f32);
-                all_128_features.push(c.poc as f32);
-                all_128_features.push(c.alligator_jaw as f32);
-                all_128_features.push(c.alligator_teeth as f32);
-                all_128_features.push(c.alligator_lips as f32);
-                all_128_features.push(c.mfi as f32);
-                all_128_features.push(c.fibo_pivot as f32);
-                all_128_features.push(c.fibo_r1 as f32);
-                all_128_features.push(c.fibo_s1 as f32);
-                all_128_features.push(c.supertrend as f32);
-                all_128_features.push(c.supertrend_dir as f32);
-                all_128_features.push(c.cmf as f32);
+                // Track per-direction counts
+                if v4_dir == 1 { n_pred_up += 1; } else { n_pred_down += 1; }
 
-                // Derived (19)
-                let bb_range = c.bb_upper - c.bb_lower;
-                all_128_features.push((c.rsi / 100.0) as f32);
-                all_128_features.push((c.cci / 200.0) as f32);
-                all_128_features.push((c.stoch_k / 100.0) as f32);
-                all_128_features.push(((c.williams + 100.0) / 100.0) as f32);
-                all_128_features.push(if bb_range.abs() > 1e-12 {
-                    ((close - c.bb_lower) / bb_range) as f32
-                } else { 0.5f32 });
-                all_128_features.push(safe_div(bb_range, close) * 100.0);
-                all_128_features.push(safe_div(c.atr, close) * 100.0);
-                all_128_features.push(safe_div(close - c.sma, close) * 100.0);
-                all_128_features.push(safe_div(close - c.ema_20, close) * 100.0);
-                all_128_features.push(safe_div(close - c.ema_50, close) * 100.0);
-                all_128_features.push(safe_div(close - c.ema_200, close) * 100.0);
-                all_128_features.push(safe_div(close - c.vwap, close) * 100.0);
-                all_128_features.push(safe_div(c.macd_hist, close) * 1000.0);
-                all_128_features.push(0.0f32); // obv_change_pct
-                all_128_features.push(if c.volume_spike > 2.0 { 1.0f32 } else { 0.0f32 });
-                all_128_features.push((c.mfi / 100.0) as f32);
-                all_128_features.push(safe_div(close - c.fibo_pivot, close) * 100.0);
-                all_128_features.push(safe_div(close - c.supertrend, close) * 100.0);
-                all_128_features.push(safe_div(c.alligator_jaw - c.alligator_lips, close) * 100.0);
+                // Actual future return for accuracy measurement
+                let horizon = dir_config.prediction_horizon;
+                let future_idx = (t + horizon).min(candles.len() - 1);
+                let actual_return = (candles[future_idx].close - candles[t].close) / candles[t].close * 100.0;
 
-                // Dynamic (76)
-                let htf_candle = htf_candles_ref.and_then(|htf| {
-                    let target_time = candles[t].time;
-                    let idx = htf.partition_point(|c| c.time <= target_time);
-                    if idx > 0 { Some(&htf[idx - 1]) } else { None }
-                });
-                let dyn_feats = compute_dynamic_features_with_htf(candles, t, htf_candle);
-                for v in &dyn_feats {
-                    all_128_features.push(*v as f32);
-                }
+                // Accuracy (direction correctness)
+                accuracy.add(v4_dir, actual_return);
 
-                point_candle_refs.push((sym_idx, t));
-            }
-        }
-
-        let n_total_points = point_candle_refs.len();
-        info!("  Phase 1: {} candidate points, features computed in {:.1}s",
-              n_total_points, t_phase1.elapsed().as_secs_f64());
-
-        if n_total_points == 0 {
-            info!("  No candidate points. Skipping TF {}m.", tf);
-            continue;
-        }
-
-        // ══════════════════════════════════════════════════════════════
-        // PHASE 2: BATCH P(super) prediction — one GPU call for ALL points
-        // ══════════════════════════════════════════════════════════════
-        let t_phase2 = std::time::Instant::now();
-
-        let p_super_vec = super_model.predict_dense_cpu(
-            &all_128_features, n_total_points, total_features, ModelKind::Regressor1,
-        )?;
-
-        // Filter super points
-        let p_threshold = config.p_threshold as f32;
-        for (i, &p_super) in p_super_vec.iter().enumerate() {
-            if p_super.clamp(0.0, 1.0) >= p_threshold {
-                let (sym_idx, candle_idx) = point_candle_refs[i];
-                super_point_indices.push(SuperPoint { symbol_idx: sym_idx, candle_idx });
-            }
-        }
-
-        let n_super = super_point_indices.len();
-        info!("  Phase 2: {} super points ({:.1}%), batch predict in {:.1}s",
-              n_super,
-              if n_total_points > 0 { n_super as f64 / n_total_points as f64 * 100.0 } else { 0.0 },
-              t_phase2.elapsed().as_secs_f64());
-
-        if n_super == 0 {
-            info!("  No super points. Skipping TF {}m.", tf);
-            continue;
-        }
-
-        // ══════════════════════════════════════════════════════════════
-        // PHASE 3: BATCH direction predictions on super points only
-        // ══════════════════════════════════════════════════════════════
-        let t_phase3 = std::time::Instant::now();
-
-        // Build 128-feature batch for super points (for baseline)
-        let mut super_128_batch: Vec<f32> = Vec::with_capacity(n_super * total_features);
-        for sp in &super_point_indices {
-            // Find the original feature slice
-            let point_global_idx = point_candle_refs.iter().position(|&(s, c)| {
-                s == sp.symbol_idx && c == sp.candle_idx
-            }).unwrap();
-            let feat_start = point_global_idx * total_features;
-            let feat_end = feat_start + total_features;
-            super_128_batch.extend_from_slice(&all_128_features[feat_start..feat_end]);
-        }
-
-        // Build 32-feature batch for direction v3
-        let mut super_v3_batch: Vec<f32> = if v3_model.is_some() {
-            Vec::with_capacity(n_super * DIRECTION_V3_FEATURE_COUNT)
-        } else {
-            Vec::new()
-        };
-
-        if v3_model.is_some() {
-            for sp in &super_point_indices {
-                let (_, candles) = &symbols[sp.symbol_idx];
-
-                let htf_candles_ref: Option<&[CandleWithIndicators]> = htf_all.as_ref()
-                    .and_then(|htf_map| htf_map.get(symbols[sp.symbol_idx].0.as_str()))
-                    .filter(|v| v.len() >= 50)
-                    .map(|v| v.as_slice());
-
-                let btc_ctx = btc_ref.and_then(|btc|
-                    resolve_btc_context(btc, candles[sp.candle_idx].time));
-                let htf_ctx = htf_candles_ref.and_then(|htf|
-                    resolve_htf_context(htf, candles[sp.candle_idx].time));
-
-                let v3_feats = compute_direction_v3_features(
-                    candles, sp.candle_idx,
-                    btc_ctx.as_ref(), htf_ctx.as_ref(),
+                // Trade simulation
+                let (outcome, pnl) = simulate_trade(
+                    candles, t, v4_dir, tp_pct, sl_pct, max_hold,
                 );
-                for v in &v3_feats {
-                    super_v3_batch.push(*v as f32);
+                metrics_v4.add(outcome, pnl);
+
+                // Per-direction trade metrics
+                if v4_dir == 1 {
+                    metrics_up_only.add(outcome, pnl);
+                } else {
+                    metrics_down_only.add(outcome, pnl);
                 }
-            }
-        }
 
-        // BATCH predict — baseline direction (128 features)
-        let base_preds = if let Some(ref bm) = base_dir_model {
-            bm.predict_dense_cpu(&super_128_batch, n_super, total_features, ModelKind::Regressor1)?
-        } else {
-            vec![0.5f32; n_super]
-        };
-
-        // BATCH predict — direction v3 (32 features)
-        let v3_preds = if let Some(ref vm) = v3_model {
-            vm.predict_dense_cpu(
-                &super_v3_batch, n_super, DIRECTION_V3_FEATURE_COUNT, ModelKind::Regressor1,
-            )?
-        } else {
-            vec![0.0f32; n_super]
-        };
-
-        info!("  Phase 3: batch direction predict in {:.1}s", t_phase3.elapsed().as_secs_f64());
-
-        // ══════════════════════════════════════════════════════════════
-        // PHASE 4: Simulate trades and collect metrics
-        // ══════════════════════════════════════════════════════════════
-        let t_phase4 = std::time::Instant::now();
-
-        let mut metrics_base = Metrics::default();
-        let mut metrics_v3 = Metrics::default();
-        // Confidence gates for v3
-        let gates = [0.01f32, 0.03, 0.05, 0.10, 0.15, 0.20];
-        let mut metrics_gated: Vec<Metrics> = gates.iter().map(|_| Metrics::default()).collect();
-        let mut agree_count = 0usize;
-
-        for (i, sp) in super_point_indices.iter().enumerate() {
-            let (_, candles) = &symbols[sp.symbol_idx];
-            let t = sp.candle_idx;
-
-            // Baseline direction
-            let base_p_long = base_preds[i].clamp(0.0, 1.0);
-            let base_dir: i8 = if base_p_long >= 0.5 { 1 } else { -1 };
-
-            // V3 direction
-            let v3_raw = v3_preds[i];
-            let v3_dir: i8 = if v3_raw >= 0.0 { 1 } else { -1 };
-            let v3_confidence = v3_raw.abs();
-
-            if base_dir == v3_dir { agree_count += 1; }
-
-            // Simulate trades
-            let (out_base, pnl_base) = simulate_trade(
-                candles, t, base_dir, tp_pct, sl_pct, config.effective_max_hold());
-            metrics_base.add(out_base, pnl_base);
-
-            if v3_model.is_some() {
-                let (out_v3, pnl_v3) = simulate_trade(
-                    candles, t, v3_dir, tp_pct, sl_pct, config.effective_max_hold());
-                metrics_v3.add(out_v3, pnl_v3);
-
-                // Confidence-gated trades
+                // Confidence-gated (confidence = P(predicted_class))
                 for (gi, &gate) in gates.iter().enumerate() {
-                    if v3_confidence >= gate {
-                        metrics_gated[gi].add(out_v3, pnl_v3);
+                    if confidence >= gate {
+                        metrics_gated[gi].add(outcome, pnl);
+                        accuracy_gated[gi].add(v4_dir, actual_return);
+                        // Per-direction gated
+                        if v4_dir == 1 {
+                            metrics_gated_up[gi].add(outcome, pnl);
+                        } else {
+                            metrics_gated_down[gi].add(outcome, pnl);
+                        }
                     }
                 }
             }
         }
 
-        info!("  Phase 4: trade simulation in {:.1}s", t_phase4.elapsed().as_secs_f64());
+        info!("  Evaluation: {} points from {} symbols in {:.1}s",
+              n_total_points, n_symbols, t_eval.elapsed().as_secs_f64());
+
+        if n_total_points == 0 {
+            info!("  No valid points for TF {}m. Skipping.", tf);
+            continue;
+        }
 
         // ── Print results ──
         info!("");
-        info!("  TF {}m — {} super points", tf, n_super);
+        info!("  TF {}m — {} points (pred UP={}, pred DOWN={})",
+              tf, n_total_points, n_pred_up, n_pred_down);
         info!("");
+
+        // Direction accuracy
+        info!("  📊 Direction Accuracy (predict UP vs DOWN):");
+        info!("    Overall: {:.1}% ({}/{})", accuracy.accuracy(), accuracy.correct, accuracy.total);
+        if accuracy.up_total > 0 {
+            info!("    UP recall:   {:.1}% ({}/{}) — actual UP points correctly predicted",
+                  accuracy.up_correct as f64 / accuracy.up_total as f64 * 100.0,
+                  accuracy.up_correct, accuracy.up_total);
+        }
+        if accuracy.down_total > 0 {
+            info!("    DOWN recall: {:.1}% ({}/{}) — actual DOWN points correctly predicted",
+                  accuracy.down_correct as f64 / accuracy.down_total as f64 * 100.0,
+                  accuracy.down_correct, accuracy.down_total);
+        }
+        // UP/DOWN prediction precision
+        if n_pred_up > 0 {
+            info!("    UP precision: predicted {} UP, accuracy within UP predictions", n_pred_up);
+        }
+        if n_pred_down > 0 {
+            info!("    DOWN precision: predicted {} DOWN, accuracy within DOWN predictions", n_pred_down);
+        }
+        if n_pred_down == 0 {
+            info!("    ⚠️  Model predicts ZERO DOWN signals! Check DIRECTION_MODE env var.");
+        }
+
+        // Trade metrics
+        info!("");
+        info!("  📊 Trade Simulation (TP={:.2}% SL={:.2}% hold={}):", tp_pct, sl_pct, max_hold);
         info!("  {:<20} {:>8} {:>8} {:>8} {:>8} {:>10} {:>10}",
               "Variant", "Trades", "Wins", "Losses", "Exprd", "WR%", "AvgPnL%");
         info!("  {}", "-".repeat(76));
@@ -526,35 +454,37 @@ async fn main() -> Result<()> {
                   name, m.n, m.wins, m.losses, m.expired, m.wr(), m.avg_pnl(), marker);
         };
 
-        print_row("Baseline (128f)", &metrics_base);
-        if v3_model.is_some() {
-            print_row("Direction v3 (32f)", &metrics_v3);
-
-            info!("");
-            info!("  Confidence-gated v3:");
-            for (gi, &gate) in gates.iter().enumerate() {
-                let m = &metrics_gated[gi];
-                if m.n > 0 {
-                    let coverage = m.n as f64 / n_super as f64 * 100.0;
-                    let name = format!("  v3 gate≥{:.2}", gate);
-                    let marker = if m.wr() >= 65.0 { "✅" } else if m.wr() >= 55.0 { "⚠ " } else { "❌" };
-                    info!("  {:<20} {:>8} {:>8} {:>8} {:>8} {:>9.1}% {:>9.4}% {} cov={:.0}%",
-                          name, m.n, m.wins, m.losses, m.expired, m.wr(), m.avg_pnl(), marker, coverage);
-                }
-            }
+        print_row("All directions", &metrics_v4);
+        if metrics_up_only.n > 0 {
+            print_row("  LONG only", &metrics_up_only);
+        }
+        if metrics_down_only.n > 0 {
+            print_row("  SHORT only", &metrics_down_only);
         }
 
-        if n_super > 0 {
-            info!("  Base-V3 agree: {}/{} ({:.1}%)",
-                  agree_count, n_super, agree_count as f64 / n_super as f64 * 100.0);
+        info!("");
+        info!("  Confidence-gated results (confidence = P(predicted_class)):");
+        for (gi, &gate) in gates.iter().enumerate() {
+            let m = &metrics_gated[gi];
+            let a = &accuracy_gated[gi];
+            if m.n > 0 {
+                let coverage = m.n as f64 / n_total_points as f64 * 100.0;
+                let mu = &metrics_gated_up[gi];
+                let md = &metrics_gated_down[gi];
+                let name = format!("  gate≥{:.2}", gate);
+                let marker = if a.accuracy() >= 60.0 { "✅" } else if a.accuracy() >= 55.0 { "⚠ " } else { "❌" };
+                info!("  {:<20} {:>8} WR={:.1}% Acc={:.1}% PnL={:.4}% cov={:.0}% (L:{} S:{}) {}",
+                      name, m.n, m.wr(), a.accuracy(), m.avg_pnl(), coverage,
+                      mu.n, md.n, marker);
+            }
         }
     }
 
     let total = total_start.elapsed();
     info!("");
-    info!("Direction v3 backtest complete in {:.1}s ({:.1}min)",
+    info!("Direction v4 backtest complete in {:.1}s ({:.1}min)",
           total.as_secs_f64(), total.as_secs_f64() / 60.0);
-    info!("Target: direction accuracy >= 60% (WR on super points)");
+    info!("Target: direction accuracy >= 55-60% (beating random 50%)");
 
     Ok(())
 }

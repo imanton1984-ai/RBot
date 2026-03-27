@@ -64,46 +64,30 @@ pub struct OrderManagerConfig {
     #[serde(default = "default_p_super_min")]
     pub p_super_min_1d: f32,
 
-    // ─── Signal Scanner: combined_score range (internal, kept for backward compat) ───
-    // combined_score = p_super * (1 + dir_confidence). Используется как
-    // дополнительный фильтр/ранжирование. В WebUI не показывается —
-    // пользователь управляет только через p_super_min_* выше.
-    /// Минимальный combined_score для 1m (internal)
-    #[serde(default = "default_score_min")]
-    pub signal_score_min_1m: f32,
-    /// Максимальный combined_score для 1m (internal)
-    #[serde(default = "default_score_max")]
-    pub signal_score_max_1m: f32,
-    /// Минимальный combined_score для 5m (internal)
-    #[serde(default = "default_score_min")]
-    pub signal_score_min_5m: f32,
-    /// Максимальный combined_score для 5m (internal)
-    #[serde(default = "default_score_max")]
-    pub signal_score_max_5m: f32,
-    /// Минимальный combined_score для 15m (internal)
-    #[serde(default = "default_score_min")]
-    pub signal_score_min_15m: f32,
-    /// Максимальный combined_score для 15m (internal)
-    #[serde(default = "default_score_max")]
-    pub signal_score_max_15m: f32,
-    /// Минимальный combined_score для 1h (internal)
-    #[serde(default = "default_score_min")]
-    pub signal_score_min_1h: f32,
-    /// Максимальный combined_score для 1h (internal)
-    #[serde(default = "default_score_max")]
-    pub signal_score_max_1h: f32,
-    /// Минимальный combined_score для 4h (internal)
-    #[serde(default = "default_score_min")]
-    pub signal_score_min_4h: f32,
-    /// Максимальный combined_score для 4h (internal)
-    #[serde(default = "default_score_max")]
-    pub signal_score_max_4h: f32,
-    /// Минимальный combined_score для 1d (internal)
-    #[serde(default = "default_score_min")]
-    pub signal_score_min_1d: f32,
-    /// Максимальный combined_score для 1d (internal)
-    #[serde(default = "default_score_max")]
-    pub signal_score_max_1d: f32,
+    // ─── Signal Scanner: Direction model confidence thresholds per TF ───
+    // dir_confidence = P(predicted_class) из direction модели.
+    // Для v4 binary model: ∈ [0.5, 1.0], где 0.5 = неуверенность, 1.0 = полная уверенность.
+    // Фильтруется НАПРЯМУЮ по колонке dir_confidence в trade.super_entry_signals.
+    // 0.0 = фильтр отключён для данного TF.
+
+    /// Минимальный dir_confidence для 1m
+    #[serde(default = "default_dir_conf_min")]
+    pub dir_confidence_min_1m: f32,
+    /// Минимальный dir_confidence для 5m
+    #[serde(default = "default_dir_conf_min_5m")]
+    pub dir_confidence_min_5m: f32,
+    /// Минимальный dir_confidence для 15m
+    #[serde(default = "default_dir_conf_min_15m")]
+    pub dir_confidence_min_15m: f32,
+    /// Минимальный dir_confidence для 1h
+    #[serde(default = "default_dir_conf_min_1h")]
+    pub dir_confidence_min_1h: f32,
+    /// Минимальный dir_confidence для 4h
+    #[serde(default = "default_dir_conf_min_4h")]
+    pub dir_confidence_min_4h: f32,
+    /// Минимальный dir_confidence для 1d
+    #[serde(default = "default_dir_conf_min_4h")]
+    pub dir_confidence_min_1d: f32,
 
     /// Максимальный дрифт цены (%), чтобы сигнал считался актуальным
     pub max_price_drift_pct: f64,
@@ -154,8 +138,11 @@ fn default_order_type() -> String { "futures_oco".to_string() }
 fn default_trading_mode() -> String { "off".to_string() }
 fn default_symbol_cooldown_hours() -> f64 { 7.0 }
 fn default_p_super_min() -> f32 { 0.0 }
-fn default_score_min() -> f32 { 0.0 }
-fn default_score_max() -> f32 { 2.0 }
+fn default_dir_conf_min() -> f32 { 0.0 }
+fn default_dir_conf_min_5m() -> f32 { 0.80 }
+fn default_dir_conf_min_15m() -> f32 { 0.75 }
+fn default_dir_conf_min_1h() -> f32 { 0.70 }
+fn default_dir_conf_min_4h() -> f32 { 0.65 }
 
 impl Default for OrderManagerConfig {
     fn default() -> Self {
@@ -177,19 +164,13 @@ impl Default for OrderManagerConfig {
             p_super_min_4h: 0.55,
             p_super_min_1d: 0.55,
 
-            // combined_score ranges (internal, permissive defaults)
-            signal_score_min_1m: 0.0,
-            signal_score_max_1m: 2.0,
-            signal_score_min_5m: 0.0,
-            signal_score_max_5m: 2.0,
-            signal_score_min_15m: 0.0,
-            signal_score_max_15m: 2.0,
-            signal_score_min_1h: 0.0,
-            signal_score_max_1h: 2.0,
-            signal_score_min_4h: 0.0,
-            signal_score_max_4h: 2.0,
-            signal_score_min_1d: 0.0,
-            signal_score_max_1d: 2.0,
+            // Direction confidence thresholds per TF
+            dir_confidence_min_1m: 0.0,
+            dir_confidence_min_5m: 0.80,
+            dir_confidence_min_15m: 0.75,
+            dir_confidence_min_1h: 0.70,
+            dir_confidence_min_4h: 0.65,
+            dir_confidence_min_1d: 0.65,
 
             max_price_drift_pct: 0.25,
             symbol_cooldown_hours: 7.0,
@@ -243,6 +224,20 @@ impl OrderManagerConfig {
         // If per-TF is set (> 0), use it; otherwise fall back to global p_super_min
         if per_tf > 0.0 { per_tf } else { self.p_super_min }
     }
+
+    /// Get direction confidence threshold for a given timeframe.
+    /// Returns 0.0 if filter is disabled for this TF.
+    pub fn get_dir_confidence_min_for_tf(&self, tf_minutes: i16) -> f32 {
+        match tf_minutes {
+            1 => self.dir_confidence_min_1m,
+            5 => self.dir_confidence_min_5m,
+            15 => self.dir_confidence_min_15m,
+            60 => self.dir_confidence_min_1h,
+            240 => self.dir_confidence_min_4h,
+            1440 => self.dir_confidence_min_1d,
+            _ => 0.65, // safe default
+        }
+    }
 }
 
 impl OrderManagerConfig {
@@ -281,24 +276,21 @@ impl OrderManagerConfig {
         if let Ok(v) = std::env::var("OM_P_SUPER_MIN") {
             if let Ok(n) = v.parse() { cfg.p_super_min = n; }
         }
-        // Legacy combined_score overrides (kept for backward compat)
-        if let Ok(v) = std::env::var("OM_SCORE_MIN_1H") {
-            if let Ok(n) = v.parse() { cfg.signal_score_min_1h = n; }
+        // Direction confidence thresholds per TF
+        if let Ok(v) = std::env::var("OM_DIR_CONF_MIN_15M") {
+            if let Ok(n) = v.parse() { cfg.dir_confidence_min_15m = n; }
         }
-        if let Ok(v) = std::env::var("OM_SCORE_MAX_1H") {
-            if let Ok(n) = v.parse() { cfg.signal_score_max_1h = n; }
+        if let Ok(v) = std::env::var("OM_DIR_CONF_MIN_1H") {
+            if let Ok(n) = v.parse() { cfg.dir_confidence_min_1h = n; }
         }
-        if let Ok(v) = std::env::var("OM_SCORE_MIN_4H") {
-            if let Ok(n) = v.parse() { cfg.signal_score_min_4h = n; }
+        if let Ok(v) = std::env::var("OM_DIR_CONF_MIN_4H") {
+            if let Ok(n) = v.parse() { cfg.dir_confidence_min_4h = n; }
         }
-        if let Ok(v) = std::env::var("OM_SCORE_MAX_4H") {
-            if let Ok(n) = v.parse() { cfg.signal_score_max_4h = n; }
+        if let Ok(v) = std::env::var("OM_DIR_CONF_MIN_1D") {
+            if let Ok(n) = v.parse() { cfg.dir_confidence_min_1d = n; }
         }
-        if let Ok(v) = std::env::var("OM_SCORE_MIN_15M") {
-            if let Ok(n) = v.parse() { cfg.signal_score_min_15m = n; }
-        }
-        if let Ok(v) = std::env::var("OM_SCORE_MAX_15M") {
-            if let Ok(n) = v.parse() { cfg.signal_score_max_15m = n; }
+        if let Ok(v) = std::env::var("OM_DIR_CONF_MIN_5M") {
+            if let Ok(n) = v.parse() { cfg.dir_confidence_min_5m = n; }
         }
         if let Ok(v) = std::env::var("OM_PRICE_DRIFT_PCT") {
             if let Ok(n) = v.parse() { cfg.max_price_drift_pct = n; }
@@ -375,15 +367,18 @@ impl OrderManagerConfig {
                 anyhow::bail!("{} must be in [0.0, 1.0], got {}", name, val);
             }
         }
-        // Validate combined_score ranges (internal, permissive)
-        if self.signal_score_min_1m > self.signal_score_max_1m
-            || self.signal_score_min_5m > self.signal_score_max_5m
-            || self.signal_score_min_15m > self.signal_score_max_15m
-            || self.signal_score_min_1h > self.signal_score_max_1h
-            || self.signal_score_min_4h > self.signal_score_max_4h
-            || self.signal_score_min_1d > self.signal_score_max_1d
-        {
-            anyhow::bail!("signal_score_min must be <= signal_score_max for all timeframes");
+        // Validate dir_confidence thresholds (must be [0, 1])
+        for (name, val) in [
+            ("dir_confidence_min_1m", self.dir_confidence_min_1m),
+            ("dir_confidence_min_5m", self.dir_confidence_min_5m),
+            ("dir_confidence_min_15m", self.dir_confidence_min_15m),
+            ("dir_confidence_min_1h", self.dir_confidence_min_1h),
+            ("dir_confidence_min_4h", self.dir_confidence_min_4h),
+            ("dir_confidence_min_1d", self.dir_confidence_min_1d),
+        ] {
+            if val < 0.0 || val > 1.0 {
+                anyhow::bail!("{} must be in [0.0, 1.0], got {}", name, val);
+            }
         }
         let total_pct = self.tf_1m_pct + self.tf_5m_pct + self.tf_15m_pct + self.tf_1h_pct + self.tf_4h_pct + self.tf_1d_pct;
         if total_pct != 100 {

@@ -516,8 +516,8 @@ mod synthetic_futures_tests {
         let config = OrderManagerConfig::default();
         // Default combined_score range: [0.0, 2.0] — very permissive
         let signal = make_signal("BTCUSDT", Side::Long, 50000.0, 49000.0, 52000.0, 0.90);
-        assert!(signal.combined_score >= config.signal_score_min_1h);
-        assert!(signal.combined_score <= config.signal_score_max_1h);
+        assert!(signal.combined_score >= 0.0); // combined_score is always non-negative
+        assert!(signal.p_super >= config.get_p_super_min_for_tf(60));
     }
 
     #[test]
@@ -677,9 +677,8 @@ mod synthetic_futures_tests {
     #[test]
     fn test_config_invalid_score_range() {
         let mut config = OrderManagerConfig::default();
-        config.signal_score_min_1h = 2.5;
-        config.signal_score_max_1h = 0.8;
-        assert!(config.validate().is_err(), "min > max should fail validation");
+        config.dir_confidence_min_1h = 1.5; // invalid: > 1.0
+        assert!(config.validate().is_err(), "dir_confidence > 1.0 should fail validation");
     }
 
     #[test]

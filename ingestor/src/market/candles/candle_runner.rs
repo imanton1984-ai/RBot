@@ -10,6 +10,7 @@
  * - Coordinates historical data loading from REST API
  * - Initiates WebSocket connections for real-time data
  * - Sets up writer tasks for database insertion
+ * - REST-based polling for higher timeframes (4h, 1d) as backup to WS
  * - Manages overall ingestion workflow
  *
  * WORKFLOW:
@@ -18,7 +19,8 @@
  * 3. For empty DB: performs fast initial load using REST API
  * 4. For populated DB: performs incremental backfill
  * 5. Starts WebSocket workers for real-time data (after backfill)
- * 6. Coordinates all writer tasks for database insertion
+ * 6. Starts REST poll task for higher TFs (4h, 1d) as backup
+ * 7. Coordinates all writer tasks for database insertion
  */
 use crate::market::candles::candle_common::*;
 use crate::market::candles::candle_rest::*;
@@ -120,6 +122,217 @@ async fn run_rest_backfill(_pool: &PgPool) -> Result<()> {
     // 2) REST /fapi/v1/klines?symbol=...&interval=...&limit=...
     // 3) bulk insert в исторические таблицы (как сейчас)
     Ok(())
+}
+
+/// REST-based candle close poll for higher timeframes (4h, 1d).
+///
+/// Backup mechanism: even if WS delivers these candles, this task ensures
+/// no candle close events are missed. It periodically queries the last
+/// closed candle via REST API and, if it's new, writes it to DB and
+/// publishes a CandleCloseEvent to Kafka so that compute_realtime picks it up.
+///
+/// Key: idempotent by design — duplicate inserts are deduplicated by the
+/// writer (last_seen filter + COPY dedup). Duplicate Kafka events are
+/// harmless because compute_realtime re-computes the same window.
+async fn spawn_poll_close_task(
+    cfg: Arc<AppConfig>,
+    http: reqwest::Client,
+    pairs: Vec<PairInfo>,
+    writers: Arc<HashMap<TimeFrame, mpsc::UnboundedSender<TypedWriterMsg>>>,
+    shutdown_rx: watch::Receiver<bool>,
+) {
+    let poll_tfs: Vec<TimeFrame> = cfg.runtime.realtime_poll_timeframes
+        .iter()
+        .filter_map(|s| parse_tf(s))
+        .collect();
+
+    if poll_tfs.is_empty() {
+        tracing::info!("poll_close: no realtime_poll_timeframes configured, skipping poll task");
+        return;
+    }
+
+    let poll_sec = cfg.runtime.poll_on_close_interval_sec.max(5);
+    tracing::info!(
+        "poll_close: starting REST poll for {:?}, interval={}s, pairs={}",
+        poll_tfs.iter().map(|t| t.as_str()).collect::<Vec<_>>(),
+        poll_sec,
+        pairs.len(),
+    );
+
+    let mut shutdown_rx = shutdown_rx;
+
+    tokio::spawn(async move {
+        // MessageBus for publishing CandleCloseEvent to Kafka
+        let message_bus = match common::MessageBus::new_from_env() {
+            Ok(mb) => mb,
+            Err(e) => {
+                tracing::error!("poll_close: failed to create MessageBus: {}. Poll task NOT started.", e);
+                return;
+            }
+        };
+
+        let topic_name = std::env::var("TOPIC_CANDLES_CLOSE")
+            .unwrap_or_else(|_| "candles.close".to_string());
+
+        // Track last seen close_time per (tf, symbol) to avoid re-publishing
+        let mut last_seen: HashMap<(TimeFrame, i64), i64> = HashMap::new();
+
+        let mut tick = tokio::time::interval(tokio::time::Duration::from_secs(poll_sec));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        loop {
+            tokio::select! {
+                _ = shutdown_rx.changed() => {
+                    if *shutdown_rx.borrow() {
+                        tracing::info!("poll_close: shutting down");
+                        return;
+                    }
+                }
+                _ = tick.tick() => {
+                    for tf in &poll_tfs {
+                        let tf_ms = (tf.to_minutes() as i64) * 60_000;
+                        let now_ms = Utc::now().timestamp_millis();
+
+                        // Calculate expected last closed candle boundary.
+                        // Binance close_time = open_time + tf_ms - 1.
+                        // The last fully closed candle opened at:
+                        //   floor(now / tf_ms) * tf_ms - tf_ms
+                        // Its close_time is:
+                        //   floor(now / tf_ms) * tf_ms - 1
+                        let current_boundary = (now_ms / tf_ms) * tf_ms;
+                        let expected_close = current_boundary - 1;
+
+                        // Don't poll if the candle hasn't closed yet
+                        if now_ms < current_boundary {
+                            // We're between candle boundaries; the last candle
+                            // closed at current_boundary - tf_ms.
+                            // expected_close handles this correctly.
+                        }
+
+                        for pair in &pairs {
+                            let key = (*tf, pair.symbol_id);
+                            let prev = last_seen.get(&key).copied().unwrap_or(0);
+
+                            // Skip if we've already seen this candle
+                            if expected_close <= prev {
+                                continue;
+                            }
+
+                            // Fetch the last 2 candles via REST (limit=2, weight=1)
+                            let fetch_result = rest_fetch_klines_bytes(
+                                &http, &cfg, &pair.symbol,
+                                tf.as_str(), None, 2, None,
+                            ).await;
+
+                            let bytes = match fetch_result {
+                                Ok(b) => b,
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "poll_close: REST fetch failed {} {}: {}",
+                                        pair.symbol, tf.as_str(), e
+                                    );
+                                    continue;
+                                }
+                            };
+
+                            let klines: Vec<RestKline> = match serde_json::from_slice(&bytes) {
+                                Ok(k) => k,
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "poll_close: JSON parse failed {} {}: {}",
+                                        pair.symbol, tf.as_str(), e
+                                    );
+                                    continue;
+                                }
+                            };
+
+                            let mut wrote_any = false;
+                            for k in &klines {
+                                let close_time = k.6;
+
+                                // Skip candles that are still forming (close_time >= now)
+                                if close_time >= now_ms {
+                                    continue;
+                                }
+                                // Skip already-seen
+                                if close_time <= prev {
+                                    continue;
+                                }
+
+                                let open = str_f64(k.1.as_ref());
+                                let high = str_f64(k.2.as_ref());
+                                let low = str_f64(k.3.as_ref());
+                                let close = str_f64(k.4.as_ref());
+                                let volume = str_f64(k.5.as_ref());
+
+                                // 1) Send to DB writer
+                                if let Some(tx) = writers.get(tf) {
+                                    let row = CandleRow {
+                                        time_ms: close_time,
+                                        symbol_id: pair.symbol_id,
+                                        symbol: pair.symbol.clone(),
+                                        open, high, low, close, volume,
+                                    };
+                                    let _ = tx.send(TypedWriterMsg {
+                                        rows: vec![row],
+                                        source: DataSource::Rest,
+                                    });
+                                }
+
+                                // 2) Publish CandleCloseEvent to Kafka
+                                #[derive(serde::Serialize)]
+                                struct CandleCloseEvent {
+                                    symbol: String,
+                                    timeframe: String,
+                                    close_time: i64,
+                                    open: f64,
+                                    high: f64,
+                                    low: f64,
+                                    close: f64,
+                                    volume: f64,
+                                }
+
+                                let event = CandleCloseEvent {
+                                    symbol: pair.symbol.clone(),
+                                    timeframe: tf.as_str().to_string(),
+                                    close_time,
+                                    open, high, low, close, volume,
+                                };
+
+                                let mb = message_bus.clone();
+                                let topic = topic_name.clone();
+                                let sym = pair.symbol.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = mb.publish(
+                                        &topic,
+                                        sym.as_bytes(),
+                                        &event,
+                                        common::Codec::Json,
+                                    ).await {
+                                        tracing::error!(
+                                            "poll_close: Kafka publish failed: {}", e
+                                        );
+                                    }
+                                });
+
+                                // Update last_seen
+                                last_seen.insert(key, close_time);
+                                wrote_any = true;
+                            }
+
+                            if wrote_any {
+                                tracing::debug!(
+                                    "poll_close: new candle {} {} close_time={}",
+                                    pair.symbol, tf.as_str(),
+                                    last_seen.get(&key).unwrap_or(&0)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 pub async fn run_candles_pipeline(
@@ -560,7 +773,17 @@ pub async fn run_candles_ingest() -> Result<()> {
         });
     }
 
-    tracing::info!("Candles ingest running (WS realtime + BINARY COPY writers). Press Ctrl+C to stop.");
+    // Spawn REST poll task for higher TFs (4h, 1d) as backup to WS.
+    // Ensures candle close events reach Kafka even if WS misses them.
+    spawn_poll_close_task(
+        cfg.clone(),
+        http.clone(),
+        pairs.clone(),
+        writers.clone(),
+        shutdown_rx.clone(),
+    ).await;
+
+    tracing::info!("Candles ingest running (WS realtime + REST poll backup + BINARY COPY writers). Press Ctrl+C to stop.");
     tokio::signal::ctrl_c().await.context("ctrl_c failed")?;
     tracing::info!("Shutdown sig...");
 

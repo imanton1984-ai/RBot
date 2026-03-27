@@ -6,12 +6,15 @@ timeframes = ["1m","5m","15m","1h","4h","1d"]
 backfill_candles = 1000
 
 # Реалтайм стратегия:
-# Важно: WS лимит 1024 streams. 250 пар * 6 TF = 1500 стримов — не влезет.
-# Поэтому realtime WS держим на ключевых, старшие TF обновляем poll/on-close.
-realtime_ws_timeframes = ["1m","5m","15m","1h"]
+# WS стримы чанкуются по INGEST_WS_MAX_STREAMS (default 200) на соединение.
+# 250 пар * 6 TF = 1500 стримов → ~8 WS соединений. Это нормально.
+# ВАЖНО: 4h и 1d ОБЯЗАТЕЛЬНО должны быть в WS, иначе candle close events
+# не попадут в Kafka и compute_realtime не посчитает индикаторы/сигналы.
+realtime_ws_timeframes = ["1m","5m","15m","1h","4h","1d"]
+# poll — опциональный backup (реализован как REST poll для надёжности)
 realtime_poll_timeframes = ["4h","1d"]
 
-poll_on_close_interval_sec = 30     # как часто проверяем "закрылась ли" 4h/1d свеча
+poll_on_close_interval_sec = 30     # как часто проверяем "закрылась ли" 4h/1d свеча (backup poll)
 
 # Intra-candle updates (обновлять незакрытую свечу по сообщениям)
 # true = ты получаешь high/low/close внутри свечи тоже
