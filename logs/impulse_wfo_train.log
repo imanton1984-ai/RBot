@@ -1,0 +1,1153 @@
+2026-03-30 00:05:30 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-30 00:05:30 [INFO] ║  Impulse Absorption & Engulfing — WFO Training        ║
+2026-03-30 00:05:30 [INFO] ║  Multi-TF indicators + Engulfing meta → XGBoost       ║
+2026-03-30 00:05:30 [INFO] ║  Hybrid: Heuristic detection + ML filtering           ║
+2026-03-30 00:05:30 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-30 00:05:30 [INFO] Model type: both
+2026-03-30 00:05:30 [INFO] Loading dataset/impulse_dataset.csv...
+2026-03-30 00:05:32 [INFO]   Loaded 5,985 rows, 3966 columns in 1.8s
+2026-03-30 00:05:32 [INFO]   Detected 3958 feature columns
+2026-03-30 00:05:32 [INFO]   Memory: 0.19 GB → 0.10 GB (float32)
+2026-03-30 00:05:32 [INFO] 
+  Dataset overview:
+2026-03-30 00:05:32 [INFO]       LONG:      836 rows (POS=294 NEG=542)
+2026-03-30 00:05:32 [INFO]       NONE:    4,494 rows (POS=0 NEG=4494)
+2026-03-30 00:05:32 [INFO]      SHORT:      655 rows (POS=233 NEG=422)
+2026-03-30 00:05:32 [INFO]     TF=15m:  1,746 rows (116 symbols)
+2026-03-30 00:05:33 [INFO]     TF=60m:  1,931 rows (164 symbols)
+2026-03-30 00:05:33 [INFO]     TF=240m:  2,308 rows (189 symbols)
+2026-03-30 00:05:33 [INFO]     Total POS=527 NEG=5458 (POS ratio=8.8%)
+2026-03-30 00:05:33 [INFO] 
+===========================================================================
+2026-03-30 00:05:33 [INFO]   TRAINING LONG MODEL (bullish engulfing)
+2026-03-30 00:05:33 [INFO] ===========================================================================
+2026-03-30 00:05:33 [INFO]   Long dataset: 5330 rows
+2026-03-30 00:05:33 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:05:33 [INFO]   IMPULSE WFO — LONG model
+2026-03-30 00:05:33 [INFO]   Data: 5330 rows, 229 symbols
+2026-03-30 00:05:33 [INFO]   Features: 3958
+2026-03-30 00:05:33 [INFO]   Labels: POS=294 (5.5%), NEG=5036 (94.5%)
+2026-03-30 00:05:33 [INFO]   Heuristic win rate: 5.5% (before ML filter)
+2026-03-30 00:05:33 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 00:05:33 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:05:33 [INFO]     TF=15m: 1533 rows (POS=80, NEG=1453, WR=5.2%)
+2026-03-30 00:05:33 [INFO]     TF=60m: 1719 rows (POS=88, NEG=1631, WR=5.1%)
+2026-03-30 00:05:33 [INFO]     TF=240m: 2078 rows (POS=126, NEG=1952, WR=6.1%)
+2026-03-30 00:05:33 [INFO]   5 WFO folds:
+2026-03-30 00:05:33 [INFO]     Fold 0: Train 1698d | Test 60d
+2026-03-30 00:05:33 [INFO]     Fold 1: Train 1758d | Test 60d
+2026-03-30 00:05:33 [INFO]     Fold 2: Train 1818d | Test 60d
+2026-03-30 00:05:33 [INFO]     Fold 3: Train 1878d | Test 60d
+2026-03-30 00:05:33 [INFO]     Fold 4: Train 1938d | Test 60d
+2026-03-30 00:05:33 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 00:05:33 [INFO]   Train: 1639 rows | Test: 251 rows
+2026-03-30 00:05:33 [INFO]   Baseline (majority class): 0.9562
+2026-03-30 00:05:33 [INFO]   Fold 0: Training long binary on 1639 examples (POS=113, NEG=1526, scale_pos=13.50)
+2026-03-30 00:05:37 [INFO]   Fold 0: acc=0.9363 AUC=0.9712 prec=0.4000 recall=0.9091 F1=0.5556 ✅
+2026-03-30 00:05:37 [INFO]     Test: POS=11 NEG=240 | Pred: POS=25 | trees=17
+2026-03-30 00:05:37 [INFO]     gate_0.55: prec=0.450 rec=1.000 n=20 cov=8.0%
+2026-03-30 00:05:37 [INFO]     gate_0.60: prec=0.389 rec=1.000 n=18 cov=7.2%
+2026-03-30 00:05:37 [INFO]     gate_0.65: prec=0.385 rec=1.000 n=13 cov=5.2%
+2026-03-30 00:05:37 [INFO]     gate_0.70: prec=0.625 rec=1.000 n=8 cov=3.2%
+2026-03-30 00:05:37 [INFO]     gate_0.75: prec=0.714 rec=1.000 n=7 cov=2.8%
+2026-03-30 00:05:37 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 00:05:37 [INFO]   Train: 1895 rows | Test: 301 rows
+2026-03-30 00:05:37 [INFO]   Baseline (majority class): 0.9568
+2026-03-30 00:05:37 [INFO]   Fold 1: Training long binary on 1895 examples (POS=123, NEG=1772, scale_pos=14.41)
+2026-03-30 00:05:40 [INFO]   Fold 1: acc=0.9269 AUC=0.9575 prec=0.3714 recall=1.0000 F1=0.5417 ✅
+2026-03-30 00:05:40 [INFO]     Test: POS=13 NEG=288 | Pred: POS=35 | trees=1
+2026-03-30 00:05:40 [INFO]     gate_0.55: prec=0.333 rec=1.000 n=30 cov=10.0%
+2026-03-30 00:05:40 [INFO]     gate_0.60: prec=0.310 rec=1.000 n=29 cov=9.6%
+2026-03-30 00:05:40 [INFO]     gate_0.65: prec=0.333 rec=1.000 n=24 cov=8.0%
+2026-03-30 00:05:40 [INFO]     gate_0.70: prec=0.300 rec=1.000 n=20 cov=6.6%
+2026-03-30 00:05:40 [INFO]     gate_0.75: prec=0.333 rec=1.000 n=15 cov=5.0%
+2026-03-30 00:05:40 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 00:05:40 [INFO]   Train: 2217 rows | Test: 635 rows
+2026-03-30 00:05:40 [INFO]   Baseline (majority class): 0.9701
+2026-03-30 00:05:40 [INFO]   Fold 2: Training long binary on 2217 examples (POS=138, NEG=2079, scale_pos=15.07)
+2026-03-30 00:05:44 [INFO]   Fold 2: acc=0.9008 AUC=0.9492 prec=0.2317 recall=1.0000 F1=0.3762 ✅
+2026-03-30 00:05:44 [INFO]     Test: POS=19 NEG=616 | Pred: POS=82 | trees=5
+2026-03-30 00:05:44 [INFO]     gate_0.55: prec=0.244 rec=1.000 n=78 cov=12.3%
+2026-03-30 00:05:44 [INFO]     gate_0.60: prec=0.257 rec=1.000 n=74 cov=11.7%
+2026-03-30 00:05:44 [INFO]     gate_0.65: prec=0.266 rec=1.000 n=64 cov=10.1%
+2026-03-30 00:05:44 [INFO]     gate_0.70: prec=0.231 rec=1.000 n=52 cov=8.2%
+2026-03-30 00:05:44 [INFO]     gate_0.75: prec=0.222 rec=1.000 n=36 cov=5.7%
+2026-03-30 00:05:44 [INFO]     gate_0.80: prec=0.182 rec=1.000 n=22 cov=3.5%
+2026-03-30 00:05:44 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 00:05:44 [INFO]   Train: 2859 rows | Test: 1098 rows
+2026-03-30 00:05:44 [INFO]   Baseline (majority class): 0.9526
+2026-03-30 00:05:44 [INFO]   Fold 3: Training long binary on 2859 examples (POS=157, NEG=2702, scale_pos=17.21)
+2026-03-30 00:05:49 [INFO]   Fold 3: acc=0.9390 AUC=0.9654 prec=0.4176 recall=0.7308 F1=0.5315 ✅
+2026-03-30 00:05:49 [INFO]     Test: POS=52 NEG=1046 | Pred: POS=91 | trees=7
+2026-03-30 00:05:49 [INFO]     gate_0.55: prec=0.416 rec=1.000 n=77 cov=7.0%
+2026-03-30 00:05:49 [INFO]     gate_0.60: prec=0.394 rec=1.000 n=66 cov=6.0%
+2026-03-30 00:05:49 [INFO]     gate_0.65: prec=0.431 rec=1.000 n=51 cov=4.6%
+2026-03-30 00:05:49 [INFO]     gate_0.70: prec=0.395 rec=1.000 n=43 cov=3.9%
+2026-03-30 00:05:49 [INFO]     gate_0.75: prec=0.457 rec=1.000 n=35 cov=3.2%
+2026-03-30 00:05:49 [INFO]     gate_0.80: prec=0.444 rec=1.000 n=27 cov=2.5%
+2026-03-30 00:05:49 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 00:05:49 [INFO]   Train: 4030 rows | Test: 1150 rows
+2026-03-30 00:05:49 [INFO]   Baseline (majority class): 0.9304
+2026-03-30 00:05:49 [INFO]   Fold 4: Training long binary on 4030 examples (POS=211, NEG=3819, scale_pos=18.10)
+2026-03-30 00:05:58 [INFO]   Fold 4: acc=0.8878 AUC=0.9473 prec=0.3731 recall=0.9000 F1=0.5275 ✅
+2026-03-30 00:05:58 [INFO]     Test: POS=80 NEG=1070 | Pred: POS=193 | trees=29
+2026-03-30 00:05:58 [INFO]     gate_0.55: prec=0.379 rec=1.000 n=182 cov=15.8%
+2026-03-30 00:05:58 [INFO]     gate_0.60: prec=0.399 rec=1.000 n=173 cov=15.0%
+2026-03-30 00:05:58 [INFO]     gate_0.65: prec=0.394 rec=1.000 n=155 cov=13.5%
+2026-03-30 00:05:58 [INFO]     gate_0.70: prec=0.399 rec=1.000 n=138 cov=12.0%
+2026-03-30 00:05:58 [INFO]     gate_0.75: prec=0.409 rec=1.000 n=115 cov=10.0%
+2026-03-30 00:05:58 [INFO]     gate_0.80: prec=0.476 rec=1.000 n=84 cov=7.3%
+2026-03-30 00:05:58 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 00:05:58 [INFO]   AGGREGATE OOS — LONG model
+2026-03-30 00:05:58 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 00:05:58 [INFO]   Accuracy:  0.9182±0.0203 ✅
+2026-03-30 00:05:58 [INFO]   AUC:       0.9582±0.0092
+2026-03-30 00:05:58 [INFO]   Precision: 0.3588
+2026-03-30 00:05:58 [INFO]   Recall:    0.9080
+2026-03-30 00:05:58 [INFO]   F1:        0.5065
+2026-03-30 00:05:58 [INFO]   Baseline:  0.9532
+2026-03-30 00:05:58 [INFO]   Lift:      -0.0351 📉
+2026-03-30 00:05:58 [INFO]   Stable top features: eng_atr_mult(5/5), eng_impulse_pct(5/5), eng_volume_ratio(5/5), eng_body_ratio(5/5), eng_gap_pct(5/5), eng_prev_body_pct(5/5), tf240_c9_atr_pct(3/5), tf240_c7_atr_pct(3/5), eng_ratio_bodies(3/5), tf1440_c0_vol_roc_1(2/5), tf240_c9_candle_return_pct(2/5), tf240_c0_candle_return_pct(2/5), tf60_c9_williams(2/5), tf60_c0_macd(1/5), tf240_c3_rsi_slope_10(1/5)
+2026-03-30 00:05:58 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 00:05:58 [INFO]   Fold -1: Training long binary on 4797 examples (POS=262, NEG=4535, scale_pos=17.31)
+2026-03-30 00:06:05 [INFO]   Fold -1: acc=0.9006 AUC=0.9504 prec=0.3765 recall=1.0000 F1=0.5470 ✅
+2026-03-30 00:06:05 [INFO]     Test: POS=32 NEG=501 | Pred: POS=85 | trees=13
+2026-03-30 00:06:05 [INFO]     gate_0.55: prec=0.366 rec=1.000 n=82 cov=15.4%
+2026-03-30 00:06:05 [INFO]     gate_0.60: prec=0.380 rec=1.000 n=79 cov=14.8%
+2026-03-30 00:06:05 [INFO]     gate_0.65: prec=0.395 rec=1.000 n=76 cov=14.3%
+2026-03-30 00:06:05 [INFO]     gate_0.70: prec=0.382 rec=1.000 n=68 cov=12.8%
+2026-03-30 00:06:05 [INFO]     gate_0.75: prec=0.367 rec=1.000 n=60 cov=11.3%
+2026-03-30 00:06:05 [INFO]     gate_0.80: prec=0.438 rec=1.000 n=48 cov=9.0%
+2026-03-30 00:06:05 [INFO]   ✅ Saved: models/impulse_long_v1.ubj
+2026-03-30 00:06:05 [INFO]   ✅ Schema: models/impulse_long_v1.schema.json
+2026-03-30 00:06:05 [INFO] 
+  📊 Report: models/impulse_long_wfo_report.json
+2026-03-30 00:06:05 [INFO]   ⏱️  Elapsed: 32.5s
+2026-03-30 00:06:05 [INFO] 
+===========================================================================
+2026-03-30 00:06:05 [INFO]   TRAINING SHORT MODEL (bearish engulfing)
+2026-03-30 00:06:05 [INFO] ===========================================================================
+2026-03-30 00:06:05 [INFO]   Short dataset: 5149 rows
+2026-03-30 00:06:05 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:06:05 [INFO]   IMPULSE WFO — SHORT model
+2026-03-30 00:06:05 [INFO]   Data: 5149 rows, 229 symbols
+2026-03-30 00:06:05 [INFO]   Features: 3958
+2026-03-30 00:06:05 [INFO]   Labels: POS=233 (4.5%), NEG=4916 (95.5%)
+2026-03-30 00:06:05 [INFO]   Heuristic win rate: 4.5% (before ML filter)
+2026-03-30 00:06:05 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 00:06:05 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:06:05 [INFO]     TF=15m: 1524 rows (POS=80, NEG=1444, WR=5.2%)
+2026-03-30 00:06:05 [INFO]     TF=60m: 1661 rows (POS=75, NEG=1586, WR=4.5%)
+2026-03-30 00:06:05 [INFO]     TF=240m: 1964 rows (POS=78, NEG=1886, WR=4.0%)
+2026-03-30 00:06:05 [INFO]   5 WFO folds:
+2026-03-30 00:06:05 [INFO]     Fold 0: Train 1699d | Test 60d
+2026-03-30 00:06:05 [INFO]     Fold 1: Train 1759d | Test 60d
+2026-03-30 00:06:05 [INFO]     Fold 2: Train 1819d | Test 60d
+2026-03-30 00:06:05 [INFO]     Fold 3: Train 1879d | Test 60d
+2026-03-30 00:06:05 [INFO]     Fold 4: Train 1939d | Test 60d
+2026-03-30 00:06:05 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 00:06:05 [INFO]   Train: 1536 rows | Test: 234 rows
+2026-03-30 00:06:05 [INFO]   Baseline (majority class): 0.9573
+2026-03-30 00:06:05 [INFO]   Fold 0: Training short binary on 1536 examples (POS=73, NEG=1463, scale_pos=20.04)
+2026-03-30 00:06:08 [INFO]   Fold 0: acc=0.9829 AUC=0.9973 prec=0.8000 recall=0.8000 F1=0.8000 ✅
+2026-03-30 00:06:08 [INFO]     Test: POS=10 NEG=224 | Pred: POS=10 | trees=1
+2026-03-30 00:06:08 [INFO]     gate_0.55: prec=0.778 rec=1.000 n=9 cov=3.8%
+2026-03-30 00:06:08 [INFO]     gate_0.60: prec=0.778 rec=1.000 n=9 cov=3.8%
+2026-03-30 00:06:08 [INFO]     gate_0.65: prec=0.778 rec=1.000 n=9 cov=3.8%
+2026-03-30 00:06:08 [INFO]     gate_0.70: prec=1.000 rec=1.000 n=7 cov=3.0%
+2026-03-30 00:06:08 [INFO]     gate_0.75: prec=1.000 rec=1.000 n=6 cov=2.6%
+2026-03-30 00:06:08 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 00:06:08 [INFO]   Train: 1780 rows | Test: 291 rows
+2026-03-30 00:06:08 [INFO]   Baseline (majority class): 0.9691
+2026-03-30 00:06:09 [INFO]   Fold 1: Training short binary on 1780 examples (POS=84, NEG=1696, scale_pos=20.19)
+2026-03-30 00:06:14 [INFO]   Fold 1: acc=0.9485 AUC=0.9835 prec=0.3636 recall=0.8889 F1=0.5161 ✅
+2026-03-30 00:06:14 [INFO]     Test: POS=9 NEG=282 | Pred: POS=22 | trees=85
+2026-03-30 00:06:14 [INFO]     gate_0.55: prec=0.381 rec=1.000 n=21 cov=7.2%
+2026-03-30 00:06:14 [INFO]     gate_0.60: prec=0.400 rec=1.000 n=20 cov=6.9%
+2026-03-30 00:06:14 [INFO]     gate_0.65: prec=0.421 rec=1.000 n=19 cov=6.5%
+2026-03-30 00:06:14 [INFO]     gate_0.70: prec=0.467 rec=1.000 n=15 cov=5.2%
+2026-03-30 00:06:14 [INFO]     gate_0.75: prec=0.583 rec=1.000 n=12 cov=4.1%
+2026-03-30 00:06:14 [INFO]     gate_0.80: prec=0.636 rec=1.000 n=11 cov=3.8%
+2026-03-30 00:06:15 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 00:06:15 [INFO]   Train: 2090 rows | Test: 624 rows
+2026-03-30 00:06:15 [INFO]   Baseline (majority class): 0.9728
+2026-03-30 00:06:15 [INFO]   Fold 2: Training short binary on 2090 examples (POS=92, NEG=1998, scale_pos=21.72)
+2026-03-30 00:06:18 [INFO]   Fold 2: acc=0.9119 AUC=0.9457 prec=0.2031 recall=0.7647 F1=0.3210 ✅
+2026-03-30 00:06:18 [INFO]     Test: POS=17 NEG=607 | Pred: POS=64 | trees=2
+2026-03-30 00:06:18 [INFO]     gate_0.55: prec=0.206 rec=1.000 n=63 cov=10.1%
+2026-03-30 00:06:18 [INFO]     gate_0.60: prec=0.210 rec=1.000 n=62 cov=9.9%
+2026-03-30 00:06:18 [INFO]     gate_0.65: prec=0.217 rec=1.000 n=60 cov=9.6%
+2026-03-30 00:06:18 [INFO]     gate_0.70: prec=0.207 rec=1.000 n=58 cov=9.3%
+2026-03-30 00:06:18 [INFO]     gate_0.75: prec=0.173 rec=1.000 n=52 cov=8.3%
+2026-03-30 00:06:18 [INFO]     gate_0.80: prec=0.209 rec=1.000 n=43 cov=6.9%
+2026-03-30 00:06:18 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 00:06:18 [INFO]   Train: 2721 rows | Test: 1069 rows
+2026-03-30 00:06:18 [INFO]   Baseline (majority class): 0.9616
+2026-03-30 00:06:18 [INFO]   Fold 3: Training short binary on 2721 examples (POS=109, NEG=2612, scale_pos=23.96)
+2026-03-30 00:06:22 [INFO]   Fold 3: acc=0.9326 AUC=0.9593 prec=0.3368 recall=0.7805 F1=0.4706 ✅
+2026-03-30 00:06:22 [INFO]     Test: POS=41 NEG=1028 | Pred: POS=95 | trees=2
+2026-03-30 00:06:22 [INFO]     gate_0.55: prec=0.330 rec=1.000 n=91 cov=8.5%
+2026-03-30 00:06:22 [INFO]     gate_0.60: prec=0.333 rec=1.000 n=84 cov=7.9%
+2026-03-30 00:06:22 [INFO]     gate_0.65: prec=0.320 rec=1.000 n=75 cov=7.0%
+2026-03-30 00:06:22 [INFO]     gate_0.70: prec=0.305 rec=1.000 n=59 cov=5.5%
+2026-03-30 00:06:22 [INFO]     gate_0.75: prec=0.312 rec=1.000 n=48 cov=4.5%
+2026-03-30 00:06:22 [INFO]     gate_0.80: prec=0.267 rec=1.000 n=30 cov=2.8%
+2026-03-30 00:06:23 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 00:06:23 [INFO]   Train: 3861 rows | Test: 1130 rows
+2026-03-30 00:06:23 [INFO]   Baseline (majority class): 0.9389
+2026-03-30 00:06:23 [INFO]   Fold 4: Training short binary on 3861 examples (POS=157, NEG=3704, scale_pos=23.59)
+2026-03-30 00:06:31 [INFO]   Fold 4: acc=0.8885 AUC=0.9494 prec=0.3459 recall=0.9275 F1=0.5039 ✅
+2026-03-30 00:06:31 [INFO]     Test: POS=69 NEG=1061 | Pred: POS=185 | trees=54
+2026-03-30 00:06:31 [INFO]     gate_0.55: prec=0.350 rec=1.000 n=177 cov=15.7%
+2026-03-30 00:06:31 [INFO]     gate_0.60: prec=0.343 rec=1.000 n=166 cov=14.7%
+2026-03-30 00:06:31 [INFO]     gate_0.65: prec=0.364 rec=1.000 n=151 cov=13.4%
+2026-03-30 00:06:31 [INFO]     gate_0.70: prec=0.386 rec=1.000 n=132 cov=11.7%
+2026-03-30 00:06:31 [INFO]     gate_0.75: prec=0.427 rec=1.000 n=103 cov=9.1%
+2026-03-30 00:06:31 [INFO]     gate_0.80: prec=0.464 rec=1.000 n=69 cov=6.1%
+2026-03-30 00:06:31 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 00:06:31 [INFO]   AGGREGATE OOS — SHORT model
+2026-03-30 00:06:31 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 00:06:31 [INFO]   Accuracy:  0.9329±0.0321 ✅
+2026-03-30 00:06:31 [INFO]   AUC:       0.9670±0.0201
+2026-03-30 00:06:31 [INFO]   Precision: 0.4099
+2026-03-30 00:06:31 [INFO]   Recall:    0.8323
+2026-03-30 00:06:31 [INFO]   F1:        0.5223
+2026-03-30 00:06:31 [INFO]   Baseline:  0.9599
+2026-03-30 00:06:31 [INFO]   Lift:      -0.0271 📉
+2026-03-30 00:06:31 [INFO]   Stable top features: eng_impulse_pct(5/5), eng_body_ratio(5/5), eng_gap_pct(5/5), eng_prev_body_pct(5/5), eng_atr_mult(5/5), eng_volume_ratio(5/5), tf60_c9_vol_ratio_10(3/5), tf60_c9_volume_spike(3/5), eng_ratio_bodies(3/5), tf240_c0_price_ret_lb10(2/5), tf240_c9_cci(2/5), tf60_c9_bb_width_pct(2/5), tf60_c9_price_acceleration(1/5), tf240_c9_cci_norm(1/5), tf1440_c1_macd(1/5)
+2026-03-30 00:06:31 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 00:06:31 [INFO]   Fold -1: Training short binary on 4635 examples (POS=210, NEG=4425, scale_pos=21.07)
+2026-03-30 00:06:37 [INFO]   Fold -1: acc=0.9280 AUC=0.9563 prec=0.3750 recall=0.9130 F1=0.5316 ✅
+2026-03-30 00:06:37 [INFO]     Test: POS=23 NEG=491 | Pred: POS=56 | trees=10
+2026-03-30 00:06:37 [INFO]     gate_0.55: prec=0.382 rec=1.000 n=55 cov=10.7%
+2026-03-30 00:06:37 [INFO]     gate_0.60: prec=0.396 rec=1.000 n=53 cov=10.3%
+2026-03-30 00:06:37 [INFO]     gate_0.65: prec=0.400 rec=1.000 n=50 cov=9.7%
+2026-03-30 00:06:37 [INFO]     gate_0.70: prec=0.391 rec=1.000 n=46 cov=8.9%
+2026-03-30 00:06:37 [INFO]     gate_0.75: prec=0.378 rec=1.000 n=45 cov=8.8%
+2026-03-30 00:06:37 [INFO]     gate_0.80: prec=0.378 rec=1.000 n=37 cov=7.2%
+2026-03-30 00:06:37 [INFO]   ✅ Saved: models/impulse_short_v1.ubj
+2026-03-30 00:06:37 [INFO]   ✅ Schema: models/impulse_short_v1.schema.json
+2026-03-30 00:06:37 [INFO] 
+  📊 Report: models/impulse_short_wfo_report.json
+2026-03-30 00:06:37 [INFO]   ⏱️  Elapsed: 32.1s
+2026-03-30 00:06:37 [INFO] 
+╔═══════════════════════════════════════════════════════════╗
+2026-03-30 00:06:37 [INFO] ║  IMPULSE ABSORPTION & ENGULFING — FINAL SUMMARY           ║
+2026-03-30 00:06:37 [INFO] ╚═══════════════════════════════════════════════════════════╝
+2026-03-30 00:06:37 [INFO]    LONG: acc=0.9182 AUC=0.9582 F1=0.5065 base=0.9532 ✅
+2026-03-30 00:06:37 [INFO]   SHORT: acc=0.9329 AUC=0.9670 F1=0.5223 base=0.9599 ✅
+2026-03-30 00:06:37 [INFO] 
+  Total time: 64.9s (1.1min)
+2026-03-30 00:06:37 [INFO]   Models: models/impulse_{long,short}_v1.ubj
+2026-03-30 00:06:37 [INFO]   Done ✅
+2026-03-30 00:39:49 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-30 00:39:49 [INFO] ║  Impulse Absorption & Engulfing — WFO Training        ║
+2026-03-30 00:39:49 [INFO] ║  Multi-TF indicators + Engulfing meta → XGBoost       ║
+2026-03-30 00:39:49 [INFO] ║  Hybrid: Heuristic detection + ML filtering           ║
+2026-03-30 00:39:49 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-30 00:39:49 [INFO] Model type: both
+2026-03-30 00:39:49 [INFO] Loading dataset/impulse_dataset.csv...
+2026-03-30 00:39:51 [INFO]   Loaded 8,707 rows, 3966 columns in 2.6s
+2026-03-30 00:39:51 [INFO]   Detected 3958 feature columns
+2026-03-30 00:39:52 [INFO]   Memory: 0.28 GB → 0.14 GB (float32)
+2026-03-30 00:39:52 [INFO] 
+  Dataset overview:
+2026-03-30 00:39:52 [INFO]       LONG:    4,476 rows (POS=1610 NEG=2866)
+2026-03-30 00:39:52 [INFO]      SHORT:    4,231 rows (POS=1514 NEG=2717)
+2026-03-30 00:39:52 [INFO]     TF=15m:  2,359 rows (219 symbols)
+2026-03-30 00:39:52 [INFO]     TF=60m:  3,049 rows (232 symbols)
+2026-03-30 00:39:52 [INFO]     TF=240m:  3,299 rows (255 symbols)
+2026-03-30 00:39:52 [INFO]     Total POS=3124 NEG=5583 (POS ratio=35.9%)
+2026-03-30 00:39:52 [INFO] 
+===========================================================================
+2026-03-30 00:39:52 [INFO]   TRAINING LONG MODEL (bullish engulfing)
+2026-03-30 00:39:52 [INFO] ===========================================================================
+2026-03-30 00:39:52 [INFO]   Long dataset: 4476 rows
+2026-03-30 00:39:52 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:39:52 [INFO]   IMPULSE WFO — LONG model
+2026-03-30 00:39:52 [INFO]   Data: 4476 rows, 255 symbols
+2026-03-30 00:39:52 [INFO]   Features: 3958
+2026-03-30 00:39:52 [INFO]   Labels: POS=1610 (36.0%), NEG=2866 (64.0%)
+2026-03-30 00:39:52 [INFO]   Heuristic win rate: 36.0% (before ML filter)
+2026-03-30 00:39:52 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 00:39:52 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:39:52 [INFO]     TF=15m: 1300 rows (POS=483, NEG=817, WR=37.2%)
+2026-03-30 00:39:52 [INFO]     TF=60m: 1524 rows (POS=490, NEG=1034, WR=32.2%)
+2026-03-30 00:39:52 [INFO]     TF=240m: 1652 rows (POS=637, NEG=1015, WR=38.6%)
+2026-03-30 00:39:52 [INFO]   5 WFO folds:
+2026-03-30 00:39:52 [INFO]     Fold 0: Train 1686d | Test 60d
+2026-03-30 00:39:52 [INFO]     Fold 1: Train 1746d | Test 60d
+2026-03-30 00:39:52 [INFO]     Fold 2: Train 1806d | Test 60d
+2026-03-30 00:39:52 [INFO]     Fold 3: Train 1866d | Test 60d
+2026-03-30 00:39:52 [INFO]     Fold 4: Train 1926d | Test 60d
+2026-03-30 00:39:52 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 00:39:52 [INFO]   Train: 1670 rows | Test: 153 rows
+2026-03-30 00:39:52 [INFO]   Baseline (majority class): 0.5752
+2026-03-30 00:39:53 [INFO]   Fold 0: Training long binary on 1670 examples (POS=633, NEG=1037, scale_pos=1.64)
+2026-03-30 00:39:58 [INFO]   Fold 0: acc=0.5752 AUC=0.5745 prec=0.5000 recall=0.3077 F1=0.3810 ❌
+2026-03-30 00:39:58 [INFO]     Test: POS=65 NEG=88 | Pred: POS=40 | trees=11
+2026-03-30 00:39:58 [INFO]     gate_0.55: hit_rate=0.556 recall=0.077 n=9 pos=5 cov=5.9%
+2026-03-30 00:39:58 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 00:39:58 [INFO]   Train: 1827 rows | Test: 210 rows
+2026-03-30 00:39:58 [INFO]   Baseline (majority class): 0.6190
+2026-03-30 00:39:58 [INFO]   Fold 1: Training long binary on 1827 examples (POS=697, NEG=1130, scale_pos=1.62)
+2026-03-30 00:40:04 [INFO]   Fold 1: acc=0.5762 AUC=0.5620 prec=0.4000 recall=0.2250 F1=0.2880 ❌
+2026-03-30 00:40:04 [INFO]     Test: POS=80 NEG=130 | Pred: POS=45 | trees=26
+2026-03-30 00:40:04 [INFO]     gate_0.55: hit_rate=0.414 recall=0.150 n=29 pos=12 cov=13.8%
+2026-03-30 00:40:04 [INFO]     gate_0.60: hit_rate=0.455 recall=0.062 n=11 pos=5 cov=5.2%
+2026-03-30 00:40:04 [INFO]     gate_0.65: hit_rate=0.375 recall=0.037 n=8 pos=3 cov=3.8%
+2026-03-30 00:40:04 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 00:40:04 [INFO]   Train: 2075 rows | Test: 447 rows
+2026-03-30 00:40:04 [INFO]   Baseline (majority class): 0.7315
+2026-03-30 00:40:04 [INFO]   Fold 2: Training long binary on 2075 examples (POS=782, NEG=1293, scale_pos=1.65)
+2026-03-30 00:40:12 [INFO]   Fold 2: acc=0.6331 AUC=0.5719 prec=0.3167 recall=0.3167 F1=0.3167 ✅
+2026-03-30 00:40:12 [INFO]     Test: POS=120 NEG=327 | Pred: POS=120 | trees=50
+2026-03-30 00:40:12 [INFO]     gate_0.55: hit_rate=0.254 recall=0.133 n=63 pos=16 cov=14.1%
+2026-03-30 00:40:12 [INFO]     gate_0.60: hit_rate=0.226 recall=0.058 n=31 pos=7 cov=6.9%
+2026-03-30 00:40:12 [INFO]     gate_0.65: hit_rate=0.143 recall=0.008 n=7 pos=1 cov=1.6%
+2026-03-30 00:40:12 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 00:40:12 [INFO]   Train: 2527 rows | Test: 742 rows
+2026-03-30 00:40:12 [INFO]   Baseline (majority class): 0.6294
+2026-03-30 00:40:12 [INFO]   Fold 3: Training long binary on 2527 examples (POS=906, NEG=1621, scale_pos=1.79)
+2026-03-30 00:40:18 [INFO]   Fold 3: acc=0.5647 AUC=0.5410 prec=0.3919 recall=0.3164 F1=0.3501 ❌
+2026-03-30 00:40:18 [INFO]     Test: POS=275 NEG=467 | Pred: POS=222 | trees=11
+2026-03-30 00:40:18 [INFO]     gate_0.55: hit_rate=0.405 recall=0.185 n=126 pos=51 cov=17.0%
+2026-03-30 00:40:18 [INFO]     gate_0.60: hit_rate=0.368 recall=0.091 n=68 pos=25 cov=9.2%
+2026-03-30 00:40:18 [INFO]     gate_0.65: hit_rate=0.423 recall=0.040 n=26 pos=11 cov=3.5%
+2026-03-30 00:40:18 [INFO]     gate_0.70: hit_rate=0.375 recall=0.022 n=16 pos=6 cov=2.2%
+2026-03-30 00:40:18 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 00:40:18 [INFO]   Train: 3330 rows | Test: 1014 rows
+2026-03-30 00:40:18 [INFO]   Baseline (majority class): 0.6262
+2026-03-30 00:40:19 [INFO]   Fold 4: Training long binary on 3330 examples (POS=1200, NEG=2130, scale_pos=1.77)
+2026-03-30 00:40:34 [INFO]   Fold 4: acc=0.6519 AUC=0.6474 prec=0.5516 recall=0.3668 F1=0.4406 ✅
+2026-03-30 00:40:34 [INFO]     Test: POS=379 NEG=635 | Pred: POS=252 | trees=85
+2026-03-30 00:40:34 [INFO]     gate_0.55: hit_rate=0.599 recall=0.216 n=137 pos=82 cov=13.5%
+2026-03-30 00:40:34 [INFO]     gate_0.60: hit_rate=0.635 recall=0.087 n=52 pos=33 cov=5.1%
+2026-03-30 00:40:34 [INFO]     gate_0.65: hit_rate=0.533 recall=0.021 n=15 pos=8 cov=1.5%
+2026-03-30 00:40:34 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 00:40:34 [INFO]   AGGREGATE OOS — LONG model
+2026-03-30 00:40:34 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 00:40:34 [INFO]   Accuracy:  0.6002±0.0353 ✅
+2026-03-30 00:40:34 [INFO]   AUC:       0.5794±0.0360
+2026-03-30 00:40:34 [INFO]   Precision: 0.4320
+2026-03-30 00:40:34 [INFO]   Recall:    0.3065
+2026-03-30 00:40:34 [INFO]   F1:        0.3553
+2026-03-30 00:40:34 [INFO]   Baseline:  0.6363
+2026-03-30 00:40:34 [INFO]   Lift:      -0.0361 📉
+2026-03-30 00:40:34 [INFO]   Stable top features: tf240_c8_alligator_spread(3/5), tf240_c0_cci_norm(2/5), tf240_c0_cci(2/5), tf240_c1_price_vs_sma(2/5), tf240_c4_alligator_spread(2/5), tf240_c8_price_vs_sma(2/5), tf240_c8_atr_pct(2/5), tf240_c8_price_vs_supertrend(2/5), tf60_c7_bb_width_pct(2/5), tf60_c9_bb_width_pct(2/5), tf1440_c9_cci_norm(2/5), tf240_c9_supertrend_persist_10(1/5), tf240_c9_price_vs_supertrend(1/5), tf240_c1_price_vs_supertrend(1/5), tf240_c6_dist_to_high_50(1/5)
+2026-03-30 00:40:34 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 00:40:34 [INFO]   Fold -1: Training long binary on 4029 examples (POS=1428, NEG=2601, scale_pos=1.82)
+2026-03-30 00:40:43 [INFO]   Fold -1: acc=0.5996 AUC=0.6412 prec=0.5088 recall=0.4780 F1=0.4929 ✅
+2026-03-30 00:40:43 [INFO]     Test: POS=182 NEG=265 | Pred: POS=171 | trees=23
+2026-03-30 00:40:43 [INFO]     gate_0.55: hit_rate=0.624 recall=0.346 n=101 pos=63 cov=22.6%
+2026-03-30 00:40:43 [INFO]     gate_0.60: hit_rate=0.796 recall=0.236 n=54 pos=43 cov=12.1%
+2026-03-30 00:40:43 [INFO]     gate_0.65: hit_rate=0.868 recall=0.181 n=38 pos=33 cov=8.5%
+2026-03-30 00:40:43 [INFO]     gate_0.70: hit_rate=0.840 recall=0.115 n=25 pos=21 cov=5.6%
+2026-03-30 00:40:43 [INFO]     gate_0.75: hit_rate=0.833 recall=0.082 n=18 pos=15 cov=4.0%
+2026-03-30 00:40:43 [INFO]     gate_0.80: hit_rate=0.900 recall=0.049 n=10 pos=9 cov=2.2%
+2026-03-30 00:40:43 [INFO]   ✅ Saved: models/impulse_long_v1.ubj
+2026-03-30 00:40:43 [INFO]   ✅ Schema: models/impulse_long_v1.schema.json
+2026-03-30 00:40:43 [INFO] 
+  📊 Report: models/impulse_long_wfo_report.json
+2026-03-30 00:40:43 [INFO]   ⏱️  Elapsed: 51.1s
+2026-03-30 00:40:43 [INFO] 
+===========================================================================
+2026-03-30 00:40:43 [INFO]   TRAINING SHORT MODEL (bearish engulfing)
+2026-03-30 00:40:43 [INFO] ===========================================================================
+2026-03-30 00:40:43 [INFO]   Short dataset: 4231 rows
+2026-03-30 00:40:43 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:40:43 [INFO]   IMPULSE WFO — SHORT model
+2026-03-30 00:40:43 [INFO]   Data: 4231 rows, 256 symbols
+2026-03-30 00:40:43 [INFO]   Features: 3958
+2026-03-30 00:40:43 [INFO]   Labels: POS=1514 (35.8%), NEG=2717 (64.2%)
+2026-03-30 00:40:43 [INFO]   Heuristic win rate: 35.8% (before ML filter)
+2026-03-30 00:40:43 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 00:40:43 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 00:40:43 [INFO]     TF=15m: 1059 rows (POS=380, NEG=679, WR=35.9%)
+2026-03-30 00:40:43 [INFO]     TF=60m: 1525 rows (POS=511, NEG=1014, WR=33.5%)
+2026-03-30 00:40:43 [INFO]     TF=240m: 1647 rows (POS=623, NEG=1024, WR=37.8%)
+2026-03-30 00:40:43 [INFO]   5 WFO folds:
+2026-03-30 00:40:43 [INFO]     Fold 0: Train 1690d | Test 60d
+2026-03-30 00:40:43 [INFO]     Fold 1: Train 1750d | Test 60d
+2026-03-30 00:40:43 [INFO]     Fold 2: Train 1810d | Test 60d
+2026-03-30 00:40:43 [INFO]     Fold 3: Train 1870d | Test 60d
+2026-03-30 00:40:43 [INFO]     Fold 4: Train 1930d | Test 60d
+2026-03-30 00:40:43 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 00:40:44 [INFO]   Train: 1706 rows | Test: 170 rows
+2026-03-30 00:40:44 [INFO]   Baseline (majority class): 0.5588
+2026-03-30 00:40:44 [INFO]   Fold 0: Training short binary on 1706 examples (POS=627, NEG=1079, scale_pos=1.72)
+2026-03-30 00:40:49 [INFO]   Fold 0: acc=0.5765 AUC=0.5259 prec=0.5319 recall=0.3333 F1=0.4098 ❌
+2026-03-30 00:40:49 [INFO]     Test: POS=75 NEG=95 | Pred: POS=47 | trees=4
+2026-03-30 00:40:49 [INFO]     gate_0.55: hit_rate=0.600 recall=0.280 n=35 pos=21 cov=20.6%
+2026-03-30 00:40:49 [INFO]     gate_0.60: hit_rate=0.783 recall=0.240 n=23 pos=18 cov=13.5%
+2026-03-30 00:40:49 [INFO]     gate_0.65: hit_rate=0.917 recall=0.147 n=12 pos=11 cov=7.1%
+2026-03-30 00:40:49 [INFO]     gate_0.70: hit_rate=0.857 recall=0.080 n=7 pos=6 cov=4.1%
+2026-03-30 00:40:49 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 00:40:49 [INFO]   Train: 1883 rows | Test: 123 rows
+2026-03-30 00:40:49 [INFO]   Baseline (majority class): 0.6341
+2026-03-30 00:40:49 [INFO]   Fold 1: Training short binary on 1883 examples (POS=709, NEG=1174, scale_pos=1.66)
+2026-03-30 00:40:54 [INFO]   Fold 1: acc=0.5528 AUC=0.5094 prec=0.3214 recall=0.2000 F1=0.2466 ❌
+2026-03-30 00:40:54 [INFO]     Test: POS=45 NEG=78 | Pred: POS=28 | trees=2
+2026-03-30 00:40:54 [INFO]     gate_0.55: hit_rate=0.167 recall=0.044 n=12 pos=2 cov=9.8%
+2026-03-30 00:40:54 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 00:40:54 [INFO]   Train: 2019 rows | Test: 513 rows
+2026-03-30 00:40:54 [INFO]   Baseline (majority class): 0.6764
+2026-03-30 00:40:54 [INFO]   Fold 2: Training short binary on 2019 examples (POS=758, NEG=1261, scale_pos=1.66)
+2026-03-30 00:41:00 [INFO]   Fold 2: acc=0.4542 AUC=0.4399 prec=0.2824 recall=0.4458 F1=0.3458 ❌
+2026-03-30 00:41:00 [INFO]     Test: POS=166 NEG=347 | Pred: POS=262 | trees=1
+2026-03-30 00:41:00 [INFO]     gate_0.55: hit_rate=0.272 recall=0.259 n=158 pos=43 cov=30.8%
+2026-03-30 00:41:00 [INFO]     gate_0.60: hit_rate=0.227 recall=0.090 n=66 pos=15 cov=12.9%
+2026-03-30 00:41:00 [INFO]     gate_0.65: hit_rate=0.273 recall=0.036 n=22 pos=6 cov=4.3%
+2026-03-30 00:41:00 [INFO]     gate_0.70: hit_rate=0.222 recall=0.012 n=9 pos=2 cov=1.8%
+2026-03-30 00:41:00 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 00:41:00 [INFO]   Train: 2535 rows | Test: 673 rows
+2026-03-30 00:41:00 [INFO]   Baseline (majority class): 0.6137
+2026-03-30 00:41:00 [INFO]   Fold 3: Training short binary on 2535 examples (POS=925, NEG=1610, scale_pos=1.74)
+2026-03-30 00:41:06 [INFO]   Fold 3: acc=0.5379 AUC=0.5241 prec=0.4086 recall=0.4385 F1=0.4230 ❌
+2026-03-30 00:41:06 [INFO]     Test: POS=260 NEG=413 | Pred: POS=279 | trees=2
+2026-03-30 00:41:06 [INFO]     gate_0.55: hit_rate=0.396 recall=0.258 n=169 pos=67 cov=25.1%
+2026-03-30 00:41:06 [INFO]     gate_0.60: hit_rate=0.409 recall=0.138 n=88 pos=36 cov=13.1%
+2026-03-30 00:41:06 [INFO]     gate_0.65: hit_rate=0.368 recall=0.054 n=38 pos=14 cov=5.6%
+2026-03-30 00:41:06 [INFO]     gate_0.70: hit_rate=0.125 recall=0.004 n=8 pos=1 cov=1.2%
+2026-03-30 00:41:06 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 00:41:06 [INFO]   Train: 3255 rows | Test: 871 rows
+2026-03-30 00:41:06 [INFO]   Baseline (majority class): 0.6912
+2026-03-30 00:41:06 [INFO]   Fold 4: Training short binary on 3255 examples (POS=1212, NEG=2043, scale_pos=1.69)
+2026-03-30 00:41:21 [INFO]   Fold 4: acc=0.6062 AUC=0.5221 prec=0.3391 recall=0.2900 F1=0.3126 ✅
+2026-03-30 00:41:21 [INFO]     Test: POS=269 NEG=602 | Pred: POS=230 | trees=79
+2026-03-30 00:41:21 [INFO]     gate_0.55: hit_rate=0.371 recall=0.182 n=132 pos=49 cov=15.2%
+2026-03-30 00:41:21 [INFO]     gate_0.60: hit_rate=0.329 recall=0.089 n=73 pos=24 cov=8.4%
+2026-03-30 00:41:21 [INFO]     gate_0.65: hit_rate=0.250 recall=0.033 n=36 pos=9 cov=4.1%
+2026-03-30 00:41:21 [INFO]     gate_0.70: hit_rate=0.250 recall=0.015 n=16 pos=4 cov=1.8%
+2026-03-30 00:41:21 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 00:41:21 [INFO]   AGGREGATE OOS — SHORT model
+2026-03-30 00:41:21 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 00:41:21 [INFO]   Accuracy:  0.5455±0.0512 ❌
+2026-03-30 00:41:21 [INFO]   AUC:       0.5043±0.0327
+2026-03-30 00:41:21 [INFO]   Precision: 0.3767
+2026-03-30 00:41:21 [INFO]   Recall:    0.3415
+2026-03-30 00:41:21 [INFO]   F1:        0.3476
+2026-03-30 00:41:21 [INFO]   Baseline:  0.6348
+2026-03-30 00:41:21 [INFO]   Lift:      -0.0893 📉
+2026-03-30 00:41:21 [INFO]   Stable top features: tf240_c7_stoch_d(4/5), tf1440_c9_alligator_spread(3/5), tf240_c6_williams(3/5), tf1440_c3_stoch_d(2/5), tf60_c2_price_ret_lb1(2/5), tf240_c6_stoch_d(2/5), tf240_c5_stoch_norm(2/5), tf1440_c6_price_ret_lb10(2/5), tf1440_c3_price_ret_lb10(2/5), tf240_c6_stoch_k(2/5), tf240_c7_stoch_k(2/5), tf1440_c8_alligator_spread(2/5), tf60_c0_rsi_norm(1/5), tf240_c8_stoch_d(1/5), tf60_c0_cci(1/5)
+2026-03-30 00:41:21 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 00:41:21 [INFO]   Fold -1: Training short binary on 3808 examples (POS=1354, NEG=2454, scale_pos=1.81)
+2026-03-30 00:42:06 [INFO]   Fold -1: acc=0.6643 AUC=0.7291 prec=0.5625 recall=0.5062 F1=0.5329 ✅
+2026-03-30 00:42:06 [INFO]     Test: POS=160 NEG=263 | Pred: POS=144 | trees=422
+2026-03-30 00:42:06 [INFO]     gate_0.55: hit_rate=0.643 recall=0.463 n=115 pos=74 cov=27.2%
+2026-03-30 00:42:06 [INFO]     gate_0.60: hit_rate=0.698 recall=0.419 n=96 pos=67 cov=22.7%
+2026-03-30 00:42:06 [INFO]     gate_0.65: hit_rate=0.740 recall=0.356 n=77 pos=57 cov=18.2%
+2026-03-30 00:42:06 [INFO]     gate_0.70: hit_rate=0.849 recall=0.281 n=53 pos=45 cov=12.5%
+2026-03-30 00:42:06 [INFO]     gate_0.75: hit_rate=0.857 recall=0.225 n=42 pos=36 cov=9.9%
+2026-03-30 00:42:06 [INFO]     gate_0.80: hit_rate=0.968 recall=0.188 n=31 pos=30 cov=7.3%
+2026-03-30 00:42:06 [INFO]   ✅ Saved: models/impulse_short_v1.ubj
+2026-03-30 00:42:06 [INFO]   ✅ Schema: models/impulse_short_v1.schema.json
+2026-03-30 00:42:06 [INFO] 
+  📊 Report: models/impulse_short_wfo_report.json
+2026-03-30 00:42:06 [INFO]   ⏱️  Elapsed: 82.3s
+2026-03-30 00:42:06 [INFO] 
+╔═══════════════════════════════════════════════════════════╗
+2026-03-30 00:42:06 [INFO] ║  IMPULSE ABSORPTION & ENGULFING — FINAL SUMMARY           ║
+2026-03-30 00:42:06 [INFO] ╚═══════════════════════════════════════════════════════════╝
+2026-03-30 00:42:06 [INFO]    LONG: acc=0.6002 AUC=0.5794 F1=0.3553 base=0.6363 ✅
+2026-03-30 00:42:06 [INFO]   SHORT: acc=0.5455 AUC=0.5043 F1=0.3476 base=0.6348 ❌
+2026-03-30 00:42:06 [INFO] 
+  Total time: 133.7s (2.2min)
+2026-03-30 00:42:06 [INFO]   Models: models/impulse_{long,short}_v1.ubj
+2026-03-30 00:42:06 [INFO]   Done ✅
+2026-03-30 01:05:20 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-30 01:05:20 [INFO] ║  Impulse Absorption & Engulfing — WFO Training        ║
+2026-03-30 01:05:20 [INFO] ║  Multi-TF indicators + Engulfing meta → XGBoost       ║
+2026-03-30 01:05:20 [INFO] ║  Hybrid: Heuristic detection + ML filtering           ║
+2026-03-30 01:05:20 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-30 01:05:20 [INFO] Model type: both
+2026-03-30 01:05:20 [INFO] Loading dataset/impulse_dataset.csv...
+2026-03-30 01:05:21 [INFO]   Loaded 1,242 rows, 3966 columns in 0.4s
+2026-03-30 01:05:21 [INFO]   Detected 3958 feature columns
+2026-03-30 01:05:21 [INFO]   Memory: 0.04 GB → 0.02 GB (float32)
+2026-03-30 01:05:21 [INFO] 
+  Dataset overview:
+2026-03-30 01:05:21 [INFO]       LONG:      556 rows (POS=146 NEG=410)
+2026-03-30 01:05:21 [INFO]      SHORT:      686 rows (POS=206 NEG=480)
+2026-03-30 01:05:21 [INFO]     TF=15m:    397 rows (105 symbols)
+2026-03-30 01:05:21 [INFO]     TF=60m:    440 rows (138 symbols)
+2026-03-30 01:05:21 [INFO]     TF=240m:    405 rows (168 symbols)
+2026-03-30 01:05:21 [INFO]     Total POS=352 NEG=890 (POS ratio=28.3%)
+2026-03-30 01:05:21 [INFO] 
+===========================================================================
+2026-03-30 01:05:21 [INFO]   TRAINING LONG MODEL (bullish engulfing)
+2026-03-30 01:05:21 [INFO] ===========================================================================
+2026-03-30 01:05:21 [INFO]   Long dataset: 556 rows
+2026-03-30 01:05:21 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 01:05:21 [INFO]   IMPULSE WFO — LONG model
+2026-03-30 01:05:21 [INFO]   Data: 556 rows, 162 symbols
+2026-03-30 01:05:21 [INFO]   Features: 3958
+2026-03-30 01:05:21 [INFO]   Labels: POS=146 (26.3%), NEG=410 (73.7%)
+2026-03-30 01:05:21 [INFO]   Heuristic win rate: 26.3% (before ML filter)
+2026-03-30 01:05:21 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 01:05:21 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 01:05:21 [INFO]     TF=15m: 164 rows (POS=46, NEG=118, WR=28.0%)
+2026-03-30 01:05:21 [INFO]     TF=60m: 182 rows (POS=44, NEG=138, WR=24.2%)
+2026-03-30 01:05:21 [INFO]     TF=240m: 210 rows (POS=56, NEG=154, WR=26.7%)
+2026-03-30 01:05:21 [INFO]   5 WFO folds:
+2026-03-30 01:05:21 [INFO]     Fold 0: Train 1670d | Test 60d
+2026-03-30 01:05:21 [INFO]     Fold 1: Train 1730d | Test 60d
+2026-03-30 01:05:21 [INFO]     Fold 2: Train 1790d | Test 60d
+2026-03-30 01:05:21 [INFO]     Fold 3: Train 1850d | Test 60d
+2026-03-30 01:05:21 [INFO]     Fold 4: Train 1910d | Test 60d
+2026-03-30 01:05:21 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 01:05:21 [WARNING]   Too few samples (train=190, test=13). Skipping.
+2026-03-30 01:05:21 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 01:05:21 [WARNING]   Too few samples (train=203, test=10). Skipping.
+2026-03-30 01:05:21 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 01:05:21 [INFO]   Train: 212 rows | Test: 68 rows
+2026-03-30 01:05:21 [INFO]   Baseline (majority class): 0.8235
+2026-03-30 01:05:22 [INFO]   Fold 2: Training long binary on 212 examples (POS=62, NEG=150, scale_pos=2.42)
+2026-03-30 01:05:27 [INFO]   Fold 2: acc=0.7794 AUC=0.6384 prec=0.3333 recall=0.2500 F1=0.2857 ✅
+2026-03-30 01:05:27 [INFO]     Test: POS=12 NEG=56 | Pred: POS=9 | trees=120
+2026-03-30 01:05:27 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 01:05:27 [INFO]   Train: 277 rows | Test: 106 rows
+2026-03-30 01:05:27 [INFO]   Baseline (majority class): 0.6792
+2026-03-30 01:05:27 [INFO]   Fold 3: Training long binary on 277 examples (POS=73, NEG=204, scale_pos=2.79)
+2026-03-30 01:05:29 [INFO]   Fold 3: acc=0.5849 AUC=0.3922 prec=0.2500 recall=0.1471 F1=0.1852 ✅
+2026-03-30 01:05:29 [INFO]     Test: POS=34 NEG=72 | Pred: POS=20 | trees=24
+2026-03-30 01:05:29 [INFO]     gate_0.55: hit_rate=0.250 recall=0.088 n=12 pos=3 cov=11.3%
+2026-03-30 01:05:29 [INFO]     gate_0.60: hit_rate=0.167 recall=0.029 n=6 pos=1 cov=5.7%
+2026-03-30 01:05:29 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 01:05:29 [INFO]   Train: 383 rows | Test: 149 rows
+2026-03-30 01:05:29 [INFO]   Baseline (majority class): 0.7919
+2026-03-30 01:05:29 [INFO]   Fold 4: Training long binary on 383 examples (POS=109, NEG=274, scale_pos=2.51)
+2026-03-30 01:05:33 [INFO]   Fold 4: acc=0.6242 AUC=0.4729 prec=0.1622 recall=0.1935 F1=0.1765 ✅
+2026-03-30 01:05:33 [INFO]     Test: POS=31 NEG=118 | Pred: POS=37 | trees=5
+2026-03-30 01:05:33 [INFO]     gate_0.55: hit_rate=0.167 recall=0.097 n=18 pos=3 cov=12.1%
+2026-03-30 01:05:33 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 01:05:33 [INFO]   AGGREGATE OOS — LONG model
+2026-03-30 01:05:33 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 01:05:33 [INFO]   Accuracy:  0.6628±0.0840 ✅
+2026-03-30 01:05:33 [INFO]   AUC:       0.5012±0.1025
+2026-03-30 01:05:33 [INFO]   Precision: 0.2485
+2026-03-30 01:05:33 [INFO]   Recall:    0.1969
+2026-03-30 01:05:33 [INFO]   F1:        0.2158
+2026-03-30 01:05:33 [INFO]   Baseline:  0.7649
+2026-03-30 01:05:33 [INFO]   Lift:      -0.1021 📉
+2026-03-30 01:05:33 [INFO]   Stable top features: tf240_c0_price_vs_vwap(2/3), tf240_c1_price_vs_vwap(2/3), tf1440_c1_wick_pressure_3(2/3), tf1440_c2_wick_pressure_3(2/3), tf240_c0_cmf(2/3), tf1440_c6_price_acceleration(2/3), tf240_c7_price_vs_vwap(1/3), tf1440_c7_price_vs_vwap(1/3), tf1440_c0_wick_pressure_3(1/3), tf1440_c2_cmf(1/3), tf1440_c1_price_ret_lb5(1/3), eng_absorb_body_pct(1/3), tf1440_c2_price_vs_vwap(1/3), tf1440_c2_rsi_norm(1/3), tf240_c7_price_vs_ema20(1/3)
+2026-03-30 01:05:33 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 01:05:33 [INFO]   Fold -1: Training long binary on 501 examples (POS=127, NEG=374, scale_pos=2.94)
+2026-03-30 01:05:37 [INFO]   Fold -1: acc=0.6364 AUC=0.5775 prec=0.4615 recall=0.3158 F1=0.3750 ✅
+2026-03-30 01:05:37 [INFO]     Test: POS=19 NEG=36 | Pred: POS=13 | trees=17
+2026-03-30 01:05:37 [INFO]     gate_0.55: hit_rate=0.429 recall=0.158 n=7 pos=3 cov=12.7%
+2026-03-30 01:05:37 [INFO]   ✅ Saved: models/impulse_long_v1.ubj
+2026-03-30 01:05:37 [INFO]   ✅ Schema: models/impulse_long_v1.schema.json
+2026-03-30 01:05:37 [INFO] 
+  📊 Report: models/impulse_long_wfo_report.json
+2026-03-30 01:05:37 [INFO]   ⏱️  Elapsed: 16.1s
+2026-03-30 01:05:38 [INFO] 
+===========================================================================
+2026-03-30 01:05:38 [INFO]   TRAINING SHORT MODEL (bearish engulfing)
+2026-03-30 01:05:38 [INFO] ===========================================================================
+2026-03-30 01:05:38 [INFO]   Short dataset: 686 rows
+2026-03-30 01:05:38 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 01:05:38 [INFO]   IMPULSE WFO — SHORT model
+2026-03-30 01:05:38 [INFO]   Data: 686 rows, 188 symbols
+2026-03-30 01:05:38 [INFO]   Features: 3958
+2026-03-30 01:05:38 [INFO]   Labels: POS=206 (30.0%), NEG=480 (70.0%)
+2026-03-30 01:05:38 [INFO]   Heuristic win rate: 30.0% (before ML filter)
+2026-03-30 01:05:38 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 01:05:38 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 01:05:38 [INFO]     TF=15m: 233 rows (POS=74, NEG=159, WR=31.8%)
+2026-03-30 01:05:38 [INFO]     TF=60m: 258 rows (POS=66, NEG=192, WR=25.6%)
+2026-03-30 01:05:38 [INFO]     TF=240m: 195 rows (POS=66, NEG=129, WR=33.8%)
+2026-03-30 01:05:38 [INFO]   5 WFO folds:
+2026-03-30 01:05:38 [INFO]     Fold 0: Train 1668d | Test 60d
+2026-03-30 01:05:38 [INFO]     Fold 1: Train 1728d | Test 60d
+2026-03-30 01:05:38 [INFO]     Fold 2: Train 1788d | Test 60d
+2026-03-30 01:05:38 [INFO]     Fold 3: Train 1848d | Test 60d
+2026-03-30 01:05:38 [INFO]     Fold 4: Train 1908d | Test 60d
+2026-03-30 01:05:38 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 01:05:38 [WARNING]   Too few samples (train=150, test=17). Skipping.
+2026-03-30 01:05:38 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 01:05:38 [INFO]   Train: 167 rows | Test: 34 rows
+2026-03-30 01:05:38 [INFO]   Baseline (majority class): 0.7353
+2026-03-30 01:05:38 [INFO]   Fold 1: Training short binary on 167 examples (POS=53, NEG=114, scale_pos=2.15)
+2026-03-30 01:05:40 [INFO]   Fold 1: acc=0.7941 AUC=0.7600 prec=0.6000 recall=0.6667 F1=0.6316 ✅
+2026-03-30 01:05:40 [INFO]     Test: POS=9 NEG=25 | Pred: POS=10 | trees=39
+2026-03-30 01:05:40 [INFO]     gate_0.55: hit_rate=0.667 recall=0.444 n=6 pos=4 cov=17.6%
+2026-03-30 01:05:40 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 01:05:40 [INFO]   Train: 205 rows | Test: 96 rows
+2026-03-30 01:05:40 [INFO]   Baseline (majority class): 0.7188
+2026-03-30 01:05:40 [INFO]   Fold 2: Training short binary on 205 examples (POS=63, NEG=142, scale_pos=2.25)
+2026-03-30 01:05:42 [INFO]   Fold 2: acc=0.6562 AUC=0.5615 prec=0.3929 recall=0.4074 F1=0.4000 ✅
+2026-03-30 01:05:42 [INFO]     Test: POS=27 NEG=69 | Pred: POS=28 | trees=67
+2026-03-30 01:05:42 [INFO]     gate_0.55: hit_rate=0.381 recall=0.296 n=21 pos=8 cov=21.9%
+2026-03-30 01:05:42 [INFO]     gate_0.60: hit_rate=0.312 recall=0.185 n=16 pos=5 cov=16.7%
+2026-03-30 01:05:42 [INFO]     gate_0.65: hit_rate=0.400 recall=0.148 n=10 pos=4 cov=10.4%
+2026-03-30 01:05:42 [INFO]     gate_0.70: hit_rate=0.333 recall=0.074 n=6 pos=2 cov=6.2%
+2026-03-30 01:05:42 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 01:05:42 [INFO]   Train: 295 rows | Test: 133 rows
+2026-03-30 01:05:42 [INFO]   Baseline (majority class): 0.6617
+2026-03-30 01:05:42 [INFO]   Fold 3: Training short binary on 295 examples (POS=85, NEG=210, scale_pos=2.47)
+2026-03-30 01:05:45 [INFO]   Fold 3: acc=0.5789 AUC=0.4538 prec=0.2963 recall=0.1778 F1=0.2222 ❌
+2026-03-30 01:05:45 [INFO]     Test: POS=45 NEG=88 | Pred: POS=27 | trees=2
+2026-03-30 01:05:45 [INFO]     gate_0.55: hit_rate=0.286 recall=0.089 n=14 pos=4 cov=10.5%
+2026-03-30 01:05:45 [INFO]     gate_0.60: hit_rate=0.333 recall=0.044 n=6 pos=2 cov=4.5%
+2026-03-30 01:05:45 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 01:05:45 [INFO]   Train: 445 rows | Test: 217 rows
+2026-03-30 01:05:45 [INFO]   Baseline (majority class): 0.7189
+2026-03-30 01:05:45 [INFO]   Fold 4: Training short binary on 445 examples (POS=136, NEG=309, scale_pos=2.27)
+2026-03-30 01:05:49 [INFO]   Fold 4: acc=0.6498 AUC=0.5487 prec=0.3256 recall=0.2295 F1=0.2692 ✅
+2026-03-30 01:05:49 [INFO]     Test: POS=61 NEG=156 | Pred: POS=43 | trees=52
+2026-03-30 01:05:49 [INFO]     gate_0.55: hit_rate=0.310 recall=0.148 n=29 pos=9 cov=13.4%
+2026-03-30 01:05:49 [INFO]     gate_0.60: hit_rate=0.211 recall=0.066 n=19 pos=4 cov=8.8%
+2026-03-30 01:05:49 [INFO]     gate_0.65: hit_rate=0.167 recall=0.033 n=12 pos=2 cov=5.5%
+2026-03-30 01:05:49 [INFO]     gate_0.70: hit_rate=0.000 recall=0.000 n=6 pos=0 cov=2.8%
+2026-03-30 01:05:49 [INFO]     gate_0.75: hit_rate=0.000 recall=0.000 n=6 pos=0 cov=2.8%
+2026-03-30 01:05:49 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 01:05:49 [INFO]   AGGREGATE OOS — SHORT model
+2026-03-30 01:05:49 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 01:05:49 [INFO]   Accuracy:  0.6698±0.0779 ✅
+2026-03-30 01:05:49 [INFO]   AUC:       0.5810±0.1114
+2026-03-30 01:05:49 [INFO]   Precision: 0.4037
+2026-03-30 01:05:49 [INFO]   Recall:    0.3703
+2026-03-30 01:05:49 [INFO]   F1:        0.3808
+2026-03-30 01:05:49 [INFO]   Baseline:  0.7086
+2026-03-30 01:05:49 [INFO]   Lift:      -0.0389 📉
+2026-03-30 01:05:49 [INFO]   Stable top features: tf1440_c7_price_ret_lb10(2/4), tf1440_c3_price_vs_supertrend(2/4), tf1440_c3_price_ret_lb5(2/4), tf1440_c7_price_vs_supertrend(2/4), tf1440_c1_price_vs_supertrend(2/4), tf1440_c2_price_vs_supertrend(2/4), tf1440_c8_price_ret_lb10(2/4), tf240_c6_price_vs_ema50(2/4), tf1440_c8_price_vs_supertrend(2/4), tf60_c4_dist_to_high_50(2/4), tf1440_c9_supertrend_persist_10(2/4), tf1440_c5_vol_ratio_5(1/4), tf240_c3_price_ret_lb1(1/4), tf1440_c0_mfi_norm(1/4), tf1440_c6_price_vs_ema20(1/4)
+2026-03-30 01:05:49 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 01:05:49 [INFO]   Fold -1: Training short binary on 618 examples (POS=184, NEG=434, scale_pos=2.36)
+2026-03-30 01:05:53 [INFO]   Fold -1: acc=0.6176 AUC=0.6453 prec=0.3571 recall=0.2273 F1=0.2778 ✅
+2026-03-30 01:05:53 [INFO]     Test: POS=22 NEG=46 | Pred: POS=14 | trees=10
+2026-03-30 01:05:53 [INFO]     gate_0.55: hit_rate=0.556 recall=0.227 n=9 pos=5 cov=13.2%
+2026-03-30 01:05:53 [INFO]   ✅ Saved: models/impulse_short_v1.ubj
+2026-03-30 01:05:53 [INFO]   ✅ Schema: models/impulse_short_v1.schema.json
+2026-03-30 01:05:53 [INFO] 
+  📊 Report: models/impulse_short_wfo_report.json
+2026-03-30 01:05:53 [INFO]   ⏱️  Elapsed: 15.6s
+2026-03-30 01:05:53 [INFO] 
+╔═══════════════════════════════════════════════════════════╗
+2026-03-30 01:05:53 [INFO] ║  IMPULSE ABSORPTION & ENGULFING — FINAL SUMMARY           ║
+2026-03-30 01:05:53 [INFO] ╚═══════════════════════════════════════════════════════════╝
+2026-03-30 01:05:53 [INFO]    LONG: acc=0.6628 AUC=0.5012 F1=0.2158 base=0.7649 ✅
+2026-03-30 01:05:53 [INFO]   SHORT: acc=0.6698 AUC=0.5810 F1=0.3808 base=0.7086 ✅
+2026-03-30 01:05:53 [INFO] 
+  Total time: 31.9s (0.5min)
+2026-03-30 01:05:53 [INFO]   Models: models/impulse_{long,short}_v1.ubj
+2026-03-30 01:05:53 [INFO]   Done ✅
+2026-03-30 15:14:32 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-30 15:14:32 [INFO] ║  Impulse Absorption & Engulfing — WFO Training        ║
+2026-03-30 15:14:32 [INFO] ║  Multi-TF indicators + Engulfing meta → XGBoost       ║
+2026-03-30 15:14:32 [INFO] ║  Hybrid: Heuristic detection + ML filtering           ║
+2026-03-30 15:14:32 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-30 15:14:32 [INFO] Model type: both
+2026-03-30 15:14:32 [INFO] Loading dataset/impulse_dataset.csv...
+2026-03-30 15:14:34 [INFO]   Loaded 6,630 rows, 3967 columns in 2.0s
+2026-03-30 15:14:34 [INFO]   Detected 3959 feature columns
+2026-03-30 15:14:34 [INFO]   Memory: 0.21 GB → 0.11 GB (float32)
+2026-03-30 15:14:34 [INFO] 
+  Dataset overview:
+2026-03-30 15:14:34 [INFO]       LONG:    2,648 rows (POS=888 NEG=1760)
+2026-03-30 15:14:34 [INFO]      SHORT:    3,982 rows (POS=1700 NEG=2282)
+2026-03-30 15:14:34 [INFO]     TF=15m:  2,672 rows (237 symbols)
+2026-03-30 15:14:34 [INFO]     TF=60m:  2,800 rows (235 symbols)
+2026-03-30 15:14:34 [INFO]     TF=240m:  1,158 rows (233 symbols)
+2026-03-30 15:14:34 [INFO]     Total POS=2588 NEG=4042 (POS ratio=39.0%)
+2026-03-30 15:14:34 [INFO] 
+===========================================================================
+2026-03-30 15:14:34 [INFO]   TRAINING LONG MODEL (bullish engulfing)
+2026-03-30 15:14:34 [INFO] ===========================================================================
+2026-03-30 15:14:34 [INFO]   Long dataset: 2648 rows
+2026-03-30 15:14:34 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 15:14:34 [INFO]   IMPULSE WFO — LONG model
+2026-03-30 15:14:34 [INFO]   Data: 2648 rows, 236 symbols
+2026-03-30 15:14:34 [INFO]   Features: 3959
+2026-03-30 15:14:34 [INFO]   Labels: POS=888 (33.5%), NEG=1760 (66.5%)
+2026-03-30 15:14:34 [INFO]   Heuristic win rate: 33.5% (before ML filter)
+2026-03-30 15:14:34 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 15:14:34 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 15:14:34 [INFO]     TF=15m: 999 rows (POS=335, NEG=664, WR=33.5%)
+2026-03-30 15:14:34 [INFO]     TF=60m: 1199 rows (POS=380, NEG=819, WR=31.7%)
+2026-03-30 15:14:34 [INFO]     TF=240m: 450 rows (POS=173, NEG=277, WR=38.4%)
+2026-03-30 15:14:34 [INFO]   5 WFO folds:
+2026-03-30 15:14:34 [INFO]     Fold 0: Train 1686d | Test 60d
+2026-03-30 15:14:34 [INFO]     Fold 1: Train 1746d | Test 60d
+2026-03-30 15:14:34 [INFO]     Fold 2: Train 1806d | Test 60d
+2026-03-30 15:14:34 [INFO]     Fold 3: Train 1866d | Test 60d
+2026-03-30 15:14:34 [INFO]     Fold 4: Train 1926d | Test 60d
+2026-03-30 15:14:34 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 15:14:34 [INFO]   Train: 835 rows | Test: 70 rows
+2026-03-30 15:14:34 [INFO]   Baseline (majority class): 0.5857
+2026-03-30 15:14:34 [INFO]   Fold 0: Training long binary on 835 examples (POS=300, NEG=535, scale_pos=1.78)
+2026-03-30 15:14:38 [INFO]   Fold 0: acc=0.5143 AUC=0.5391 prec=0.6400 recall=0.3902 F1=0.4848 ❌
+2026-03-30 15:14:38 [INFO]     Test: POS=41 NEG=29 | Pred: POS=25 | trees=5
+2026-03-30 15:14:38 [INFO]     gate_0.55: hit_rate=0.647 recall=0.268 n=17 pos=11 cov=24.3%
+2026-03-30 15:14:38 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 15:14:38 [INFO]   Train: 908 rows | Test: 197 rows
+2026-03-30 15:14:38 [INFO]   Baseline (majority class): 0.7766
+2026-03-30 15:14:38 [INFO]   Fold 1: Training long binary on 908 examples (POS=342, NEG=566, scale_pos=1.65)
+2026-03-30 15:14:41 [INFO]   Fold 1: acc=0.5888 AUC=0.3922 prec=0.1509 recall=0.1818 F1=0.1649 ✅
+2026-03-30 15:14:41 [INFO]     Test: POS=44 NEG=153 | Pred: POS=53 | trees=4
+2026-03-30 15:14:41 [INFO]     gate_0.55: hit_rate=0.259 recall=0.159 n=27 pos=7 cov=13.7%
+2026-03-30 15:14:41 [INFO]     gate_0.60: hit_rate=0.333 recall=0.068 n=9 pos=3 cov=4.6%
+2026-03-30 15:14:41 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 15:14:41 [INFO]   Train: 1101 rows | Test: 145 rows
+2026-03-30 15:14:41 [INFO]   Baseline (majority class): 0.6621
+2026-03-30 15:14:42 [INFO]   Fold 2: Training long binary on 1101 examples (POS=386, NEG=715, scale_pos=1.85)
+2026-03-30 15:14:45 [INFO]   Fold 2: acc=0.6138 AUC=0.5959 prec=0.4103 recall=0.3265 F1=0.3636 ✅
+2026-03-30 15:14:45 [INFO]     Test: POS=49 NEG=96 | Pred: POS=39 | trees=4
+2026-03-30 15:14:45 [INFO]     gate_0.55: hit_rate=0.444 recall=0.245 n=27 pos=12 cov=18.6%
+2026-03-30 15:14:45 [INFO]     gate_0.60: hit_rate=0.333 recall=0.102 n=15 pos=5 cov=10.3%
+2026-03-30 15:14:45 [INFO]     gate_0.65: hit_rate=0.429 recall=0.061 n=7 pos=3 cov=4.8%
+2026-03-30 15:14:45 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 15:14:45 [INFO]   Train: 1256 rows | Test: 505 rows
+2026-03-30 15:14:45 [INFO]   Baseline (majority class): 0.6119
+2026-03-30 15:14:45 [INFO]   Fold 3: Training long binary on 1256 examples (POS=435, NEG=821, scale_pos=1.89)
+2026-03-30 15:14:49 [INFO]   Fold 3: acc=0.5406 AUC=0.5134 prec=0.4072 recall=0.4031 F1=0.4051 ❌
+2026-03-30 15:14:49 [INFO]     Test: POS=196 NEG=309 | Pred: POS=194 | trees=4
+2026-03-30 15:14:49 [INFO]     gate_0.55: hit_rate=0.417 recall=0.281 n=132 pos=55 cov=26.1%
+2026-03-30 15:14:49 [INFO]     gate_0.60: hit_rate=0.461 recall=0.209 n=89 pos=41 cov=17.6%
+2026-03-30 15:14:49 [INFO]     gate_0.65: hit_rate=0.521 recall=0.128 n=48 pos=25 cov=9.5%
+2026-03-30 15:14:49 [INFO]     gate_0.70: hit_rate=0.471 recall=0.041 n=17 pos=8 cov=3.4%
+2026-03-30 15:14:49 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 15:14:49 [INFO]   Train: 1887 rows | Test: 633 rows
+2026-03-30 15:14:49 [INFO]   Baseline (majority class): 0.6730
+2026-03-30 15:14:50 [INFO]   Fold 4: Training long binary on 1887 examples (POS=648, NEG=1239, scale_pos=1.91)
+2026-03-30 15:15:08 [INFO]   Fold 4: acc=0.6303 AUC=0.5695 prec=0.3920 recall=0.2367 F1=0.2952 ✅
+2026-03-30 15:15:08 [INFO]     Test: POS=207 NEG=426 | Pred: POS=125 | trees=244
+2026-03-30 15:15:08 [INFO]     gate_0.55: hit_rate=0.448 recall=0.188 n=87 pos=39 cov=13.7%
+2026-03-30 15:15:08 [INFO]     gate_0.60: hit_rate=0.407 recall=0.116 n=59 pos=24 cov=9.3%
+2026-03-30 15:15:08 [INFO]     gate_0.65: hit_rate=0.432 recall=0.077 n=37 pos=16 cov=5.8%
+2026-03-30 15:15:08 [INFO]     gate_0.70: hit_rate=0.385 recall=0.024 n=13 pos=5 cov=2.1%
+2026-03-30 15:15:08 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 15:15:08 [INFO]   AGGREGATE OOS — LONG model
+2026-03-30 15:15:08 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 15:15:08 [INFO]   Accuracy:  0.5776±0.0438 ❌
+2026-03-30 15:15:08 [INFO]   AUC:       0.5220±0.0706
+2026-03-30 15:15:08 [INFO]   Precision: 0.4001
+2026-03-30 15:15:08 [INFO]   Recall:    0.3077
+2026-03-30 15:15:08 [INFO]   F1:        0.3427
+2026-03-30 15:15:08 [INFO]   Baseline:  0.6619
+2026-03-30 15:15:08 [INFO]   Lift:      -0.0843 📉
+2026-03-30 15:15:08 [INFO]   Stable top features: tf1440_c6_cmf(3/5), tf60_c1_macd_norm(3/5), tf1440_c3_ema_convergence_change(2/5), tf240_c0_volume_spike(2/5), tf240_c2_wick_pressure_3(2/5), tf60_c0_wick_pressure_3(2/5), tf240_c3_price_ret_lb10(2/5), tf1440_c0_candle_return_pct(2/5), tf240_c8_stoch_norm(2/5), tf60_c4_price_vs_ema200(2/5), tf240_c4_vol_roc_1(2/5), tf240_c2_macd_hist_roc_1(2/5), tf240_c4_upper_wick_ratio(2/5), tf240_c1_price_ret_lb5(2/5), tf240_c0_vol_ratio_10(1/5)
+2026-03-30 15:15:08 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 15:15:08 [INFO]   Fold -1: Training long binary on 2384 examples (POS=787, NEG=1597, scale_pos=2.03)
+2026-03-30 15:15:33 [INFO]   Fold -1: acc=0.6932 AUC=0.7370 prec=0.6562 recall=0.4158 F1=0.5091 ✅
+2026-03-30 15:15:33 [INFO]     Test: POS=101 NEG=163 | Pred: POS=64 | trees=266
+2026-03-30 15:15:33 [INFO]     gate_0.55: hit_rate=0.731 recall=0.376 n=52 pos=38 cov=19.7%
+2026-03-30 15:15:33 [INFO]     gate_0.60: hit_rate=0.744 recall=0.317 n=43 pos=32 cov=16.3%
+2026-03-30 15:15:33 [INFO]     gate_0.65: hit_rate=0.771 recall=0.267 n=35 pos=27 cov=13.3%
+2026-03-30 15:15:33 [INFO]     gate_0.70: hit_rate=0.731 recall=0.188 n=26 pos=19 cov=9.8%
+2026-03-30 15:15:33 [INFO]     gate_0.75: hit_rate=0.727 recall=0.158 n=22 pos=16 cov=8.3%
+2026-03-30 15:15:33 [INFO]     gate_0.80: hit_rate=0.800 recall=0.119 n=15 pos=12 cov=5.7%
+2026-03-30 15:15:33 [INFO]   ✅ Saved: models/impulse_long_v1.ubj
+2026-03-30 15:15:33 [INFO]   ✅ Schema: models/impulse_long_v1.schema.json
+2026-03-30 15:15:33 [INFO] 
+  📊 Report: models/impulse_long_wfo_report.json
+2026-03-30 15:15:33 [INFO]   ⏱️  Elapsed: 58.9s
+2026-03-30 15:15:33 [INFO] 
+===========================================================================
+2026-03-30 15:15:33 [INFO]   TRAINING SHORT MODEL (bearish engulfing)
+2026-03-30 15:15:33 [INFO] ===========================================================================
+2026-03-30 15:15:33 [INFO]   Short dataset: 3982 rows
+2026-03-30 15:15:33 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 15:15:33 [INFO]   IMPULSE WFO — SHORT model
+2026-03-30 15:15:33 [INFO]   Data: 3982 rows, 257 symbols
+2026-03-30 15:15:33 [INFO]   Features: 3959
+2026-03-30 15:15:33 [INFO]   Labels: POS=1700 (42.7%), NEG=2282 (57.3%)
+2026-03-30 15:15:33 [INFO]   Heuristic win rate: 42.7% (before ML filter)
+2026-03-30 15:15:33 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 15:15:33 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 15:15:33 [INFO]     TF=15m: 1673 rows (POS=749, NEG=924, WR=44.8%)
+2026-03-30 15:15:33 [INFO]     TF=60m: 1601 rows (POS=633, NEG=968, WR=39.5%)
+2026-03-30 15:15:33 [INFO]     TF=240m: 708 rows (POS=318, NEG=390, WR=44.9%)
+2026-03-30 15:15:33 [INFO]   5 WFO folds:
+2026-03-30 15:15:33 [INFO]     Fold 0: Train 1669d | Test 60d
+2026-03-30 15:15:33 [INFO]     Fold 1: Train 1729d | Test 60d
+2026-03-30 15:15:33 [INFO]     Fold 2: Train 1789d | Test 60d
+2026-03-30 15:15:33 [INFO]     Fold 3: Train 1849d | Test 60d
+2026-03-30 15:15:33 [INFO]     Fold 4: Train 1909d | Test 60d
+2026-03-30 15:15:33 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 15:15:33 [INFO]   Train: 743 rows | Test: 127 rows
+2026-03-30 15:15:33 [INFO]   Baseline (majority class): 0.5118
+2026-03-30 15:15:33 [INFO]   Fold 0: Training short binary on 743 examples (POS=299, NEG=444, scale_pos=1.48)
+2026-03-30 15:15:37 [INFO]   Fold 0: acc=0.4409 AUC=0.4955 prec=0.4250 recall=0.2615 F1=0.3238 ❌
+2026-03-30 15:15:37 [INFO]     Test: POS=65 NEG=62 | Pred: POS=40 | trees=7
+2026-03-30 15:15:37 [INFO]     gate_0.55: hit_rate=0.500 recall=0.169 n=22 pos=11 cov=17.3%
+2026-03-30 15:15:37 [INFO]     gate_0.60: hit_rate=0.600 recall=0.092 n=10 pos=6 cov=7.9%
+2026-03-30 15:15:37 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 15:15:37 [INFO]   Train: 887 rows | Test: 309 rows
+2026-03-30 15:15:37 [INFO]   Baseline (majority class): 0.6440
+2026-03-30 15:15:37 [INFO]   Fold 1: Training short binary on 887 examples (POS=372, NEG=515, scale_pos=1.38)
+2026-03-30 15:15:43 [INFO]   Fold 1: acc=0.6181 AUC=0.6646 prec=0.4740 recall=0.6636 F1=0.5530 ✅
+2026-03-30 15:15:43 [INFO]     Test: POS=110 NEG=199 | Pred: POS=154 | trees=65
+2026-03-30 15:15:43 [INFO]     gate_0.55: hit_rate=0.526 recall=0.545 n=114 pos=60 cov=36.9%
+2026-03-30 15:15:43 [INFO]     gate_0.60: hit_rate=0.549 recall=0.409 n=82 pos=45 cov=26.5%
+2026-03-30 15:15:43 [INFO]     gate_0.65: hit_rate=0.468 recall=0.200 n=47 pos=22 cov=15.2%
+2026-03-30 15:15:43 [INFO]     gate_0.70: hit_rate=0.478 recall=0.100 n=23 pos=11 cov=7.4%
+2026-03-30 15:15:43 [INFO]     gate_0.75: hit_rate=0.571 recall=0.036 n=7 pos=4 cov=2.3%
+2026-03-30 15:15:43 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 15:15:43 [INFO]   Train: 1189 rows | Test: 402 rows
+2026-03-30 15:15:43 [INFO]   Baseline (majority class): 0.5149
+2026-03-30 15:15:43 [INFO]   Fold 2: Training short binary on 1189 examples (POS=482, NEG=707, scale_pos=1.47)
+2026-03-30 15:15:53 [INFO]   Fold 2: acc=0.6617 AUC=0.7144 prec=0.6961 recall=0.6087 F1=0.6495 ✅
+2026-03-30 15:15:53 [INFO]     Test: POS=207 NEG=195 | Pred: POS=181 | trees=174
+2026-03-30 15:15:53 [INFO]     gate_0.55: hit_rate=0.741 recall=0.483 n=135 pos=100 cov=33.6%
+2026-03-30 15:15:53 [INFO]     gate_0.60: hit_rate=0.758 recall=0.362 n=99 pos=75 cov=24.6%
+2026-03-30 15:15:53 [INFO]     gate_0.65: hit_rate=0.701 recall=0.227 n=67 pos=47 cov=16.7%
+2026-03-30 15:15:53 [INFO]     gate_0.70: hit_rate=0.705 recall=0.150 n=44 pos=31 cov=10.9%
+2026-03-30 15:15:53 [INFO]     gate_0.75: hit_rate=0.800 recall=0.077 n=20 pos=16 cov=5.0%
+2026-03-30 15:15:53 [INFO]     gate_0.80: hit_rate=0.667 recall=0.029 n=9 pos=6 cov=2.2%
+2026-03-30 15:15:53 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 15:15:53 [INFO]   Train: 1618 rows | Test: 947 rows
+2026-03-30 15:15:53 [INFO]   Baseline (majority class): 0.6241
+2026-03-30 15:15:53 [INFO]   Fold 3: Training short binary on 1618 examples (POS=694, NEG=924, scale_pos=1.33)
+2026-03-30 15:16:00 [INFO]   Fold 3: acc=0.5776 AUC=0.5473 prec=0.4185 recall=0.3174 F1=0.3610 ❌
+2026-03-30 15:16:00 [INFO]     Test: POS=356 NEG=591 | Pred: POS=270 | trees=26
+2026-03-30 15:16:00 [INFO]     gate_0.55: hit_rate=0.384 recall=0.171 n=159 pos=61 cov=16.8%
+2026-03-30 15:16:00 [INFO]     gate_0.60: hit_rate=0.333 recall=0.093 n=99 pos=33 cov=10.5%
+2026-03-30 15:16:00 [INFO]     gate_0.65: hit_rate=0.524 recall=0.062 n=42 pos=22 cov=4.4%
+2026-03-30 15:16:00 [INFO]     gate_0.70: hit_rate=0.500 recall=0.020 n=14 pos=7 cov=1.5%
+2026-03-30 15:16:00 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 15:16:00 [INFO]   Train: 2627 rows | Test: 1218 rows
+2026-03-30 15:16:00 [INFO]   Baseline (majority class): 0.5222
+2026-03-30 15:16:00 [INFO]   Fold 4: Training short binary on 2627 examples (POS=1076, NEG=1551, scale_pos=1.44)
+2026-03-30 15:16:08 [INFO]   Fold 4: acc=0.5772 AUC=0.6150 prec=0.5711 recall=0.4622 F1=0.5109 ❌
+2026-03-30 15:16:08 [INFO]     Test: POS=582 NEG=636 | Pred: POS=471 | trees=16
+2026-03-30 15:16:08 [INFO]     gate_0.55: hit_rate=0.633 recall=0.338 n=311 pos=197 cov=25.5%
+2026-03-30 15:16:08 [INFO]     gate_0.60: hit_rate=0.701 recall=0.198 n=164 pos=115 cov=13.5%
+2026-03-30 15:16:08 [INFO]     gate_0.65: hit_rate=0.789 recall=0.077 n=57 pos=45 cov=4.7%
+2026-03-30 15:16:08 [INFO]     gate_0.70: hit_rate=0.800 recall=0.021 n=15 pos=12 cov=1.2%
+2026-03-30 15:16:08 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 15:16:08 [INFO]   AGGREGATE OOS — SHORT model
+2026-03-30 15:16:08 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 15:16:08 [INFO]   Accuracy:  0.5751±0.0740 ❌
+2026-03-30 15:16:08 [INFO]   AUC:       0.6074±0.0786
+2026-03-30 15:16:08 [INFO]   Precision: 0.5170
+2026-03-30 15:16:08 [INFO]   Recall:    0.4627
+2026-03-30 15:16:08 [INFO]   F1:        0.4797
+2026-03-30 15:16:08 [INFO]   Baseline:  0.5634
+2026-03-30 15:16:08 [INFO]   Lift:      +0.0117 📈
+2026-03-30 15:16:08 [INFO]   Stable top features: tf1440_c8_cci_norm(3/5), tf240_c7_price_ret_lb5(3/5), tf240_c6_atr_ratio_5(3/5), tf1440_c9_bb_squeeze_pctl(2/5), tf1440_c8_cci(2/5), tf60_c5_dist_to_high_50(2/5), tf60_c1_cci_norm(2/5), tf60_c1_cci(2/5), tf60_c1_alligator_spread(2/5), tf60_c9_atr_pct(2/5), tf60_c3_alligator_spread(2/5), tf240_c3_atr_pct(2/5), tf240_c9_price_vs_ema50(1/5), tf240_c7_price_vs_ema20(1/5), tf240_c7_atr_ratio_5(1/5)
+2026-03-30 15:16:08 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 15:16:08 [INFO]   Fold -1: Training short binary on 3584 examples (POS=1512, NEG=2072, scale_pos=1.37)
+2026-03-30 15:16:43 [INFO]   Fold -1: acc=0.6834 AUC=0.7582 prec=0.7214 recall=0.5372 F1=0.6159 ✅
+2026-03-30 15:16:43 [INFO]     Test: POS=188 NEG=210 | Pred: POS=140 | trees=317
+2026-03-30 15:16:43 [INFO]     gate_0.55: hit_rate=0.756 recall=0.479 n=119 pos=90 cov=29.9%
+2026-03-30 15:16:43 [INFO]     gate_0.60: hit_rate=0.846 recall=0.410 n=91 pos=77 cov=22.9%
+2026-03-30 15:16:43 [INFO]     gate_0.65: hit_rate=0.893 recall=0.356 n=75 pos=67 cov=18.8%
+2026-03-30 15:16:43 [INFO]     gate_0.70: hit_rate=0.905 recall=0.303 n=63 pos=57 cov=15.8%
+2026-03-30 15:16:43 [INFO]     gate_0.75: hit_rate=0.946 recall=0.282 n=56 pos=53 cov=14.1%
+2026-03-30 15:16:43 [INFO]     gate_0.80: hit_rate=0.936 recall=0.234 n=47 pos=44 cov=11.8%
+2026-03-30 15:16:43 [INFO]   ✅ Saved: models/impulse_short_v1.ubj
+2026-03-30 15:16:43 [INFO]   ✅ Schema: models/impulse_short_v1.schema.json
+2026-03-30 15:16:43 [INFO] 
+  📊 Report: models/impulse_short_wfo_report.json
+2026-03-30 15:16:43 [INFO]   ⏱️  Elapsed: 69.7s
+2026-03-30 15:16:43 [INFO] 
+╔═══════════════════════════════════════════════════════════╗
+2026-03-30 15:16:43 [INFO] ║  IMPULSE ABSORPTION & ENGULFING — FINAL SUMMARY           ║
+2026-03-30 15:16:43 [INFO] ╚═══════════════════════════════════════════════════════════╝
+2026-03-30 15:16:43 [INFO]    LONG: acc=0.5776 AUC=0.5220 F1=0.3427 base=0.6619 ❌
+2026-03-30 15:16:43 [INFO]   SHORT: acc=0.5751 AUC=0.6074 F1=0.4797 base=0.5634 ❌
+2026-03-30 15:16:43 [INFO] 
+  Total time: 128.8s (2.1min)
+2026-03-30 15:16:43 [INFO]   Models: models/impulse_{long,short}_v1.ubj
+2026-03-30 15:16:43 [INFO]   Done ✅
+2026-03-30 16:00:53 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-30 16:00:53 [INFO] ║  Impulse Absorption & Engulfing — WFO Training        ║
+2026-03-30 16:00:53 [INFO] ║  Multi-TF indicators + Engulfing meta → XGBoost       ║
+2026-03-30 16:00:53 [INFO] ║  Hybrid: Heuristic detection + ML filtering           ║
+2026-03-30 16:00:53 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-30 16:00:53 [INFO] Model type: both
+2026-03-30 16:00:53 [INFO] Loading dataset/impulse_dataset.csv...
+2026-03-30 16:00:55 [INFO]   Loaded 7,089 rows, 3967 columns in 2.1s
+2026-03-30 16:00:55 [INFO]   Detected 3959 feature columns
+2026-03-30 16:00:56 [INFO]   Memory: 0.23 GB → 0.11 GB (float32)
+2026-03-30 16:00:56 [INFO] 
+  Dataset overview:
+2026-03-30 16:00:56 [INFO]       LONG:    2,814 rows (POS=942 NEG=1872)
+2026-03-30 16:00:56 [INFO]      SHORT:    4,275 rows (POS=1827 NEG=2448)
+2026-03-30 16:00:56 [INFO]     TF=15m:  2,873 rows (256 symbols)
+2026-03-30 16:00:56 [INFO]     TF=60m:  2,962 rows (258 symbols)
+2026-03-30 16:00:56 [INFO]     TF=240m:  1,254 rows (257 symbols)
+2026-03-30 16:00:56 [INFO]     Total POS=2769 NEG=4320 (POS ratio=39.1%)
+2026-03-30 16:00:56 [INFO] 
+===========================================================================
+2026-03-30 16:00:56 [INFO]   TRAINING LONG MODEL (bullish engulfing)
+2026-03-30 16:00:56 [INFO] ===========================================================================
+2026-03-30 16:00:56 [INFO]   Long dataset: 2814 rows
+2026-03-30 16:00:56 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 16:00:56 [INFO]   IMPULSE WFO — LONG model
+2026-03-30 16:00:56 [INFO]   Data: 2814 rows, 263 symbols
+2026-03-30 16:00:56 [INFO]   Features: 3959
+2026-03-30 16:00:56 [INFO]   Labels: POS=942 (33.5%), NEG=1872 (66.5%)
+2026-03-30 16:00:56 [INFO]   Heuristic win rate: 33.5% (before ML filter)
+2026-03-30 16:00:56 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 16:00:56 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 16:00:56 [INFO]     TF=15m: 1062 rows (POS=360, NEG=702, WR=33.9%)
+2026-03-30 16:00:56 [INFO]     TF=60m: 1268 rows (POS=395, NEG=873, WR=31.2%)
+2026-03-30 16:00:56 [INFO]     TF=240m: 484 rows (POS=187, NEG=297, WR=38.6%)
+2026-03-30 16:00:56 [INFO]   5 WFO folds:
+2026-03-30 16:00:56 [INFO]     Fold 0: Train 1686d | Test 60d
+2026-03-30 16:00:56 [INFO]     Fold 1: Train 1746d | Test 60d
+2026-03-30 16:00:56 [INFO]     Fold 2: Train 1806d | Test 60d
+2026-03-30 16:00:56 [INFO]     Fold 3: Train 1866d | Test 60d
+2026-03-30 16:00:56 [INFO]     Fold 4: Train 1926d | Test 60d
+2026-03-30 16:00:56 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 16:00:56 [INFO]   Train: 877 rows | Test: 76 rows
+2026-03-30 16:00:56 [INFO]   Baseline (majority class): 0.5921
+2026-03-30 16:00:56 [INFO]   Fold 0: Training long binary on 877 examples (POS=312, NEG=565, scale_pos=1.81)
+2026-03-30 16:01:02 [INFO]   Fold 0: acc=0.6053 AUC=0.6093 prec=0.7586 recall=0.4889 F1=0.5946 ✅
+2026-03-30 16:01:02 [INFO]     Test: POS=45 NEG=31 | Pred: POS=29 | trees=21
+2026-03-30 16:01:02 [INFO]     gate_0.55: hit_rate=0.789 recall=0.333 n=19 pos=15 cov=25.0%
+2026-03-30 16:01:02 [INFO]     gate_0.60: hit_rate=0.818 recall=0.200 n=11 pos=9 cov=14.5%
+2026-03-30 16:01:02 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 16:01:02 [INFO]   Train: 957 rows | Test: 213 rows
+2026-03-30 16:01:02 [INFO]   Baseline (majority class): 0.7746
+2026-03-30 16:01:02 [INFO]   Fold 1: Training long binary on 957 examples (POS=359, NEG=598, scale_pos=1.67)
+2026-03-30 16:01:07 [INFO]   Fold 1: acc=0.5305 AUC=0.3703 prec=0.1389 recall=0.2083 F1=0.1667 ❌
+2026-03-30 16:01:07 [INFO]     Test: POS=48 NEG=165 | Pred: POS=72 | trees=12
+2026-03-30 16:01:07 [INFO]     gate_0.55: hit_rate=0.171 recall=0.125 n=35 pos=6 cov=16.4%
+2026-03-30 16:01:07 [INFO]     gate_0.60: hit_rate=0.143 recall=0.042 n=14 pos=2 cov=6.6%
+2026-03-30 16:01:07 [INFO]     gate_0.65: hit_rate=0.167 recall=0.021 n=6 pos=1 cov=2.8%
+2026-03-30 16:01:07 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 16:01:07 [INFO]   Train: 1164 rows | Test: 148 rows
+2026-03-30 16:01:07 [INFO]   Baseline (majority class): 0.6757
+2026-03-30 16:01:07 [INFO]   Fold 2: Training long binary on 1164 examples (POS=406, NEG=758, scale_pos=1.87)
+2026-03-30 16:01:12 [INFO]   Fold 2: acc=0.6622 AUC=0.5748 prec=0.4750 recall=0.3958 F1=0.4318 ✅
+2026-03-30 16:01:12 [INFO]     Test: POS=48 NEG=100 | Pred: POS=40 | trees=14
+2026-03-30 16:01:12 [INFO]     gate_0.55: hit_rate=0.444 recall=0.250 n=27 pos=12 cov=18.2%
+2026-03-30 16:01:12 [INFO]     gate_0.60: hit_rate=0.455 recall=0.104 n=11 pos=5 cov=7.4%
+2026-03-30 16:01:12 [INFO]     gate_0.65: hit_rate=0.667 recall=0.083 n=6 pos=4 cov=4.1%
+2026-03-30 16:01:12 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 16:01:12 [INFO]   Train: 1321 rows | Test: 539 rows
+2026-03-30 16:01:12 [INFO]   Baseline (majority class): 0.6085
+2026-03-30 16:01:12 [INFO]   Fold 3: Training long binary on 1321 examples (POS=455, NEG=866, scale_pos=1.90)
+2026-03-30 16:01:18 [INFO]   Fold 3: acc=0.5213 AUC=0.4994 prec=0.3907 recall=0.3981 F1=0.3944 ❌
+2026-03-30 16:01:18 [INFO]     Test: POS=211 NEG=328 | Pred: POS=215 | trees=2
+2026-03-30 16:01:18 [INFO]     gate_0.55: hit_rate=0.410 recall=0.280 n=144 pos=59 cov=26.7%
+2026-03-30 16:01:18 [INFO]     gate_0.60: hit_rate=0.373 recall=0.147 n=83 pos=31 cov=15.4%
+2026-03-30 16:01:18 [INFO]     gate_0.65: hit_rate=0.324 recall=0.057 n=37 pos=12 cov=6.9%
+2026-03-30 16:01:18 [INFO]     gate_0.70: hit_rate=0.333 recall=0.009 n=6 pos=2 cov=1.1%
+2026-03-30 16:01:18 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 16:01:18 [INFO]   Train: 1997 rows | Test: 679 rows
+2026-03-30 16:01:18 [INFO]   Baseline (majority class): 0.6760
+2026-03-30 16:01:18 [INFO]   Fold 4: Training long binary on 1997 examples (POS=683, NEG=1314, scale_pos=1.92)
+2026-03-30 16:01:28 [INFO]   Fold 4: acc=0.6068 AUC=0.5607 prec=0.3782 recall=0.3318 F1=0.3535 ✅
+2026-03-30 16:01:28 [INFO]     Test: POS=220 NEG=459 | Pred: POS=193 | trees=46
+2026-03-30 16:01:28 [INFO]     gate_0.55: hit_rate=0.440 recall=0.232 n=116 pos=51 cov=17.1%
+2026-03-30 16:01:28 [INFO]     gate_0.60: hit_rate=0.383 recall=0.082 n=47 pos=18 cov=6.9%
+2026-03-30 16:01:28 [INFO]     gate_0.65: hit_rate=0.273 recall=0.027 n=22 pos=6 cov=3.2%
+2026-03-30 16:01:28 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 16:01:28 [INFO]   AGGREGATE OOS — LONG model
+2026-03-30 16:01:28 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 16:01:28 [INFO]   Accuracy:  0.5852±0.0526 ✅
+2026-03-30 16:01:28 [INFO]   AUC:       0.5229±0.0842
+2026-03-30 16:01:28 [INFO]   Precision: 0.4283
+2026-03-30 16:01:28 [INFO]   Recall:    0.3646
+2026-03-30 16:01:28 [INFO]   F1:        0.3882
+2026-03-30 16:01:28 [INFO]   Baseline:  0.6654
+2026-03-30 16:01:28 [INFO]   Lift:      -0.0802 📉
+2026-03-30 16:01:28 [INFO]   Stable top features: tf60_c4_alligator_spread(3/5), tf1440_c0_atr_ratio_5(2/5), tf240_c0_volume_spike(2/5), eng_body_ratio(2/5), tf60_c3_vol_ratio_5(2/5), tf240_c9_price_vs_ema50(2/5), tf1440_c0_candle_return_pct(2/5), tf1440_c6_cmf(2/5), tf60_c3_price_vs_ema200(2/5), tf60_c3_price_vs_ema50(2/5), tf240_c2_macd_hist_roc_1(2/5), tf60_c9_vol_ratio_5(2/5), tf240_c0_volume_spike_flag(2/5), tf240_c4_upper_wick_ratio(2/5), tf1440_c2_ema_convergence_change(1/5)
+2026-03-30 16:01:28 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 16:01:28 [INFO]   Fold -1: Training long binary on 2533 examples (POS=836, NEG=1697, scale_pos=2.03)
+2026-03-30 16:01:45 [INFO]   Fold -1: acc=0.6940 AUC=0.7246 prec=0.6190 recall=0.4906 F1=0.5474 ✅
+2026-03-30 16:01:45 [INFO]     Test: POS=106 NEG=175 | Pred: POS=84 | trees=106
+2026-03-30 16:01:45 [INFO]     gate_0.55: hit_rate=0.632 recall=0.340 n=57 pos=36 cov=20.3%
+2026-03-30 16:01:45 [INFO]     gate_0.60: hit_rate=0.717 recall=0.311 n=46 pos=33 cov=16.4%
+2026-03-30 16:01:45 [INFO]     gate_0.65: hit_rate=0.758 recall=0.236 n=33 pos=25 cov=11.7%
+2026-03-30 16:01:45 [INFO]     gate_0.70: hit_rate=0.792 recall=0.179 n=24 pos=19 cov=8.5%
+2026-03-30 16:01:45 [INFO]     gate_0.75: hit_rate=0.778 recall=0.132 n=18 pos=14 cov=6.4%
+2026-03-30 16:01:45 [INFO]     gate_0.80: hit_rate=0.750 recall=0.085 n=12 pos=9 cov=4.3%
+2026-03-30 16:01:45 [INFO]   ✅ Saved: models/impulse_long_v1.ubj
+2026-03-30 16:01:45 [INFO]   ✅ Schema: models/impulse_long_v1.schema.json
+2026-03-30 16:01:45 [INFO] 
+  📊 Report: models/impulse_long_wfo_report.json
+2026-03-30 16:01:45 [INFO]   ⏱️  Elapsed: 49.0s
+2026-03-30 16:01:45 [INFO] 
+===========================================================================
+2026-03-30 16:01:45 [INFO]   TRAINING SHORT MODEL (bearish engulfing)
+2026-03-30 16:01:45 [INFO] ===========================================================================
+2026-03-30 16:01:45 [INFO]   Short dataset: 4275 rows
+2026-03-30 16:01:45 [INFO] 
+═══════════════════════════════════════════════════════════════════════════
+2026-03-30 16:01:45 [INFO]   IMPULSE WFO — SHORT model
+2026-03-30 16:01:45 [INFO]   Data: 4275 rows, 283 symbols
+2026-03-30 16:01:45 [INFO]   Features: 3959
+2026-03-30 16:01:45 [INFO]   Labels: POS=1827 (42.7%), NEG=2448 (57.3%)
+2026-03-30 16:01:45 [INFO]   Heuristic win rate: 42.7% (before ML filter)
+2026-03-30 16:01:45 [INFO]   Target: accuracy ≥ 58%
+2026-03-30 16:01:45 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-30 16:01:45 [INFO]     TF=15m: 1811 rows (POS=818, NEG=993, WR=45.2%)
+2026-03-30 16:01:45 [INFO]     TF=60m: 1694 rows (POS=665, NEG=1029, WR=39.3%)
+2026-03-30 16:01:45 [INFO]     TF=240m: 770 rows (POS=344, NEG=426, WR=44.7%)
+2026-03-30 16:01:45 [INFO]   5 WFO folds:
+2026-03-30 16:01:45 [INFO]     Fold 0: Train 1669d | Test 60d
+2026-03-30 16:01:45 [INFO]     Fold 1: Train 1729d | Test 60d
+2026-03-30 16:01:45 [INFO]     Fold 2: Train 1789d | Test 60d
+2026-03-30 16:01:45 [INFO]     Fold 3: Train 1849d | Test 60d
+2026-03-30 16:01:45 [INFO]     Fold 4: Train 1909d | Test 60d
+2026-03-30 16:01:45 [INFO] 
+  ── Fold 0/4 ──
+2026-03-30 16:01:45 [INFO]   Train: 788 rows | Test: 135 rows
+2026-03-30 16:01:45 [INFO]   Baseline (majority class): 0.5037
+2026-03-30 16:01:46 [INFO]   Fold 0: Training short binary on 788 examples (POS=314, NEG=474, scale_pos=1.51)
+2026-03-30 16:01:50 [INFO]   Fold 0: acc=0.4296 AUC=0.4930 prec=0.3810 recall=0.2388 F1=0.2936 ❌
+2026-03-30 16:01:50 [INFO]     Test: POS=67 NEG=68 | Pred: POS=42 | trees=8
+2026-03-30 16:01:50 [INFO]     gate_0.55: hit_rate=0.435 recall=0.149 n=23 pos=10 cov=17.0%
+2026-03-30 16:01:50 [INFO]     gate_0.60: hit_rate=0.364 recall=0.060 n=11 pos=4 cov=8.1%
+2026-03-30 16:01:50 [INFO]     gate_0.65: hit_rate=0.429 recall=0.045 n=7 pos=3 cov=5.2%
+2026-03-30 16:01:50 [INFO] 
+  ── Fold 1/4 ──
+2026-03-30 16:01:50 [INFO]   Train: 941 rows | Test: 323 rows
+2026-03-30 16:01:50 [INFO]   Baseline (majority class): 0.6409
+2026-03-30 16:01:50 [INFO]   Fold 1: Training short binary on 941 examples (POS=389, NEG=552, scale_pos=1.42)
+2026-03-30 16:01:54 [INFO]   Fold 1: acc=0.5820 AUC=0.5903 prec=0.4345 recall=0.5431 F1=0.4828 ✅
+2026-03-30 16:01:54 [INFO]     Test: POS=116 NEG=207 | Pred: POS=145 | trees=1
+2026-03-30 16:01:54 [INFO]     gate_0.55: hit_rate=0.437 recall=0.328 n=87 pos=38 cov=26.9%
+2026-03-30 16:01:54 [INFO]     gate_0.60: hit_rate=0.415 recall=0.147 n=41 pos=17 cov=12.7%
+2026-03-30 16:01:54 [INFO]     gate_0.65: hit_rate=0.429 recall=0.052 n=14 pos=6 cov=4.3%
+2026-03-30 16:01:54 [INFO] 
+  ── Fold 2/4 ──
+2026-03-30 16:01:54 [INFO]   Train: 1259 rows | Test: 423 rows
+2026-03-30 16:01:54 [INFO]   Baseline (majority class): 0.5319
+2026-03-30 16:01:54 [INFO]   Fold 2: Training short binary on 1259 examples (POS=507, NEG=752, scale_pos=1.48)
+2026-03-30 16:02:06 [INFO]   Fold 2: acc=0.6407 AUC=0.7014 prec=0.6872 recall=0.5956 F1=0.6381 ✅
+2026-03-30 16:02:06 [INFO]     Test: POS=225 NEG=198 | Pred: POS=195 | trees=136
+2026-03-30 16:02:06 [INFO]     gate_0.55: hit_rate=0.740 recall=0.493 n=150 pos=111 cov=35.5%
+2026-03-30 16:02:06 [INFO]     gate_0.60: hit_rate=0.765 recall=0.347 n=102 pos=78 cov=24.1%
+2026-03-30 16:02:06 [INFO]     gate_0.65: hit_rate=0.722 recall=0.231 n=72 pos=52 cov=17.0%
+2026-03-30 16:02:06 [INFO]     gate_0.70: hit_rate=0.733 recall=0.147 n=45 pos=33 cov=10.6%
+2026-03-30 16:02:06 [INFO]     gate_0.75: hit_rate=0.808 recall=0.093 n=26 pos=21 cov=6.1%
+2026-03-30 16:02:06 [INFO]     gate_0.80: hit_rate=1.000 recall=0.031 n=7 pos=7 cov=1.7%
+2026-03-30 16:02:06 [INFO] 
+  ── Fold 3/4 ──
+2026-03-30 16:02:06 [INFO]   Train: 1712 rows | Test: 1016 rows
+2026-03-30 16:02:06 [INFO]   Baseline (majority class): 0.6230
+2026-03-30 16:02:07 [INFO]   Fold 3: Training short binary on 1712 examples (POS=736, NEG=976, scale_pos=1.33)
+2026-03-30 16:02:21 [INFO]   Fold 3: acc=0.5915 AUC=0.5609 prec=0.4398 recall=0.3055 F1=0.3606 ✅
+2026-03-30 16:02:21 [INFO]     Test: POS=383 NEG=633 | Pred: POS=266 | trees=107
+2026-03-30 16:02:21 [INFO]     gate_0.55: hit_rate=0.415 recall=0.185 n=171 pos=71 cov=16.8%
+2026-03-30 16:02:21 [INFO]     gate_0.60: hit_rate=0.404 recall=0.110 n=104 pos=42 cov=10.2%
+2026-03-30 16:02:21 [INFO]     gate_0.65: hit_rate=0.352 recall=0.050 n=54 pos=19 cov=5.3%
+2026-03-30 16:02:21 [INFO]     gate_0.70: hit_rate=0.448 recall=0.034 n=29 pos=13 cov=2.9%
+2026-03-30 16:02:21 [INFO]     gate_0.75: hit_rate=0.500 recall=0.016 n=12 pos=6 cov=1.2%
+2026-03-30 16:02:21 [INFO] 
+  ── Fold 4/4 ──
+2026-03-30 16:02:21 [INFO]   Train: 2799 rows | Test: 1331 rows
+2026-03-30 16:02:21 [INFO]   Baseline (majority class): 0.5244
+2026-03-30 16:02:21 [INFO]   Fold 4: Training short binary on 2799 examples (POS=1146, NEG=1653, scale_pos=1.44)
+2026-03-30 16:02:36 [INFO]   Fold 4: acc=0.6018 AUC=0.6208 prec=0.6080 recall=0.4581 F1=0.5225 ✅
+2026-03-30 16:02:36 [INFO]     Test: POS=633 NEG=698 | Pred: POS=477 | trees=90
+2026-03-30 16:02:36 [INFO]     gate_0.55: hit_rate=0.690 recall=0.338 n=310 pos=214 cov=23.3%
+2026-03-30 16:02:36 [INFO]     gate_0.60: hit_rate=0.667 recall=0.183 n=174 pos=116 cov=13.1%
+2026-03-30 16:02:36 [INFO]     gate_0.65: hit_rate=0.671 recall=0.074 n=70 pos=47 cov=5.3%
+2026-03-30 16:02:36 [INFO]     gate_0.70: hit_rate=0.647 recall=0.035 n=34 pos=22 cov=2.6%
+2026-03-30 16:02:36 [INFO] 
+  ────────────────────────────────────────────────────────────
+2026-03-30 16:02:36 [INFO]   AGGREGATE OOS — SHORT model
+2026-03-30 16:02:36 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-30 16:02:36 [INFO]   Accuracy:  0.5691±0.0725 ❌
+2026-03-30 16:02:36 [INFO]   AUC:       0.5933±0.0687
+2026-03-30 16:02:36 [INFO]   Precision: 0.5101
+2026-03-30 16:02:36 [INFO]   Recall:    0.4282
+2026-03-30 16:02:36 [INFO]   F1:        0.4595
+2026-03-30 16:02:36 [INFO]   Baseline:  0.5648
+2026-03-30 16:02:36 [INFO]   Lift:      +0.0043 📈
+2026-03-30 16:02:36 [INFO]   Stable top features: tf240_c7_price_ret_lb3(3/5), tf240_c6_atr_ratio_5(3/5), tf240_c7_rsi(2/5), tf240_c7_price_ret_lb5(2/5), tf60_c6_price_vs_ema200(2/5), tf240_c9_dist_to_low_50(2/5), tf1440_c8_cci_norm(2/5), tf240_c6_price_ret_lb5(2/5), tf60_c1_alligator_spread(2/5), tf60_c0_dist_to_high_50(2/5), tf240_c7_atr_pct(2/5), tf240_c3_williams_norm(2/5), tf60_c2_alligator_spread(2/5), tf60_c3_alligator_spread(2/5), tf240_c1_atr_pct(2/5)
+2026-03-30 16:02:36 [INFO] 
+  ── FINAL model (ALL data) ──
+2026-03-30 16:02:36 [INFO]   Fold -1: Training short binary on 3848 examples (POS=1624, NEG=2224, scale_pos=1.37)
+2026-03-30 16:02:49 [INFO]   Fold -1: acc=0.6721 AUC=0.7624 prec=0.7086 recall=0.5271 F1=0.6045 ✅
+2026-03-30 16:02:49 [INFO]     Test: POS=203 NEG=224 | Pred: POS=151 | trees=25
+2026-03-30 16:02:49 [INFO]     gate_0.55: hit_rate=0.816 recall=0.458 n=114 pos=93 cov=26.7%
+2026-03-30 16:02:49 [INFO]     gate_0.60: hit_rate=0.880 recall=0.399 n=92 pos=81 cov=21.5%
+2026-03-30 16:02:49 [INFO]     gate_0.65: hit_rate=0.903 recall=0.320 n=72 pos=65 cov=16.9%
+2026-03-30 16:02:49 [INFO]     gate_0.70: hit_rate=0.947 recall=0.266 n=57 pos=54 cov=13.3%
+2026-03-30 16:02:49 [INFO]     gate_0.75: hit_rate=0.960 recall=0.236 n=50 pos=48 cov=11.7%
+2026-03-30 16:02:49 [INFO]     gate_0.80: hit_rate=0.947 recall=0.177 n=38 pos=36 cov=8.9%
+2026-03-30 16:02:49 [INFO]   ✅ Saved: models/impulse_short_v1.ubj
+2026-03-30 16:02:49 [INFO]   ✅ Schema: models/impulse_short_v1.schema.json
+2026-03-30 16:02:49 [INFO] 
+  📊 Report: models/impulse_short_wfo_report.json
+2026-03-30 16:02:49 [INFO]   ⏱️  Elapsed: 63.2s
+2026-03-30 16:02:49 [INFO] 
+╔═══════════════════════════════════════════════════════════╗
+2026-03-30 16:02:49 [INFO] ║  IMPULSE ABSORPTION & ENGULFING — FINAL SUMMARY           ║
+2026-03-30 16:02:49 [INFO] ╚═══════════════════════════════════════════════════════════╝
+2026-03-30 16:02:49 [INFO]    LONG: acc=0.5852 AUC=0.5229 F1=0.3882 base=0.6654 ✅
+2026-03-30 16:02:49 [INFO]   SHORT: acc=0.5691 AUC=0.5933 F1=0.4595 base=0.5648 ❌
+2026-03-30 16:02:49 [INFO] 
+  Total time: 112.5s (1.9min)
+2026-03-30 16:02:49 [INFO]   Models: models/impulse_{long,short}_v1.ubj
+2026-03-30 16:02:49 [INFO]   Done ✅

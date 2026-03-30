@@ -1176,13 +1176,15 @@ pub async fn fetch_active_symbols(pool: &PgPool) -> Result<Vec<String>> {
     Ok(rows.into_iter().map(|(s,)| s).collect())
 }
 
-/// Export dataset to CSV file
+/// Export dataset to CSV file.
+/// Uses BufWriter with 1MB buffer for fast I/O (avoids syscall per line).
 pub fn export_dataset_csv(
     examples: &[SuperEntryExample],
     output_path: &str,
     feature_names: &[&str],
 ) -> Result<()> {
-    let mut file = std::fs::File::create(output_path)?;
+    let file = std::fs::File::create(output_path)?;
+    let mut buf = std::io::BufWriter::with_capacity(1 << 20, file); // 1MB buffer
 
     // Header
     let mut header = String::from("symbol,tf_minutes,timestamp");
@@ -1191,15 +1193,19 @@ pub fn export_dataset_csv(
         header.push_str(name);
     }
     header.push_str(",max_up_move_pct,max_down_move_pct,direction,magnitude_pct,is_super,future_return_20");
-    writeln!(file, "{}", header)?;
+    writeln!(buf, "{}", header)?;
 
-    // Rows
+    // Rows — pre-allocate line buffer to avoid per-row allocation
+    let mut line = String::with_capacity(4096);
     for ex in examples {
-        let mut line = format!("{},{},{}", ex.symbol, ex.tf_minutes, ex.timestamp);
+        line.clear();
+        use std::fmt::Write as FmtWrite;
+        write!(line, "{},{},{}", ex.symbol, ex.tf_minutes, ex.timestamp).unwrap();
         for &val in &ex.features {
-            line.push_str(&format!(",{:.6}", val));
+            write!(line, ",{:.6}", val).unwrap();
         }
-        line.push_str(&format!(
+        write!(
+            line,
             ",{:.6},{:.6},{},{:.6},{},{:.6}",
             ex.max_up_move_pct,
             ex.max_down_move_pct,
@@ -1207,10 +1213,12 @@ pub fn export_dataset_csv(
             ex.magnitude_pct,
             if ex.is_super { 1 } else { 0 },
             ex.future_return_20
-        ));
-        writeln!(file, "{}", line)?;
+        )
+        .unwrap();
+        writeln!(buf, "{}", line)?;
     }
 
+    buf.flush()?;
     Ok(())
 }
 

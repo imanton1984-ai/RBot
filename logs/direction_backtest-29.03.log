@@ -1,0 +1,127 @@
+2026-03-29T12:32:54.326510Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-29T12:32:54.326541Z  INFO ║  Direction v4 Pattern Backtester                      ║
+2026-03-29T12:32:54.326551Z  INFO ║  CNN-like sliding window on XGBoost                   ║
+2026-03-29T12:32:54.326559Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-29T12:32:54.326567Z  INFO Mode: SUPER-FILTERED (super points only)
+2026-03-29T12:32:54.326575Z  INFO Model output: BINARY (P(UP) ∈ [0,1], threshold=0.5)
+2026-03-29T12:32:54.326582Z  INFO Device: Cpu
+2026-03-29T12:32:54.326589Z  INFO Direction v4 Config:
+2026-03-29T12:32:54.326596Z  INFO   window_size: 20
+2026-03-29T12:32:54.326603Z  INFO   prediction_horizon: 25
+2026-03-29T12:32:54.326718Z  INFO   feature_set: OhlcVolume (5 per candle)
+2026-03-29T12:32:54.326726Z  INFO   total_features: 100
+2026-03-29T12:32:54.326734Z  INFO   up_threshold: 3.50% (default, per-TF from P(super))
+2026-03-29T12:32:54.326741Z  INFO   down_threshold: 3.50%
+2026-03-29T12:32:54.326747Z  INFO   label_method: MaxExcursion
+2026-03-29T12:32:54.326755Z  INFO   exclude_flat: false
+2026-03-29T12:32:54.326760Z  INFO   Per-TF thresholds (from P(super)):
+2026-03-29T12:32:54.326768Z  INFO     TF     5m: 2.8%
+2026-03-29T12:32:54.326777Z  INFO     TF    15m: 3.5%
+2026-03-29T12:32:54.326784Z  INFO     TF    60m: 5.0%
+2026-03-29T12:32:54.326791Z  INFO     TF   240m: 7.5%
+2026-03-29T12:32:54.326797Z  INFO     TF  1440m: 10.0%
+2026-03-29T12:32:54.332531Z  INFO 
+2026-03-29T12:32:54.332553Z  INFO ════════════════════════════════════════════════════════════
+2026-03-29T12:32:54.332567Z  INFO   TF 15m  TP=3.50%  SL=2.27%
+2026-03-29T12:32:54.332579Z  INFO ════════════════════════════════════════════════════════════
+2026-03-29T12:32:54.363591Z  INFO XGB Booster loaded: path=models/direction_v4_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-29T12:32:54.363635Z  INFO   ✅ direction v4 model: models/direction_v4_tf15.ubj (Cpu)
+2026-03-29T12:32:57.306082Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,\n                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_15m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" rows_affected=2412656 rows_returned=2412656 elapsed=2.940391907s elapsed_secs=2.940391907 slow_threshold=1s
+2026-03-29T12:32:57.479722Z  INFO   Loaded 271 symbols, 2412656 raw candles in 3.1s
+2026-03-29T12:33:07.765806Z  INFO   Evaluation: 2400961 points from 271 symbols in 9.9s
+2026-03-29T12:33:07.766099Z  INFO 
+2026-03-29T12:33:07.766813Z  INFO   TF 15m — 2400961 points (pred UP=1072745, pred DOWN=1328216)
+2026-03-29T12:33:07.766866Z  INFO 
+2026-03-29T12:33:07.766899Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-29T12:33:07.766931Z  INFO     Overall: 54.3% (1303399/2400961)
+2026-03-29T12:33:07.766961Z  INFO     UP recall:   48.9% (546718/1118253) — actual UP points correctly predicted
+2026-03-29T12:33:07.766991Z  INFO     DOWN recall: 59.0% (756681/1282708) — actual DOWN points correctly predicted
+2026-03-29T12:33:07.767020Z  INFO     UP precision: predicted 1072745 UP, accuracy within UP predictions
+2026-03-29T12:33:07.767049Z  INFO     DOWN precision: predicted 1328216 DOWN, accuracy within DOWN predictions
+2026-03-29T12:33:07.767078Z  INFO 
+2026-03-29T12:33:07.767117Z  INFO   📊 Trade Simulation (TP=3.50% SL=2.27% hold=25):
+2026-03-29T12:33:07.767149Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-29T12:33:07.767223Z  INFO   ----------------------------------------------------------------------------
+2026-03-29T12:33:07.767300Z  INFO   All directions        2400961   472781   670350  1257830      19.7%    0.2316% ❌
+2026-03-29T12:33:07.767378Z  INFO     LONG only           1072745   241721   324954   506070      22.5%    0.2196% ❌
+2026-03-29T12:33:07.767542Z  INFO     SHORT only          1328216   231060   345396   751760      17.4%    0.2413% ❌
+2026-03-29T12:33:07.767671Z  INFO 
+2026-03-29T12:33:07.767778Z  INFO   Confidence-gated results (confidence = P(predicted_class)):
+2026-03-29T12:33:07.767859Z  INFO     gate≥0.50           2400961 WR=19.7% Acc=54.3% PnL=0.2316% cov=100% (L:1072745 S:1328216) ❌
+2026-03-29T12:33:07.767994Z  INFO     gate≥0.55           1233413 WR=20.7% Acc=56.8% PnL=0.3757% cov=51% (L:517350 S:716063) ⚠ 
+2026-03-29T12:33:07.768147Z  INFO     gate≥0.60            481066 WR=22.6% Acc=59.8% PnL=0.5575% cov=20% (L:195250 S:285816) ⚠ 
+2026-03-29T12:33:07.768278Z  INFO     gate≥0.65            145045 WR=28.5% Acc=63.7% PnL=0.8416% cov=6% (L:64374 S:80671) ✅
+2026-03-29T12:33:07.768399Z  INFO     gate≥0.70             39274 WR=44.4% Acc=71.5% PnL=1.4256% cov=2% (L:21986 S:17288) ✅
+2026-03-29T12:33:07.768489Z  INFO     gate≥0.75             14809 WR=62.1% Acc=80.2% PnL=2.0894% cov=1% (L:9506 S:5303) ✅
+2026-03-29T12:33:07.768569Z  INFO     gate≥0.80              6836 WR=72.5% Acc=85.8% PnL=2.5171% cov=0% (L:4842 S:1994) ✅
+2026-03-29T12:33:07.867293Z  INFO 
+2026-03-29T12:33:07.867316Z  INFO ════════════════════════════════════════════════════════════
+2026-03-29T12:33:07.867325Z  INFO   TF 60m  TP=5.00%  SL=3.25%
+2026-03-29T12:33:07.867332Z  INFO ════════════════════════════════════════════════════════════
+2026-03-29T12:33:07.881202Z  INFO XGB Booster loaded: path=models/direction_v4_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-29T12:33:07.881228Z  INFO   ✅ direction v4 model: models/direction_v4_tf60.ubj (Cpu)
+2026-03-29T12:33:09.975847Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,\n                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1943298 rows_returned=1943298 elapsed=2.094403816s elapsed_secs=2.094403816 slow_threshold=1s
+2026-03-29T12:33:10.070464Z  INFO   Loaded 271 symbols, 1943298 raw candles in 2.2s
+2026-03-29T12:33:18.523721Z  INFO   Evaluation: 1931411 points from 271 symbols in 8.2s
+2026-03-29T12:33:18.523766Z  INFO 
+2026-03-29T12:33:18.523777Z  INFO   TF 60m — 1931411 points (pred UP=790830, pred DOWN=1140581)
+2026-03-29T12:33:18.523785Z  INFO 
+2026-03-29T12:33:18.523793Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-29T12:33:18.523802Z  INFO     Overall: 57.1% (1103015/1931411)
+2026-03-29T12:33:18.523813Z  INFO     UP recall:   47.9% (433606/904778) — actual UP points correctly predicted
+2026-03-29T12:33:18.523823Z  INFO     DOWN recall: 65.2% (669409/1026633) — actual DOWN points correctly predicted
+2026-03-29T12:33:18.523832Z  INFO     UP precision: predicted 790830 UP, accuracy within UP predictions
+2026-03-29T12:33:18.523840Z  INFO     DOWN precision: predicted 1140581 DOWN, accuracy within DOWN predictions
+2026-03-29T12:33:18.523850Z  INFO 
+2026-03-29T12:33:18.523871Z  INFO   📊 Trade Simulation (TP=5.00% SL=3.25% hold=25):
+2026-03-29T12:33:18.523890Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-29T12:33:18.523908Z  INFO   ----------------------------------------------------------------------------
+2026-03-29T12:33:18.523926Z  INFO   All directions        1931411   655961   769735   505715      34.0%    0.5880% ❌
+2026-03-29T12:33:18.523944Z  INFO     LONG only            790830   282049   341423   167358      35.7%    0.5252% ❌
+2026-03-29T12:33:18.523962Z  INFO     SHORT only          1140581   373912   428312   338357      32.8%    0.6316% ❌
+2026-03-29T12:33:18.523978Z  INFO 
+2026-03-29T12:33:18.523994Z  INFO   Confidence-gated results (confidence = P(predicted_class)):
+2026-03-29T12:33:18.524012Z  INFO     gate≥0.50           1931411 WR=34.0% Acc=57.1% PnL=0.5880% cov=100% (L:790830 S:1140581) ⚠ 
+2026-03-29T12:33:18.524040Z  INFO     gate≥0.55            908308 WR=38.0% Acc=61.9% PnL=0.9942% cov=47% (L:320764 S:587544) ✅
+2026-03-29T12:33:18.524059Z  INFO     gate≥0.60            324107 WR=43.5% Acc=67.5% PnL=1.4832% cov=17% (L:97497 S:226610) ✅
+2026-03-29T12:33:18.524077Z  INFO     gate≥0.65            106055 WR=52.3% Acc=73.5% PnL=2.0564% cov=5% (L:30482 S:75573) ✅
+2026-03-29T12:33:18.524094Z  INFO     gate≥0.70             38897 WR=64.0% Acc=79.3% PnL=2.6641% cov=2% (L:13460 S:25437) ✅
+2026-03-29T12:33:18.524113Z  INFO     gate≥0.75             16444 WR=73.8% Acc=84.2% PnL=3.1349% cov=1% (L:7481 S:8963) ✅
+2026-03-29T12:33:18.524131Z  INFO     gate≥0.80              7835 WR=78.8% Acc=87.3% PnL=3.3355% cov=0% (L:4482 S:3353) ✅
+2026-03-29T12:33:18.597920Z  INFO 
+2026-03-29T12:33:18.597948Z  INFO ════════════════════════════════════════════════════════════
+2026-03-29T12:33:18.597962Z  INFO   TF 240m  TP=7.50%  SL=4.88%
+2026-03-29T12:33:18.597968Z  INFO ════════════════════════════════════════════════════════════
+2026-03-29T12:33:18.614658Z  INFO XGB Booster loaded: path=models/direction_v4_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-29T12:33:18.614695Z  INFO   ✅ direction v4 model: models/direction_v4_tf240.ubj (Cpu)
+2026-03-29T12:33:19.760944Z  WARN slow statement: execution time exceeded alert threshold summary="WITH ranked AS ( …" db.statement="\n\n\n        WITH ranked AS (\n            SELECT c.time, c.symbol, c.open, c.high, c.low, c.close, c.volume,\n                   ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_4h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" rows_affected=1103164 rows_returned=1103164 elapsed=1.145996243s elapsed_secs=1.145996243 slow_threshold=1s
+2026-03-29T12:33:19.802451Z  INFO   Loaded 271 symbols, 1103164 raw candles in 1.2s
+2026-03-29T12:33:24.715374Z  INFO   Evaluation: 1091329 points from 271 symbols in 4.8s
+2026-03-29T12:33:24.715484Z  INFO 
+2026-03-29T12:33:24.715545Z  INFO   TF 240m — 1091329 points (pred UP=551449, pred DOWN=539880)
+2026-03-29T12:33:24.715616Z  INFO 
+2026-03-29T12:33:24.715685Z  INFO   📊 Direction Accuracy (predict UP vs DOWN):
+2026-03-29T12:33:24.715752Z  INFO     Overall: 60.1% (655540/1091329)
+2026-03-29T12:33:24.715807Z  INFO     UP recall:   61.5% (308908/502156) — actual UP points correctly predicted
+2026-03-29T12:33:24.715859Z  INFO     DOWN recall: 58.8% (346632/589173) — actual DOWN points correctly predicted
+2026-03-29T12:33:24.715910Z  INFO     UP precision: predicted 551449 UP, accuracy within UP predictions
+2026-03-29T12:33:24.715962Z  INFO     DOWN precision: predicted 539880 DOWN, accuracy within DOWN predictions
+2026-03-29T12:33:24.716012Z  INFO 
+2026-03-29T12:33:24.716064Z  INFO   📊 Trade Simulation (TP=7.50% SL=4.88% hold=25):
+2026-03-29T12:33:24.716118Z  INFO   Variant                Trades     Wins   Losses    Exprd        WR%    AvgPnL%
+2026-03-29T12:33:24.716170Z  INFO   ----------------------------------------------------------------------------
+2026-03-29T12:33:24.716223Z  INFO   All directions        1091329   464839   483964   142526      42.6%    1.1776% ❌
+2026-03-29T12:33:24.716276Z  INFO     LONG only            551449   223574   260423    67452      40.5%    0.8595% ❌
+2026-03-29T12:33:24.716330Z  INFO     SHORT only           539880   241265   223541    75074      44.7%    1.5025% ❌
+2026-03-29T12:33:24.716381Z  INFO 
+2026-03-29T12:33:24.716431Z  INFO   Confidence-gated results (confidence = P(predicted_class)):
+2026-03-29T12:33:24.716508Z  INFO     gate≥0.50           1091329 WR=42.6% Acc=60.1% PnL=1.1776% cov=100% (L:551449 S:539880) ✅
+2026-03-29T12:33:24.716570Z  INFO     gate≥0.55            537915 WR=48.8% Acc=66.5% PnL=1.9191% cov=49% (L:271948 S:265967) ✅
+2026-03-29T12:33:24.716632Z  INFO     gate≥0.60            209924 WR=56.6% Acc=74.3% PnL=2.7644% cov=19% (L:102888 S:107036) ✅
+2026-03-29T12:33:24.716691Z  INFO     gate≥0.65             80955 WR=64.1% Acc=81.0% PnL=3.5342% cov=7% (L:36749 S:44206) ✅
+2026-03-29T12:33:24.716753Z  INFO     gate≥0.70             36163 WR=69.3% Acc=85.4% PnL=4.0579% cov=3% (L:16194 S:19969) ✅
+2026-03-29T12:33:24.716813Z  INFO     gate≥0.75             17808 WR=72.7% Acc=88.7% PnL=4.3866% cov=2% (L:8481 S:9327) ✅
+2026-03-29T12:33:24.716874Z  INFO     gate≥0.80              8835 WR=75.0% Acc=90.8% PnL=4.5778% cov=1% (L:4672 S:4163) ✅
+2026-03-29T12:33:24.748984Z  INFO 
+2026-03-29T12:33:24.749018Z  INFO Direction v4 backtest complete in 30.4s (0.5min)
+2026-03-29T12:33:24.749028Z  INFO Target: direction accuracy >= 55-60% (beating random 50%)

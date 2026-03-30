@@ -37,6 +37,15 @@ pub mod dataset;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Number of summary features added after the sliding window
+/// (slope, range_pos, momentum_diff, volatility_change, volume_pressure,
+///  body_ratio×3, return_5bar, return_10bar, return_full_window)
+pub const SUMMARY_FEATURE_COUNT: usize = 11;
+
+/// Number of higher-timeframe context features
+/// (htf_trend, htf_range_pos, htf_vol_spike)
+pub const HTF_FEATURE_COUNT: usize = 3;
+
 /// P(super) target move thresholds per TF (from config.rs TF_TARGET_MOVE_PCT).
 /// Used as default UP/DOWN thresholds — the model predicts whether price will
 /// reach the SAME target as the super model within the prediction horizon.
@@ -214,7 +223,15 @@ impl DirectionConfig {
     }
 
     /// Total number of features in a single flattened row.
+    /// = window_size × features_per_candle + SUMMARY_FEATURE_COUNT + HTF_FEATURE_COUNT
     pub fn total_features(&self) -> usize {
+        self.window_size * self.feature_set.features_per_candle()
+            + SUMMARY_FEATURE_COUNT
+            + HTF_FEATURE_COUNT
+    }
+
+    /// Number of sliding-window features only (without summary & HTF).
+    pub fn window_features(&self) -> usize {
         self.window_size * self.feature_set.features_per_candle()
     }
 
@@ -251,10 +268,13 @@ impl DirectionConfig {
 
     /// Print config summary to log.
     pub fn log_summary(&self) {
-        tracing::info!("Direction v4 Config:");
+        tracing::info!("Direction v4+ Config:");
         tracing::info!("  window_size: {}", self.window_size);
         tracing::info!("  prediction_horizon: {}", self.prediction_horizon);
         tracing::info!("  feature_set: {:?} ({} per candle)", self.feature_set, self.feature_set.features_per_candle());
+        tracing::info!("  window_features: {} ({}×{})", self.window_features(), self.window_size, self.feature_set.features_per_candle());
+        tracing::info!("  summary_features: {}", SUMMARY_FEATURE_COUNT);
+        tracing::info!("  htf_features: {}", HTF_FEATURE_COUNT);
         tracing::info!("  total_features: {}", self.total_features());
         tracing::info!("  up_threshold: {:.2}% (default, per-TF from P(super))", self.up_threshold_pct);
         tracing::info!("  down_threshold: {:.2}%", self.down_threshold_pct);

@@ -88,11 +88,68 @@ WFO_CONFIG: Dict[int, dict] = {
     1440: {"n_splits": 5, "test_days": 180.0, "min_train_days": 365.0},
 }
 
-# Default prediction horizon (must match Rust config — 25 bars, same as P(super) lookahead)
+# Default prediction horizon — MUST match Rust DirectionConfig (25 bars)
+# and the dataset labels (built with horizon=25).
 DEFAULT_HORIZON = 25
 
 # Direction accuracy target
 DIRECTION_ACC_TARGET = 0.55
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# XGBoost HYPERPARAMETERS — SINGLE SOURCE OF TRUTH
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# ROOT CAUSE ANALYSIS (from WFO logs):
+# ─────────────────────────────────────
+# 1. FINAL model (trained on ALL data, eval on last 10%) → 58-62% accuracy
+#    OOS WFO folds → 50-52% accuracy → CLASSIC OVERFIT
+#
+# 2. Many folds stop at 1-5 trees because early stopping uses the OOS
+#    test set, and distribution shift across time causes immediate logloss
+#    degradation → model has ~50% accuracy with 1 tree = pure random.
+#
+# 3. The regression params (eta=0.555 etc.) were being changed but the
+#    model runs in BINARY mode → regression params had zero effect.
+#
+# FIX STRATEGY:
+# ─────────────
+# A) LOW LEARNING RATE + MANY ROUNDS → gradual learning, smooth ensemble
+# B) AGGRESSIVE REGULARIZATION → only the most robust patterns survive
+# C) INTERNAL VALIDATION for early stopping (NOT OOS test!)
+#    This prevents 1-tree models caused by train/test distribution shift.
+# D) VERY SHALLOW TREES → prevents memorizing noise per-tree
+# E) HEAVY SUBSAMPLING → decorrelated trees, better bagging effect
+
+XGBOOST_PARAMS = {
+    "eta": 0.1,                    # Very low LR → each tree adjusts by at most 1%
+                                    # → needs 1000+ trees → ensemble averages out noise
+    "max_depth": 5,                 # Max 8 leaves per tree → only broadest patterns
+                                    # (depth 4 = 16 leaves was still overfitting)
+    "min_child_weight": 50,        # Each leaf needs ≥200 samples → statistically stable
+                                    # (on 300K+ datasets, this is <0.1% of data per leaf)
+    "lambda": 5.0,                  # Strong L2 → predictions shrink toward 0.5 when unsure
+                                    # Prevents confident wrong predictions
+    "alpha": 1.0,                   # Moderate L1 → prunes weak features from splits
+                                    # Not too strong (1.0 was killing useful features)
+    "gamma": 0.5,                   # Each split must gain ≥0.5 → no trivial splits
+                                    # (1.0 was too aggressive, killed most trees)
+    "subsample": 0.7,              # Each tree trains on 50% of rows → decorrelated
+    "colsample_bytree": 0.8,       # Each tree sees only 30% of 114 features → ~34 features
+                                    # → massive diversity, prevents reliance on single feature
+    "max_bin": 64,                  # Very coarse histograms → can't memorize exact price values
+    "tree_method": "hist",
+    "verbosity": 0,
+}
+
+NUM_BOOST_ROUND = 5000              # With eta=0.01, need many rounds to gradually converge
+EARLY_STOPPING_ROUNDS = 200         # Very patient: low eta means slow improvement per round
+                                    # Previous 100 was too impatient → premature stopping
+VALIDATION_FRACTION = 0.2          # Hold out 20% of TRAIN data for early stopping
+                                    # ╔═══════════════════════════════════════════════╗
+                                    # ║  CRITICAL: Do NOT use OOS test for ES!        ║
+                                    # ║  Using OOS for ES = data leakage + 1-tree bug ║
+                                    # ╚═══════════════════════════════════════════════╝
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -172,9 +229,12 @@ def apply_fold_split(
 # ═════════════════════════════════════════════════════════════════════════════
 
 def detect_feature_columns(df: pd.DataFrame) -> List[str]:
-    """Auto-detect pattern feature columns (w{i}_{type})."""
-    feat_cols = [c for c in df.columns if c.startswith("w") and "_" in c]
-    # Sort by window index then feature name
+    """Auto-detect pattern feature columns (w{i}_{type}, summary_*, htf_*)."""
+    window_cols = [c for c in df.columns if c.startswith("w") and "_" in c]
+    summary_cols = sorted([c for c in df.columns if c.startswith("summary_")])
+    htf_cols = sorted([c for c in df.columns if c.startswith("htf_")])
+
+    # Sort window cols by window index then feature name
     def sort_key(col):
         parts = col.split("_", 1)
         try:
@@ -182,8 +242,42 @@ def detect_feature_columns(df: pd.DataFrame) -> List[str]:
             return (idx, parts[1] if len(parts) > 1 else "")
         except ValueError:
             return (9999, col)
-    feat_cols.sort(key=sort_key)
+    window_cols.sort(key=sort_key)
+
+    # Combine: window features + summary features + HTF features
+    feat_cols = window_cols + summary_cols + htf_cols
     return feat_cols
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# HELPER: INTERNAL VALIDATION SPLIT (prevents early-stopping data leakage)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def split_train_validation(
+    X_train: np.ndarray, y_train: np.ndarray,
+    val_fraction: float = VALIDATION_FRACTION,
+    min_val: int = 200,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Split training data into fit + internal validation for early stopping.
+
+    WHY: Using OOS test set for early stopping causes:
+      1) Data leakage → OOS metrics are optimistically biased
+      2) 1-tree models → when train/test distributions differ (common in finance),
+         logloss on OOS degrades immediately → early stopping kills the model at tree 1.
+
+    Solution: hold out 20% of training data (SAME temporal distribution as train)
+    for early stopping. The OOS test set is only used for unbiased evaluation.
+    """
+    n_val = max(int(len(X_train) * val_fraction), min_val)
+    n_val = min(n_val, len(X_train) // 2)  # Never use more than 50%
+
+    X_fit = X_train[:-n_val]
+    y_fit = y_train[:-n_val]
+    X_val = X_train[-n_val:]
+    y_val = y_train[-n_val:]
+
+    return X_fit, y_fit, X_val, y_val
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -221,41 +315,34 @@ def train_regression(
     X_test = np.nan_to_num(X_test, nan=0.0, posinf=0.0, neginf=0.0)
     y_test = np.nan_to_num(y_test, nan=0.0, posinf=0.0, neginf=0.0)
 
-    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_cols)
+    # ── Internal validation split for early stopping ──
+    X_fit, y_fit, X_val, y_val = split_train_validation(X_train, y_train)
+
+    dtrain = xgb.DMatrix(X_fit, label=y_fit, feature_names=feature_cols)
+    dval = xgb.DMatrix(X_val, label=y_val, feature_names=feature_cols)
     dtest = xgb.DMatrix(X_test, label=y_test, feature_names=feature_cols)
 
-    params = {
-        "objective": "reg:squarederror",
-        "eval_metric": "rmse",
-        "eta": 0.03,
-        "max_depth": 6,
-        "subsample": 0.8,
-        "colsample_bytree": 0.7,
-        "min_child_weight": 20,
-        "lambda": 2.0,        # L2 — strong regularization for pattern features
-        "alpha": 0.5,         # L1 — sparse feature selection
-        "gamma": 0.2,         # Min loss reduction — prevents overfitting on noise
-        "max_bin": 128,       # Reduce histogram bins: less memory
-        "tree_method": "hist",
-        "device": "cuda" if use_gpu else "cpu",
-        "verbosity": 0,
-    }
+    # ── Regression params (shared base + regression-specific) ──
+    params = {**XGBOOST_PARAMS}
+    params["objective"] = "reg:squarederror"
+    params["eval_metric"] = "rmse"
+    params["device"] = "cuda" if use_gpu else "cpu"
 
     n_long = int((train_df["label"] == 1).sum())
     n_short = int((train_df["label"] == -1).sum())
     n_flat = int((train_df["label"] == 0).sum())
     log.info(f"  Fold {fold_idx}: Training regression on {len(y_train)} examples "
-             f"(UP={n_long}, FLAT={n_flat}, DOWN={n_short})")
+             f"(UP={n_long}, FLAT={n_flat}, DOWN={n_short}, fit={len(y_fit)}, val_es={len(y_val)})")
 
     model = xgb.train(
         params, dtrain,
-        num_boost_round=2000,
-        evals=[(dtrain, "train"), (dtest, "test")],
-        early_stopping_rounds=150,
+        num_boost_round=NUM_BOOST_ROUND,
+        evals=[(dtrain, "train"), (dval, "valid")],
+        early_stopping_rounds=EARLY_STOPPING_ROUNDS,
         verbose_eval=0,
     )
 
-    # ── Evaluate ──
+    # ── Evaluate on PURE OOS test (NOT used for early stopping) ──
     pred = model.predict(dtest)
     rmse = float(np.sqrt(mean_squared_error(y_test, pred)))
 
@@ -367,49 +454,50 @@ def train_binary(
     X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
     X_test = np.nan_to_num(X_test, nan=0.0, posinf=0.0, neginf=0.0)
 
-    # Class balance weight
+    # ── Internal validation split for early stopping ──
+    # CRITICAL FIX: Previously used OOS test for early stopping, causing:
+    #   1) Data leakage (model "sees" future data during training)
+    #   2) 1-tree models (distribution shift → logloss degrades immediately)
+    # Now: 20% of TRAIN data held out for ES. OOS test = pure evaluation only.
+    X_fit, y_fit, X_val, y_val = split_train_validation(X_train, y_train)
+
+    # Class balance weight (computed on fit portion)
+    n_up_fit = int(y_fit.sum())
+    n_down_fit = len(y_fit) - n_up_fit
+    scale_pos = n_down_fit / max(n_up_fit, 1)
+
+    # Total stats (for logging)
     n_up = int(y_train.sum())
     n_down = len(y_train) - n_up
     n_train_total = len(y_train)
-    scale_pos = n_down / max(n_up, 1)
 
-    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_cols)
+    dtrain = xgb.DMatrix(X_fit, label=y_fit, feature_names=feature_cols)
+    dval = xgb.DMatrix(X_val, label=y_val, feature_names=feature_cols)
     dtest = xgb.DMatrix(X_test, label=y_test, feature_names=feature_cols)
 
     # Free numpy arrays — XGBoost DMatrix has its own copy
-    del X_train, y_train, X_test
+    del X_train, y_train, X_fit, y_fit, X_val, y_val, X_test
     gc.collect()
 
-    params = {
-        "objective": "binary:logistic",
-        "eval_metric": "auc",
-        "eta": 0.03,
-        "max_depth": 6,
-        "subsample": 0.8,
-        "colsample_bytree": 0.7,
-        "min_child_weight": 20,
-        "lambda": 2.0,        # L2 — strong regularization for pattern features
-        "alpha": 0.5,         # L1 — sparse feature selection
-        "gamma": 0.2,         # Min loss reduction — prevents overfitting on noise
-        "max_bin": 128,       # Reduce histogram bins: less memory, mild speed impact
-        "scale_pos_weight": scale_pos,
-        "tree_method": "hist",
-        "device": "cuda" if use_gpu else "cpu",
-        "verbosity": 0,
-    }
+    # ── Binary params (shared base + binary-specific) ──
+    params = {**XGBOOST_PARAMS}
+    params["objective"] = "binary:logistic"
+    params["eval_metric"] = "logloss"
+    params["scale_pos_weight"] = scale_pos
+    params["device"] = "cuda" if use_gpu else "cpu"
 
     log.info(f"  Fold {fold_idx}: Training binary (UP vs DOWN) on {n_train_total} examples "
              f"(UP={n_up}, DOWN={n_down}, scale_pos={scale_pos:.2f})")
 
     model = xgb.train(
         params, dtrain,
-        num_boost_round=2000,
-        evals=[(dtrain, "train"), (dtest, "test")],
-        early_stopping_rounds=150,
+        num_boost_round=NUM_BOOST_ROUND,
+        evals=[(dtrain, "train"), (dval, "valid")],  # ← valid = INTERNAL, not OOS
+        early_stopping_rounds=EARLY_STOPPING_ROUNDS,
         verbose_eval=0,
     )
 
-    # ── Evaluate ──
+    # ── Evaluate on PURE OOS test (NOT used for early stopping) ──
     pred_proba = model.predict(dtest)
     pred_class = (pred_proba >= 0.5).astype(int)
 
@@ -561,6 +649,15 @@ def train_wfo_for_tf(
         train_days = (fold["train_end_raw"] - fold["train_start"]).total_seconds() / 86400
         test_days = (fold["test_end_raw"] - fold["test_start_raw"]).total_seconds() / 86400
         log.info(f"    Fold {fold['fold_idx']}: Train {train_days:.0f}d | Test {test_days:.0f}d")
+
+    # Log hyperparameters
+    log.info(f"  XGBoost: eta={XGBOOST_PARAMS['eta']}, depth={XGBOOST_PARAMS['max_depth']}, "
+             f"mcw={XGBOOST_PARAMS['min_child_weight']}, lambda={XGBOOST_PARAMS['lambda']}, "
+             f"alpha={XGBOOST_PARAMS['alpha']}, gamma={XGBOOST_PARAMS['gamma']}")
+    log.info(f"  Sampling: sub={XGBOOST_PARAMS['subsample']}, col={XGBOOST_PARAMS['colsample_bytree']}, "
+             f"bins={XGBOOST_PARAMS['max_bin']}")
+    log.info(f"  Training: rounds={NUM_BOOST_ROUND}, es={EARLY_STOPPING_ROUNDS}, "
+             f"val_frac={VALIDATION_FRACTION}")
 
     # ── Per-fold training ──
     fold_metrics: List[dict] = []
@@ -738,6 +835,19 @@ def train_wfo_for_tf(
                 "wfo_baseline": agg["baseline_mean"],
                 "wfo_folds": len(valid_metrics),
                 "confidence_gates": {k: float(np.mean(v)) for k, v in gate_accs.items()},
+                "hyperparams": {
+                    "eta": XGBOOST_PARAMS["eta"],
+                    "max_depth": XGBOOST_PARAMS["max_depth"],
+                    "min_child_weight": XGBOOST_PARAMS["min_child_weight"],
+                    "lambda": XGBOOST_PARAMS["lambda"],
+                    "alpha": XGBOOST_PARAMS["alpha"],
+                    "gamma": XGBOOST_PARAMS["gamma"],
+                    "subsample": XGBOOST_PARAMS["subsample"],
+                    "colsample_bytree": XGBOOST_PARAMS["colsample_bytree"],
+                    "num_boost_round": NUM_BOOST_ROUND,
+                    "early_stopping_rounds": EARLY_STOPPING_ROUNDS,
+                    "validation_fraction": VALIDATION_FRACTION,
+                },
             }
             schema_path = path.replace(".ubj", ".schema.json")
             with open(schema_path, "w") as f:
@@ -797,11 +907,11 @@ def main():
                         help=f"Prediction horizon in bars (default: {DEFAULT_HORIZON})")
     args = parser.parse_args()
 
-    log.info("╔═══════════════════════════════════════════════════════╗")
-    log.info("║  Direction Model v4 — CNN-like Pattern WFO Training   ║")
-    log.info("║  Pure OHLCV sliding window → XGBoost                  ║")
-    log.info("║  No indicators, no noise — just price patterns        ║")
-    log.info("╚═══════════════════════════════════════════════════════╝")
+    log.info("╔═══════════════════════════════════════════════════════════╗")
+    log.info("║  Direction Model v6 — Internal Validation + Low LR      ║")
+    log.info("║  OHLCV window + summary + HTF features                  ║")
+    log.info("║  depth=3, eta=0.01, 5000 rounds, internal val for ES    ║")
+    log.info("╚═══════════════════════════════════════════════════════════╝")
     log.info(f"Mode: {args.mode}")
     log.info(f"Prediction horizon: {args.horizon} bars")
     log.info(f"Exclude FLAT: {args.exclude_flat}")

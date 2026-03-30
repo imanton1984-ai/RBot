@@ -32,3 +32,6 @@
 
 pub mod pump_dump;
 pub mod dataset;
+pub mod signal_generator;
+pub mod db_writer;
+pub mod pipeline;

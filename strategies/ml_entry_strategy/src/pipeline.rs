@@ -234,9 +234,9 @@ impl SuperEntryPipeline {
                 features_flat.push(*v as f32);
             }
 
-            // ═══ Direction v4 pattern features (CNN-like sliding window) ═══
+            // ═══ Direction v4+ pattern features (CNN-like sliding window + summary + HTF) ═══
             if has_dir_v4 {
-                match compute_pattern_features(candles, i, &self.dir_config) {
+                match compute_pattern_features(candles, i, &self.dir_config, htf_candles) {
                     Some(feats) => {
                         for v in &feats {
                             dir_v4_flat.push(*v as f32);
@@ -360,12 +360,13 @@ impl SuperEntryPipeline {
         };
         features.extend(dyn_feats.iter().map(|&v| v as f32));
 
-        // Compute direction v4 pattern features (preferred)
+        // Compute direction v4+ pattern features (preferred)
+        // Note: no HTF data in single-candle mode (pass None)
         let dir_v4_feats = if self.model_manager.has_direction_v4_for_tf(tf_minutes) {
             match candle_history {
                 Some(history) if history.len() >= self.dir_config.window_size => {
                     let last_idx = history.len() - 1;
-                    compute_pattern_features(history, last_idx, &self.dir_config)
+                    compute_pattern_features(history, last_idx, &self.dir_config, None)
                         .map(|feats| feats.iter().map(|&v| v as f32).collect::<Vec<f32>>())
                 }
                 _ => None,

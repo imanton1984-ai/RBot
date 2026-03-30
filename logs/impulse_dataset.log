@@ -1,0 +1,247 @@
+2026-03-29T21:02:02.000648Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-29T21:02:02.000671Z  INFO ║  Impulse Absorption & Engulfing — Dataset Builder     ║
+2026-03-29T21:02:02.000678Z  INFO ║  Multi-TF indicator snapshot + engulfing detection    ║
+2026-03-29T21:02:02.000685Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-29T21:02:02.004540Z  INFO Building Impulse Engulfing dataset...
+2026-03-29T21:02:02.004554Z  INFO ImpulseConfig:
+2026-03-29T21:02:02.004562Z  INFO   min_body_ratio: 0.70
+2026-03-29T21:02:02.004570Z  INFO   volume_spike_mult: 2.0×
+2026-03-29T21:02:02.004576Z  INFO   pre_signal_lookback: 10 candles
+2026-03-29T21:02:02.004582Z  INFO   max_hold: 3 candles
+2026-03-29T21:02:02.004588Z  INFO   negative_ratio: 3:1
+2026-03-29T21:02:02.004594Z  INFO   TF 15m: impulse≥4.5%, TP=1.5%, SL=1.5%
+2026-03-29T21:02:02.004605Z  INFO   TF 60m: impulse≥7.0%, TP=2.0%, SL=2.0%
+2026-03-29T21:02:02.004612Z  INFO   TF 240m: impulse≥10.0%, TP=5.0%, SL=4.0%
+2026-03-29T21:02:02.004619Z  INFO   Loading TF 1440m (limit 3700 per symbol)...
+2026-03-29T21:02:19.417001Z  INFO     TF 1440m: 271 symbols, 211505 candles in 17.4s
+2026-03-29T21:02:19.417045Z  INFO   Loading TF 240m (limit 12000 per symbol)...
+2026-03-29T21:02:51.546656Z  INFO     TF 240m: 271 symbols, 1103164 candles in 32.1s
+2026-03-29T21:02:51.546686Z  INFO   Loading TF 60m (limit 12000 per symbol)...
+2026-03-29T21:03:34.709702Z  INFO     TF 60m: 271 symbols, 1943298 candles in 43.2s
+2026-03-29T21:03:34.709737Z  INFO   Loading TF 15m (limit 12000 per symbol)...
+2026-03-29T21:04:26.317239Z  INFO     TF 15m: 271 symbols, 2412656 candles in 51.6s
+2026-03-29T21:04:26.317275Z  INFO   Loading TF 5m (limit 12000 per symbol)...
+2026-03-29T21:05:09.685529Z  INFO     TF 5m: 271 symbols, 1886965 candles in 43.4s
+2026-03-29T21:05:09.685561Z  INFO   271 total active symbols loaded
+2026-03-29T21:05:09.826772Z  INFO   Progress: 50/271 symbols, 1128 examples so far
+2026-03-29T21:05:10.004231Z  INFO   Progress: 100/271 symbols, 2319 examples so far
+2026-03-29T21:05:10.131755Z  INFO   Progress: 150/271 symbols, 3265 examples so far
+2026-03-29T21:05:10.260873Z  INFO   Progress: 200/271 symbols, 4562 examples so far
+2026-03-29T21:05:10.411468Z  INFO   Progress: 250/271 symbols, 5553 examples so far
+2026-03-29T21:05:10.474831Z  INFO   Progress: 271/271 symbols, 5985 examples so far
+2026-03-29T21:05:10.475368Z  INFO   Dataset built: 5985 total examples
+2026-03-29T21:05:10.475379Z  INFO     LONG signals:   836 (14.0%)
+2026-03-29T21:05:10.475385Z  INFO     SHORT signals:  655 (10.9%)
+2026-03-29T21:05:10.475391Z  INFO     Negatives:      4494 (75.1%)
+2026-03-29T21:05:10.475397Z  INFO     Win rate (heuristic): 35.3% (527 TP / 1491 total signals)
+2026-03-29T21:05:10.475403Z  INFO     Symbols with signals: 183
+2026-03-29T21:05:10.789201Z  INFO   Feature vector size: 3958 (3950 TF features + 8 engulfing meta)
+2026-03-29T21:05:12.762193Z  INFO   Exported 5985 examples to dataset/impulse_dataset.csv
+2026-03-29T21:05:12.762212Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-29T21:05:12.762220Z  INFO ║  Dataset build complete                               ║
+2026-03-29T21:05:12.762226Z  INFO ║  Total: 5985 examples                                  
+2026-03-29T21:05:12.762232Z  INFO ║  Output: dataset/impulse_dataset.csv                                          
+2026-03-29T21:05:12.762239Z  INFO ║  Time: 190.8s                                        
+2026-03-29T21:05:12.762246Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-29T21:05:12.762251Z  INFO 
+2026-03-29T21:05:12.762260Z  INFO Next step: train the model
+2026-03-29T21:05:12.762266Z  INFO   python trainer/src/train_impulse_wfo.py --csv dataset/impulse_dataset.csv --gpu
+2026-03-29T21:36:19.173618Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-29T21:36:19.173646Z  INFO ║  Impulse Absorption & Engulfing — Dataset Builder     ║
+2026-03-29T21:36:19.173656Z  INFO ║  Multi-TF indicator snapshot + engulfing detection    ║
+2026-03-29T21:36:19.173663Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-29T21:36:19.177523Z  INFO Building Impulse Engulfing dataset...
+2026-03-29T21:36:19.177540Z  INFO ImpulseConfig:
+2026-03-29T21:36:19.177548Z  INFO   min_body_ratio: 0.55
+2026-03-29T21:36:19.177557Z  INFO   volume_spike_mult: 1.5×
+2026-03-29T21:36:19.177564Z  INFO   pre_signal_lookback: 10 candles
+2026-03-29T21:36:19.177572Z  INFO   max_hold: 5 candles
+2026-03-29T21:36:19.177580Z  INFO   negative_ratio: 3:1
+2026-03-29T21:36:19.177591Z  INFO   TF 15m: impulse≥2.5%, TP=1.5%, SL=1.0%
+2026-03-29T21:36:19.177599Z  INFO   TF 60m: impulse≥4.0%, TP=2.5%, SL=1.5%
+2026-03-29T21:36:19.177610Z  INFO   TF 240m: impulse≥6.0%, TP=4.0%, SL=3.0%
+2026-03-29T21:36:19.177618Z  INFO   Loading TF 1440m (limit 3700 per symbol)...
+2026-03-29T21:36:36.596107Z  INFO     TF 1440m: 271 symbols, 211505 candles in 17.4s
+2026-03-29T21:36:36.596162Z  INFO   Loading TF 240m (limit 12000 per symbol)...
+2026-03-29T21:37:08.565885Z  INFO     TF 240m: 271 symbols, 1103164 candles in 32.0s
+2026-03-29T21:37:08.565919Z  INFO   Loading TF 60m (limit 12000 per symbol)...
+2026-03-29T21:37:51.323922Z  INFO     TF 60m: 271 symbols, 1943298 candles in 42.8s
+2026-03-29T21:37:51.323955Z  INFO   Loading TF 15m (limit 12000 per symbol)...
+2026-03-29T21:38:45.272289Z  INFO     TF 15m: 271 symbols, 2412656 candles in 53.9s
+2026-03-29T21:38:45.272322Z  INFO   Loading TF 5m (limit 12000 per symbol)...
+2026-03-29T21:39:26.885417Z  INFO     TF 5m: 271 symbols, 1886965 candles in 41.6s
+2026-03-29T21:39:26.885527Z  INFO   271 total active symbols loaded
+2026-03-29T21:39:27.031878Z  INFO   Progress: 50/271 symbols, 1694 examples so far
+2026-03-29T21:39:27.181552Z  INFO   Progress: 100/271 symbols, 3364 examples so far
+2026-03-29T21:39:27.319632Z  INFO   Progress: 150/271 symbols, 4808 examples so far
+2026-03-29T21:39:27.451286Z  INFO   Progress: 200/271 symbols, 6483 examples so far
+2026-03-29T21:39:27.578106Z  INFO   Progress: 250/271 symbols, 8024 examples so far
+2026-03-29T21:39:27.644580Z  INFO   Progress: 271/271 symbols, 8707 examples so far
+2026-03-29T21:39:27.645139Z  INFO   Dataset built: 8707 total examples
+2026-03-29T21:39:27.645156Z  INFO     LONG signals:   4476 (51.4%)
+2026-03-29T21:39:27.645166Z  INFO     SHORT signals:  4231 (48.6%)
+2026-03-29T21:39:27.645180Z  INFO     Negatives:      0 (0.0%)
+2026-03-29T21:39:27.645190Z  INFO     Win rate (heuristic): 35.9% (3124 TP / 8707 total signals)
+2026-03-29T21:39:27.645200Z  INFO     Symbols with signals: 246
+2026-03-29T21:39:27.958363Z  INFO   Feature vector size: 3958 (3950 TF features + 8 engulfing meta)
+2026-03-29T21:39:30.784757Z  INFO   Exported 8707 examples to dataset/impulse_dataset.csv
+2026-03-29T21:39:30.897185Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-29T21:39:30.897213Z  INFO ║  Dataset build complete                               ║
+2026-03-29T21:39:30.897222Z  INFO ║  Total: 8707 examples                                  
+2026-03-29T21:39:30.897232Z  INFO ║  Output: dataset/impulse_dataset.csv                                          
+2026-03-29T21:39:30.897240Z  INFO ║  Time: 191.7s                                        
+2026-03-29T21:39:30.897248Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-29T21:39:30.897261Z  INFO 
+2026-03-29T21:39:30.897269Z  INFO Next step: train the model
+2026-03-29T21:39:30.897275Z  INFO   python trainer/src/train_impulse_wfo.py --csv dataset/impulse_dataset.csv --gpu
+2026-03-29T22:01:51.249134Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-29T22:01:51.249161Z  INFO ║  Impulse Absorption & Engulfing — Dataset Builder     ║
+2026-03-29T22:01:51.249171Z  INFO ║  Multi-TF indicator snapshot + engulfing detection    ║
+2026-03-29T22:01:51.249179Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-29T22:01:51.253560Z  INFO Building Impulse Engulfing dataset...
+2026-03-29T22:01:51.253578Z  INFO ImpulseConfig:
+2026-03-29T22:01:51.253589Z  INFO   min_body_ratio: 0.55
+2026-03-29T22:01:51.253598Z  INFO   volume_spike_mult: 1.5×
+2026-03-29T22:01:51.253608Z  INFO   pre_signal_lookback: 10 candles
+2026-03-29T22:01:51.253616Z  INFO   max_hold: 5 candles
+2026-03-29T22:01:51.253624Z  INFO   negative_ratio: 3:1
+2026-03-29T22:01:51.253635Z  INFO   TF 15m: impulse≥2.5%, TP=1.5%, SL=1.0%
+2026-03-29T22:01:51.253648Z  INFO   TF 60m: impulse≥4.0%, TP=2.5%, SL=1.5%
+2026-03-29T22:01:51.253658Z  INFO   TF 240m: impulse≥6.0%, TP=4.0%, SL=3.0%
+2026-03-29T22:01:51.253669Z  INFO   Loading TF 1440m (limit 3700 per symbol)...
+2026-03-29T22:02:08.259771Z  INFO     TF 1440m: 271 symbols, 211505 candles in 17.0s
+2026-03-29T22:02:08.259830Z  INFO   Loading TF 240m (limit 12000 per symbol)...
+2026-03-29T22:02:40.396973Z  INFO     TF 240m: 271 symbols, 1103164 candles in 32.1s
+2026-03-29T22:02:40.397005Z  INFO   Loading TF 60m (limit 12000 per symbol)...
+2026-03-29T22:03:23.088668Z  INFO     TF 60m: 271 symbols, 1943298 candles in 42.7s
+2026-03-29T22:03:23.088699Z  INFO   Loading TF 15m (limit 12000 per symbol)...
+2026-03-29T22:04:13.534815Z  INFO     TF 15m: 271 symbols, 2412656 candles in 50.4s
+2026-03-29T22:04:13.534849Z  INFO   Loading TF 5m (limit 12000 per symbol)...
+2026-03-29T22:04:56.560472Z  INFO     TF 5m: 271 symbols, 1886965 candles in 43.0s
+2026-03-29T22:04:56.560507Z  INFO   271 total active symbols loaded
+2026-03-29T22:04:56.670304Z  INFO   Progress: 50/271 symbols, 219 examples so far
+2026-03-29T22:04:56.862363Z  INFO   Progress: 100/271 symbols, 466 examples so far
+2026-03-29T22:04:56.992224Z  INFO   Progress: 150/271 symbols, 687 examples so far
+2026-03-29T22:04:57.122769Z  INFO   Progress: 200/271 symbols, 968 examples so far
+2026-03-29T22:04:57.313137Z  INFO   Progress: 250/271 symbols, 1155 examples so far
+2026-03-29T22:04:57.404818Z  INFO   Progress: 271/271 symbols, 1242 examples so far
+2026-03-29T22:04:57.405733Z  INFO   Dataset built: 1242 total examples
+2026-03-29T22:04:57.405745Z  INFO     LONG signals:   556 (44.8%)
+2026-03-29T22:04:57.405753Z  INFO     SHORT signals:  686 (55.2%)
+2026-03-29T22:04:57.405759Z  INFO     Negatives:      0 (0.0%)
+2026-03-29T22:04:57.405766Z  INFO     Win rate (heuristic): 28.3% (352 TP / 1242 total signals)
+2026-03-29T22:04:57.405772Z  INFO     Symbols with signals: 153
+2026-03-29T22:04:57.719892Z  INFO   Feature vector size: 3958 (3950 TF features + 8 engulfing meta)
+2026-03-29T22:04:58.143555Z  INFO   Exported 1242 examples to dataset/impulse_dataset.csv
+2026-03-29T22:04:58.165342Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-29T22:04:58.165371Z  INFO ║  Dataset build complete                               ║
+2026-03-29T22:04:58.165385Z  INFO ║  Total: 1242 examples                                  
+2026-03-29T22:04:58.165400Z  INFO ║  Output: dataset/impulse_dataset.csv                                          
+2026-03-29T22:04:58.165426Z  INFO ║  Time: 186.9s                                        
+2026-03-29T22:04:58.165449Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-29T22:04:58.165459Z  INFO 
+2026-03-29T22:04:58.165469Z  INFO Next step: train the model
+2026-03-29T22:04:58.165480Z  INFO   python trainer/src/train_impulse_wfo.py --csv dataset/impulse_dataset.csv --gpu
+2026-03-30T12:10:15.572360Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-30T12:10:15.572392Z  INFO ║  Impulse Absorption & Engulfing — Dataset Builder     ║
+2026-03-30T12:10:15.572402Z  INFO ║  Multi-TF indicator snapshot + engulfing detection    ║
+2026-03-30T12:10:15.572410Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-30T12:10:15.576653Z  INFO Building Impulse Engulfing dataset...
+2026-03-30T12:10:15.576675Z  INFO ImpulseConfig (v3 — relaxed heuristic):
+2026-03-30T12:10:15.576686Z  INFO   min_body_ratio: 0.50
+2026-03-30T12:10:15.576696Z  INFO   volume_spike_mult: 1.3× (EITHER impulse OR absorption)
+2026-03-30T12:10:15.576705Z  INFO   atr_multiplier: 1.5× (dynamic impulse threshold)
+2026-03-30T12:10:15.576714Z  INFO   open_leniency_pct: 0.001 (0.1% micro-gap tolerance)
+2026-03-30T12:10:15.576722Z  INFO   pre_signal_lookback: 10 candles
+2026-03-30T12:10:15.576730Z  INFO   max_hold: 8 candles
+2026-03-30T12:10:15.576738Z  INFO   negative_ratio: 3:1
+2026-03-30T12:10:15.576746Z  INFO   multi-bar absorption: ENABLED (1-bar + 2-bar piercing line)
+2026-03-30T12:10:15.576755Z  INFO   TF 15m: floor≥1.0%, TP=1.5%, SL=1.0%
+2026-03-30T12:10:15.576766Z  INFO   TF 60m: floor≥1.5%, TP=2.5%, SL=1.5%
+2026-03-30T12:10:15.576777Z  INFO   TF 240m: floor≥3.5%, TP=4.0%, SL=3.0%
+2026-03-30T12:10:15.576789Z  INFO   Loading TF 1440m (limit 3700 per symbol)...
+2026-03-30T12:10:33.306306Z  INFO     TF 1440m: 272 symbols, 208592 candles in 17.7s
+2026-03-30T12:10:33.306362Z  INFO   Loading TF 240m (limit 12000 per symbol)...
+2026-03-30T12:11:08.344331Z  INFO     TF 240m: 272 symbols, 1113457 candles in 35.0s
+2026-03-30T12:11:08.344363Z  INFO   Loading TF 60m (limit 12000 per symbol)...
+2026-03-30T12:11:57.213981Z  INFO     TF 60m: 272 symbols, 1965990 candles in 48.9s
+2026-03-30T12:11:57.214014Z  INFO   Loading TF 15m (limit 12000 per symbol)...
+2026-03-30T12:12:52.791242Z  INFO     TF 15m: 272 symbols, 2460550 candles in 55.6s
+2026-03-30T12:12:52.791269Z  INFO   Loading TF 5m (limit 12000 per symbol)...
+2026-03-30T12:13:40.947447Z  INFO     TF 5m: 272 symbols, 1987889 candles in 48.2s
+2026-03-30T12:13:40.947481Z  INFO   272 total active symbols loaded
+2026-03-30T12:13:41.135346Z  INFO   Progress: 50/272 symbols, 1284 examples so far
+2026-03-30T12:13:41.312525Z  INFO   Progress: 100/272 symbols, 2488 examples so far
+2026-03-30T12:13:41.453823Z  INFO   Progress: 150/272 symbols, 3647 examples so far
+2026-03-30T12:13:41.581823Z  INFO   Progress: 200/272 symbols, 4811 examples so far
+2026-03-30T12:13:41.747200Z  INFO   Progress: 250/272 symbols, 5941 examples so far
+2026-03-30T12:13:41.846058Z  INFO   Progress: 272/272 symbols, 6630 examples so far
+2026-03-30T12:13:41.846696Z  INFO   Dataset built: 6630 total examples
+2026-03-30T12:13:41.846710Z  INFO     LONG signals:   2648 (39.9%)
+2026-03-30T12:13:41.846718Z  INFO     SHORT signals:  3982 (60.1%)
+2026-03-30T12:13:41.846726Z  INFO     Negatives:      0 (0.0%)
+2026-03-30T12:13:41.846734Z  INFO     Win rate (heuristic): 39.0% (2588 TP / 6630 total signals)
+2026-03-30T12:13:41.846741Z  INFO     Symbols with signals: 245
+2026-03-30T12:13:42.194682Z  INFO   Feature vector size: 3959 (3950 TF features + 9 engulfing meta)
+2026-03-30T12:13:44.686022Z  INFO   Exported 6630 examples to dataset/impulse_dataset.csv
+2026-03-30T12:13:44.758164Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-30T12:13:44.758190Z  INFO ║  Dataset build complete                               ║
+2026-03-30T12:13:44.758200Z  INFO ║  Total: 6630 examples                                  
+2026-03-30T12:13:44.758209Z  INFO ║  Output: dataset/impulse_dataset.csv                                          
+2026-03-30T12:13:44.758218Z  INFO ║  Time: 209.2s                                        
+2026-03-30T12:13:44.758226Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-30T12:13:44.758236Z  INFO 
+2026-03-30T12:13:44.758243Z  INFO Next step: train the model
+2026-03-30T12:13:44.758250Z  INFO   python trainer/src/train_impulse_wfo.py --csv dataset/impulse_dataset.csv --gpu
+2026-03-30T12:55:37.846891Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-30T12:55:37.846916Z  INFO ║  Impulse Absorption & Engulfing — Dataset Builder     ║
+2026-03-30T12:55:37.846925Z  INFO ║  Multi-TF indicator snapshot + engulfing detection    ║
+2026-03-30T12:55:37.846933Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-30T12:55:37.850952Z  INFO Building Impulse Engulfing dataset...
+2026-03-30T12:55:37.850969Z  INFO ImpulseConfig (v3 — relaxed heuristic):
+2026-03-30T12:55:37.850979Z  INFO   min_body_ratio: 0.50
+2026-03-30T12:55:37.850989Z  INFO   volume_spike_mult: 1.3× (EITHER impulse OR absorption)
+2026-03-30T12:55:37.851000Z  INFO   atr_multiplier: 1.5× (dynamic impulse threshold)
+2026-03-30T12:55:37.851013Z  INFO   open_leniency_pct: 0.001 (0.1% micro-gap tolerance)
+2026-03-30T12:55:37.851024Z  INFO   pre_signal_lookback: 10 candles
+2026-03-30T12:55:37.851033Z  INFO   max_hold: 8 candles
+2026-03-30T12:55:37.851044Z  INFO   negative_ratio: 3:1
+2026-03-30T12:55:37.851054Z  INFO   multi-bar absorption: ENABLED (1-bar + 2-bar piercing line)
+2026-03-30T12:55:37.851064Z  INFO   TF 15m: floor≥1.0%, TP=1.5%, SL=1.0%
+2026-03-30T12:55:37.851076Z  INFO   TF 60m: floor≥1.5%, TP=2.5%, SL=1.5%
+2026-03-30T12:55:37.851087Z  INFO   TF 240m: floor≥3.5%, TP=4.0%, SL=3.0%
+2026-03-30T12:55:37.851098Z  INFO   Loading TF 1440m (limit 3700 per symbol)...
+2026-03-30T12:56:08.854678Z  INFO     TF 1440m: 311 symbols, 231359 candles in 31.0s
+2026-03-30T12:56:08.854734Z  INFO   Loading TF 240m (limit 12000 per symbol)...
+2026-03-30T12:56:56.787152Z  INFO     TF 240m: 301 symbols, 1187640 candles in 47.9s
+2026-03-30T12:56:56.787180Z  INFO   Loading TF 60m (limit 12000 per symbol)...
+2026-03-30T12:57:57.640422Z  INFO     TF 60m: 308 symbols, 2093294 candles in 60.9s
+2026-03-30T12:57:57.640467Z  INFO   Loading TF 15m (limit 12000 per symbol)...
+2026-03-30T12:59:06.762619Z  INFO     TF 15m: 312 symbols, 2635384 candles in 69.1s
+2026-03-30T12:59:06.762654Z  INFO   Loading TF 5m (limit 12000 per symbol)...
+2026-03-30T13:00:09.303456Z  INFO     TF 5m: 312 symbols, 2129603 candles in 62.5s
+2026-03-30T13:00:09.303489Z  INFO   311 total active symbols loaded
+2026-03-30T13:00:09.451521Z  INFO   Progress: 50/311 symbols, 1190 examples so far
+2026-03-30T13:00:09.620159Z  INFO   Progress: 100/311 symbols, 2222 examples so far
+2026-03-30T13:00:09.794865Z  INFO   Progress: 150/311 symbols, 3377 examples so far
+2026-03-30T13:00:09.941247Z  INFO   Progress: 200/311 symbols, 4501 examples so far
+2026-03-30T13:00:10.082147Z  INFO   Progress: 250/311 symbols, 5655 examples so far
+2026-03-30T13:00:10.247652Z  INFO   Progress: 300/311 symbols, 6815 examples so far
+2026-03-30T13:00:10.301906Z  INFO   Progress: 311/311 symbols, 7089 examples so far
+2026-03-30T13:00:10.303153Z  INFO   Dataset built: 7089 total examples
+2026-03-30T13:00:10.303165Z  INFO     LONG signals:   2814 (39.7%)
+2026-03-30T13:00:10.303173Z  INFO     SHORT signals:  4275 (60.3%)
+2026-03-30T13:00:10.303180Z  INFO     Negatives:      0 (0.0%)
+2026-03-30T13:00:10.303186Z  INFO     Win rate (heuristic): 39.1% (2769 TP / 7089 total signals)
+2026-03-30T13:00:10.303193Z  INFO     Symbols with signals: 269
+2026-03-30T13:00:10.690951Z  INFO   Feature vector size: 3959 (3950 TF features + 9 engulfing meta)
+2026-03-30T13:00:13.169451Z  INFO   Exported 7089 examples to dataset/impulse_dataset.csv
+2026-03-30T13:00:13.334119Z  INFO ╔═══════════════════════════════════════════════════════╗
+2026-03-30T13:00:13.334139Z  INFO ║  Dataset build complete                               ║
+2026-03-30T13:00:13.334146Z  INFO ║  Total: 7089 examples                                  
+2026-03-30T13:00:13.334153Z  INFO ║  Output: dataset/impulse_dataset.csv                                          
+2026-03-30T13:00:13.334160Z  INFO ║  Time: 275.5s                                        
+2026-03-30T13:00:13.334167Z  INFO ╚═══════════════════════════════════════════════════════╝
+2026-03-30T13:00:13.334173Z  INFO 
+2026-03-30T13:00:13.334178Z  INFO Next step: train the model
+2026-03-30T13:00:13.334184Z  INFO   python trainer/src/train_impulse_wfo.py --csv dataset/impulse_dataset.csv --gpu

@@ -1,0 +1,72 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Imbalance Candle Strategy — Configuration v4.7 (BEST SO FAR)
+# ═══════════════════════════════════════════════════════════════════════
+# Iteration 8: Focus on the sweet spot — parent moves ≥18%
+#
+# Current best: RealWR 54.1%, AvgPnL 0.43%, PF 1.21 (752 trades)
+#   - 240→60: PF 1.39, RealWR 56.7%
+#   - Hold=1: RealWR ~70%, AvgPnL ~1.5%
+#   - Parent 20-30%: RealWR 59.4%, AvgPnL 0.88%
+#
+# This try: parent ≥18% to include more of the sweet spot while
+# filtering out the marginal 12-17% moves.
+# ═══════════════════════════════════════════════════════════════════════
+
+[strategy]
+min_signal_score = 0.75
+allow_reversals = false
+allow_short_continuation = false
+min_volume_ratio = 1.5
+max_hold_candles = 2
+
+[tp_sl]
+tp_atr_mult = 10.0
+sl_atr_mult = 10.0
+max_sl_pct = 6.0
+max_tp_pct = 50.0
+min_tp_pct = 0.1
+min_sl_pct = 0.1
+tp_body_fraction = 0.30
+sl_range_fraction = 0.20
+
+[exit]
+# THE KEY: exit at close of candle 1 if in profit
+profit_exit_after_candles = 1
+trailing_start_candle = 2
+
+[confirmation]
+min_confirm_body_ratio = 0.10
+continuation_pullback_pct = 0.50
+use_pullback_entry = false
+max_entry_wait_candles = 1
+min_pullback_atr = 0.0
+
+[detection]
+continuation_min_body_ratio = 0.55
+reversal_max_body_ratio = 0.40
+rsi_oversold = 25.0
+rsi_overbought = 75.0
+
+[[tf_pairs]]
+parent_tf = 1440
+child_tf = 240
+min_move_pct = 18.0
+enabled = true
+
+[[tf_pairs]]
+parent_tf = 240
+child_tf = 60
+min_move_pct = 18.0
+enabled = true
+
+[[tf_pairs]]
+parent_tf = 60
+child_tf = 15
+min_move_pct = 18.0
+enabled = false
+
+[[tf_pairs]]
+parent_tf = 15
+child_tf = 5
+min_move_pct = 18.0
+enabled = false

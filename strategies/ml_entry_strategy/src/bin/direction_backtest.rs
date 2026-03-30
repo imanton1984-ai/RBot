@@ -316,8 +316,8 @@ async fn main() -> Result<()> {
                     if candles[t].time < min_d { continue; }
                 }
 
-                // Compute pattern features
-                if let Some(feats) = compute_pattern_features(candles, t, &dir_config) {
+                // Compute pattern features (no HTF in standalone backtest)
+                if let Some(feats) = compute_pattern_features(candles, t, &dir_config, None) {
                     for &v in &feats {
                         batch_features.push(v as f32);
                     }

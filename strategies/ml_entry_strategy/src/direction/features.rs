@@ -1,12 +1,20 @@
 // strategies/ml_entry_strategy/src/direction/features.rs
 //
-// Direction Model v4 — CNN-like Sliding Window Feature Extraction
+// Direction Model v4+ — CNN-like Sliding Window Feature Extraction
+// with Summary Features and Cross-TF Context
 //
 // CORE IDEA:
 //   Instead of computing 32 indicator-derived features for a single point in time,
 //   we take a WINDOW of W raw candles and flatten them into a wide feature row.
 //   XGBoost then builds decision trees that naturally find local patterns
 //   within this temporal window — mimicking a 1D convolutional layer.
+//
+// v4+ ENHANCEMENTS:
+//   After the raw sliding window features, we append:
+//     1. SUMMARY features (11): slope, range_pos, momentum_diff, volatility_change,
+//        volume_pressure, body_ratio×3, return_5bar, return_10bar, return_full_window
+//     2. HTF context features (3): htf_trend, htf_range_pos, htf_vol_spike
+//   Total = W × fpc + 11 + 3
 //
 // STATIONARITY:
 //   Raw prices are non-stationary (BTC at 60K vs 100K).
@@ -22,23 +30,86 @@
 //
 // COLUMN NAMING:
 //   w{i}_{feature} — e.g. w0_open_rel, w0_high_rel, ..., w29_close_rel
-//   where i=0 is the oldest candle in window, i=W-1 is the latest (current).
+//   summary_{name} — e.g. summary_slope, summary_range_pos
+//   htf_{name}     — e.g. htf_trend, htf_range_pos, htf_vol_spike
 
 use crate::dataset::CandleWithIndicators;
-use super::{DirectionConfig, FeatureSet};
+use super::{DirectionConfig, FeatureSet, SUMMARY_FEATURE_COUNT, HTF_FEATURE_COUNT};
 
 // ═════════════════════════════════════════════════════════════════════════════
-// V4 PATTERN FEATURES — CNN-like sliding window
+// HELPER FUNCTIONS
 // ═════════════════════════════════════════════════════════════════════════════
 
-/// Generate feature column names for the v4 pattern model.
+/// Linear regression slope of a slice of values, normalized to [-1, +1].
 ///
-/// Returns a list of names like ["w0_open_rel", "w0_high_rel", ..., "w29_vol_rel"]
+/// Uses least-squares fit: slope = Σ((x - x̄)(y - ȳ)) / Σ((x - x̄)²)
+/// Then normalizes by dividing by the mean of y (so slope is "% change per bar").
+fn linear_regression_slope(values: &[f64]) -> f64 {
+    let n = values.len();
+    if n < 2 {
+        return 0.0;
+    }
+
+    let n_f = n as f64;
+    let x_mean = (n_f - 1.0) / 2.0;
+    let y_mean: f64 = values.iter().sum::<f64>() / n_f;
+
+    if y_mean.abs() < 1e-12 {
+        return 0.0;
+    }
+
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for (i, &v) in values.iter().enumerate() {
+        let xi = i as f64 - x_mean;
+        num += xi * (v - y_mean);
+        den += xi * xi;
+    }
+
+    if den.abs() < 1e-12 {
+        return 0.0;
+    }
+
+    let raw_slope = num / den;
+    // Normalize: slope per bar as fraction of mean price → clamp to [-1, +1]
+    (raw_slope / y_mean * n_f).clamp(-1.0, 1.0)
+}
+
+/// Average True Range for a slice of candles.
+fn avg_true_range(candles: &[CandleWithIndicators]) -> f64 {
+    if candles.is_empty() {
+        return 0.0;
+    }
+    let mut sum = 0.0;
+    for (i, c) in candles.iter().enumerate() {
+        let tr = if i == 0 {
+            c.high - c.low
+        } else {
+            let prev_close = candles[i - 1].close;
+            (c.high - c.low)
+                .max((c.high - prev_close).abs())
+                .max((c.low - prev_close).abs())
+        };
+        sum += tr;
+    }
+    sum / candles.len() as f64
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// V4+ PATTERN FEATURES — CNN-like sliding window + summary + HTF
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Generate feature column names for the v4+ pattern model.
+///
+/// Returns a list of names:
+///   ["w0_open_rel", ..., "w{W-1}_vol_rel",
+///    "summary_slope", "summary_range_pos", ...,
+///    "htf_trend", "htf_range_pos", "htf_vol_spike"]
 pub fn direction_v4_feature_names(config: &DirectionConfig) -> Vec<String> {
     let mut names = Vec::with_capacity(config.total_features());
 
+    // ── Sliding window features ──
     for i in 0..config.window_size {
-        // Always present: OHLC relative
         names.push(format!("w{}_open_rel", i));
         names.push(format!("w{}_high_rel", i));
         names.push(format!("w{}_low_rel", i));
@@ -60,13 +131,32 @@ pub fn direction_v4_feature_names(config: &DirectionConfig) -> Vec<String> {
         }
     }
 
+    // ── Summary features (11) ──
+    names.push("summary_slope".to_string());
+    names.push("summary_range_pos".to_string());
+    names.push("summary_momentum_diff".to_string());
+    names.push("summary_volatility_change".to_string());
+    names.push("summary_volume_pressure".to_string());
+    names.push("summary_body_ratio_0".to_string());
+    names.push("summary_body_ratio_1".to_string());
+    names.push("summary_body_ratio_2".to_string());
+    names.push("summary_return_5bar".to_string());
+    names.push("summary_return_10bar".to_string());
+    names.push("summary_return_full".to_string());
+
+    // ── HTF context features (3) ──
+    names.push("htf_trend".to_string());
+    names.push("htf_range_pos".to_string());
+    names.push("htf_vol_spike".to_string());
+
     debug_assert_eq!(names.len(), config.total_features(),
         "Feature name count mismatch: {} vs {}", names.len(), config.total_features());
 
     names
 }
 
-/// Compute CNN-like sliding window features for candle at index `t`.
+/// Compute CNN-like sliding window features + summary features + HTF context
+/// for candle at index `t`.
 ///
 /// The window covers candles [t - window_size + 1, ..., t].
 /// All prices are normalized relative to window[0].open (the oldest candle's open).
@@ -75,6 +165,7 @@ pub fn direction_v4_feature_names(config: &DirectionConfig) -> Vec<String> {
 /// * `candles` — full candle history (sorted by time ASC)
 /// * `t` — index of the CURRENT (latest) candle in the window
 /// * `config` — direction model configuration
+/// * `htf_candles` — optional higher-timeframe candle data (sorted by time ASC)
 ///
 /// # Returns
 /// `None` if not enough history (t < window_size - 1).
@@ -83,6 +174,7 @@ pub fn compute_pattern_features(
     candles: &[CandleWithIndicators],
     t: usize,
     config: &DirectionConfig,
+    htf_candles: Option<&[CandleWithIndicators]>,
 ) -> Option<Vec<f64>> {
     let w = config.window_size;
 
@@ -98,7 +190,6 @@ pub fn compute_pattern_features(
         return None; // degenerate: zero price
     }
 
-    let fpc = config.feature_set.features_per_candle();
     let total = config.total_features();
     let mut feats = Vec::with_capacity(total);
 
@@ -110,6 +201,10 @@ pub fn compute_pattern_features(
     } else {
         1.0
     };
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Part 1: Sliding window features (same as v4)
+    // ═══════════════════════════════════════════════════════════════════
 
     for i in 0..w {
         let c = &candles[window_start + i];
@@ -139,11 +234,9 @@ pub fn compute_pattern_features(
             feats.push(body / ref_open * 100.0);
 
             if range > 1e-12 {
-                // upper_wick_ratio: fraction of the bar that is upper wick [0, 1]
                 let upper_wick = c.high - c.close.max(c.open);
                 feats.push(upper_wick / range);
 
-                // lower_wick_ratio: fraction of the bar that is lower wick [0, 1]
                 let lower_wick = c.close.min(c.open) - c.low;
                 feats.push(lower_wick / range);
             } else {
@@ -156,7 +249,6 @@ pub fn compute_pattern_features(
         if matches!(config.feature_set, FeatureSet::Full) {
             if i > 0 {
                 let prev = &candles[window_start + i - 1];
-                // bar_return: % return from previous close
                 let bar_return = if prev.close.abs() > 1e-12 {
                     (c.close - prev.close) / prev.close * 100.0
                 } else {
@@ -164,7 +256,6 @@ pub fn compute_pattern_features(
                 };
                 feats.push(bar_return);
 
-                // gap_pct: gap from previous close to current open
                 let gap = if prev.close.abs() > 1e-12 {
                     (c.open - prev.close) / prev.close * 100.0
                 } else {
@@ -172,16 +263,221 @@ pub fn compute_pattern_features(
                 };
                 feats.push(gap);
             } else {
-                // First candle in window has no previous bar
                 feats.push(0.0); // bar_return
                 feats.push(0.0); // gap_pct
             }
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // Part 2: Summary features (11)
+    // ═══════════════════════════════════════════════════════════════════
+
+    let window = &candles[window_start..window_start + w];
+    let last_close = candles[t].close;
+
+    // 1. SLOPE: linear regression slope of closes in window (normalized -1..+1)
+    {
+        let closes: Vec<f64> = window.iter().map(|c| c.close).collect();
+        feats.push(linear_regression_slope(&closes));
+    }
+
+    // 2. RANGE POSITION: where current price is in the window's H-L range [0, 1]
+    {
+        let min_low = window.iter().map(|c| c.low).fold(f64::MAX, f64::min);
+        let max_high = window.iter().map(|c| c.high).fold(f64::MIN, f64::max);
+        let range = max_high - min_low;
+        let range_pos = if range > 1e-12 {
+            (last_close - min_low) / range
+        } else {
+            0.5
+        };
+        feats.push(range_pos);
+    }
+
+    // 3. MOMENTUM DIFF: return(last 5) − return(prev 5) → acceleration
+    {
+        let momentum_diff = if w >= 11 {
+            let c_last = candles[t].close;
+            let c_5ago = candles[t - 5].close;
+            let c_10ago = candles[t - 10].close;
+            if c_5ago.abs() > 1e-12 && c_10ago.abs() > 1e-12 {
+                let ret_last5 = (c_last - c_5ago) / c_5ago * 100.0;
+                let ret_prev5 = (c_5ago - c_10ago) / c_10ago * 100.0;
+                ret_last5 - ret_prev5
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+        feats.push(momentum_diff);
+    }
+
+    // 4. VOLATILITY CHANGE: ATR(last 5) / ATR(first 5)
+    {
+        let volatility_change = if w >= 10 {
+            let atr_recent = avg_true_range(&window[w - 5..]);
+            let atr_old = avg_true_range(&window[..5]);
+            if atr_old > 1e-12 {
+                atr_recent / atr_old
+            } else {
+                1.0
+            }
+        } else {
+            1.0
+        };
+        feats.push(volatility_change);
+    }
+
+    // 5. VOLUME PRESSURE: ln(vol_up / vol_down)
+    {
+        let (vol_up, vol_down) = window.iter().fold((0.0_f64, 0.0_f64), |(vu, vd), c| {
+            if c.close >= c.open {
+                (vu + c.volume, vd)
+            } else {
+                (vu, vd + c.volume)
+            }
+        });
+        let vp = if vol_down > 1e-12 {
+            (vol_up / vol_down).ln()
+        } else {
+            0.0
+        };
+        feats.push(vp);
+    }
+
+    // 6-8. BODY/WICK RATIO for last 3 bars (candle pattern)
+    {
+        let start_j = if w >= 3 { w - 3 } else { 0 };
+        for j in start_j..w {
+            let c = &window[j];
+            let range = c.high - c.low;
+            let body = (c.close - c.open).abs();
+            feats.push(if range > 1e-12 { body / range } else { 0.0 });
+        }
+        // Pad if window < 3
+        for _ in 0..(3usize.saturating_sub(w)) {
+            feats.push(0.0);
+        }
+    }
+
+    // 9-11. MULTI-SCALE RETURNS: return over 5, 10, full window
+    {
+        // 5-bar return
+        let ret_5 = if w >= 6 {
+            let c5 = candles[t - 5].close;
+            if c5.abs() > 1e-12 { (last_close - c5) / c5 * 100.0 } else { 0.0 }
+        } else {
+            0.0
+        };
+        feats.push(ret_5);
+
+        // 10-bar return
+        let ret_10 = if w >= 11 {
+            let c10 = candles[t - 10].close;
+            if c10.abs() > 1e-12 { (last_close - c10) / c10 * 100.0 } else { 0.0 }
+        } else {
+            0.0
+        };
+        feats.push(ret_10);
+
+        // Full window return
+        let c0 = candles[window_start].close;
+        let ret_full = if c0.abs() > 1e-12 {
+            (last_close - c0) / c0 * 100.0
+        } else {
+            0.0
+        };
+        feats.push(ret_full);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Part 3: HTF (Higher Timeframe) context features (3)
+    // ═══════════════════════════════════════════════════════════════════
+
+    let target_time = candles[t].time;
+
+    match htf_candles {
+        Some(htf) if !htf.is_empty() => {
+            // Find the most recent HTF candle at or before target_time
+            let htf_idx = htf.partition_point(|c| c.time <= target_time);
+            if htf_idx > 0 {
+                let hi = htf_idx - 1; // index of current HTF candle
+
+                // HTF_TREND: slope of closes over last 10 HTF bars (-1..+1)
+                let htf_trend = if hi >= 9 {
+                    let htf_closes: Vec<f64> = htf[hi - 9..=hi].iter().map(|c| c.close).collect();
+                    linear_regression_slope(&htf_closes)
+                } else if hi >= 1 {
+                    let htf_closes: Vec<f64> = htf[..=hi].iter().map(|c| c.close).collect();
+                    linear_regression_slope(&htf_closes)
+                } else {
+                    0.0
+                };
+                feats.push(htf_trend);
+
+                // HTF_RANGE_POS: position of HTF close in its 50-bar range
+                let htf_lb = 50.min(hi + 1);
+                let htf_range_pos = if htf_lb >= 2 {
+                    let htf_window = &htf[hi + 1 - htf_lb..=hi];
+                    let min_l = htf_window.iter().map(|c| c.low).fold(f64::MAX, f64::min);
+                    let max_h = htf_window.iter().map(|c| c.high).fold(f64::MIN, f64::max);
+                    let r = max_h - min_l;
+                    if r > 1e-12 {
+                        (htf[hi].close - min_l) / r
+                    } else {
+                        0.5
+                    }
+                } else {
+                    0.5
+                };
+                feats.push(htf_range_pos);
+
+                // HTF_VOL_SPIKE: current HTF volume / average of last 20 bars
+                let htf_vol_spike = if hi >= 1 {
+                    let lb = 20.min(hi);
+                    let mean_vol: f64 = htf[hi - lb..hi].iter().map(|c| c.volume).sum::<f64>()
+                        / lb as f64;
+                    if mean_vol > 1e-12 {
+                        htf[hi].volume / mean_vol
+                    } else {
+                        1.0
+                    }
+                } else {
+                    1.0
+                };
+                feats.push(htf_vol_spike);
+            } else {
+                // No HTF candle before target time → pad with defaults
+                feats.push(0.0); // htf_trend
+                feats.push(0.5); // htf_range_pos
+                feats.push(1.0); // htf_vol_spike
+            }
+        }
+        _ => {
+            // No HTF data available → pad with defaults
+            feats.push(0.0); // htf_trend
+            feats.push(0.5); // htf_range_pos
+            feats.push(1.0); // htf_vol_spike
+        }
+    }
+
     debug_assert_eq!(feats.len(), total,
-        "Pattern feature count mismatch: expected {}, got {} (window={}, fpc={})",
-        total, feats.len(), w, fpc);
+        "Pattern feature count mismatch: expected {}, got {} (window={}, summary={}, htf={})",
+        total, feats.len(), w, SUMMARY_FEATURE_COUNT, HTF_FEATURE_COUNT);
+
+    // ── Sanitize: replace inf/NaN with 0.0, clamp to f32-safe range ──
+    // XGBoost rejects inf values; large f64 values overflow to f32::INFINITY on cast.
+    // f32::MAX ≈ 3.4e38 — clamp well below that.
+    const MAX_ABS: f64 = 1e30;
+    for v in &mut feats {
+        if !v.is_finite() {
+            *v = 0.0;
+        } else {
+            *v = v.clamp(-MAX_ABS, MAX_ABS);
+        }
+    }
 
     Some(feats)
 }
@@ -246,7 +542,6 @@ pub fn compute_label(
             }
         }
         super::LabelMethod::MaxExcursion => {
-            // Label based on which direction had a stronger excursion
             if max_up > config.up_threshold_pct && max_up > max_down {
                 1i8  // UP
             } else if max_down > config.down_threshold_pct && max_down > max_up {
@@ -262,9 +557,27 @@ pub fn compute_label(
 
 
 // ═════════════════════════════════════════════════════════════════════════════
+// HTF TIMEFRAME MAPPING
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Get the higher timeframe for cross-TF context.
+/// Returns None if no higher TF available.
+pub fn get_htf_minutes(tf_minutes: i32) -> Option<i32> {
+    match tf_minutes {
+        1 => Some(5),
+        5 => Some(15),
+        15 => Some(60),
+        60 => Some(240),
+        240 => Some(1440),
+        _ => None,
+    }
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════
 // BACKWARD COMPATIBILITY — Legacy v3 stubs for pipeline.rs / model.rs
 // These functions are preserved so that the existing main pipeline compiles
-// without changes. They are NOT used by the new v4 pattern model.
+// without changes. They are NOT used by the new v4+ pattern model.
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// Legacy: v3 feature names (32 features). Kept for backward compat with pipeline.
@@ -525,7 +838,34 @@ mod tests {
     }
 
     #[test]
-    fn test_pattern_features_ohlcv() {
+    fn test_linear_regression_slope() {
+        // Perfect uptrend
+        let up = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        let slope = linear_regression_slope(&up);
+        assert!(slope > 0.5, "Expected positive slope for uptrend, got {}", slope);
+
+        // Perfect downtrend
+        let down = vec![5.0, 4.0, 3.0, 2.0, 1.0];
+        let slope = linear_regression_slope(&down);
+        assert!(slope < -0.5, "Expected negative slope for downtrend, got {}", slope);
+
+        // Flat
+        let flat = vec![3.0, 3.0, 3.0, 3.0, 3.0];
+        let slope = linear_regression_slope(&flat);
+        assert!(slope.abs() < 1e-6, "Expected ~0 slope for flat, got {}", slope);
+    }
+
+    #[test]
+    fn test_avg_true_range() {
+        let candles: Vec<CandleWithIndicators> = (0..5)
+            .map(|i| make_candle(100.0, 102.0, 98.0, 100.0 + i as f64, 1000.0))
+            .collect();
+        let atr = avg_true_range(&candles);
+        assert!(atr > 0.0, "ATR should be positive");
+    }
+
+    #[test]
+    fn test_pattern_features_ohlcv_with_summary_and_htf() {
         let config = DirectionConfig {
             window_size: 10,
             feature_set: FeatureSet::OhlcVolume,
@@ -541,11 +881,13 @@ mod tests {
             .collect();
 
         // At t=9 (10 candles available), should produce features
-        let feats = compute_pattern_features(&candles, 9, &config);
+        let feats = compute_pattern_features(&candles, 9, &config, None);
         assert!(feats.is_some());
         let feats = feats.unwrap();
-        assert_eq!(feats.len(), config.total_features()); // 10 * 5 = 50
-        assert_eq!(feats.len(), 50);
+
+        // Expected: 10*5 window + 11 summary + 3 htf = 64
+        assert_eq!(feats.len(), config.total_features());
+        assert_eq!(feats.len(), 10 * 5 + 11 + 3);
 
         // First candle (w0): open_rel should be 0.0 (reference point)
         assert!((feats[0] - 0.0).abs() < 1e-6, "w0_open_rel should be ~0.0, got {}", feats[0]);
@@ -553,6 +895,71 @@ mod tests {
         // Last candle should show the uptrend
         let last_close_idx = 9 * 5 + 3; // w9_close_rel
         assert!(feats[last_close_idx] > 0.0, "Last close should be above reference");
+
+        // Summary slope should be positive for uptrend
+        let slope_idx = 10 * 5; // first summary feature
+        assert!(feats[slope_idx] > 0.0, "Slope should be positive for uptrend, got {}", feats[slope_idx]);
+
+        // Range position should be near top (uptrend)
+        let range_pos_idx = 10 * 5 + 1;
+        assert!(feats[range_pos_idx] > 0.5, "Range pos should be >0.5 for uptrend, got {}", feats[range_pos_idx]);
+
+        // HTF features should be defaults (no HTF data passed)
+        let htf_start = feats.len() - 3;
+        assert!((feats[htf_start] - 0.0).abs() < 1e-6, "htf_trend should be 0.0");
+        assert!((feats[htf_start + 1] - 0.5).abs() < 1e-6, "htf_range_pos should be 0.5");
+        assert!((feats[htf_start + 2] - 1.0).abs() < 1e-6, "htf_vol_spike should be 1.0");
+
+        // All values should be finite
+        for (i, &v) in feats.iter().enumerate() {
+            assert!(v.is_finite(), "Feature {} is not finite: {}", i, v);
+        }
+    }
+
+    #[test]
+    fn test_pattern_features_with_htf() {
+        use chrono::{Duration, TimeZone};
+
+        let config = DirectionConfig {
+            window_size: 10,
+            feature_set: FeatureSet::OhlcVolume,
+            ..Default::default()
+        };
+
+        let base_time = Utc.with_ymd_and_hms(2025, 6, 1, 0, 0, 0).unwrap();
+
+        // Main TF candles: 15m intervals
+        let candles: Vec<CandleWithIndicators> = (0..15)
+            .map(|i| {
+                let p = 100.0 + i as f64 * 0.5;
+                let mut c = make_candle(p, p + 1.0, p - 0.5, p + 0.3, 1000.0 + i as f64 * 10.0);
+                c.time = base_time + Duration::minutes(15 * i as i64);
+                c
+            })
+            .collect();
+
+        // HTF candles (1h): created BEFORE the main TF time range so they're findable
+        let htf_candles: Vec<CandleWithIndicators> = (0..20)
+            .map(|i| {
+                let p = 100.0 + i as f64 * 2.0;
+                let mut c = make_candle(p, p + 3.0, p - 1.0, p + 1.0, 5000.0 + i as f64 * 100.0);
+                // HTF candles start well before main TF, spaced 1h apart
+                c.time = base_time - Duration::hours(20 - i as i64);
+                c
+            })
+            .collect();
+
+        let feats = compute_pattern_features(&candles, 9, &config, Some(&htf_candles));
+        assert!(feats.is_some());
+        let feats = feats.unwrap();
+        assert_eq!(feats.len(), config.total_features());
+
+        // HTF trend should be positive (uptrend in HTF)
+        let htf_start = feats.len() - 3;
+        assert!(feats[htf_start] > 0.0, "htf_trend should be positive, got {}", feats[htf_start]);
+
+        // HTF range_pos should be near top (uptrend)
+        assert!(feats[htf_start + 1] > 0.5, "htf_range_pos should be >0.5, got {}", feats[htf_start + 1]);
 
         // All values should be finite
         for (i, &v) in feats.iter().enumerate() {
@@ -572,7 +979,7 @@ mod tests {
             .collect();
 
         // t=7, need 10 candles, only have 8 → None
-        assert!(compute_pattern_features(&candles, 7, &config).is_none());
+        assert!(compute_pattern_features(&candles, 7, &config, None).is_none());
     }
 
     #[test]
@@ -590,10 +997,11 @@ mod tests {
             })
             .collect();
 
-        let feats = compute_pattern_features(&candles, 6, &config);
+        let feats = compute_pattern_features(&candles, 6, &config, None);
         assert!(feats.is_some());
         let feats = feats.unwrap();
-        assert_eq!(feats.len(), 5 * 10); // 5 candles × 10 features_per_candle
+        // 5 candles × 10 fpc + 11 summary + 3 htf = 64
+        assert_eq!(feats.len(), 5 * 10 + 11 + 3);
     }
 
     #[test]
@@ -631,11 +1039,19 @@ mod tests {
         };
 
         let names = direction_v4_feature_names(&config);
-        assert_eq!(names.len(), 15); // 3 × 5
+        // 3*5 window + 11 summary + 3 htf = 29
+        assert_eq!(names.len(), 29);
         assert_eq!(names[0], "w0_open_rel");
         assert_eq!(names[4], "w0_vol_rel");
         assert_eq!(names[5], "w1_open_rel");
         assert_eq!(names[14], "w2_vol_rel");
+        // Summary features start at index 15
+        assert_eq!(names[15], "summary_slope");
+        assert_eq!(names[16], "summary_range_pos");
+        // HTF features at the end
+        assert_eq!(names[26], "htf_trend");
+        assert_eq!(names[27], "htf_range_pos");
+        assert_eq!(names[28], "htf_vol_spike");
     }
 
     #[test]
@@ -654,5 +1070,15 @@ mod tests {
         for (i, &v) in feats.iter().enumerate() {
             assert!(v.is_finite(), "Legacy feature {} is not finite", i);
         }
+    }
+
+    #[test]
+    fn test_get_htf_minutes() {
+        assert_eq!(get_htf_minutes(1), Some(5));
+        assert_eq!(get_htf_minutes(5), Some(15));
+        assert_eq!(get_htf_minutes(15), Some(60));
+        assert_eq!(get_htf_minutes(60), Some(240));
+        assert_eq!(get_htf_minutes(240), Some(1440));
+        assert_eq!(get_htf_minutes(1440), None);
     }
 }

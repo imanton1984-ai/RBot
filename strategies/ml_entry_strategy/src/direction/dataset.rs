@@ -96,10 +96,17 @@ pub type DirectionExample = DirectionPatternExample;
 ///
 /// For each valid position t where we have enough history (window_size)
 /// and enough future (prediction_horizon), compute features and labels.
+///
+/// # Arguments
+/// * `candles` — main TF candle data
+/// * `config` — direction model configuration
+/// * `tf_minutes` — timeframe in minutes
+/// * `htf_candles` — optional higher-timeframe candle data for cross-TF context
 pub fn build_pattern_labels(
     candles: &[CandleWithIndicators],
     config: &DirectionConfig,
     tf_minutes: i32,
+    htf_candles: Option<&[CandleWithIndicators]>,
 ) -> Vec<DirectionPatternExample> {
     let n = candles.len();
     let min_required = config.min_candles_required();
@@ -120,8 +127,8 @@ pub fn build_pattern_labels(
     let mut examples = Vec::with_capacity(end_idx - start_idx);
 
     for t in start_idx..end_idx {
-        // Compute features
-        let features = match compute_pattern_features(candles, t, config) {
+        // Compute features (with summary + HTF context)
+        let features = match compute_pattern_features(candles, t, config, htf_candles) {
             Some(f) => f,
             None => continue,
         };
@@ -301,26 +308,67 @@ pub async fn fetch_all_raw_candles_for_tf(
     Ok(grouped)
 }
 
-/// Build the complete direction v4 pattern dataset for one TF.
+/// Build the complete direction v4+ pattern dataset for one TF.
 ///
 /// Steps:
 ///   1. Fetch active symbols
-///   2. For each symbol: fetch raw candles, convert, compute features + labels
-///   3. Aggregate all examples
+///   2. Fetch HTF candles (for cross-TF context features)
+///   3. For each symbol: fetch raw candles, convert, compute features + labels
+///   4. Aggregate all examples
 pub async fn build_direction_dataset_for_tf(
     pool: &PgPool,
     tf_minutes: i32,
     config: &DirectionConfig,
     limit_per_symbol: usize,
 ) -> Result<Vec<DirectionPatternExample>> {
-    info!("Building direction v4 pattern dataset for TF {}m (window={}, horizon={}, features={})",
-          tf_minutes, config.window_size, config.prediction_horizon, config.total_features());
+    use super::features::get_htf_minutes;
+
+    info!("Building direction v4+ pattern dataset for TF {}m (window={}, horizon={}, features={}, summary={}, htf={})",
+          tf_minutes, config.window_size, config.prediction_horizon, config.total_features(),
+          super::SUMMARY_FEATURE_COUNT, super::HTF_FEATURE_COUNT);
 
     // 1. Load active symbols
     let symbols = fetch_active_symbols(pool).await?;
     info!("  {} active symbols", symbols.len());
 
-    // 2. Process symbols concurrently
+    // 2. Pre-load HTF candles for cross-TF context (per symbol)
+    let htf_minutes = get_htf_minutes(tf_minutes);
+    let htf_data: Option<std::collections::HashMap<String, Vec<CandleWithIndicators>>> =
+        if let Some(htf_tf) = htf_minutes {
+            info!("  Loading HTF candles (TF {}m) for cross-TF context...", htf_tf);
+            // HTF candles: fewer bars needed (50 bars history is enough for HTF features)
+            let htf_limit = (limit_per_symbol / 4).max(200);
+            match fetch_all_raw_candles_for_tf(pool, htf_tf, htf_limit).await {
+                Ok(raw_htf) => {
+                    let htf_converted: std::collections::HashMap<String, Vec<CandleWithIndicators>> = raw_htf
+                        .into_iter()
+                        .map(|(sym, raws)| {
+                            let cwi: Vec<CandleWithIndicators> = raws.iter()
+                                .map(|r| r.to_candle_with_indicators(0))
+                                .collect();
+                            (sym, cwi)
+                        })
+                        .collect();
+                    let n_htf_symbols = htf_converted.len();
+                    let n_htf_candles: usize = htf_converted.values().map(|v| v.len()).sum();
+                    info!("  Loaded HTF: {} symbols, {} candles", n_htf_symbols, n_htf_candles);
+                    Some(htf_converted)
+                }
+                Err(e) => {
+                    tracing::warn!("  Failed to load HTF candles: {}. Proceeding without HTF context.", e);
+                    None
+                }
+            }
+        } else {
+            info!("  No HTF available for TF {}m (highest TF)", tf_minutes);
+            None
+        };
+
+    // Use Arc to share HTF data across async tasks without cloning
+    let htf_data_arc: std::sync::Arc<Option<std::collections::HashMap<String, Vec<CandleWithIndicators>>>> =
+        std::sync::Arc::new(htf_data);
+
+    // 3. Process symbols concurrently
     let concurrency = std::env::var("DATASET_CONCURRENCY")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
@@ -335,6 +383,7 @@ pub async fn build_direction_dataset_for_tf(
             let pool = pool.clone();
             let cfg = dir_config.clone();
             let min_required = cfg.min_candles_required();
+            let htf_ref = htf_data_arc.clone();
 
             async move {
                 // Fetch raw candles (no indicators needed!)
@@ -351,14 +400,20 @@ pub async fn build_direction_dataset_for_tf(
                 }
 
                 // Convert to CandleWithIndicators (indicators will be defaults)
-                // symbol_id=0 is fine since we don't use it in feature computation
                 let candles: Vec<CandleWithIndicators> = raw_candles
                     .iter()
                     .map(|r| r.to_candle_with_indicators(0))
                     .collect();
 
-                // Build pattern labels
-                build_pattern_labels(&candles, &cfg, tf_minutes)
+                // Get HTF candles for this symbol (if available)
+                let htf_candles: Option<&[CandleWithIndicators]> = htf_ref
+                    .as_ref()
+                    .as_ref()
+                    .and_then(|m| m.get(&symbol))
+                    .map(|v| v.as_slice());
+
+                // Build pattern labels with HTF context
+                build_pattern_labels(&candles, &cfg, tf_minutes, htf_candles)
             }
         })
         .buffer_unordered(concurrency)
@@ -441,7 +496,7 @@ mod tests {
         };
 
         let candles = make_test_candles(50, 100.0);
-        let examples = build_pattern_labels(&candles, &config, 15);
+        let examples = build_pattern_labels(&candles, &config, 15, None);
 
         // Should produce examples from t=9 to t=44 (50 - 5 - 1)
         assert!(!examples.is_empty());
@@ -467,7 +522,7 @@ mod tests {
         };
 
         let candles = make_test_candles(35, 100.0); // Need 40, have 35
-        let examples = build_pattern_labels(&candles, &config, 15);
+        let examples = build_pattern_labels(&candles, &config, 15, None);
         // 35 - 10 = 25 is end_idx, start_idx = 29 → 29 >= 25, no examples
         assert!(examples.is_empty());
     }

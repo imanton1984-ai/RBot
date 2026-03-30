@@ -20,7 +20,7 @@
 //   distinct indicator signatures (volume spike, RSI divergence,
 //   BB squeeze before explosion, etc.)
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -29,7 +29,8 @@ use std::collections::HashMap;
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// Timeframes used for multi-TF analysis, ordered from highest to lowest.
-pub const ANALYSIS_TIMEFRAMES: &[i32] = &[1440, 240, 60, 15, 5, 1];
+/// NOTE: 1m excluded — too noisy and insufficient historical data.
+pub const ANALYSIS_TIMEFRAMES: &[i32] = &[1440, 240, 60, 15, 5];
 
 /// Number of candles to look back BEFORE the pump/dump onset for feature extraction.
 pub const PRE_EVENT_LOOKBACK: usize = 10;
@@ -69,6 +70,11 @@ pub struct PumpDumpConfig {
     /// 0.50 = at least 50% of the daily move in one hourly candle.
     /// Env: PD_CONCENTRATION_PCT (default: 0.50)
     pub concentration_pct: f64,
+
+    /// Maximum number of candles to hold on the target TF to reach the target move.
+    /// If the ≥15% move is not reached within this many candles, the event is rejected.
+    /// Env: PD_MAX_HOLD_CANDLES (default: 6)
+    pub max_hold_candles: usize,
 }
 
 impl Default for PumpDumpConfig {
@@ -80,6 +86,7 @@ impl Default for PumpDumpConfig {
             prediction_horizon: 3,
             min_volume_spike: 2.0,
             concentration_pct: 0.50,
+            max_hold_candles: 6,
         }
     }
 }
@@ -107,6 +114,9 @@ impl PumpDumpConfig {
         if let Ok(v) = std::env::var("PD_CONCENTRATION_PCT") {
             if let Ok(n) = v.parse::<f64>() { cfg.concentration_pct = n.clamp(0.2, 0.95); }
         }
+        if let Ok(v) = std::env::var("PD_MAX_HOLD_CANDLES") {
+            if let Ok(n) = v.parse::<usize>() { cfg.max_hold_candles = n.clamp(2, 20); }
+        }
 
         cfg
     }
@@ -125,6 +135,7 @@ impl PumpDumpConfig {
         tracing::info!("  negative_ratio: {}:1", self.negative_ratio);
         tracing::info!("  prediction_horizon: {} candles", self.prediction_horizon);
         tracing::info!("  concentration_pct: {:.0}% (of daily move in 1 hourly candle)", self.concentration_pct * 100.0);
+        tracing::info!("  max_hold_candles: {} (max candles to reach target)", self.max_hold_candles);
     }
 }
 
@@ -283,6 +294,37 @@ impl CandleInd {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// TIME CONVENTION HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// DB stores candle **close** times (e.g. 1h candle 00:00–01:00 → time=00:59:59.999).
+/// This function converts close_time → open_time for a given TF.
+pub fn candle_open_time(close_time: DateTime<Utc>, tf_minutes: i32) -> DateTime<Utc> {
+    close_time - Duration::minutes(tf_minutes as i64) + Duration::milliseconds(1)
+}
+
+/// Compute the search window for lower-TF candles contained within a parent candle.
+///
+/// Given a parent candle's **close time** and TF duration, returns (search_start, search_end)
+/// where search_start/search_end are close-time boundaries for lower TF candles.
+///
+/// Example: daily candle close = 2025-10-09 23:59:59.999
+///   → open = 2025-10-09 00:00:00.000
+///   → hourly candles within: close from 2025-10-09 00:59:59.999 to 2025-10-09 23:59:59.999
+///   → search_start = open of day, search_end = close of day + 1ms (for inclusive partition_point)
+pub fn parent_candle_window(
+    parent_close_time: DateTime<Utc>,
+    parent_tf_minutes: i32,
+) -> (DateTime<Utc>, DateTime<Utc>) {
+    let open_time = candle_open_time(parent_close_time, parent_tf_minutes);
+    // search_start: looking for child candles with close >= open_time
+    // For partition_point(c.time < X): X = open_time → first index with time >= open_time
+    // search_end: include the parent_close_time itself
+    // For partition_point(c.time < X): X = parent_close_time + 1ms → includes parent_close_time
+    (open_time, parent_close_time + Duration::milliseconds(1))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // PUMP/DUMP DETECTION
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -336,32 +378,24 @@ pub fn detect_anomalous_candles(
 /// PHILOSOPHY: We want flash pumps/dumps, not gradual 5-6 hour drifts.
 /// A true pump/dump has most of the daily move happening within 1-2 hours.
 ///
-/// # Algorithm:
-///   1. Look at all 1H candles within the daily candle's time window
-///   2. Find the single 1H candle with the largest move in the event direction
-///   3. Check that this ONE candle accounts for >= `concentration_pct` of the daily move
-///
-/// # Arguments
-/// * `hourly_candles` — all 1H candles (sorted by time ASC)
-/// * `daily_candle_time` — start time of the daily candle
-/// * `daily_candle_end` — end time of the daily candle (usually +24h)
-/// * `event_type` — Pump or Dump
-/// * `daily_move_pct` — total move on the daily candle (%)
-/// * `concentration_pct` — minimum fraction of the daily move in one 1H candle (default: 0.50)
+/// NOTE: `daily_candle_close` is the **close time** of the daily candle (DB convention).
+/// The search window is computed to cover the CORRECT day's hourly candles.
 ///
 /// # Returns
 /// `Some((hourly_idx, hourly_move_pct))` if the move is sharp, `None` otherwise.
 pub fn validate_sharp_move(
     hourly_candles: &[CandleInd],
-    daily_candle_time: DateTime<Utc>,
-    daily_candle_end: DateTime<Utc>,
+    daily_candle_close: DateTime<Utc>,
     event_type: EventType,
     daily_move_pct: f64,
     concentration_pct: f64,
 ) -> Option<(usize, f64)> {
+    // Compute correct search window using close-time convention
+    let (search_start, search_end) = parent_candle_window(daily_candle_close, 1440);
+
     // Find hourly candles within the daily window
-    let start_idx = hourly_candles.partition_point(|c| c.time < daily_candle_time);
-    let end_idx = hourly_candles.partition_point(|c| c.time < daily_candle_end);
+    let start_idx = hourly_candles.partition_point(|c| c.time < search_start);
+    let end_idx = hourly_candles.partition_point(|c| c.time < search_end);
 
     if start_idx >= end_idx || end_idx > hourly_candles.len() {
         return None;
@@ -382,7 +416,6 @@ pub fn validate_sharp_move(
         // Single candle move (body-based, not just wick)
         let move_pct = match event_type {
             EventType::Pump => {
-                // For pump: how much did this candle go up? Use max(close-open, high-open)
                 let body_move = (c.close - c.open) / c.open * 100.0;
                 let wick_move = (c.high - c.open) / c.open * 100.0;
                 body_move.max(wick_move * 0.7) // penalize wick-only moves
@@ -439,30 +472,96 @@ pub fn validate_sharp_move(
     None
 }
 
+/// Search for a pump/dump window of ≤max_hold consecutive candles where the
+/// cumulative move reaches ≥target_pct% on the given TF.
+///
+/// This is the core function for finding the pump/dump event on lower TFs.
+/// Instead of looking for a single candle with a big move, it searches for
+/// the FIRST window of consecutive candles where the cumulative move reaches
+/// the target (e.g., 15% within 5-6 candles).
+///
+/// NOTE: `search_start` and `search_end` are close-time boundaries.
+/// Use `parent_candle_window()` to compute them from a parent candle's close time.
+///
+/// # Arguments
+/// * `candles` — sorted by time ASC
+/// * `search_start` — earliest close_time to consider
+/// * `search_end` — latest close_time to consider (exclusive for partition_point)
+/// * `event_type` — Pump or Dump
+/// * `target_pct` — minimum cumulative move % (e.g. 15.0)
+/// * `max_hold` — maximum candles in the window (e.g. 6)
+/// * `min_lookback` — onset must have at least this many candles before it
+///
+/// # Returns
+/// `Some((onset_idx, actual_move_pct, candles_needed))` or `None`.
+pub fn find_pump_window(
+    candles: &[CandleInd],
+    search_start: DateTime<Utc>,
+    search_end: DateTime<Utc>,
+    event_type: EventType,
+    target_pct: f64,
+    max_hold: usize,
+    min_lookback: usize,
+) -> Option<(usize, f64, usize)> {
+    let threshold = target_pct / 100.0;
+
+    let start_idx = candles.partition_point(|c| c.time < search_start);
+    let end_idx = candles.partition_point(|c| c.time < search_end);
+
+    if start_idx >= end_idx { return None; }
+
+    // Onset must have enough lookback for feature extraction
+    let onset_min = start_idx.max(min_lookback);
+
+    for onset in onset_min..end_idx {
+        let entry = candles[onset].open;
+        if entry.abs() < 1e-12 { continue; }
+
+        let window_end = (onset + max_hold).min(candles.len());
+        let mut max_high = f64::MIN;
+        let mut min_low = f64::MAX;
+
+        for i in onset..window_end {
+            max_high = max_high.max(candles[i].high);
+            min_low = min_low.min(candles[i].low);
+
+            let move_frac = match event_type {
+                EventType::Pump => (max_high - entry) / entry,
+                EventType::Dump => (entry - min_low) / entry,
+            };
+
+            if move_frac >= threshold {
+                let candles_needed = i - onset + 1;
+                return Some((onset, move_frac * 100.0, candles_needed));
+            }
+        }
+    }
+
+    None
+}
+
 /// Given a daily pump/dump event, find the corresponding candle(s) on a lower TF.
 ///
-/// The daily candle covers a time window [daily_open_time, daily_open_time + 24h).
-/// We search within that window on the lower TF for the candle with the biggest move.
+/// Searches within `search_start..search_end` (close-time boundaries) for the
+/// candle with the biggest move in the event direction.
 ///
-/// Returns (index_of_onset_candle, move_pct) or None if not found.
+/// Returns `(index_of_onset_candle, move_pct)` or `None` if threshold not met.
 pub fn find_event_on_lower_tf(
     lower_tf_candles: &[CandleInd],
-    daily_candle_time: DateTime<Utc>,
-    daily_candle_end: DateTime<Utc>,
+    search_start: DateTime<Utc>,
+    search_end: DateTime<Utc>,
     event_type: EventType,
     threshold_pct: f64,
 ) -> Option<(usize, f64)> {
     let threshold = threshold_pct / 100.0;
 
-    // Find candles within the daily candle's time window
-    let start_idx = lower_tf_candles.partition_point(|c| c.time < daily_candle_time);
-    let end_idx = lower_tf_candles.partition_point(|c| c.time < daily_candle_end);
+    let start_idx = lower_tf_candles.partition_point(|c| c.time < search_start);
+    let end_idx = lower_tf_candles.partition_point(|c| c.time < search_end);
 
     if start_idx >= end_idx || end_idx > lower_tf_candles.len() {
         return None;
     }
 
-    // Find the candle with the maximum move in the correct direction
     let mut best_idx = None;
     let mut best_move: f64 = 0.0;
 
@@ -481,12 +580,11 @@ pub fn find_event_on_lower_tf(
         }
     }
 
+    // Only return if the threshold is actually met
     if best_move >= threshold {
         best_idx.map(|idx| (idx, best_move * 100.0))
     } else {
-        // Even if threshold not met, return the best candle if it exists
-        // (lower TFs may spread the move across multiple candles)
-        best_idx.map(|idx| (idx, best_move * 100.0))
+        None
     }
 }
 
@@ -886,6 +984,7 @@ mod tests {
         assert_eq!(cfg.pre_event_lookback, 10);
         assert_eq!(cfg.negative_ratio, 3);
         assert!((cfg.concentration_pct - 0.50).abs() < 1e-6);
+        assert_eq!(cfg.max_hold_candles, 6);
         // Threshold is the same for all TFs
         assert_eq!(cfg.threshold_for_tf(60), cfg.threshold_for_tf(1440));
     }
@@ -896,5 +995,63 @@ mod tests {
         let lookback = 5;
         let names = all_feature_names(tfs, lookback);
         assert_eq!(names.len(), 3 * 5 * FULL_FEATURES_PER_CANDLE);
+    }
+
+    #[test]
+    fn test_candle_open_time() {
+        use chrono::TimeZone;
+        // Daily candle close = 2025-10-09 23:59:59.999
+        let close = Utc.with_ymd_and_hms(2025, 10, 9, 23, 59, 59).unwrap()
+            + Duration::milliseconds(999);
+        let open = candle_open_time(close, 1440);
+        assert_eq!(open.format("%Y-%m-%d %H:%M:%S").to_string(), "2025-10-09 00:00:00");
+
+        // Hourly candle close = 2025-10-09 05:59:59.999
+        let close_h = Utc.with_ymd_and_hms(2025, 10, 9, 5, 59, 59).unwrap()
+            + Duration::milliseconds(999);
+        let open_h = candle_open_time(close_h, 60);
+        assert_eq!(open_h.format("%Y-%m-%d %H:%M:%S").to_string(), "2025-10-09 05:00:00");
+    }
+
+    #[test]
+    fn test_parent_candle_window() {
+        use chrono::TimeZone;
+        let daily_close = Utc.with_ymd_and_hms(2025, 10, 9, 23, 59, 59).unwrap()
+            + Duration::milliseconds(999);
+        let (start, end) = parent_candle_window(daily_close, 1440);
+        // start should be at or before first hourly close of the day
+        assert!(start <= Utc.with_ymd_and_hms(2025, 10, 9, 0, 59, 59).unwrap()
+            + Duration::milliseconds(999));
+        // end should be just past the daily close
+        assert!(end > daily_close);
+    }
+
+    #[test]
+    fn test_find_event_on_lower_tf_threshold() {
+        use chrono::TimeZone;
+        // Create candles with small moves (< 15%)
+        let mut candles: Vec<CandleInd> = (0..10)
+            .map(|i| {
+                let mut c = make_candle(100.0, 103.0, 98.0, 101.0, 1000.0);
+                c.time = Utc.with_ymd_and_hms(2025, 10, 9, i, 59, 59).unwrap()
+                    + Duration::milliseconds(999);
+                c
+            })
+            .collect();
+
+        let search_start = Utc.with_ymd_and_hms(2025, 10, 9, 0, 0, 0).unwrap();
+        let search_end = Utc.with_ymd_and_hms(2025, 10, 10, 0, 0, 0).unwrap();
+
+        // Should return None — no candle has 15%+ move
+        let result = find_event_on_lower_tf(&candles, search_start, search_end, EventType::Pump, 15.0);
+        assert!(result.is_none(), "Should return None when no candle meets threshold");
+
+        // Add a candle with 20% pump
+        candles[5] = make_candle(100.0, 120.0, 99.0, 118.0, 5000.0);
+        candles[5].time = Utc.with_ymd_and_hms(2025, 10, 9, 5, 59, 59).unwrap()
+            + Duration::milliseconds(999);
+
+        let result = find_event_on_lower_tf(&candles, search_start, search_end, EventType::Pump, 15.0);
+        assert!(result.is_some(), "Should find the 20% pump candle");
     }
 }

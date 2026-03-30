@@ -21,7 +21,7 @@
 //   We train TWO models: one for pump prediction, one for dump prediction.
 
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -33,7 +33,8 @@ use crate::pump_dump::{
     CandleInd, EventType, PumpDumpConfig,
     ANALYSIS_TIMEFRAMES, FULL_FEATURES_PER_CANDLE,
     detect_anomalous_candles, extract_candle_features,
-    find_event_on_lower_tf, validate_sharp_move,
+    find_pump_window, validate_sharp_move,
+    parent_candle_window,
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -312,39 +313,45 @@ pub struct PumpDumpExample {
 /// For a detected daily pump/dump event, drill down through lower TFs and
 /// extract features from pre_event_lookback candles before the onset.
 ///
-/// Returns the flattened feature vector for ALL TFs.
-/// If a TF doesn't have enough data, its features are filled with 0.0.
+/// Uses `find_pump_window` to find a window of ≤max_hold_candles where the
+/// cumulative move reaches ≥daily_threshold_pct on the finest available TF.
 ///
-/// # Arguments
-/// * `all_tf_candles` — pre-loaded candle data per TF for this symbol
-/// * `daily_candle_time` — time of the daily candle with the anomalous move
-/// * `event_type` — Pump or Dump
-/// * `config` — detection parameters
+/// NOTE: `daily_candle_close` is the **close time** of the daily candle (DB convention).
 ///
 /// # Returns
-/// (features, finest_tf, onset_time)
+/// `(features, finest_tf, onset_time, tf_move_pct, hold_candles)` or None.
 pub fn drill_down_and_extract(
     all_tf_candles: &HashMap<i32, Vec<CandleInd>>,
-    daily_candle_time: DateTime<Utc>,
+    daily_candle_close: DateTime<Utc>,
     event_type: EventType,
     config: &PumpDumpConfig,
-) -> Option<(Vec<f64>, i32, DateTime<Utc>)> {
+) -> Option<(Vec<f64>, i32, DateTime<Utc>, f64, usize)> {
     let lookback = config.pre_event_lookback;
     let n_tfs = ANALYSIS_TIMEFRAMES.len();
     let total_features = n_tfs * lookback * FULL_FEATURES_PER_CANDLE;
 
     let mut features = vec![0.0f64; total_features];
     let mut finest_tf = 1440;
-    let mut onset_time = daily_candle_time;
+    let mut onset_time = daily_candle_close;
+    let mut best_move_pct = 0.0f64;
+    let mut best_hold = 0usize;
 
-    // Time window for the daily candle
-    let daily_end = daily_candle_time + Duration::days(1);
+    // Correct search window: daily candle covers [open, close]
+    let (daily_search_start, daily_search_end) = parent_candle_window(daily_candle_close, 1440);
 
-    // Current search window (starts as the full daily candle)
-    let mut search_start = daily_candle_time;
-    let mut search_end = daily_end;
+    // Try each TF from lowest (finest) to highest to find the finest TF
+    // where a pump window of ≤max_hold candles reaches ≥threshold%
+    // TFs are defined in ANALYSIS_TIMEFRAMES as [1440, 240, 60, 15, 5, 1]
+    // We iterate in reverse to check finest first
+    let target_tfs: Vec<i32> = ANALYSIS_TIMEFRAMES.iter()
+        .filter(|&&tf| tf < 1440) // skip daily itself
+        .rev()
+        .copied()
+        .collect();
 
-    for (tf_idx, &tf) in ANALYSIS_TIMEFRAMES.iter().enumerate() {
+    let mut found_finest = false;
+
+    for &tf in &target_tfs {
         let candles = match all_tf_candles.get(&tf) {
             Some(c) if c.len() >= lookback + 10 => c,
             _ => continue,
@@ -352,28 +359,67 @@ pub fn drill_down_and_extract(
 
         let threshold = config.threshold_for_tf(tf);
 
-        // Find the onset candle on this TF
-        let onset_idx = if tf == 1440 {
-            // Daily: find the candle matching the event time
-            candles.iter().position(|c| c.time == daily_candle_time)
-        } else {
-            // Lower TF: search within the parent TF's time window
-            find_event_on_lower_tf(candles, search_start, search_end, event_type, threshold)
-                .map(|(idx, _)| idx)
-        };
+        // Search within the daily candle's correct time window
+        if let Some((onset_idx, move_pct, hold_candles)) = find_pump_window(
+            candles, daily_search_start, daily_search_end,
+            event_type, threshold, config.max_hold_candles, lookback,
+        ) {
+            finest_tf = tf;
+            onset_time = candles[onset_idx].time;
+            best_move_pct = move_pct;
+            best_hold = hold_candles;
+            found_finest = true;
+            break; // prefer the finest TF where the window was found
+        }
+    }
 
-        let onset_idx = match onset_idx {
-            Some(idx) if idx >= lookback => idx,
+    if !found_finest {
+        // Fallback: try on the daily TF itself
+        let candles = match all_tf_candles.get(&1440) {
+            Some(c) if c.len() >= lookback + 10 => c,
+            _ => return None,
+        };
+        let daily_idx = candles.iter().position(|c| c.time == daily_candle_close)?;
+        if daily_idx < lookback { return None; }
+        onset_time = daily_candle_close;
+        finest_tf = 1440;
+        // Calculate daily move for reporting
+        let c = &candles[daily_idx];
+        best_move_pct = match event_type {
+            EventType::Pump => (c.high - c.open) / c.open * 100.0,
+            EventType::Dump => (c.open - c.low) / c.open * 100.0,
+        };
+        best_hold = 1;
+    }
+
+    // Extract features from ALL TFs at the onset time
+    for (tf_idx, &tf) in ANALYSIS_TIMEFRAMES.iter().enumerate() {
+        let candles = match all_tf_candles.get(&tf) {
+            Some(c) if c.len() >= lookback + 10 => c,
             _ => continue,
         };
 
-        finest_tf = tf;
-        onset_time = candles[onset_idx].time;
+        // Find the candle at or just before onset_time on this TF
+        let idx = if tf == finest_tf {
+            // Already found — use onset_time directly
+            candles.iter().rposition(|c| c.time <= onset_time)
+        } else if tf == 1440 {
+            candles.iter().position(|c| c.time == daily_candle_close)
+        } else {
+            // For other TFs, find the closest candle <= onset_time
+            let pp = candles.partition_point(|c| c.time <= onset_time);
+            if pp > 0 { Some(pp - 1) } else { None }
+        };
+
+        let idx = match idx {
+            Some(i) if i >= lookback => i,
+            _ => continue,
+        };
 
         // Extract features from lookback candles BEFORE the onset
         let feature_offset = tf_idx * lookback * FULL_FEATURES_PER_CANDLE;
         for c_off in 0..lookback {
-            let candle_idx = onset_idx - lookback + c_off;
+            let candle_idx = idx - lookback + c_off;
             if candle_idx >= candles.len() { continue; }
 
             let candle_feats = extract_candle_features(candles, candle_idx);
@@ -383,23 +429,9 @@ pub fn drill_down_and_extract(
                 features[start..end].copy_from_slice(&candle_feats);
             }
         }
-
-        // Narrow the search window for the next (lower) TF
-        // The onset on this TF becomes the search window for the next TF
-        let tf_duration = Duration::minutes(tf as i64);
-        search_start = onset_time - tf_duration; // a bit before
-        search_end = onset_time + tf_duration; // a bit after
     }
 
-    // Only return if we found the event on at least the daily TF
-    if finest_tf == 1440 {
-        // Check we actually found the daily candle
-        if all_tf_candles.get(&1440).map_or(true, |c| c.is_empty()) {
-            return None;
-        }
-    }
-
-    Some((features, finest_tf, onset_time))
+    Some((features, finest_tf, onset_time, best_move_pct, best_hold))
 }
 
 /// Generate negative (non-event) examples by sampling normal candles.
@@ -519,13 +551,13 @@ pub async fn build_pump_dump_dataset(
     info!("  {} active symbols", symbols.len());
 
     // Limits per TF (how many candles to fetch)
+    // NOTE: 1m excluded — insufficient historical data and too noisy
     let tf_limits: HashMap<i32, usize> = vec![
         (1440, 3700),  // ~10 years of daily data
         (240, 12000),  // ~8 years of 4h
         (60, 12000),   // ~2 years of 1h
         (15, 12000),   // ~6 months of 15m
         (5, 12000),    // ~2 months of 5m
-        (1, 5000),     // ~3.5 days of 1m
     ].into_iter().collect();
 
     // Process symbols SEQUENTIALLY to control memory.
@@ -662,17 +694,15 @@ async fn process_symbol(
 
     // Step 2: Validate sharpness against hourly candles.
     // The move must be concentrated in 1-2 hourly candles, NOT a gradual 5-6 hour drift.
+    // NOTE: daily_time is the CLOSE time (DB convention). validate_sharp_move handles this.
     let mut validated_events: Vec<(usize, EventType, f64, DateTime<Utc>)> = Vec::new();
     let mut n_rejected = 0usize;
 
     for &(daily_idx, event_type, move_pct, daily_time) in &daily_time_map {
-        let daily_end = daily_time + Duration::days(1);
-
         if let Some(hourly) = all_tf_candles.get(&60) {
             match validate_sharp_move(
                 hourly,
-                daily_time,
-                daily_end,
+                daily_time, // close time of the daily candle
                 event_type,
                 move_pct,
                 config.concentration_pct,
@@ -704,7 +734,8 @@ async fn process_symbol(
     }
 
     // Step 3: Load remaining TFs only if we have validated events (memory optimization)
-    for &tf in &[240i32, 15, 5, 1] {
+    // NOTE: 1m excluded — too noisy and insufficient historical data
+    for &tf in &[240i32, 15, 5] {
         if all_tf_candles.contains_key(&tf) { continue; }
         let limit = tf_limits.get(&tf).copied().unwrap_or(5000);
         match fetch_candles_with_indicators(pool, symbol, tf, limit).await {
@@ -722,23 +753,23 @@ async fn process_symbol(
     let mut event_times = Vec::new();
 
     // Step 4: For each VALIDATED event, drill down and extract features
-    for &(_daily_idx, event_type, move_pct, daily_time) in &validated_events {
+    for &(_daily_idx, event_type, _move_pct, daily_time) in &validated_events {
         event_times.push(daily_time);
 
         let result = drill_down_and_extract(
             &all_tf_candles,
-            daily_time,
+            daily_time, // close time of the daily candle (DB convention)
             event_type,
             config,
         );
 
-        if let Some((features, finest_tf, onset_time)) = result {
+        if let Some((features, finest_tf, onset_time, tf_move_pct, _hold)) = result {
             examples.push(PumpDumpExample {
                 symbol: symbol.to_string(),
                 timestamp: onset_time.to_rfc3339(),
                 event_type: event_type.to_string(),
                 label: 1,
-                move_pct,
+                move_pct: tf_move_pct, // use the actual move on finest TF, not daily
                 finest_tf,
                 features,
             });

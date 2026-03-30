@@ -1,0 +1,282 @@
+2026-03-29T10:50:33.315564Z  INFO Config loaded from config/imbalance.toml
+2026-03-29T10:50:33.315604Z  INFO ╔════════════════════════════════════════════════════════════════╗
+2026-03-29T10:50:33.315615Z  INFO ║  Imbalance Candle Strategy — Honest Backtest v4               ║
+2026-03-29T10:50:33.315623Z  INFO ║  Config: config/imbalance.toml
+2026-03-29T10:50:33.315630Z  INFO ║  No Look-Ahead Bias — Simulates Real-Time Trading             ║
+2026-03-29T10:50:33.315638Z  INFO ╚════════════════════════════════════════════════════════════════╝
+2026-03-29T10:50:33.315646Z  INFO ImbalanceConfig:
+2026-03-29T10:50:33.315657Z  INFO   min_volume_ratio: 1.5x
+2026-03-29T10:50:33.315664Z  INFO   max_hold_candles: 2
+2026-03-29T10:50:33.315672Z  INFO   tp_atr_mult: 5.0× child ATR
+2026-03-29T10:50:33.315680Z  INFO   sl_atr_mult: 5.0× child ATR (R:R=1.0:1)
+2026-03-29T10:50:33.315688Z  INFO   max_sl_pct: 6.0%, max_tp_pct: 50.0%
+2026-03-29T10:50:33.315697Z  INFO   min_sl_pct: 0.1%, min_tp_pct: 0.1%
+2026-03-29T10:50:33.315704Z  INFO   min_signal_score: 0.75
+2026-03-29T10:50:33.315712Z  INFO   allow_reversals: false
+2026-03-29T10:50:33.315718Z  INFO   allow_short_continuation: false
+2026-03-29T10:50:33.315725Z  INFO   profit_exit_after: 1 candles
+2026-03-29T10:50:33.315732Z  INFO   trailing_start: candle 2
+2026-03-29T10:50:33.315739Z  INFO   use_pullback_entry: false
+2026-03-29T10:50:33.315746Z  INFO   max_entry_wait_candles: 1
+2026-03-29T10:50:33.315754Z  INFO   min_pullback_atr: 0.00
+2026-03-29T10:50:33.315761Z  INFO   continuation body ratio: ≥0.55
+2026-03-29T10:50:33.315769Z  INFO   TF pairs (2 active):
+2026-03-29T10:50:33.315779Z  INFO     1440m (≥18%) → trade on 240m
+2026-03-29T10:50:33.315786Z  INFO     240m (≥18%) → trade on 60m
+2026-03-29T10:50:33.321406Z  INFO 
+2026-03-29T10:50:33.321453Z  INFO   ══ Phase 1: Batch loading candle data ══
+2026-03-29T10:51:02.860601Z  INFO     TF 240m (with indicators): 1103352 rows, 271 symbols
+2026-03-29T10:51:27.283820Z  INFO     TF 1440m (with indicators): 211505 rows, 271 symbols
+2026-03-29T10:51:28.976570Z  INFO     TF 60m (OHLCV only): 1977227 rows, 271 symbols
+2026-03-29T10:51:28.976600Z  INFO   Data loaded in 55.7s (0.9min)
+2026-03-29T10:51:28.976608Z  INFO 
+2026-03-29T10:51:28.976613Z  INFO   ══ Phase 2: Processing symbols ══
+2026-03-29T10:51:28.977409Z  INFO   271 active symbols, 2 active TF pairs
+2026-03-29T10:51:28.977453Z  INFO   [1/271] 0GUSDT — 2 sym trades (total: 2, 55.7s)
+2026-03-29T10:51:28.978814Z  INFO   [20/271] ANIMEUSDT — 5 sym trades (total: 75, 55.7s)
+2026-03-29T10:51:28.980148Z  INFO   [40/271] BANANAUSDT — 3 sym trades (total: 168, 55.7s)
+2026-03-29T10:51:28.980987Z  INFO   [60/271] CCUSDT — 0 sym trades (total: 220, 55.7s)
+2026-03-29T10:51:28.982218Z  INFO   [80/271] EDGEUSDT — 0 sym trades (total: 298, 55.7s)
+2026-03-29T10:51:28.983383Z  INFO   [100/271] GIGGLEUSDT — 0 sym trades (total: 385, 55.7s)
+2026-03-29T10:51:28.984237Z  INFO   [120/271] JCTUSDT — 0 sym trades (total: 445, 55.7s)
+2026-03-29T10:51:28.985031Z  INFO   [140/271] LPTUSDT — 0 sym trades (total: 495, 55.7s)
+2026-03-29T10:51:28.985913Z  INFO   [160/271] NIGHTUSDT — 0 sym trades (total: 568, 55.7s)
+2026-03-29T10:51:28.986671Z  INFO   [180/271] PLUMEUSDT — 1 sym trades (total: 633, 55.7s)
+2026-03-29T10:51:28.987189Z  INFO   [200/271] RUNEUSDT — 0 sym trades (total: 664, 55.7s)
+2026-03-29T10:51:28.988148Z  INFO   [220/271] STGUSDT — 4 sym trades (total: 735, 55.7s)
+2026-03-29T10:51:28.989036Z  INFO   [240/271] TRXUSDT — 5 sym trades (total: 777, 55.7s)
+2026-03-29T10:51:28.990048Z  INFO   [260/271] XPLUSDT — 2 sym trades (total: 847, 55.7s)
+2026-03-29T10:51:28.990816Z  INFO   Processing done in 0.0s
+2026-03-29T10:51:28.990825Z  INFO 
+2026-03-29T10:51:28.990831Z  INFO ╔════════════════════════════════════════════════════════════════╗
+2026-03-29T10:51:28.990846Z  INFO ║  IMBALANCE CANDLE STRATEGY — BACKTEST RESULTS v4              ║
+2026-03-29T10:51:28.990851Z  INFO ╚════════════════════════════════════════════════════════════════╝
+2026-03-29T10:51:28.990858Z  INFO   Symbols processed: 179 (skipped: 92)
+2026-03-29T10:51:28.990863Z  INFO   Total trades: 903
+2026-03-29T10:51:28.990870Z  INFO   Data load: 55.7s, Processing: 0.0s, Total: 55.7s (0.9min)
+2026-03-29T10:51:28.990875Z  INFO 
+2026-03-29T10:51:28.990885Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.990892Z  INFO   ═══ 1440m → 240m (≥18%) — 587 trades ═══
+2026-03-29T10:51:28.990897Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.990907Z  INFO     📊 ALL (587 trades):
+2026-03-29T10:51:28.990913Z  INFO       TP WinRate: 45.1%  RealWR: 53.8%  (TP:265 SL:172 Expired:150 [51+/99−])
+2026-03-29T10:51:28.990918Z  INFO       Avg P&L: 0.55%,  Total P&L: 323.65%
+2026-03-29T10:51:28.990923Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.990929Z  INFO       Profit Factor: 1.25  (gross +1600.7% / -1277.1%)
+2026-03-29T10:51:28.990937Z  INFO 
+2026-03-29T10:51:28.990946Z  INFO     📊 CONTINUATION (587 trades):
+2026-03-29T10:51:28.990951Z  INFO       TP WinRate: 45.1%  RealWR: 53.8%  (TP:265 SL:172 Expired:150 [51+/99−])
+2026-03-29T10:51:28.990956Z  INFO       Avg P&L: 0.55%,  Total P&L: 323.65%
+2026-03-29T10:51:28.990963Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.990969Z  INFO       Profit Factor: 1.25  (gross +1600.7% / -1277.1%)
+2026-03-29T10:51:28.990973Z  INFO 
+2026-03-29T10:51:28.990988Z  INFO     📊 LONG (587 trades):
+2026-03-29T10:51:28.990995Z  INFO       TP WinRate: 45.1%  RealWR: 53.8%  (TP:265 SL:172 Expired:150 [51+/99−])
+2026-03-29T10:51:28.990999Z  INFO       Avg P&L: 0.55%,  Total P&L: 323.65%
+2026-03-29T10:51:28.991004Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.991010Z  INFO       Profit Factor: 1.25  (gross +1600.7% / -1277.1%)
+2026-03-29T10:51:28.991018Z  INFO 
+2026-03-29T10:51:28.991023Z  INFO     ─── By Score Bucket ───
+2026-03-29T10:51:28.991034Z  INFO       [0.75-0.85): 264 trades, RealWR: 59.5% (TP:131 SL:62), AvgPnL: 0.75%, TotalPnL: 198.32%
+2026-03-29T10:51:28.991045Z  INFO       [0.85-0.95): 305 trades, RealWR: 48.2% (TP:124 SL:107), AvgPnL: 0.30%, TotalPnL: 90.10%
+2026-03-29T10:51:28.991053Z  INFO       [0.95-1.01): 18 trades, RealWR: 66.7% (TP:10 SL:3), AvgPnL: 1.96%, TotalPnL: 35.23%
+2026-03-29T10:51:28.991058Z  INFO 
+2026-03-29T10:51:28.991064Z  INFO     ─── By Parent Move Size ───
+2026-03-29T10:51:28.991071Z  INFO       10-15%: 19 trades, RealWR: 63.2% (TP:7 SL:1), AvgPnL: 1.41%, TotalPnL: 26.84%
+2026-03-29T10:51:28.991081Z  INFO       15-20%: 133 trades, RealWR: 56.4% (TP:63 SL:25), AvgPnL: 0.36%, TotalPnL: 48.41%
+2026-03-29T10:51:28.991090Z  INFO       20-30%: 213 trades, RealWR: 55.9% (TP:100 SL:53), AvgPnL: 0.20%, TotalPnL: 43.33%
+2026-03-29T10:51:28.991101Z  INFO       30%+: 209 trades, RealWR: 50.7% (TP:91 SL:84), AvgPnL: 1.08%, TotalPnL: 225.87%
+2026-03-29T10:51:28.991106Z  INFO 
+2026-03-29T10:51:28.991110Z  INFO     ─── By Hold Time ───
+2026-03-29T10:51:28.991119Z  INFO       hold=1: 392 trades, RealWR: 67.6%, AvgPnL: 1.77%
+2026-03-29T10:51:28.991126Z  INFO       hold=2: 195 trades, RealWR: 26.2%, AvgPnL: -1.89%
+2026-03-29T10:51:28.991131Z  INFO 
+2026-03-29T10:51:28.991135Z  INFO     ─── Sample Trades (first 5) ───
+2026-03-29T10:51:28.991145Z  INFO       1000BONKUSDT 2024-02-28 23:59 1440→240 CONT LONG score=0.83 move=29.0% entry=0.0204 exit=0.0215 hold=1 PnL=5.35% ✅TP
+2026-03-29T10:51:28.991155Z  INFO       1000BONKUSDT 2024-11-12 23:59 1440→240 CONT LONG score=0.82 move=39.4% entry=0.0332 exit=0.0312 hold=1 PnL=-6.00% ❌SL
+2026-03-29T10:51:28.991162Z  INFO       1000BONKUSDT 2024-11-15 23:59 1440→240 CONT LONG score=0.75 move=27.3% entry=0.0446 exit=0.0419 hold=1 PnL=-6.00% ❌SL
+2026-03-29T10:51:28.991170Z  INFO       1000BONKUSDT 2025-07-16 23:59 1440→240 CONT LONG score=0.84 move=30.1% entry=0.0366 exit=0.0386 hold=1 PnL=5.59% ✅TP
+2026-03-29T10:51:28.991176Z  INFO       1000FLOKIUSDT 2023-10-25 23:59 1440→240 CONT LONG score=0.79 move=18.2% entry=0.0321 exit=0.0301 hold=2 PnL=-6.00% ❌SL
+2026-03-29T10:51:28.991182Z  INFO 
+2026-03-29T10:51:28.991189Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.991195Z  INFO   ═══ 240m → 60m (≥18%) — 316 trades ═══
+2026-03-29T10:51:28.991200Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.991206Z  INFO     📊 ALL (316 trades):
+2026-03-29T10:51:28.991211Z  INFO       TP WinRate: 47.8%  RealWR: 55.4%  (TP:151 SL:103 Expired:62 [24+/38−])
+2026-03-29T10:51:28.991217Z  INFO       Avg P&L: 0.39%,  Total P&L: 122.27%
+2026-03-29T10:51:28.991221Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.991227Z  INFO       Profit Factor: 1.17  (gross +829.3% / -707.0%)
+2026-03-29T10:51:28.991231Z  INFO 
+2026-03-29T10:51:28.991237Z  INFO     📊 CONTINUATION (316 trades):
+2026-03-29T10:51:28.991244Z  INFO       TP WinRate: 47.8%  RealWR: 55.4%  (TP:151 SL:103 Expired:62 [24+/38−])
+2026-03-29T10:51:28.991249Z  INFO       Avg P&L: 0.39%,  Total P&L: 122.27%
+2026-03-29T10:51:28.991253Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.991258Z  INFO       Profit Factor: 1.17  (gross +829.3% / -707.0%)
+2026-03-29T10:51:28.991263Z  INFO 
+2026-03-29T10:51:28.991269Z  INFO     📊 LONG (316 trades):
+2026-03-29T10:51:28.991274Z  INFO       TP WinRate: 47.8%  RealWR: 55.4%  (TP:151 SL:103 Expired:62 [24+/38−])
+2026-03-29T10:51:28.991279Z  INFO       Avg P&L: 0.39%,  Total P&L: 122.27%
+2026-03-29T10:51:28.991283Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.991289Z  INFO       Profit Factor: 1.17  (gross +829.3% / -707.0%)
+2026-03-29T10:51:28.991294Z  INFO 
+2026-03-29T10:51:28.991298Z  INFO     ─── By Score Bucket ───
+2026-03-29T10:51:28.991306Z  INFO       [0.75-0.85): 80 trades, RealWR: 50.0% (TP:38 SL:26), AvgPnL: -0.51%, TotalPnL: -40.73%
+2026-03-29T10:51:28.991314Z  INFO       [0.85-0.95): 206 trades, RealWR: 55.8% (TP:95 SL:69), AvgPnL: 0.52%, TotalPnL: 107.74%
+2026-03-29T10:51:28.991321Z  INFO       [0.95-1.01): 30 trades, RealWR: 66.7% (TP:18 SL:8), AvgPnL: 1.84%, TotalPnL: 55.26%
+2026-03-29T10:51:28.991328Z  INFO 
+2026-03-29T10:51:28.991332Z  INFO     ─── By Parent Move Size ───
+2026-03-29T10:51:28.991338Z  INFO       10-15%: 8 trades, RealWR: 62.5% (TP:5 SL:2), AvgPnL: 3.88%, TotalPnL: 31.00%
+2026-03-29T10:51:28.991348Z  INFO       15-20%: 76 trades, RealWR: 61.8% (TP:40 SL:19), AvgPnL: 0.56%, TotalPnL: 42.92%
+2026-03-29T10:51:28.991355Z  INFO       20-30%: 147 trades, RealWR: 56.5% (TP:70 SL:44), AvgPnL: 0.75%, TotalPnL: 110.48%
+2026-03-29T10:51:28.991363Z  INFO       30%+: 80 trades, RealWR: 47.5% (TP:34 SL:35), AvgPnL: -0.63%, TotalPnL: -50.56%
+2026-03-29T10:51:28.991369Z  INFO 
+2026-03-29T10:51:28.991373Z  INFO     ─── By Hold Time ───
+2026-03-29T10:51:28.991379Z  INFO       hold=1: 224 trades, RealWR: 67.4%, AvgPnL: 1.36%
+2026-03-29T10:51:28.991385Z  INFO       hold=2: 92 trades, RealWR: 26.1%, AvgPnL: -1.98%
+2026-03-29T10:51:28.991391Z  INFO 
+2026-03-29T10:51:28.991397Z  INFO     ─── Sample Trades (first 5) ───
+2026-03-29T10:51:28.991403Z  INFO       0GUSDT 2025-11-03 07:59 240→60 CONT LONG score=0.79 move=38.2% entry=1.5103 exit=1.4197 hold=1 PnL=-6.00% ❌SL
+2026-03-29T10:51:28.991412Z  INFO       0GUSDT 2025-11-09 03:59 240→60 CONT LONG score=0.89 move=20.8% entry=1.6627 exit=1.7002 hold=1 PnL=2.26% ✅TP
+2026-03-29T10:51:28.991419Z  INFO       1000BONKUSDT 2024-11-12 07:59 240→60 CONT LONG score=0.95 move=20.2% entry=0.0342 exit=0.0322 hold=1 PnL=-6.00% ❌SL
+2026-03-29T10:51:28.991428Z  INFO       1000BONKUSDT 2025-04-25 23:59 240→60 CONT LONG score=0.95 move=23.7% entry=0.0197 exit=0.0207 hold=1 PnL=5.19% ✅TP
+2026-03-29T10:51:28.991434Z  INFO       1000PEPEUSDT 2024-11-13 15:59 240→60 CONT LONG score=0.98 move=44.8% entry=0.0186 exit=0.0196 hold=1 PnL=5.60% ✅TP
+2026-03-29T10:51:28.991444Z  INFO 
+2026-03-29T10:51:28.991450Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.991455Z  INFO   ═══ OVERALL SUMMARY ═══
+2026-03-29T10:51:28.991459Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.991469Z  INFO     📊 ALL TRADES (903 trades):
+2026-03-29T10:51:28.991476Z  INFO       TP WinRate: 46.1%  RealWR: 54.4%  (TP:416 SL:275 Expired:212 [75+/137−])
+2026-03-29T10:51:28.991481Z  INFO       Avg P&L: 0.49%,  Total P&L: 445.92%
+2026-03-29T10:51:28.991485Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.991492Z  INFO       Profit Factor: 1.22  (gross +2430.0% / -1984.1%)
+2026-03-29T10:51:28.991496Z  INFO 
+2026-03-29T10:51:28.991507Z  INFO     📊 ALL CONTINUATION (903 trades):
+2026-03-29T10:51:28.991512Z  INFO       TP WinRate: 46.1%  RealWR: 54.4%  (TP:416 SL:275 Expired:212 [75+/137−])
+2026-03-29T10:51:28.991517Z  INFO       Avg P&L: 0.49%,  Total P&L: 445.92%
+2026-03-29T10:51:28.991522Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.991529Z  INFO       Profit Factor: 1.22  (gross +2430.0% / -1984.1%)
+2026-03-29T10:51:28.991536Z  INFO 
+2026-03-29T10:51:28.991545Z  INFO     📊 ALL LONG (903 trades):
+2026-03-29T10:51:28.991550Z  INFO       TP WinRate: 46.1%  RealWR: 54.4%  (TP:416 SL:275 Expired:212 [75+/137−])
+2026-03-29T10:51:28.991556Z  INFO       Avg P&L: 0.49%,  Total P&L: 445.92%
+2026-03-29T10:51:28.991561Z  INFO       Avg Hold: 1.3 candles
+2026-03-29T10:51:28.991567Z  INFO       Profit Factor: 1.22  (gross +2430.0% / -1984.1%)
+2026-03-29T10:51:28.991574Z  INFO 
+2026-03-29T10:51:28.991579Z  INFO     ─── By Score Bucket ───
+2026-03-29T10:51:28.991591Z  INFO       [0.75-0.85): 344 trades, RealWR: 57.3% (TP:169 SL:88), AvgPnL: 0.46%, TotalPnL: 157.60%
+2026-03-29T10:51:28.991603Z  INFO       [0.85-0.95): 511 trades, RealWR: 51.3% (TP:219 SL:176), AvgPnL: 0.39%, TotalPnL: 197.83%
+2026-03-29T10:51:28.991611Z  INFO       [0.95-1.01): 48 trades, RealWR: 66.7% (TP:28 SL:11), AvgPnL: 1.89%, TotalPnL: 90.49%
+2026-03-29T10:51:28.991616Z  INFO 
+2026-03-29T10:51:28.991620Z  INFO     ─── By Parent Move Size ───
+2026-03-29T10:51:28.991627Z  INFO       10-15%: 27 trades, RealWR: 63.0% (TP:12 SL:3), AvgPnL: 2.14%, TotalPnL: 57.85%
+2026-03-29T10:51:28.991638Z  INFO       15-20%: 209 trades, RealWR: 58.4% (TP:103 SL:44), AvgPnL: 0.44%, TotalPnL: 91.33%
+2026-03-29T10:51:28.991651Z  INFO       20-30%: 360 trades, RealWR: 56.1% (TP:170 SL:97), AvgPnL: 0.43%, TotalPnL: 153.81%
+2026-03-29T10:51:28.991662Z  INFO       30%+: 289 trades, RealWR: 49.8% (TP:125 SL:119), AvgPnL: 0.61%, TotalPnL: 175.31%
+2026-03-29T10:51:28.991668Z  INFO 
+2026-03-29T10:51:28.991673Z  INFO     ─── Top 10 Symbols by Trade Count ───
+2026-03-29T10:51:28.991715Z  INFO       ZENUSDT: 15 trades, RealWR: 66.7%, TotalPnL: -9.69%
+2026-03-29T10:51:28.991721Z  INFO       MYXUSDT: 14 trades, RealWR: 64.3%, TotalPnL: 34.28%
+2026-03-29T10:51:28.991726Z  INFO       SANDUSDT: 14 trades, RealWR: 50.0%, TotalPnL: 4.91%
+2026-03-29T10:51:28.991731Z  INFO       HBARUSDT: 13 trades, RealWR: 53.8%, TotalPnL: 0.01%
+2026-03-29T10:51:28.991736Z  INFO       DASHUSDT: 13 trades, RealWR: 69.2%, TotalPnL: 18.29%
+2026-03-29T10:51:28.991744Z  INFO       ENJUSDT: 13 trades, RealWR: 38.5%, TotalPnL: 22.54%
+2026-03-29T10:51:28.991749Z  INFO       ARCUSDT: 12 trades, RealWR: 66.7%, TotalPnL: 29.72%
+2026-03-29T10:51:28.991754Z  INFO       XRPUSDT: 12 trades, RealWR: 41.7%, TotalPnL: -15.54%
+2026-03-29T10:51:28.991760Z  INFO       JELLYJELLYUSDT: 12 trades, RealWR: 75.0%, TotalPnL: 15.16%
+2026-03-29T10:51:28.991765Z  INFO       AXSUSDT: 12 trades, RealWR: 58.3%, TotalPnL: 28.44%
+2026-03-29T10:51:28.991769Z  INFO 
+2026-03-29T10:51:28.991774Z  INFO     ─── Top 10 Best Trades ───
+2026-03-29T10:51:28.991961Z  INFO       #1: SIRENUSDT 2026-03-22 16:59 240→60 CONT LONG score=0.89 PnL=50.00% hold=1 ✅TP
+2026-03-29T10:51:28.991971Z  INFO       #2: 1000FLOKIUSDT 2024-03-02 03:59 1440→240 CONT LONG score=0.92 PnL=40.89% hold=1 ✅TP
+2026-03-29T10:51:28.991977Z  INFO       #3: ZKUSDT 2025-11-02 03:59 1440→240 CONT LONG score=0.78 PnL=33.39% hold=1 ✅TP
+2026-03-29T10:51:28.991982Z  INFO       #4: DUSKUSDT 2026-01-19 03:59 1440→240 CONT LONG score=0.87 PnL=30.74% hold=1 ✅TP
+2026-03-29T10:51:28.991988Z  INFO       #5: GRTUSDT 2021-02-12 03:59 1440→240 CONT LONG score=0.89 PnL=27.06% hold=1 ✅TP
+2026-03-29T10:51:28.991996Z  INFO       #6: ZBTUSDT 2025-12-25 03:59 1440→240 CONT LONG score=0.76 PnL=26.47% hold=1 ✅TP
+2026-03-29T10:51:28.992002Z  INFO       #7: BANANAS31USDT 2025-07-11 00:59 240→60 CONT LONG score=0.86 PnL=25.17% hold=1 ✅TP
+2026-03-29T10:51:28.992008Z  INFO       #8: KAVAUSDT 2021-03-12 03:59 1440→240 CONT LONG score=0.78 PnL=25.15% hold=1 ✅TP
+2026-03-29T10:51:28.992014Z  INFO       #9: DENTUSDT 2021-08-14 03:59 1440→240 CONT LONG score=0.95 PnL=25.13% hold=1 ✅TP
+2026-03-29T10:51:28.992019Z  INFO       #10: MUSDT 2025-08-30 03:59 1440→240 CONT LONG score=0.83 PnL=22.90% hold=1 ✅TP
+2026-03-29T10:51:28.992024Z  INFO 
+2026-03-29T10:51:28.992029Z  INFO     ─── Top 10 Worst Trades ───
+2026-03-29T10:51:28.992035Z  INFO       #1: SEIUSDT 2024-03-16 03:59 1440→240 CONT LONG score=0.82 PnL=-6.00% hold=2 ❌SL
+2026-03-29T10:51:28.992040Z  INFO       #2: SNXUSDT 2025-10-14 03:59 1440→240 CONT LONG score=0.87 PnL=-6.00% hold=1 ❌SL
+2026-03-29T10:51:28.992046Z  INFO       #3: CRVUSDT 2021-04-16 03:59 1440→240 CONT LONG score=0.88 PnL=-6.00% hold=1 ❌SL
+2026-03-29T10:51:28.992051Z  INFO       #4: BOMEUSDT 2024-10-15 03:59 1440→240 CONT LONG score=0.87 PnL=-6.00% hold=2 ❌SL
+2026-03-29T10:51:28.992058Z  INFO       #5: TAUSDT 2026-03-28 03:59 1440→240 CONT LONG score=0.95 PnL=-6.00% hold=1 ❌SL
+2026-03-29T10:51:28.992064Z  INFO       #6: PIPPINUSDT 2026-02-08 16:59 240→60 CONT LONG score=0.91 PnL=-6.00% hold=1 ❌SL
+2026-03-29T10:51:28.992069Z  INFO       #7: PHAUSDT 2026-03-03 08:59 240→60 CONT LONG score=0.87 PnL=-6.00% hold=1 ❌SL
+2026-03-29T10:51:28.992074Z  INFO       #8: MOVEUSDT 2024-12-21 00:59 240→60 CONT LONG score=0.78 PnL=-6.00% hold=1 ❌SL
+2026-03-29T10:51:28.992080Z  INFO       #9: MEUSDT 2026-01-18 12:59 240→60 CONT LONG score=0.92 PnL=-6.00% hold=2 ❌SL
+2026-03-29T10:51:28.992086Z  INFO       #10: CRVUSDT 2021-01-16 03:59 1440→240 CONT LONG score=0.87 PnL=-6.00% hold=1 ❌SL
+2026-03-29T10:51:28.992091Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.992096Z  INFO   ═══ TRADING CONFIGURATION SUMMARY ═══
+2026-03-29T10:51:28.992100Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.992105Z  INFO 
+2026-03-29T10:51:28.992111Z  INFO     ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+2026-03-29T10:51:28.992120Z  INFO     │  SCORE TIER ANALYSIS — Which score thresholds to use for trading?                               │
+2026-03-29T10:51:28.992125Z  INFO     ├──────────┬────────┬─────────┬──────────┬──────────┬──────────┬─────────────────────────────────────┤
+2026-03-29T10:51:28.992132Z  INFO     │  Score    │ Trades │ RealWR  │ AvgPnL   │ TotalPnL │ PF       │ Recommendation                     │
+2026-03-29T10:51:28.992138Z  INFO     ├──────────┼────────┼─────────┼──────────┼──────────┼──────────┼─────────────────────────────────────┤
+2026-03-29T10:51:28.992149Z  INFO     │  0.75-0.80│    152 │   58.6% │    0.71% │   107.4% │    1.36 │ 🟡 GOOD — acceptable for live │
+2026-03-29T10:51:28.992160Z  INFO     │  0.80-0.85│    192 │   56.2% │    0.26% │    50.2% │    1.13 │ 🟠 MARGINAL — paper trade first │
+2026-03-29T10:51:28.992174Z  INFO     │  0.85-0.90│    292 │   53.4% │    0.71% │   206.7% │    1.31 │ 🟡 GOOD — acceptable for live │
+2026-03-29T10:51:28.992185Z  INFO     │  0.90-0.95│    219 │   48.4% │   -0.04% │    -8.9% │    0.98 │ 🔴 SKIP — negative expectancy │
+2026-03-29T10:51:28.992194Z  INFO     │  0.95+   │     48 │   66.7% │    1.89% │    90.5% │    2.22 │ 🟢 STRONG — use for live │
+2026-03-29T10:51:28.992204Z  INFO     │  ALL≥0.75│    903 │   54.4% │    0.49% │   445.9% │    1.22 │ 🟡 GOOD — acceptable for live │
+2026-03-29T10:51:28.992217Z  INFO     │  ALL≥0.80│    751 │   53.5% │    0.45% │   338.6% │    1.20 │ 🟡 GOOD — acceptable for live │
+2026-03-29T10:51:28.992228Z  INFO     │  ALL≥0.85│    559 │   52.6% │    0.52% │   288.3% │    1.22 │ 🟡 GOOD — acceptable for live │
+2026-03-29T10:51:28.992235Z  INFO     └──────────┴────────┴─────────┴──────────┴──────────┴──────────┴─────────────────────────────────────┘
+2026-03-29T10:51:28.992240Z  INFO 
+2026-03-29T10:51:28.992245Z  INFO     ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+2026-03-29T10:51:28.992250Z  INFO     │  SCORE × TF PAIR — Best combinations                                                           │
+2026-03-29T10:51:28.992255Z  INFO     ├──────────────────────────┬────────┬─────────┬──────────┬──────────┬──────────────────────────────┤
+2026-03-29T10:51:28.992263Z  INFO     │  Combination             │ Trades │ RealWR  │ AvgPnL   │ PF       │ Recommendation              │
+2026-03-29T10:51:28.992268Z  INFO     ├──────────────────────────┼────────┼─────────┼──────────┼──────────┼──────────────────────────────┤
+2026-03-29T10:51:28.992280Z  INFO     │  1440→240 score 0.75-0.85│    264 │   59.5% │    0.75% │    1.41 │ 🟢 STRONG                    │
+2026-03-29T10:51:28.992294Z  INFO     │  1440→240 score 0.85-0.95│    305 │   48.2% │    0.30% │    1.12 │ 🔴 WEAK                      │
+2026-03-29T10:51:28.992305Z  INFO     │  1440→240 score 0.95+    │     18 │   66.7% │    1.96% │    2.45 │ 🟢 STRONG                    │
+2026-03-29T10:51:28.992317Z  INFO     │  240→60 score 0.75-0.85  │     80 │   50.0% │   -0.51% │    0.79 │ 🔴 WEAK                      │
+2026-03-29T10:51:28.992328Z  INFO     │  240→60 score 0.85-0.95  │    206 │   55.8% │    0.52% │    1.23 │ 🟡 OK                        │
+2026-03-29T10:51:28.992338Z  INFO     │  240→60 score 0.95+      │     30 │   66.7% │    1.84% │    2.10 │ 🟢 STRONG                    │
+2026-03-29T10:51:28.992346Z  INFO     └──────────────────────────┴────────┴─────────┴──────────┴──────────┴──────────────────────────────┘
+2026-03-29T10:51:28.992351Z  INFO 
+2026-03-29T10:51:28.992356Z  INFO     ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+2026-03-29T10:51:28.992361Z  INFO     │  SCORE × MOVE SIZE — Optimal entry conditions                                                   │
+2026-03-29T10:51:28.992367Z  INFO     ├──────────────────────────┬────────┬─────────┬──────────┬──────────┬──────────────────────────────┤
+2026-03-29T10:51:28.992372Z  INFO     │  Combination             │ Trades │ RealWR  │ AvgPnL   │ PF       │ Status                      │
+2026-03-29T10:51:28.992377Z  INFO     ├──────────────────────────┼────────┼─────────┼──────────┼──────────┼──────────────────────────────┤
+2026-03-29T10:51:28.992388Z  INFO     │  Move 18-20% S.75-.85    │     53 │   56.6% │    0.03% │    1.02 │ 🔴 AVOID                     │
+2026-03-29T10:51:28.992399Z  INFO     │  Move 18-20% S.85+       │     67 │   55.2% │    0.98% │    1.49 │ 🟢 SWEET SPOT                │
+2026-03-29T10:51:28.992412Z  INFO     │  Move 20-25% S.75-.85    │     90 │   56.7% │   -0.18% │    0.90 │ 🔴 AVOID                     │
+2026-03-29T10:51:28.992425Z  INFO     │  Move 20-25% S.85+       │    125 │   59.2% │    0.36% │    1.20 │ 🟡 ACCEPTABLE                │
+2026-03-29T10:51:28.992436Z  INFO     │  Move 25-30% S.75-.85    │     55 │   50.9% │   -0.06% │    0.97 │ 🔴 AVOID                     │
+2026-03-29T10:51:28.992455Z  INFO     │  Move 25-30% S.85+       │     90 │   54.4% │    1.43% │    1.65 │ 🟡 ACCEPTABLE                │
+2026-03-29T10:51:28.992467Z  INFO     │  Move 30-50% S.75-.85    │     58 │   51.7% │    1.21% │    1.51 │ 🟡 ACCEPTABLE                │
+2026-03-29T10:51:28.992479Z  INFO     │  Move 30-50% S.85+       │    153 │   45.8% │    0.08% │    1.03 │ 🔴 AVOID                     │
+2026-03-29T10:51:28.992488Z  INFO     │  Move 50%+   S.75-.85    │     28 │   60.7% │    1.52% │    1.64 │ 🟢 SWEET SPOT                │
+2026-03-29T10:51:28.992496Z  INFO     │  Move 50%+   S.85+       │     64 │   50.0% │    0.56% │    1.19 │ 🟡 ACCEPTABLE                │
+2026-03-29T10:51:28.992503Z  INFO     └──────────────────────────┴────────┴─────────┴──────────┴──────────┴──────────────────────────────┘
+2026-03-29T10:51:28.992510Z  INFO 
+2026-03-29T10:51:28.992515Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.992519Z  INFO   ═══ TRADING RECOMMENDATIONS ═══
+2026-03-29T10:51:28.992525Z  INFO   ═══════════════════════════════════════════════════
+2026-03-29T10:51:28.992548Z  INFO 
+2026-03-29T10:51:28.992554Z  INFO     💡 OPTIMAL SCORE THRESHOLD: ≥0.95
+2026-03-29T10:51:28.992559Z  INFO        → 48 trades, RealWR 66.7%, AvgPnL 1.89%, PF 2.22
+2026-03-29T10:51:28.992564Z  INFO 
+2026-03-29T10:51:28.992569Z  INFO     📐 POSITION SIZING (Kelly Criterion):
+2026-03-29T10:51:28.992574Z  INFO        Full Kelly: 36.6% of capital per trade
+2026-03-29T10:51:28.992579Z  INFO        Half Kelly (recommended): 18.3% of capital per trade
+2026-03-29T10:51:28.992584Z  INFO        Quarter Kelly (conservative): 9.2% of capital per trade
+2026-03-29T10:51:28.992588Z  INFO 
+2026-03-29T10:51:28.992596Z  INFO     📅 EXPECTED FREQUENCY:
+2026-03-29T10:51:28.992602Z  INFO        All signals: ~14 trades/month
+2026-03-29T10:51:28.992607Z  INFO        Score ≥0.95: ~1 trades/month
+2026-03-29T10:51:28.992612Z  INFO        Data span: 65 months (2020-11 — 2026-03)
+2026-03-29T10:51:28.992617Z  INFO 
+2026-03-29T10:51:28.992621Z  INFO 
+2026-03-29T10:51:28.992631Z  INFO   🟢 VERDICT: STRONG EDGE (RealWR=54.4%, AvgPnL=0.49%, PF=1.22, TotalPnL=445.92%)
+2026-03-29T10:51:28.992636Z  INFO 
+2026-03-29T10:51:28.992640Z  INFO   Total time: 55.7s (0.9min)
+2026-03-29T10:51:28.992645Z  INFO   Config: config/imbalance.toml
+2026-03-29T10:51:28.992650Z  INFO   Log: logs/imbalance_backtest.log

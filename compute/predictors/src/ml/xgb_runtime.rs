@@ -96,10 +96,21 @@ impl Booster {
     }
 
     pub fn predict_dense_cpu(&self, data: &[f32], nrow: usize, ncol: usize, kind: ModelKind) -> Result<Vec<f32>> {
+        // ── Sanitize: XGBoost rejects inf / values > f32::MAX.
+        //    Replace non-finite values with NaN → XGBoost treats them as "missing". ──
+        let needs_sanitize = data.iter().any(|v| !v.is_finite());
+        let sanitized: Vec<f32>;
+        let clean_data: &[f32] = if needs_sanitize {
+            sanitized = data.iter().map(|&v| if v.is_finite() { v } else { f32::NAN }).collect();
+            &sanitized
+        } else {
+            data
+        };
+
         unsafe {
             let mut dm: DMatrixHandle = ptr::null_mut();
             check(XGDMatrixCreateFromMat(
-                data.as_ptr(),
+                clean_data.as_ptr(),
                 nrow as bst_ulong,
                 ncol as bst_ulong,
                 f32::NAN,

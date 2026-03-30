@@ -44,8 +44,10 @@ Usage:
 """
 
 import argparse
+import gc
 import hashlib
 import json
+import logging
 import os
 import sys
 import time as time_module
@@ -355,9 +357,14 @@ def train_binary(
     dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_cols)
     dtest = xgb.DMatrix(X_test, label=y_test, feature_names=feature_cols)
 
-    # Class balance
+    # Free numpy arrays — XGBoost DMatrix has its own internal copy
+    n_train_total = len(y_train)
     n_pos = float(y_train.sum())
-    n_neg = float(len(y_train) - n_pos)
+    n_neg = float(n_train_total - n_pos)
+    del X_train, y_train, X_test
+    gc.collect()
+
+    # Class balance
     scale_pos_weight = n_neg / max(n_pos, 1.0)
 
     params = {
@@ -378,8 +385,8 @@ def train_binary(
         params.update(custom_params)
 
     print(f"    Training {model_name}... "
-          f"(train={len(y_train)}, test={len(y_test)}, pos={n_pos:.0f}/{len(y_train)} "
-          f"= {n_pos/len(y_train)*100:.1f}%)")
+          f"(train={n_train_total}, test={len(y_test)}, pos={n_pos:.0f}/{n_train_total} "
+          f"= {n_pos/n_train_total*100:.1f}%)")
 
     evals = [(dtrain, "train"), (dtest, "test")]
     model = xgb.train(
@@ -389,6 +396,10 @@ def train_binary(
         early_stopping_rounds=early_stopping_rounds,
         verbose_eval=0,
     )
+
+    # Free training DMatrix immediately — no longer needed after training
+    del dtrain
+    gc.collect()
 
     # Evaluate OOS
     y_pred_prob = model.predict(dtest)
@@ -408,15 +419,19 @@ def train_binary(
         metrics["f1"] = 0.0
         metrics["logloss"] = 1.0
 
-    metrics["train_size"] = int(len(y_train))
+    metrics["train_size"] = n_train_total
     metrics["test_size"] = int(len(y_test))
-    metrics["train_pos_rate"] = float(n_pos / len(y_train))
+    metrics["train_pos_rate"] = float(n_pos / n_train_total)
     metrics["test_pos_rate"] = float(y_test.mean())
     metrics["best_iteration"] = int(model.best_iteration)
 
     print(f"      → AUC={metrics['auc']:.4f}  P={metrics['precision']:.4f}  "
           f"R={metrics['recall']:.4f}  F1={metrics['f1']:.4f}  "
           f"LogLoss={metrics['logloss']:.4f}  (trees={model.best_iteration + 1})")
+
+    # Free test DMatrix and arrays after evaluation
+    del dtest, y_test, y_pred_prob, y_pred
+    gc.collect()
 
     # Top-5 feature importance
     importance = model.get_score(importance_type="gain")
@@ -604,8 +619,7 @@ def train_wfo_for_tf(
           f"{MAX_DYNAMIC_LOOKBACK * tf / 60:.1f}h")
     print(f"{'═' * 75}")
 
-    # Parse timestamps
-    tf_df = tf_df.copy()
+    # Parse timestamps — assign in-place, caller already gave us our own copy
     tf_df["ts"] = pd.to_datetime(tf_df["timestamp"], utc=True)
 
     # Compute fold boundaries
@@ -644,13 +658,19 @@ def train_wfo_for_tf(
         if len(train_df) < 100 or len(test_df) < 30:
             print(f"    ⚠️ Too few samples after purge/embargo "
                   f"(train={len(train_df)}, test={len(test_df)}). Skipping fold.")
+            del train_df, test_df
+            gc.collect()
             continue
 
         train_super_rate = train_df["is_super"].mean() * 100
         test_super_rate = test_df["is_super"].mean() * 100
-        print(f"    Train: {len(train_df)} rows, {train_df['symbol'].nunique()} symbols, "
+        train_rows = len(train_df)
+        test_rows = len(test_df)
+        train_symbols = int(train_df["symbol"].nunique())
+        test_symbols = int(test_df["symbol"].nunique())
+        print(f"    Train: {train_rows} rows, {train_symbols} symbols, "
               f"super={train_super_rate:.1f}%")
-        print(f"    Test:  {len(test_df)} rows, {test_df['symbol'].nunique()} symbols, "
+        print(f"    Test:  {test_rows} rows, {test_symbols} symbols, "
               f"super={test_super_rate:.1f}%")
 
         # === Train P(super) model ===
@@ -667,6 +687,10 @@ def train_wfo_for_tf(
             save_model(super_model, ALL_FEATURES, tf, "super_entry",
                        super_metrics, fold_models_dir, suffix=f"_fold{fi}")
 
+        # Free super model immediately after saving
+        del super_model
+        gc.collect()
+
         # === Train P(direction) model (super-only, clean direction) ===
         # Train ONLY on is_super=True AND direction != 0 (exclude whipsaw).
         # Whipsaw cases (long_win && short_win) have ambiguous direction
@@ -674,12 +698,17 @@ def train_wfo_for_tf(
         train_super = train_df[(train_df["is_super"] == 1) & (train_df["direction"] != 0)].copy()
         test_super = test_df[(test_df["is_super"] == 1) & (test_df["direction"] != 0)].copy()
 
+        # Free full train/test — no longer needed, direction uses super subset
+        del train_df, test_df
+        gc.collect()
+
         dir_metrics: dict = {
             "auc": 0.5, "precision": 0.0, "recall": 0.0, "f1": 0.0,
             "logloss": 1.0, "train_size": len(train_super),
             "test_size": len(test_super),
         }
 
+        dir_model = None
         if len(train_super) >= 50 and len(test_super) >= 20:
             train_super.loc[:, "label_long"] = (train_super["direction"] == 1).astype(int)
             test_super.loc[:, "label_long"] = (test_super["direction"] == 1).astype(int)
@@ -725,13 +754,18 @@ def train_wfo_for_tf(
             "train_end_raw": fold["train_end_raw"].isoformat(),
             "test_start_raw": fold["test_start_raw"].isoformat(),
             "test_end_raw": fold["test_end_raw"].isoformat(),
-            "train_rows_after_purge": len(train_df),
-            "test_rows_after_embargo": len(test_df),
-            "train_symbols": int(train_df["symbol"].nunique()),
-            "test_symbols": int(test_df["symbol"].nunique()),
+            "train_rows_after_purge": train_rows,
+            "test_rows_after_embargo": test_rows,
+            "train_symbols": train_symbols,
+            "test_symbols": test_symbols,
             "super_metrics": super_metrics,
             "dir_metrics": dir_metrics,
         })
+
+        # ── Memory cleanup between folds ──
+        del train_super, test_super, dir_model
+        gc.collect()
+        print(f"    [Memory] gc.collect() after fold {fi}")
 
     # ══ AGGREGATE OOS METRICS ══
     print(f"\n  {'─' * 60}")
@@ -785,12 +819,20 @@ def train_wfo_for_tf(
                    final_super_metrics, output_dir)
         print(f"    ✅ Saved: {output_dir}/super_entry_v1_tf{tf}.ubj")
 
+        # Free super model + train/val splits
+        del final_super_model, train_all_df, val_df
+        gc.collect()
+
         # Final P(direction) — super-only, excluding whipsaw (direction=0)
         all_super = tf_df[(tf_df["is_super"] == 1) & (tf_df["direction"] != 0)].copy()
         if len(all_super) >= 100:
             n_val_dir = max(int(len(all_super) * 0.10), 50)
             val_dir = all_super.tail(n_val_dir)
             train_dir = all_super.head(len(all_super) - n_val_dir)
+
+            # Free all_super — we have train_dir and val_dir
+            del all_super
+            gc.collect()
 
             train_dir.loc[:, "label_long"] = (train_dir["direction"] == 1).astype(int)
             val_dir.loc[:, "label_long"] = (val_dir["direction"] == 1).astype(int)
@@ -817,8 +859,14 @@ def train_wfo_for_tf(
             save_model(final_dir_model, ALL_FEATURES, tf, "super_dir",
                        final_dir_metrics, output_dir)
             print(f"    ✅ Saved: {output_dir}/super_dir_v1_tf{tf}.ubj")
+
+            # Free direction model
+            del final_dir_model, train_dir, val_dir
+            gc.collect()
         else:
             print(f"    ⚠️ Not enough super examples ({len(all_super)}) for final direction model.")
+            del all_super
+            gc.collect()
 
     # ══ SAVE WFO REPORT ══
     elapsed = time_module.time() - t_start
@@ -929,6 +977,17 @@ Examples:
         for c in missing:
             df[c] = 0.0
 
+    # ── Memory optimization: convert features to float32 (saves ~50% RAM) ──
+    mem_before = df.memory_usage(deep=True).sum() / 1e9
+    for col in ALL_FEATURES:
+        if col in df.columns:
+            df[col] = df[col].astype(np.float32)
+    if "magnitude_pct" in df.columns:
+        df["magnitude_pct"] = df["magnitude_pct"].astype(np.float32)
+    mem_after = df.memory_usage(deep=True).sum() / 1e9
+    print(f"  Memory: {mem_before:.1f} GB → {mem_after:.1f} GB (float32 conversion)")
+    gc.collect()
+
     # Dataset overview
     print(f"\n  Dataset overview:")
     for tf_val in sorted(df["tf_minutes"].unique()):
@@ -951,6 +1010,7 @@ Examples:
         tf_df = df[df["tf_minutes"] == tf].copy()
         if len(tf_df) < 100:
             print(f"\n  Skipping TF {tf}m: only {len(tf_df)} rows (need ≥100)")
+            del tf_df
             continue
 
         report = train_wfo_for_tf(
@@ -962,6 +1022,15 @@ Examples:
         )
         if report:
             all_reports[tf] = report
+
+        # Free TF-specific data between timeframes
+        del tf_df
+        gc.collect()
+        print(f"  [Memory] gc.collect() after TF {tf}m")
+
+    # Free full dataset — no longer needed
+    del df
+    gc.collect()
 
     total_elapsed = time_module.time() - total_start
 

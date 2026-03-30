@@ -1,222 +1,229 @@
-2026-03-27 17:14:37 [INFO] ╔═══════════════════════════════════════════════════════╗
-2026-03-27 17:14:37 [INFO] ║  Pump/Dump Detection — WFO Training                   ║
-2026-03-27 17:14:37 [INFO] ║  Multi-TF indicator patterns → XGBoost                ║
-2026-03-27 17:14:37 [INFO] ║  Sharp move detection (concentrated in 1-2 hours)     ║
-2026-03-27 17:14:37 [INFO] ╚═══════════════════════════════════════════════════════╝
-2026-03-27 17:14:37 [INFO] Model type: both
-2026-03-27 17:14:37 [INFO] Loading dataset/pump_dump_dataset.csv...
-2026-03-27 17:14:39 [INFO]   Loaded 5,868 rows, 4746 columns in 2.5s
-2026-03-27 17:14:39 [INFO]   Detected 4740 feature columns
-2026-03-27 17:14:40 [INFO]   Memory: 0.22 GB → 0.11 GB (float32)
-2026-03-27 17:14:40 [INFO] 
+2026-03-28 12:23:37 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-28 12:23:37 [INFO] ║  Pump/Dump Detection — WFO Training                   ║
+2026-03-28 12:23:37 [INFO] ║  Multi-TF indicator patterns → XGBoost                ║
+2026-03-28 12:23:37 [INFO] ║  Sharp move detection (concentrated in 1-2 hours)     ║
+2026-03-28 12:23:37 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-28 12:23:37 [INFO] Model type: both
+2026-03-28 12:23:37 [INFO] Loading dataset/pump_dump_dataset.csv...
+2026-03-28 12:24:13 [INFO] ╔═══════════════════════════════════════════════════════╗
+2026-03-28 12:24:13 [INFO] ║  Pump/Dump Detection — WFO Training                   ║
+2026-03-28 12:24:13 [INFO] ║  Multi-TF indicator patterns → XGBoost                ║
+2026-03-28 12:24:13 [INFO] ║  Sharp move detection (concentrated in 1-2 hours)     ║
+2026-03-28 12:24:13 [INFO] ╚═══════════════════════════════════════════════════════╝
+2026-03-28 12:24:13 [INFO] Model type: both
+2026-03-28 12:24:13 [INFO] Loading dataset/pump_dump_dataset.csv...
+2026-03-28 12:24:17 [INFO]   Loaded 13,466 rows, 3956 columns in 3.9s
+2026-03-28 12:24:17 [INFO]   Detected 3950 feature columns
+2026-03-28 12:24:17 [INFO]   Memory: 0.43 GB → 0.22 GB (float32)
+2026-03-28 12:24:17 [INFO] 
   Dataset overview:
-2026-03-27 17:14:40 [INFO]       DUMP:      729 rows (157 symbols)
-2026-03-27 17:14:40 [INFO]       NONE:    4,338 rows (161 symbols)
-2026-03-27 17:14:40 [INFO]       PUMP:      801 rows (143 symbols)
-2026-03-27 17:14:40 [INFO]     Total POS=1530 NEG=4338 (POS ratio=26.1%)
-2026-03-27 17:14:40 [INFO] 
+2026-03-28 12:24:17 [INFO]       DUMP:    1,729 rows (173 symbols)
+2026-03-28 12:24:17 [INFO]       NONE:    9,482 rows (178 symbols)
+2026-03-28 12:24:18 [INFO]       PUMP:    2,255 rows (175 symbols)
+2026-03-28 12:24:18 [INFO]     Total POS=3984 NEG=9482 (POS ratio=29.6%)
+2026-03-28 12:24:18 [INFO] 
 ===========================================================================
-2026-03-27 17:14:40 [INFO]   TRAINING PUMP MODEL
-2026-03-27 17:14:40 [INFO] ===========================================================================
-2026-03-27 17:14:40 [INFO]   Pump dataset: 5139 rows
-2026-03-27 17:14:40 [INFO] 
+2026-03-28 12:24:18 [INFO]   TRAINING PUMP MODEL
+2026-03-28 12:24:18 [INFO] ===========================================================================
+2026-03-28 12:24:18 [INFO]   Pump dataset: 11737 rows
+2026-03-28 12:24:18 [INFO] 
 ═══════════════════════════════════════════════════════════════════════════
-2026-03-27 17:14:40 [INFO]   PUMP/DUMP WFO — PUMP model
-2026-03-27 17:14:40 [INFO]   Data: 5139 rows, 161 symbols
-2026-03-27 17:14:40 [INFO]   Features: 4740
-2026-03-27 17:14:40 [INFO]   Labels: POS=801 (15.6%), NEG=4338 (84.4%)
-2026-03-27 17:14:40 [INFO]   Target: accuracy ≥ 65%
-2026-03-27 17:14:40 [INFO] ═══════════════════════════════════════════════════════════════════════════
-2026-03-27 17:14:40 [INFO]   4 WFO folds:
-2026-03-27 17:14:40 [INFO]     Fold 0: Train 1941d | Test 90d
-2026-03-27 17:14:40 [INFO]     Fold 1: Train 2031d | Test 90d
-2026-03-27 17:14:40 [INFO]     Fold 2: Train 2121d | Test 90d
-2026-03-27 17:14:40 [INFO]     Fold 3: Train 2211d | Test 90d
-2026-03-27 17:14:40 [INFO] 
+2026-03-28 12:24:18 [INFO]   PUMP/DUMP WFO — PUMP model
+2026-03-28 12:24:18 [INFO]   Data: 11737 rows, 179 symbols
+2026-03-28 12:24:18 [INFO]   Features: 3950
+2026-03-28 12:24:18 [INFO]   Labels: POS=2255 (19.2%), NEG=9482 (80.8%)
+2026-03-28 12:24:18 [INFO]   Target: accuracy ≥ 65%
+2026-03-28 12:24:18 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-28 12:24:18 [INFO]   4 WFO folds:
+2026-03-28 12:24:18 [INFO]     Fold 0: Train 2022d | Test 90d
+2026-03-28 12:24:18 [INFO]     Fold 1: Train 2112d | Test 90d
+2026-03-28 12:24:18 [INFO]     Fold 2: Train 2202d | Test 90d
+2026-03-28 12:24:18 [INFO]     Fold 3: Train 2292d | Test 90d
+2026-03-28 12:24:18 [INFO] 
   ── Fold 0/3 ──
-2026-03-27 17:14:40 [INFO]   Train: 1324 rows | Test: 435 rows
-2026-03-27 17:14:40 [INFO]   Baseline (majority class): 0.8414
-2026-03-27 17:14:41 [INFO]   Fold 0: Training pump binary on 1324 examples (POS=141, NEG=1183, scale_pos=8.39)
-2026-03-27 17:15:13 [INFO]   Fold 0: acc=0.8575 AUC=0.9673 prec=0.5280 recall=0.9565 F1=0.6804 ✅
-2026-03-27 17:15:13 [INFO]     Test: POS=69 NEG=366 | Pred: POS=125 NEG=310 | trees=897
-2026-03-27 17:15:13 [INFO]     gate_0.55: prec=0.533 rec=1.000 n=122 cov=28.0%
-2026-03-27 17:15:13 [INFO]     gate_0.60: prec=0.551 rec=1.000 n=118 cov=27.1%
-2026-03-27 17:15:13 [INFO]     gate_0.65: prec=0.561 rec=1.000 n=114 cov=26.2%
-2026-03-27 17:15:13 [INFO]     gate_0.70: prec=0.579 rec=1.000 n=107 cov=24.6%
-2026-03-27 17:15:13 [INFO]     gate_0.75: prec=0.614 rec=1.000 n=101 cov=23.2%
-2026-03-27 17:15:13 [INFO]     gate_0.80: prec=0.634 rec=1.000 n=93 cov=21.4%
-2026-03-27 17:15:13 [INFO] 
+2026-03-28 12:24:18 [INFO]   Train: 3766 rows | Test: 1229 rows
+2026-03-28 12:24:18 [INFO]   Baseline (majority class): 0.7958
+2026-03-28 12:24:18 [INFO]   Fold 0: Training pump binary on 3766 examples (POS=449, NEG=3317, scale_pos=7.39)
+2026-03-28 12:25:11 [INFO]   Fold 0: acc=0.7868 AUC=0.9188 prec=0.4878 recall=0.8725 F1=0.6257 ✅
+2026-03-28 12:25:11 [INFO]     Test: POS=251 NEG=978 | Pred: POS=449 NEG=780 | trees=845
+2026-03-28 12:25:11 [INFO]     gate_0.55: prec=0.509 rec=1.000 n=426 cov=34.7%
+2026-03-28 12:25:11 [INFO]     gate_0.60: prec=0.533 rec=1.000 n=398 cov=32.4%
+2026-03-28 12:25:11 [INFO]     gate_0.65: prec=0.556 rec=1.000 n=374 cov=30.4%
+2026-03-28 12:25:11 [INFO]     gate_0.70: prec=0.591 rec=1.000 n=342 cov=27.8%
+2026-03-28 12:25:11 [INFO]     gate_0.75: prec=0.625 rec=1.000 n=312 cov=25.4%
+2026-03-28 12:25:11 [INFO]     gate_0.80: prec=0.655 rec=1.000 n=281 cov=22.9%
+2026-03-28 12:25:11 [INFO] 
   ── Fold 1/3 ──
-2026-03-27 17:15:13 [INFO]   Train: 1774 rows | Test: 714 rows
-2026-03-27 17:15:13 [INFO]   Baseline (majority class): 0.8347
-2026-03-27 17:15:13 [INFO]   Fold 1: Training pump binary on 1774 examples (POS=211, NEG=1563, scale_pos=7.41)
-2026-03-27 17:15:43 [INFO]   Fold 1: acc=0.9230 AUC=0.9663 prec=0.7333 recall=0.8390 F1=0.7826 ✅
-2026-03-27 17:15:43 [INFO]     Test: POS=118 NEG=596 | Pred: POS=135 NEG=579 | trees=490
-2026-03-27 17:15:43 [INFO]     gate_0.55: prec=0.754 rec=1.000 n=130 cov=18.2%
-2026-03-27 17:15:43 [INFO]     gate_0.60: prec=0.758 rec=1.000 n=124 cov=17.4%
-2026-03-27 17:15:43 [INFO]     gate_0.65: prec=0.767 rec=1.000 n=120 cov=16.8%
-2026-03-27 17:15:43 [INFO]     gate_0.70: prec=0.805 rec=1.000 n=113 cov=15.8%
-2026-03-27 17:15:43 [INFO]     gate_0.75: prec=0.843 rec=1.000 n=102 cov=14.3%
-2026-03-27 17:15:43 [INFO]     gate_0.80: prec=0.874 rec=1.000 n=95 cov=13.3%
-2026-03-27 17:15:43 [INFO] 
+2026-03-28 12:25:11 [INFO]   Train: 5044 rows | Test: 1631 rows
+2026-03-28 12:25:11 [INFO]   Baseline (majority class): 0.8167
+2026-03-28 12:25:11 [INFO]   Fold 1: Training pump binary on 5044 examples (POS=703, NEG=4341, scale_pos=6.17)
+2026-03-28 12:26:58 [INFO]   Fold 1: acc=0.9209 AUC=0.9572 prec=0.7576 recall=0.8361 F1=0.7949 ✅
+2026-03-28 12:26:58 [INFO]     Test: POS=299 NEG=1332 | Pred: POS=330 NEG=1301 | trees=1493
+2026-03-28 12:26:58 [INFO]     gate_0.55: prec=0.787 rec=1.000 n=310 cov=19.0%
+2026-03-28 12:26:58 [INFO]     gate_0.60: prec=0.814 rec=1.000 n=296 cov=18.1%
+2026-03-28 12:26:58 [INFO]     gate_0.65: prec=0.839 rec=1.000 n=280 cov=17.2%
+2026-03-28 12:26:58 [INFO]     gate_0.70: prec=0.840 rec=1.000 n=269 cov=16.5%
+2026-03-28 12:26:58 [INFO]     gate_0.75: prec=0.854 rec=1.000 n=254 cov=15.6%
+2026-03-28 12:26:58 [INFO]     gate_0.80: prec=0.888 rec=1.000 n=232 cov=14.2%
+2026-03-28 12:26:58 [INFO] 
   ── Fold 2/3 ──
-2026-03-27 17:15:43 [INFO]   Train: 2513 rows | Test: 1229 rows
-2026-03-27 17:15:43 [INFO]   Baseline (majority class): 0.8145
-2026-03-27 17:15:43 [INFO]   Fold 2: Training pump binary on 2513 examples (POS=333, NEG=2180, scale_pos=6.55)
-2026-03-27 17:16:20 [INFO]   Fold 2: acc=0.9251 AUC=0.9631 prec=0.7833 recall=0.8246 F1=0.8034 ✅
-2026-03-27 17:16:20 [INFO]     Test: POS=228 NEG=1001 | Pred: POS=240 NEG=989 | trees=523
-2026-03-27 17:16:20 [INFO]     gate_0.55: prec=0.796 rec=1.000 n=230 cov=18.7%
-2026-03-27 17:16:20 [INFO]     gate_0.60: prec=0.826 rec=1.000 n=218 cov=17.7%
-2026-03-27 17:16:20 [INFO]     gate_0.65: prec=0.847 rec=1.000 n=203 cov=16.5%
-2026-03-27 17:16:20 [INFO]     gate_0.70: prec=0.866 rec=1.000 n=194 cov=15.8%
-2026-03-27 17:16:20 [INFO]     gate_0.75: prec=0.875 rec=1.000 n=184 cov=15.0%
-2026-03-27 17:16:20 [INFO]     gate_0.80: prec=0.886 rec=1.000 n=176 cov=14.3%
-2026-03-27 17:16:20 [INFO] 
+2026-03-28 12:26:58 [INFO]   Train: 6766 rows | Test: 2347 rows
+2026-03-28 12:26:58 [INFO]   Baseline (majority class): 0.7418
+2026-03-28 12:26:59 [INFO]   Fold 2: Training pump binary on 6766 examples (POS=1011, NEG=5755, scale_pos=5.69)
+2026-03-28 12:28:35 [INFO]   Fold 2: acc=0.9229 AUC=0.9707 prec=0.8696 recall=0.8251 F1=0.8467 ✅
+2026-03-28 12:28:35 [INFO]     Test: POS=606 NEG=1741 | Pred: POS=575 NEG=1772 | trees=946
+2026-03-28 12:28:35 [INFO]     gate_0.55: prec=0.879 rec=1.000 n=564 cov=24.0%
+2026-03-28 12:28:35 [INFO]     gate_0.60: prec=0.894 rec=1.000 n=548 cov=23.3%
+2026-03-28 12:28:35 [INFO]     gate_0.65: prec=0.910 rec=1.000 n=522 cov=22.2%
+2026-03-28 12:28:35 [INFO]     gate_0.70: prec=0.928 rec=1.000 n=498 cov=21.2%
+2026-03-28 12:28:35 [INFO]     gate_0.75: prec=0.940 rec=1.000 n=482 cov=20.5%
+2026-03-28 12:28:35 [INFO]     gate_0.80: prec=0.950 rec=1.000 n=461 cov=19.6%
+2026-03-28 12:28:35 [INFO] 
   ── Fold 3/3 ──
-2026-03-27 17:16:20 [INFO]   Train: 3813 rows | Test: 1140 rows
-2026-03-27 17:16:20 [INFO]   Baseline (majority class): 0.8132
-2026-03-27 17:16:21 [INFO]   Fold 3: Training pump binary on 3813 examples (POS=568, NEG=3245, scale_pos=5.71)
-2026-03-27 17:17:04 [INFO]   Fold 3: acc=0.9246 AUC=0.9685 prec=0.7848 recall=0.8216 F1=0.8028 ✅
-2026-03-27 17:17:04 [INFO]     Test: POS=213 NEG=927 | Pred: POS=223 NEG=917 | trees=428
-2026-03-27 17:17:04 [INFO]     gate_0.55: prec=0.810 rec=1.000 n=211 cov=18.5%
-2026-03-27 17:17:04 [INFO]     gate_0.60: prec=0.833 rec=1.000 n=204 cov=17.9%
-2026-03-27 17:17:04 [INFO]     gate_0.65: prec=0.839 rec=1.000 n=199 cov=17.5%
-2026-03-27 17:17:04 [INFO]     gate_0.70: prec=0.874 rec=1.000 n=183 cov=16.1%
-2026-03-27 17:17:04 [INFO]     gate_0.75: prec=0.891 rec=1.000 n=175 cov=15.4%
-2026-03-27 17:17:04 [INFO]     gate_0.80: prec=0.896 rec=1.000 n=164 cov=14.4%
-2026-03-27 17:17:04 [INFO] 
+2026-03-28 12:28:35 [INFO]   Train: 9231 rows | Test: 2198 rows
+2026-03-28 12:28:35 [INFO]   Baseline (majority class): 0.7489
+2026-03-28 12:28:35 [INFO]   Fold 3: Training pump binary on 9231 examples (POS=1641, NEG=7590, scale_pos=4.63)
+2026-03-28 12:31:22 [INFO]   Fold 3: acc=0.9208 AUC=0.9593 prec=0.8500 recall=0.8315 F1=0.8407 ✅
+2026-03-28 12:31:22 [INFO]     Test: POS=552 NEG=1646 | Pred: POS=540 NEG=1658 | trees=1500
+2026-03-28 12:31:22 [INFO]     gate_0.55: prec=0.863 rec=1.000 n=524 cov=23.8%
+2026-03-28 12:31:22 [INFO]     gate_0.60: prec=0.870 rec=1.000 n=508 cov=23.1%
+2026-03-28 12:31:22 [INFO]     gate_0.65: prec=0.879 rec=1.000 n=489 cov=22.2%
+2026-03-28 12:31:22 [INFO]     gate_0.70: prec=0.896 rec=1.000 n=473 cov=21.5%
+2026-03-28 12:31:22 [INFO]     gate_0.75: prec=0.909 rec=1.000 n=451 cov=20.5%
+2026-03-28 12:31:22 [INFO]     gate_0.80: prec=0.930 rec=1.000 n=426 cov=19.4%
+2026-03-28 12:31:22 [INFO] 
   ────────────────────────────────────────────────────────────
-2026-03-27 17:17:04 [INFO]   AGGREGATE OOS — PUMP model
-2026-03-27 17:17:04 [INFO]   ────────────────────────────────────────────────────────────
-2026-03-27 17:17:04 [INFO]   Accuracy:  0.9075±0.0289 ✅
-2026-03-27 17:17:04 [INFO]   AUC:       0.9663±0.0020
-2026-03-27 17:17:04 [INFO]   Precision: 0.7074
-2026-03-27 17:17:04 [INFO]   Recall:    0.8604
-2026-03-27 17:17:04 [INFO]   F1:        0.7673
-2026-03-27 17:17:04 [INFO]   Baseline:  0.8259
-2026-03-27 17:17:04 [INFO]   Lift:      +0.0816 📈
-2026-03-27 17:17:04 [INFO]   Stable top features: tf60_c9_dist_to_low_50(4/4), tf60_c8_dist_to_low_50(4/4), tf60_c7_dist_to_low_50(3/4), tf60_c9_price_vs_ema20(3/4), tf60_c6_dist_to_low_50(3/4), tf60_c9_price_vs_supertrend(3/4), tf60_c9_rsi(2/4), tf60_c9_rsi_norm(2/4), tf60_c6_vol_ratio_10(2/4), tf1440_c9_stoch_norm(2/4), tf60_c9_price_vs_ema50(2/4), tf1440_c6_lower_wick_ratio(2/4), tf1440_c9_stoch_d(2/4), tf1440_c8_rsi_norm(2/4), tf60_c6_atr_pct(2/4)
-2026-03-27 17:17:04 [INFO] 
+2026-03-28 12:31:22 [INFO]   AGGREGATE OOS — PUMP model
+2026-03-28 12:31:22 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-28 12:31:22 [INFO]   Accuracy:  0.8879±0.0583 ✅
+2026-03-28 12:31:22 [INFO]   AUC:       0.9515±0.0196
+2026-03-28 12:31:22 [INFO]   Precision: 0.7412
+2026-03-28 12:31:22 [INFO]   Recall:    0.8413
+2026-03-28 12:31:22 [INFO]   F1:        0.7770
+2026-03-28 12:31:22 [INFO]   Baseline:  0.7758
+2026-03-28 12:31:22 [INFO]   Lift:      +0.1121 📈
+2026-03-28 12:31:22 [INFO]   Stable top features: tf60_c9_vol_ratio_10(4/4), tf60_c8_vol_ratio_5(4/4), tf60_c3_rsi_norm(3/4), tf60_c3_rsi(3/4), tf60_c1_volume_spike(3/4), tf60_c8_vol_ratio_10(3/4), tf60_c0_atr_pct(3/4), tf60_c9_atr_pct(3/4), tf60_c3_dist_to_low_50(2/4), tf60_c9_stoch_d(2/4), tf60_c1_price_vs_sma(2/4), tf60_c4_bb_position(2/4), tf240_c9_price_vs_ema50(2/4), tf1440_c9_atr_ratio_5(2/4), tf60_c2_stoch_k(2/4)
+2026-03-28 12:31:22 [INFO] 
   ── FINAL model (ALL data) ──
-2026-03-27 17:17:04 [INFO]   Fold -1: Training pump binary on 4626 examples (POS=725, NEG=3901, scale_pos=5.38)
-2026-03-27 17:17:50 [INFO]   Fold -1: acc=0.9727 AUC=0.9865 prec=0.8974 recall=0.9211 F1=0.9091 ✅
-2026-03-27 17:17:50 [INFO]     Test: POS=76 NEG=437 | Pred: POS=78 NEG=435 | trees=360
-2026-03-27 17:17:50 [INFO]     gate_0.55: prec=0.897 rec=1.000 n=78 cov=15.2%
-2026-03-27 17:17:50 [INFO]     gate_0.60: prec=0.908 rec=1.000 n=76 cov=14.8%
-2026-03-27 17:17:50 [INFO]     gate_0.65: prec=0.918 rec=1.000 n=73 cov=14.2%
-2026-03-27 17:17:50 [INFO]     gate_0.70: prec=0.929 rec=1.000 n=70 cov=13.6%
-2026-03-27 17:17:50 [INFO]     gate_0.75: prec=0.926 rec=1.000 n=68 cov=13.3%
-2026-03-27 17:17:50 [INFO]     gate_0.80: prec=0.938 rec=1.000 n=65 cov=12.7%
-2026-03-27 17:17:50 [INFO]   ✅ Saved: models/pump_dump_pump_v1.ubj
-2026-03-27 17:17:50 [INFO]   ✅ Schema: models/pump_dump_pump_v1.schema.json
-2026-03-27 17:17:50 [INFO] 
+2026-03-28 12:31:23 [INFO]   Fold -1: Training pump binary on 10564 examples (POS=2048, NEG=8516, scale_pos=4.16)
+2026-03-28 12:34:15 [INFO]   Fold -1: acc=0.9625 AUC=0.9916 prec=0.8937 recall=0.8937 F1=0.8937 ✅
+2026-03-28 12:34:15 [INFO]     Test: POS=207 NEG=966 | Pred: POS=207 NEG=966 | trees=1185
+2026-03-28 12:34:15 [INFO]     gate_0.55: prec=0.919 rec=1.000 n=198 cov=16.9%
+2026-03-28 12:34:15 [INFO]     gate_0.60: prec=0.927 rec=1.000 n=193 cov=16.5%
+2026-03-28 12:34:15 [INFO]     gate_0.65: prec=0.930 rec=1.000 n=186 cov=15.9%
+2026-03-28 12:34:15 [INFO]     gate_0.70: prec=0.955 rec=1.000 n=177 cov=15.1%
+2026-03-28 12:34:15 [INFO]     gate_0.75: prec=0.954 rec=1.000 n=173 cov=14.7%
+2026-03-28 12:34:15 [INFO]     gate_0.80: prec=0.953 rec=1.000 n=169 cov=14.4%
+2026-03-28 12:34:15 [INFO]   ✅ Saved: models/pump_dump_pump_v1.ubj
+2026-03-28 12:34:15 [INFO]   ✅ Schema: models/pump_dump_pump_v1.schema.json
+2026-03-28 12:34:15 [INFO] 
   📊 Report: models/pump_dump_pump_wfo_report.json
-2026-03-27 17:17:50 [INFO]   ⏱️  Elapsed: 190.2s
-2026-03-27 17:17:50 [INFO] 
+2026-03-28 12:34:15 [INFO]   ⏱️  Elapsed: 597.5s
+2026-03-28 12:34:15 [INFO] 
 ===========================================================================
-2026-03-27 17:17:50 [INFO]   TRAINING DUMP MODEL
-2026-03-27 17:17:50 [INFO] ===========================================================================
-2026-03-27 17:17:51 [INFO]   Dump dataset: 5067 rows
-2026-03-27 17:17:51 [INFO] 
+2026-03-28 12:34:15 [INFO]   TRAINING DUMP MODEL
+2026-03-28 12:34:15 [INFO] ===========================================================================
+2026-03-28 12:34:15 [INFO]   Dump dataset: 11211 rows
+2026-03-28 12:34:15 [INFO] 
 ═══════════════════════════════════════════════════════════════════════════
-2026-03-27 17:17:51 [INFO]   PUMP/DUMP WFO — DUMP model
-2026-03-27 17:17:51 [INFO]   Data: 5067 rows, 161 symbols
-2026-03-27 17:17:51 [INFO]   Features: 4740
-2026-03-27 17:17:51 [INFO]   Labels: POS=729 (14.4%), NEG=4338 (85.6%)
-2026-03-27 17:17:51 [INFO]   Target: accuracy ≥ 65%
-2026-03-27 17:17:51 [INFO] ═══════════════════════════════════════════════════════════════════════════
-2026-03-27 17:17:51 [INFO]   4 WFO folds:
-2026-03-27 17:17:51 [INFO]     Fold 0: Train 1941d | Test 90d
-2026-03-27 17:17:51 [INFO]     Fold 1: Train 2031d | Test 90d
-2026-03-27 17:17:51 [INFO]     Fold 2: Train 2121d | Test 90d
-2026-03-27 17:17:51 [INFO]     Fold 3: Train 2211d | Test 90d
-2026-03-27 17:17:51 [INFO] 
+2026-03-28 12:34:15 [INFO]   PUMP/DUMP WFO — DUMP model
+2026-03-28 12:34:15 [INFO]   Data: 11211 rows, 179 symbols
+2026-03-28 12:34:15 [INFO]   Features: 3950
+2026-03-28 12:34:15 [INFO]   Labels: POS=1729 (15.4%), NEG=9482 (84.6%)
+2026-03-28 12:34:15 [INFO]   Target: accuracy ≥ 65%
+2026-03-28 12:34:15 [INFO] ═══════════════════════════════════════════════════════════════════════════
+2026-03-28 12:34:15 [INFO]   4 WFO folds:
+2026-03-28 12:34:15 [INFO]     Fold 0: Train 2022d | Test 90d
+2026-03-28 12:34:15 [INFO]     Fold 1: Train 2112d | Test 90d
+2026-03-28 12:34:15 [INFO]     Fold 2: Train 2202d | Test 90d
+2026-03-28 12:34:15 [INFO]     Fold 3: Train 2292d | Test 90d
+2026-03-28 12:34:15 [INFO] 
   ── Fold 0/3 ──
-2026-03-27 17:17:51 [INFO]   Train: 1407 rows | Test: 386 rows
-2026-03-27 17:17:51 [INFO]   Baseline (majority class): 0.9482
-2026-03-27 17:17:51 [INFO]   Fold 0: Training dump binary on 1407 examples (POS=224, NEG=1183, scale_pos=5.28)
-2026-03-27 17:18:17 [INFO]   Fold 0: acc=0.8964 AUC=0.8794 prec=0.2917 recall=0.7000 F1=0.4118 ✅
-2026-03-27 17:18:17 [INFO]     Test: POS=20 NEG=366 | Pred: POS=48 NEG=338 | trees=652
-2026-03-27 17:18:17 [INFO]     gate_0.55: prec=0.311 rec=1.000 n=45 cov=11.7%
-2026-03-27 17:18:17 [INFO]     gate_0.60: prec=0.310 rec=1.000 n=42 cov=10.9%
-2026-03-27 17:18:17 [INFO]     gate_0.65: prec=0.325 rec=1.000 n=40 cov=10.4%
-2026-03-27 17:18:17 [INFO]     gate_0.70: prec=0.342 rec=1.000 n=38 cov=9.8%
-2026-03-27 17:18:17 [INFO]     gate_0.75: prec=0.353 rec=1.000 n=34 cov=8.8%
-2026-03-27 17:18:17 [INFO]     gate_0.80: prec=0.387 rec=1.000 n=31 cov=8.0%
-2026-03-27 17:18:17 [INFO] 
+2026-03-28 12:34:16 [INFO]   Train: 3723 rows | Test: 1060 rows
+2026-03-28 12:34:16 [INFO]   Baseline (majority class): 0.9226
+2026-03-28 12:34:16 [INFO]   Fold 0: Training dump binary on 3723 examples (POS=406, NEG=3317, scale_pos=8.17)
+2026-03-28 12:34:40 [INFO]   Fold 0: acc=0.8934 AUC=0.9335 prec=0.4072 recall=0.8293 F1=0.5462 ✅
+2026-03-28 12:34:40 [INFO]     Test: POS=82 NEG=978 | Pred: POS=167 NEG=893 | trees=365
+2026-03-28 12:34:40 [INFO]     gate_0.55: prec=0.438 rec=1.000 n=153 cov=14.4%
+2026-03-28 12:34:40 [INFO]     gate_0.60: prec=0.471 rec=1.000 n=136 cov=12.8%
+2026-03-28 12:34:40 [INFO]     gate_0.65: prec=0.500 rec=1.000 n=128 cov=12.1%
+2026-03-28 12:34:40 [INFO]     gate_0.70: prec=0.550 rec=1.000 n=111 cov=10.5%
+2026-03-28 12:34:40 [INFO]     gate_0.75: prec=0.604 rec=1.000 n=96 cov=9.1%
+2026-03-28 12:34:40 [INFO]     gate_0.80: prec=0.659 rec=1.000 n=85 cov=8.0%
+2026-03-28 12:34:40 [INFO] 
   ── Fold 1/3 ──
-2026-03-27 17:18:17 [INFO]   Train: 1844 rows | Test: 651 rows
-2026-03-27 17:18:17 [INFO]   Baseline (majority class): 0.9155
-2026-03-27 17:18:17 [INFO]   Fold 1: Training dump binary on 1844 examples (POS=281, NEG=1563, scale_pos=5.56)
-2026-03-27 17:18:38 [INFO]   Fold 1: acc=0.9555 AUC=0.9821 prec=0.6806 recall=0.8909 F1=0.7717 ✅
-2026-03-27 17:18:38 [INFO]     Test: POS=55 NEG=596 | Pred: POS=72 NEG=579 | trees=296
-2026-03-27 17:18:38 [INFO]     gate_0.55: prec=0.712 rec=1.000 n=66 cov=10.1%
-2026-03-27 17:18:38 [INFO]     gate_0.60: prec=0.708 rec=1.000 n=65 cov=10.0%
-2026-03-27 17:18:38 [INFO]     gate_0.65: prec=0.738 rec=1.000 n=61 cov=9.4%
-2026-03-27 17:18:38 [INFO]     gate_0.70: prec=0.768 rec=1.000 n=56 cov=8.6%
-2026-03-27 17:18:38 [INFO]     gate_0.75: prec=0.824 rec=1.000 n=51 cov=7.8%
-2026-03-27 17:18:38 [INFO]     gate_0.80: prec=0.822 rec=1.000 n=45 cov=6.9%
-2026-03-27 17:18:38 [INFO] 
+2026-03-28 12:34:40 [INFO]   Train: 4863 rows | Test: 1508 rows
+2026-03-28 12:34:40 [INFO]   Baseline (majority class): 0.8833
+2026-03-28 12:34:41 [INFO]   Fold 1: Training dump binary on 4863 examples (POS=522, NEG=4341, scale_pos=8.32)
+2026-03-28 12:35:38 [INFO]   Fold 1: acc=0.9317 AUC=0.9578 prec=0.6834 recall=0.7727 F1=0.7253 ✅
+2026-03-28 12:35:38 [INFO]     Test: POS=176 NEG=1332 | Pred: POS=199 NEG=1309 | trees=859
+2026-03-28 12:35:38 [INFO]     gate_0.55: prec=0.716 rec=1.000 n=183 cov=12.1%
+2026-03-28 12:35:38 [INFO]     gate_0.60: prec=0.722 rec=1.000 n=176 cov=11.7%
+2026-03-28 12:35:38 [INFO]     gate_0.65: prec=0.749 rec=1.000 n=167 cov=11.1%
+2026-03-28 12:35:38 [INFO]     gate_0.70: prec=0.782 rec=1.000 n=156 cov=10.3%
+2026-03-28 12:35:38 [INFO]     gate_0.75: prec=0.783 rec=1.000 n=152 cov=10.1%
+2026-03-28 12:35:38 [INFO]     gate_0.80: prec=0.820 rec=1.000 n=139 cov=9.2%
+2026-03-28 12:35:38 [INFO] 
   ── Fold 2/3 ──
-2026-03-27 17:18:38 [INFO]   Train: 2514 rows | Test: 1158 rows
-2026-03-27 17:18:38 [INFO]   Baseline (majority class): 0.8644
-2026-03-27 17:18:39 [INFO]   Fold 2: Training dump binary on 2514 examples (POS=334, NEG=2180, scale_pos=6.53)
-2026-03-27 17:19:18 [INFO]   Fold 2: acc=0.9257 AUC=0.9596 prec=0.6940 recall=0.8089 F1=0.7471 ✅
-2026-03-27 17:19:18 [INFO]     Test: POS=157 NEG=1001 | Pred: POS=183 NEG=975 | trees=659
-2026-03-27 17:19:18 [INFO]     gate_0.55: prec=0.708 rec=1.000 n=171 cov=14.8%
-2026-03-27 17:19:18 [INFO]     gate_0.60: prec=0.724 rec=1.000 n=163 cov=14.1%
-2026-03-27 17:19:18 [INFO]     gate_0.65: prec=0.737 rec=1.000 n=152 cov=13.1%
-2026-03-27 17:19:18 [INFO]     gate_0.70: prec=0.755 rec=1.000 n=143 cov=12.3%
-2026-03-27 17:19:18 [INFO]     gate_0.75: prec=0.784 rec=1.000 n=134 cov=11.6%
-2026-03-27 17:19:18 [INFO]     gate_0.80: prec=0.835 rec=1.000 n=121 cov=10.4%
-2026-03-27 17:19:18 [INFO] 
+2026-03-28 12:35:38 [INFO]   Train: 6457 rows | Test: 2270 rows
+2026-03-28 12:35:38 [INFO]   Baseline (majority class): 0.7670
+2026-03-28 12:35:39 [INFO]   Fold 2: Training dump binary on 6457 examples (POS=702, NEG=5755, scale_pos=8.20)
+2026-03-28 12:36:35 [INFO]   Fold 2: acc=0.9220 AUC=0.9670 prec=0.8894 recall=0.7599 F1=0.8196 ✅
+2026-03-28 12:36:35 [INFO]     Test: POS=529 NEG=1741 | Pred: POS=452 NEG=1818 | trees=597
+2026-03-28 12:36:35 [INFO]     gate_0.55: prec=0.899 rec=1.000 n=425 cov=18.7%
+2026-03-28 12:36:35 [INFO]     gate_0.60: prec=0.905 rec=1.000 n=411 cov=18.1%
+2026-03-28 12:36:35 [INFO]     gate_0.65: prec=0.913 rec=1.000 n=390 cov=17.2%
+2026-03-28 12:36:35 [INFO]     gate_0.70: prec=0.918 rec=1.000 n=377 cov=16.6%
+2026-03-28 12:36:35 [INFO]     gate_0.75: prec=0.927 rec=1.000 n=358 cov=15.8%
+2026-03-28 12:36:35 [INFO]     gate_0.80: prec=0.941 rec=1.000 n=338 cov=14.9%
+2026-03-28 12:36:35 [INFO] 
   ── Fold 3/3 ──
-2026-03-27 17:19:18 [INFO]   Train: 3746 rows | Test: 1147 rows
-2026-03-27 17:19:18 [INFO]   Baseline (majority class): 0.8082
-2026-03-27 17:19:18 [INFO]   Fold 3: Training dump binary on 3746 examples (POS=501, NEG=3245, scale_pos=6.48)
-2026-03-27 17:20:11 [INFO]   Fold 3: acc=0.9320 AUC=0.9700 prec=0.8381 recall=0.8000 F1=0.8186 ✅
-2026-03-27 17:20:11 [INFO]     Test: POS=220 NEG=927 | Pred: POS=210 NEG=937 | trees=609
-2026-03-27 17:20:11 [INFO]     gate_0.55: prec=0.848 rec=1.000 n=204 cov=17.8%
-2026-03-27 17:20:11 [INFO]     gate_0.60: prec=0.880 rec=1.000 n=191 cov=16.7%
-2026-03-27 17:20:11 [INFO]     gate_0.65: prec=0.901 rec=1.000 n=181 cov=15.8%
-2026-03-27 17:20:11 [INFO]     gate_0.70: prec=0.900 rec=1.000 n=170 cov=14.8%
-2026-03-27 17:20:11 [INFO]     gate_0.75: prec=0.903 rec=1.000 n=154 cov=13.4%
-2026-03-27 17:20:11 [INFO]     gate_0.80: prec=0.903 rec=1.000 n=145 cov=12.6%
-2026-03-27 17:20:11 [INFO] 
+2026-03-28 12:36:35 [INFO]   Train: 8840 rows | Test: 2102 rows
+2026-03-28 12:36:35 [INFO]   Baseline (majority class): 0.7831
+2026-03-28 12:36:35 [INFO]   Fold 3: Training dump binary on 8840 examples (POS=1250, NEG=7590, scale_pos=6.07)
+2026-03-28 12:37:43 [INFO]   Fold 3: acc=0.8996 AUC=0.9075 prec=0.8470 recall=0.6557 F1=0.7392 ✅
+2026-03-28 12:37:43 [INFO]     Test: POS=456 NEG=1646 | Pred: POS=353 NEG=1749 | trees=491
+2026-03-28 12:37:43 [INFO]     gate_0.55: prec=0.853 rec=1.000 n=341 cov=16.2%
+2026-03-28 12:37:43 [INFO]     gate_0.60: prec=0.872 rec=1.000 n=328 cov=15.6%
+2026-03-28 12:37:43 [INFO]     gate_0.65: prec=0.890 rec=1.000 n=310 cov=14.7%
+2026-03-28 12:37:43 [INFO]     gate_0.70: prec=0.900 rec=1.000 n=301 cov=14.3%
+2026-03-28 12:37:43 [INFO]     gate_0.75: prec=0.917 rec=1.000 n=289 cov=13.7%
+2026-03-28 12:37:43 [INFO]     gate_0.80: prec=0.944 rec=1.000 n=267 cov=12.7%
+2026-03-28 12:37:43 [INFO] 
   ────────────────────────────────────────────────────────────
-2026-03-27 17:20:11 [INFO]   AGGREGATE OOS — DUMP model
-2026-03-27 17:20:11 [INFO]   ────────────────────────────────────────────────────────────
-2026-03-27 17:20:11 [INFO]   Accuracy:  0.9274±0.0211 ✅
-2026-03-27 17:20:11 [INFO]   AUC:       0.9478±0.0403
-2026-03-27 17:20:11 [INFO]   Precision: 0.6261
-2026-03-27 17:20:11 [INFO]   Recall:    0.8000
-2026-03-27 17:20:11 [INFO]   F1:        0.6873
-2026-03-27 17:20:11 [INFO]   Baseline:  0.8841
-2026-03-27 17:20:11 [INFO]   Lift:      +0.0433 📈
-2026-03-27 17:20:11 [INFO]   Stable top features: tf60_c9_dist_to_high_50(4/4), tf60_c9_atr_pct(4/4), tf60_c9_price_vs_ema20(4/4), tf60_c9_bb_width_pct(4/4), tf60_c9_volume_spike(3/4), tf60_c9_vol_ratio_10(3/4), tf60_c8_atr_pct(3/4), tf60_c9_price_vs_fibo_pivot(3/4), tf60_c9_price_vs_ema50(3/4), tf60_c2_bb_width_pct(2/4), tf60_c8_dist_to_high_50(2/4), tf60_c6_atr_pct(2/4), tf1440_c8_stoch_k(2/4), tf1440_c0_supertrend(2/4), tf1440_c1_supertrend(2/4)
-2026-03-27 17:20:11 [INFO] 
+2026-03-28 12:37:43 [INFO]   AGGREGATE OOS — DUMP model
+2026-03-28 12:37:43 [INFO]   ────────────────────────────────────────────────────────────
+2026-03-28 12:37:43 [INFO]   Accuracy:  0.9117±0.0157 ✅
+2026-03-28 12:37:43 [INFO]   AUC:       0.9414±0.0231
+2026-03-28 12:37:43 [INFO]   Precision: 0.7068
+2026-03-28 12:37:43 [INFO]   Recall:    0.7544
+2026-03-28 12:37:43 [INFO]   F1:        0.7076
+2026-03-28 12:37:43 [INFO]   Baseline:  0.8390
+2026-03-28 12:37:43 [INFO]   Lift:      +0.0727 📈
+2026-03-28 12:37:43 [INFO]   Stable top features: tf60_c9_vol_ratio_10(4/4), tf60_c8_vol_ratio_10(4/4), tf60_c8_vol_ratio_5(4/4), tf60_c9_bb_width_pct(4/4), tf60_c3_stoch_norm(2/4), tf60_c9_dist_to_high_50(2/4), tf60_c8_lower_wick_ratio(2/4), tf60_c3_williams_norm(2/4), tf60_c7_vol_ratio_5(2/4), tf60_c8_volume_spike(2/4), tf60_c7_bb_width_pct(2/4), tf60_c9_atr_pct(2/4), tf60_c4_bb_width_pct(2/4), tf60_c5_bb_width_pct(2/4), tf60_c0_atr(1/4)
+2026-03-28 12:37:43 [INFO] 
   ── FINAL model (ALL data) ──
-2026-03-27 17:20:11 [INFO]   Fold -1: Training dump binary on 4561 examples (POS=670, NEG=3891, scale_pos=5.81)
-2026-03-27 17:21:17 [INFO]   Fold -1: acc=0.9783 AUC=0.9945 prec=0.9615 recall=0.8475 F1=0.9009 ✅
-2026-03-27 17:21:17 [INFO]     Test: POS=59 NEG=447 | Pred: POS=52 NEG=454 | trees=654
-2026-03-27 17:21:17 [INFO]     gate_0.55: prec=0.980 rec=1.000 n=51 cov=10.1%
-2026-03-27 17:21:17 [INFO]     gate_0.60: prec=0.980 rec=1.000 n=51 cov=10.1%
-2026-03-27 17:21:17 [INFO]     gate_0.65: prec=0.980 rec=1.000 n=51 cov=10.1%
-2026-03-27 17:21:17 [INFO]     gate_0.70: prec=0.980 rec=1.000 n=49 cov=9.7%
-2026-03-27 17:21:17 [INFO]     gate_0.75: prec=1.000 rec=1.000 n=45 cov=8.9%
-2026-03-27 17:21:17 [INFO]     gate_0.80: prec=1.000 rec=1.000 n=45 cov=8.9%
-2026-03-27 17:21:17 [INFO]   ✅ Saved: models/pump_dump_dump_v1.ubj
-2026-03-27 17:21:17 [INFO]   ✅ Schema: models/pump_dump_dump_v1.schema.json
-2026-03-27 17:21:17 [INFO] 
+2026-03-28 12:37:43 [INFO]   Fold -1: Training dump binary on 10090 examples (POS=1592, NEG=8498, scale_pos=5.34)
+2026-03-28 12:39:59 [INFO]   Fold -1: acc=0.9759 AUC=0.9957 prec=0.9104 recall=0.8905 F1=0.9004 ✅
+2026-03-28 12:39:59 [INFO]     Test: POS=137 NEG=984 | Pred: POS=134 NEG=987 | trees=971
+2026-03-28 12:39:59 [INFO]     gate_0.55: prec=0.917 rec=1.000 n=132 cov=11.8%
+2026-03-28 12:39:59 [INFO]     gate_0.60: prec=0.916 rec=1.000 n=131 cov=11.7%
+2026-03-28 12:39:59 [INFO]     gate_0.65: prec=0.921 rec=1.000 n=127 cov=11.3%
+2026-03-28 12:39:59 [INFO]     gate_0.70: prec=0.935 rec=1.000 n=123 cov=11.0%
+2026-03-28 12:39:59 [INFO]     gate_0.75: prec=0.950 rec=1.000 n=119 cov=10.6%
+2026-03-28 12:39:59 [INFO]     gate_0.80: prec=0.974 rec=1.000 n=115 cov=10.3%
+2026-03-28 12:39:59 [INFO]   ✅ Saved: models/pump_dump_dump_v1.ubj
+2026-03-28 12:39:59 [INFO]   ✅ Schema: models/pump_dump_dump_v1.schema.json
+2026-03-28 12:39:59 [INFO] 
   📊 Report: models/pump_dump_dump_wfo_report.json
-2026-03-27 17:21:17 [INFO]   ⏱️  Elapsed: 206.8s
-2026-03-27 17:21:17 [INFO] 
+2026-03-28 12:39:59 [INFO]   ⏱️  Elapsed: 343.3s
+2026-03-28 12:39:59 [INFO] 
 ╔═══════════════════════════════════════════════════════════╗
-2026-03-27 17:21:17 [INFO] ║  PUMP/DUMP — FINAL SUMMARY                                ║
-2026-03-27 17:21:17 [INFO] ╚═══════════════════════════════════════════════════════════╝
-2026-03-27 17:21:17 [INFO]    DUMP: acc=0.9274 AUC=0.9478 F1=0.6873 base=0.8841 ✅
-2026-03-27 17:21:17 [INFO]    PUMP: acc=0.9075 AUC=0.9663 F1=0.7673 base=0.8259 ✅
-2026-03-27 17:21:17 [INFO] 
-  Total time: 397.3s (6.6min)
-2026-03-27 17:21:17 [INFO]   Models: models/pump_dump_{pump,dump}_v1.ubj
-2026-03-27 17:21:17 [INFO]   Done ✅
+2026-03-28 12:39:59 [INFO] ║  PUMP/DUMP — FINAL SUMMARY                                ║
+2026-03-28 12:39:59 [INFO] ╚═══════════════════════════════════════════════════════════╝
+2026-03-28 12:39:59 [INFO]    DUMP: acc=0.9117 AUC=0.9414 F1=0.7076 base=0.8390 ✅
+2026-03-28 12:39:59 [INFO]    PUMP: acc=0.8879 AUC=0.9515 F1=0.7770 base=0.7758 ✅
+2026-03-28 12:39:59 [INFO] 
+  Total time: 941.3s (15.7min)
+2026-03-28 12:39:59 [INFO]   Models: models/pump_dump_{pump,dump}_v1.ubj
+2026-03-28 12:39:59 [INFO]   Done ✅
