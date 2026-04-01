@@ -30,6 +30,9 @@ pub mod scoring;
 // Super Entry integration
 pub mod super_entry_stage;
 
+// Pump/Dump integration
+pub mod pump_dump_stage;
+
 // Import the compute indicators and predictors from the separate crates
 pub use compute_indicators;
 pub use predictors;

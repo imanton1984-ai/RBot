@@ -36,7 +36,7 @@ pub fn get_target_move_pct(tf_minutes: i32) -> Option<f64> {
     tf_target_move_pct().get(&tf_minutes).copied()
 }
 
-/// Full configuration for the Super Entry Strategy
+/// Full configuration for the Super Entry Strategy (NoDir)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SuperEntryConfig {
     /// Number of warmup candles needed before generating training examples.
@@ -47,6 +47,7 @@ pub struct SuperEntryConfig {
     pub lookahead_bars: usize,
 
     /// Minimum P(super) probability threshold to trigger an entry signal.
+    /// This is the GLOBAL fallback. Per-TF thresholds are in the scorer.
     pub p_threshold: f64,
 
     /// Stop-loss as a fraction of the target move (e.g., 0.5 = SL = 50% of TP).
@@ -63,9 +64,11 @@ pub struct SuperEntryConfig {
     pub tf_targets: HashMap<i32, f64>,
 
     /// Model file template (e.g., "models/super_entry_v1_tf{tf}.ubj")
+    /// DEPRECATED in NoDir: super_long/super_short use hardcoded paths.
     pub model_path_template: String,
 
     /// Direction model file template
+    /// DEPRECATED in NoDir: no separate direction model.
     pub direction_model_path_template: String,
 
     /// Minimum magnitude to include in training (filter noise)
@@ -75,19 +78,11 @@ pub struct SuperEntryConfig {
     pub train_split_ratio: f64,
 
     /// DEPRECATED: Danger zone filter is removed.
-    /// Only ML models (P(super) + direction) influence signal decisions.
     pub enable_danger_zone_filter: bool,
 
-    /// Per-TF direction confidence thresholds.
-    /// Only open trades when direction model confidence >= threshold for that TF.
-    /// For v4 binary model: confidence = P(predicted_class) ∈ [0.5, 1.0].
-    ///
-    /// Default:
-    ///   15m  → 0.75
-    ///   60m  → 0.70
-    ///   240m → 0.65
-    ///
-    /// Env override: SUPER_ENTRY_DIR_CONF_{TF}=0.70 (e.g. SUPER_ENTRY_DIR_CONF_60=0.70)
+    /// DEPRECATED in NoDir: direction confidence thresholds are no longer used.
+    /// Per-TF thresholds are now in the scorer (ScorerConfig::p_thresholds).
+    /// Kept for backward compat with existing code that references this field.
     pub direction_confidence_thresholds: HashMap<i32, f64>,
 }
 

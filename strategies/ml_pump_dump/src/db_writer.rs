@@ -8,6 +8,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use tracing::{info, warn};
 
 use crate::signal_generator::PumpDumpSignal;
@@ -45,18 +46,42 @@ pub async fn ensure_table_exists(pool: &PgPool) -> Result<()> {
     Ok(())
 }
 
+/// Deduplicate signals within a slice: if multiple signals share the same
+/// (symbol_id, tf_minutes, time) key (e.g. a PUMP and DUMP fired simultaneously),
+/// keep only the one with the highest prediction probability.
+///
+/// This prevents "ON CONFLICT DO UPDATE command cannot affect row a second time"
+/// PostgreSQL error when the same key appears twice in a single UNNEST INSERT.
+fn deduplicate_signals(signals: &[PumpDumpSignal]) -> Vec<&PumpDumpSignal> {
+    let mut best: HashMap<(i64, i32, i64), &PumpDumpSignal> = HashMap::with_capacity(signals.len());
+    for sig in signals {
+        let key = (sig.symbol_id, sig.tf_minutes, sig.time_ms);
+        let entry = best.entry(key).or_insert(sig);
+        if sig.pred > entry.pred {
+            *entry = sig;
+        }
+    }
+    best.into_values().collect()
+}
+
 /// Batch-insert pump/dump signals into trade.pump_dump_signals.
 ///
 /// Uses UNNEST for efficient batch INSERT (single SQL round-trip per batch).
+/// Deduplicates within each batch to avoid "cannot affect row a second time".
 /// ON CONFLICT: updates if a signal with same (symbol_id, tf_minutes, time) exists.
 pub async fn insert_signals_batch(pool: &PgPool, signals: &[PumpDumpSignal]) -> Result<usize> {
     if signals.is_empty() {
         return Ok(0);
     }
 
+    // Deduplicate: if PUMP + DUMP fire for the same (symbol_id, tf_minutes, time),
+    // keep only the signal with the highest pred.
+    let deduped = deduplicate_signals(signals);
+
     let mut inserted = 0;
 
-    for chunk in signals.chunks(2000) {
+    // Convert deduped refs to owned slice for chunking
+    for chunk in deduped.chunks(2000) {
         let mut time_v: Vec<DateTime<Utc>> = Vec::with_capacity(chunk.len());
         let mut time_ms_v: Vec<i64> = Vec::with_capacity(chunk.len());
         let mut symbol_v: Vec<String> = Vec::with_capacity(chunk.len());
@@ -74,7 +99,7 @@ pub async fn insert_signals_batch(pool: &PgPool, signals: &[PumpDumpSignal]) -> 
         let mut strategy_v: Vec<String> = Vec::with_capacity(chunk.len());
         let mut reason_v: Vec<serde_json::Value> = Vec::with_capacity(chunk.len());
 
-        for sig in chunk {
+        for &sig in chunk {
             time_v.push(sig.time);
             time_ms_v.push(sig.time_ms);
             symbol_v.push(sig.symbol.clone());

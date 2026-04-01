@@ -14,7 +14,7 @@
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tracing::{info, warn, error};
 
@@ -48,14 +48,24 @@ async fn main() -> Result<()> {
 
     // Load config
     let config = OrderManagerConfig::load_with_env()?;
-    let allocation = config.timeframe_allocation();
+    let allocation = config.effective_timeframe_allocation();
 
     info!("Allocation: {:?}", allocation.slots);
-    info!("P(super) min per TF: 1m={}, 5m={}, 15m={}, 1h={}, 4h={}, 1d={}",
-        config.p_super_min_1m, config.p_super_min_5m, config.p_super_min_15m,
-        config.p_super_min_1h, config.p_super_min_4h, config.p_super_min_1d);
-    info!("Max drift: {}%, Symbol cooldown: {}h",
-        config.max_price_drift_pct, config.symbol_cooldown_hours);
+    if config.is_pump_dump() {
+        info!("Strategy: PUMP_DUMP (target={}%, max_hold={}, sl_frac={})",
+            config.pump_dump.target_pct, config.pump_dump.max_hold_bars, config.pump_dump.sl_fraction);
+        info!("PD pred min per TF: 5m={}, 15m={}, 1h={}, 4h={}, 1d={}",
+            config.pump_dump.pd_pred_min_5m, config.pump_dump.pd_pred_min_15m,
+            config.pump_dump.pd_pred_min_1h, config.pump_dump.pd_pred_min_4h,
+            config.pump_dump.pd_pred_min_1d);
+    } else {
+        info!("P(super) min per TF: 1m={}, 5m={}, 15m={}, 1h={}, 4h={}, 1d={}",
+            config.p_super_min_1m, config.p_super_min_5m, config.p_super_min_15m,
+            config.p_super_min_1h, config.p_super_min_4h, config.p_super_min_1d);
+    }
+    info!("Max drift: {}%, Symbol cooldown: {}h, Max hold bars: {}",
+        config.max_price_drift_pct, config.symbol_cooldown_hours,
+        config.effective_max_hold_bars());
 
     // Load exchange credentials (retry-friendly — don't crash on failure)
     let exchange_settings = match settings_lib::ExchangeSettings::load_with_env() {
@@ -132,9 +142,18 @@ async fn main() -> Result<()> {
     let redpanda = Arc::new(redpanda);
 
     // Load Exchange Info cache (symbol precision, stepSize, etc.)
+    // FIX: Don't crash if Binance API is unreachable at startup (e.g., VPN down).
+    // Exchange info will be lazily refreshed on first trade attempt.
     let exchange_info = ExchangeInfoCache::new(binance_client.clone());
-    exchange_info.refresh().await?;
-    info!("✅ Exchange info cached: {} symbols", exchange_info.len().await);
+    match exchange_info.refresh().await {
+        Ok(()) => {
+            info!("✅ Exchange info cached: {} symbols", exchange_info.len().await);
+        }
+        Err(e) => {
+            warn!("⚠️ Failed to load exchange info at startup: {}. Will retry on first trade.", e);
+            warn!("  Check VPN/proxy if Binance API is blocked in your region.");
+        }
+    }
 
     // Create shared components
     let scanner = Arc::new(SignalScanner::new(pool.clone(), config.clone()));
@@ -163,6 +182,11 @@ async fn main() -> Result<()> {
 
     // ─── Spawn Tasks ────────────────────────────────────────
 
+    // FIX: Shared cooldown map for symbols that fail to open (e.g., minNotional).
+    // Prevents infinite retry loops like BTCUSDT failing every 30s.
+    let failed_symbol_cooldown: Arc<Mutex<FailedSymbolCooldown>> =
+        Arc::new(Mutex::new(HashMap::new()));
+
     // Task 1: Signal Scanner + Order Executor loop
     let scanner_handle = {
         let scanner = scanner.clone();
@@ -171,6 +195,7 @@ async fn main() -> Result<()> {
         let config = config.clone();
         let allocation = allocation.clone();
         let redpanda = redpanda.clone();
+        let failed_cooldown = failed_symbol_cooldown.clone();
 
         tokio::spawn(async move {
             loop {
@@ -188,6 +213,7 @@ async fn main() -> Result<()> {
                     &allocation,
                     &redpanda,
                     current_auto,
+                    &failed_cooldown,
                 )
                 .await
                 {
@@ -257,6 +283,13 @@ async fn main() -> Result<()> {
 // SCANNER CYCLE
 // ═══════════════════════════════════════════════════════════
 
+/// Failed symbol cooldown: symbol → time of last failure.
+/// Prevents infinite retry loops for symbols that consistently fail
+/// (e.g., BTCUSDT minNotional errors every 30s scan cycle).
+/// Cooldown: 10 minutes after failure before retrying.
+type FailedSymbolCooldown = HashMap<String, Instant>;
+const FAILED_SYMBOL_COOLDOWN_SECS: u64 = 600; // 10 minutes
+
 async fn run_scanner_cycle(
     scanner: &SignalScanner,
     executor: &OrderExecutor,
@@ -265,6 +298,7 @@ async fn run_scanner_cycle(
     allocation: &order_manager::TimeframeAllocation,
     redpanda: &RedpandaConnection,
     is_auto: bool,
+    failed_cooldown: &Arc<Mutex<FailedSymbolCooldown>>,
 ) -> Result<()> {
     // 1. Определить, какие слоты свободны
     let needed = scanner.needed_slots(allocation).await?;
@@ -307,6 +341,14 @@ async fn run_scanner_cycle(
         }
     }
 
+    // Clean up expired failed-symbol cooldowns
+    {
+        let mut cooldown = failed_cooldown.lock().await;
+        cooldown.retain(|_sym, failed_at| {
+            failed_at.elapsed().as_secs() < FAILED_SYMBOL_COOLDOWN_SECS
+        });
+    }
+
     // 3. Открыть позиции для найденных сигналов
     for signal in &signals {
         // FIX #1: Skip if symbol already opened in this cycle or in tracker
@@ -316,6 +358,23 @@ async fn run_scanner_cycle(
                 signal.symbol, signal.tf_minutes
             );
             continue;
+        }
+
+        // FIX: Skip if symbol recently failed to open (minNotional, etc.)
+        // Prevents infinite retry loops like BTCUSDT failing every 30s
+        {
+            let cooldown = failed_cooldown.lock().await;
+            if let Some(failed_at) = cooldown.get(&signal.symbol) {
+                let elapsed = failed_at.elapsed().as_secs();
+                if elapsed < FAILED_SYMBOL_COOLDOWN_SECS {
+                    tracing::debug!(
+                        "⏳ Skipping {} tf={}m — on failed cooldown ({}/{}s remaining)",
+                        signal.symbol, signal.tf_minutes,
+                        FAILED_SYMBOL_COOLDOWN_SECS - elapsed, FAILED_SYMBOL_COOLDOWN_SECS
+                    );
+                    continue;
+                }
+            }
         }
 
         // Проверяем, не заполнились ли слоты за время цикла
@@ -337,6 +396,12 @@ async fn run_scanner_cycle(
             Ok(managed_pos) => {
                 // FIX #1: Mark symbol as opened to prevent duplicates in this batch
                 opened_symbols_this_cycle.insert(managed_pos.symbol.clone());
+
+                // Clear from failed cooldown on success
+                {
+                    let mut cooldown = failed_cooldown.lock().await;
+                    cooldown.remove(&managed_pos.symbol);
+                }
 
                 // Отправить событие в WebUI
                 let event = PositionUpdateEvent {
@@ -371,9 +436,14 @@ async fn run_scanner_cycle(
                 tracker_lock.add_position(managed_pos);
             }
             Err(e) => {
-                error!(
-                    "❌ Failed to open position for {} tf={}m: {}",
-                    signal.symbol, signal.tf_minutes, e
+                // FIX: Add to failed cooldown to prevent retry loops
+                {
+                    let mut cooldown = failed_cooldown.lock().await;
+                    cooldown.insert(signal.symbol.clone(), Instant::now());
+                }
+                warn!(
+                    "❌ Failed to open position for {} tf={}m: {} (cooldown {}s)",
+                    signal.symbol, signal.tf_minutes, e, FAILED_SYMBOL_COOLDOWN_SECS
                 );
             }
         }

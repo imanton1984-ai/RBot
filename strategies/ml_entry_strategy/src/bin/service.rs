@@ -256,6 +256,9 @@ async fn main() -> Result<()> {
         for &tf in SuperEntryConfig::timeframes() {
             let mut tf_signals: Vec<SuperEntrySignal> = Vec::new();
 
+            // Determine HTF for this TF (e.g., 15m → 60m, 60m → 240m)
+            let htf_tf = ml_entry_strategy::heuristic::get_higher_tf(tf);
+
             // Concurrent fetch for last candle (warmup+10)
             for chunk in symbols.chunks(20) {
                 let mut handles = Vec::new();
@@ -263,20 +266,31 @@ async fn main() -> Result<()> {
                     let pool_c = pool.clone();
                     let sym = symbol.clone();
                     let limit = config.warmup_bars + 10;
+                    let htf = htf_tf;
                     handles.push(tokio::spawn(async move {
-                        ml_entry_strategy::dataset::fetch_candles_with_indicators(
+                        let candles = ml_entry_strategy::dataset::fetch_candles_with_indicators(
                             &pool_c, &sym, tf, limit
-                        ).await
+                        ).await;
+                        // Also fetch HTF candles for HTF features
+                        let htf_candles = if let Some(htf) = htf {
+                            ml_entry_strategy::dataset::fetch_candles_with_indicators(
+                                &pool_c, &sym, htf, limit
+                            ).await.ok()
+                        } else {
+                            None
+                        };
+                        (candles, htf_candles)
                     }));
                 }
 
                 for handle in handles {
-                    if let Ok(Ok(candles)) = handle.await {
+                    if let Ok((Ok(candles), htf_candles_opt)) = handle.await {
                         if candles.len() < config.warmup_bars + 1 { continue; }
                         let last = candles.last().unwrap();
-                        // Pass full candle history as context for dynamic features
-                        if let Ok(r) = pipeline.process_single_with_context(
-                            Some(&candles), last, tf, use_gpu
+                        // Pass full candle history + HTF context for dynamic features
+                        let htf_ref = htf_candles_opt.as_deref();
+                        if let Ok(r) = pipeline.process_single_with_htf_context(
+                            Some(&candles), last, tf, use_gpu, htf_ref
                         ) {
                             if let Some(s) = r.signal { tf_signals.push(s); }
                         }

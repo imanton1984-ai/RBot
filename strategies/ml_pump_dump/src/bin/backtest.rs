@@ -1,6 +1,12 @@
 // strategies/ml_pump_dump/src/bin/backtest.rs
 //
-// Pump/Dump Walk-Forward Trade Simulation v3
+// Pump/Dump Walk-Forward Trade Simulation v4
+//
+// CHANGES v4 (bulk-load optimization + readable logs):
+//   - Bulk-loads ALL candles per TF in 5 SQL queries (instead of 332×5 = 1660)
+//   - In-memory symbol processing (no per-symbol DB queries)
+//   - Progress bar with ETA
+//   - Clean, structured final report
 //
 // NO LOOK-AHEAD BIAS:
 //   - Walks bar-by-bar on target TFs (5m, 15m, 1h, 4h)
@@ -10,9 +16,10 @@
 //   - Comprehensive statistics: win rate, P&L, hold times, per-bucket analysis
 //
 // PERFORMANCE:
+//   - Bulk data loading (5 queries total, ~20-40s)
 //   - Batch model predictions (256 rows at once via XGBoost)
-//   - sqlx slow statement warnings suppressed via tracing filter
-//   - Sequential symbol processing (memory-safe)
+//   - Sequential symbol processing from in-memory data (no DB round-trips)
+//   - Expected runtime: ~2-3 min for 300+ symbols (was ~60+ min)
 //
 // USAGE:
 //   cargo build --release -p ml_pump_dump --bin pump_dump_backtest
@@ -42,9 +49,7 @@ use ml_pump_dump::pump_dump::{
     ANALYSIS_TIMEFRAMES, FULL_FEATURES_PER_CANDLE,
     extract_candle_features,
 };
-use ml_pump_dump::dataset::{
-    fetch_candles_with_indicators, fetch_active_symbols,
-};
+use ml_pump_dump::dataset::fetch_all_candles_for_tf;
 
 use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
 
@@ -364,6 +369,21 @@ fn print_trade_stats(label: &str, trades: &[&SimTrade], max_hold: usize) {
     }
 }
 
+/// Compact one-line summary for a trade group
+fn one_line_summary(label: &str, trades: &[&SimTrade]) -> String {
+    if trades.is_empty() {
+        return format!("{}: — no trades —", label);
+    }
+    let total = trades.len();
+    let wins = trades.iter().filter(|t| t.outcome == TradeOutcome::TpHit).count();
+    let losses = trades.iter().filter(|t| t.outcome == TradeOutcome::SlHit).count();
+    let wr = wins as f64 / total as f64 * 100.0;
+    let total_pnl: f64 = trades.iter().map(|t| t.pnl_pct).sum();
+    let avg_pnl = total_pnl / total as f64;
+    format!("{}: {} trades | WR {:.1}% (TP:{} SL:{}) | AvgPnL {:.2}% | TotalPnL {:.1}%",
+            label, total, wr, wins, losses, avg_pnl, total_pnl)
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────────────────
@@ -430,17 +450,15 @@ async fn main() -> Result<()> {
             .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc()));
 
     info!("╔═══════════════════════════════════════════════════════════╗");
-    info!("║  Pump/Dump Walk-Forward Backtest v3                        ║");
-    info!("║  True Trade Simulation — No Look-Ahead Bias                ║");
+    info!("║  Pump/Dump Walk-Forward Backtest v4 (bulk-load)           ║");
+    info!("║  True Trade Simulation — No Look-Ahead Bias               ║");
     info!("╚═══════════════════════════════════════════════════════════╝");
     info!("  Target TFs: {:?}", TARGET_TFS);
     info!("  Max hold: {} candles", max_hold);
-    info!("  Target: {:.1}%, SL: {:.1}% (fraction: {:.2})", target_pct, sl_pct, sl_fraction);
-    info!("  Pred step: {} (predict every {} bars)", pred_step, pred_step);
-    info!("  Cooldown: {} bars between same-type signals", cooldown);
-    info!("  Min signal: {:.2}", min_signal);
-    info!("  Device: {:?}", device);
-    info!("  Model type: {}", model_type);
+    info!("  Target: {:.1}%, SL: {:.1}% (fraction: {:.2}), R:R = {:.1}:{:.1}",
+          target_pct, sl_pct, sl_fraction, target_pct, sl_pct);
+    info!("  Pred step: {} | Cooldown: {} bars | Min signal: {:.2}", pred_step, cooldown, min_signal);
+    info!("  Device: {:?} | Model type: {}", device, model_type);
     if let Some(d) = &wfo_min_date {
         info!("  WFO OOS filter: signals after {}", d.format("%Y-%m-%d"));
     }
@@ -479,41 +497,71 @@ async fn main() -> Result<()> {
     info!("  Feature vector: {} features ({} TFs × {} lookback × {} per candle)",
           n_features, ANALYSIS_TIMEFRAMES.len(), lookback, FULL_FEATURES_PER_CANDLE);
 
-    let symbols = fetch_active_symbols(&pool).await?;
-    info!("  {} active symbols", symbols.len());
+    // ─── Phase 1: Bulk Load ALL data (5 queries total) ───
+    info!("");
+    info!("  ⏳ Bulk loading all candle data...");
 
     let tf_limits: HashMap<i32, usize> = vec![
         (1440, 3700), (240, 12000), (60, 12000),
         (15, 12000), (5, 12000),
     ].into_iter().collect();
 
+    let mut bulk_data: HashMap<i32, HashMap<String, Vec<CandleInd>>> = HashMap::new();
+    let mut all_symbols: Vec<String> = Vec::new();
+
+    for &tf in ANALYSIS_TIMEFRAMES {
+        let limit = tf_limits.get(&tf).copied().unwrap_or(5000);
+        let t0 = std::time::Instant::now();
+        let grouped = fetch_all_candles_for_tf(&pool, tf, limit).await?;
+        let n_syms = grouped.len();
+        let n_candles: usize = grouped.values().map(|v| v.len()).sum();
+        info!("    TF {:>4}m: {:>3} symbols, {:>8} candles  ({:.1}s)",
+              tf, n_syms, n_candles, t0.elapsed().as_secs_f64());
+
+        if all_symbols.is_empty() {
+            all_symbols = grouped.keys().cloned().collect();
+            all_symbols.sort();
+        }
+
+        bulk_data.insert(tf, grouped);
+    }
+
+    let load_elapsed = total_start.elapsed().as_secs_f64();
+    info!("  ✅ Bulk load complete: {} symbols in {:.1}s", all_symbols.len(), load_elapsed);
+    info!("");
+
     // Minimum history needed: lookback + 50 bars (for temporal features lookback)
     let min_history = lookback + 50;
 
-    // ─── Walk-Forward Simulation ───
+    // ─── Phase 2: Walk-Forward Simulation (in-memory, no DB queries) ───
+    info!("  🚀 Starting walk-forward simulation...");
+
     let mut all_trades: Vec<SimTrade> = Vec::new();
     let mut total_predictions = 0u64;
     let mut total_bars_scanned = 0u64;
     let mut symbols_processed = 0u32;
     let mut symbols_skipped = 0u32;
 
-    for (si, symbol) in symbols.iter().enumerate() {
-        // Load all TF data for this symbol
+    let n_symbols = all_symbols.len();
+    let progress_interval = (n_symbols / 20).max(1); // ~20 progress updates
+
+    for (si, symbol) in all_symbols.iter().enumerate() {
+        // Build per-symbol TF map from bulk data (no DB queries!)
         let mut all_tf_candles: HashMap<i32, Vec<CandleInd>> = HashMap::new();
         let mut has_critical = true;
 
         for &tf in ANALYSIS_TIMEFRAMES {
-            let limit = tf_limits.get(&tf).copied().unwrap_or(5000);
-            match fetch_candles_with_indicators(&pool, symbol, tf, limit).await {
-                Ok(c) if c.len() >= min_history + max_hold + 10 => {
-                    all_tf_candles.insert(tf, c);
-                }
-                _ => {
-                    // Daily and hourly are critical for multi-TF features
-                    if tf == 1440 || tf == 60 {
+            if let Some(tf_data) = bulk_data.get(&tf) {
+                if let Some(candles) = tf_data.get(symbol) {
+                    if candles.len() >= min_history + max_hold + 10 {
+                        all_tf_candles.insert(tf, candles.clone());
+                    } else if tf == 1440 || tf == 60 {
                         has_critical = false;
                         break;
                     }
+                } else if tf == 1440 || tf == 60 {
+                    has_critical = false;
+                    break;
                 }
             }
         }
@@ -655,34 +703,72 @@ async fn main() -> Result<()> {
         // Memory cleanup
         drop(all_tf_candles);
 
-        if (si + 1) % 20 == 0 || si == 0 {
-            info!("  [{}/{}] {} — {} sym trades (total: {}, predictions: {}, {:.1}s)",
-                  si + 1, symbols.len(), symbol, sym_trades,
-                  all_trades.len(), total_predictions,
-                  total_start.elapsed().as_secs_f64());
+        // Progress with ETA
+        if (si + 1) % progress_interval == 0 || si == 0 || si + 1 == n_symbols {
+            let elapsed = total_start.elapsed().as_secs_f64();
+            let pct = (si + 1) as f64 / n_symbols as f64 * 100.0;
+            let rate = (si + 1) as f64 / elapsed;
+            let remaining = (n_symbols - si - 1) as f64 / rate;
+            info!("  [{:>3}/{}] {:>6.1}% | {} — {} trades | total: {} | ETA: {:.0}s",
+                  si + 1, n_symbols, pct, symbol, sym_trades,
+                  all_trades.len(), remaining);
         }
     }
 
     // ═════════════════════════════════════════════════════════════════
-    // RESULTS
+    // RESULTS — Clear, Structured Final Report
     // ═════════════════════════════════════════════════════════════════
     let elapsed = total_start.elapsed();
 
     info!("");
-    info!("╔════════════════════════════════════════════════════════════════╗");
-    info!("║  PUMP/DUMP WALK-FORWARD BACKTEST RESULTS v3                    ║");
-    info!("╚════════════════════════════════════════════════════════════════╝");
-    info!("  Symbols processed: {} (skipped: {})", symbols_processed, symbols_skipped);
-    info!("  Bars scanned: {}", total_bars_scanned);
-    info!("  Model predictions: {}", total_predictions);
-    info!("  Total signals (pred ≥ {:.2}): {}", min_signal, all_trades.len());
-    info!("  Signal density: {:.4} signals/bar ({:.2}%)",
-          if total_bars_scanned > 0 { all_trades.len() as f64 / total_bars_scanned as f64 } else { 0.0 },
-          if total_bars_scanned > 0 { all_trades.len() as f64 / total_bars_scanned as f64 * 100.0 } else { 0.0 });
-    info!("  Time: {:.1}s ({:.1}min)", elapsed.as_secs_f64(), elapsed.as_secs_f64() / 60.0);
+    info!("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
+    info!("┃          PUMP/DUMP BACKTEST — FINAL REPORT (v4)                  ┃");
+    info!("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
     info!("");
 
-    // ─── Per-TF Results ───
+    // ─── Quick Stats ───
+    info!("  ┌─────────── EXECUTION ───────────┐");
+    info!("  │ Symbols: {} processed, {} skipped │", symbols_processed, symbols_skipped);
+    info!("  │ Bars scanned: {:>12}       │", total_bars_scanned);
+    info!("  │ ML predictions: {:>10}       │", total_predictions);
+    info!("  │ Total trades: {:>12}       │", all_trades.len());
+    info!("  │ Time: {:.1}s ({:.1}min)              │", elapsed.as_secs_f64(), elapsed.as_secs_f64() / 60.0);
+    info!("  │ Data load: {:.1}s | Sim: {:.1}s      │", load_elapsed, elapsed.as_secs_f64() - load_elapsed);
+    info!("  └─────────────────────────────────┘");
+    info!("");
+
+    // ─── Quick Overview Table ───
+    if !all_trades.is_empty() {
+        info!("  ┌─────────── QUICK OVERVIEW ─────────────────────────────────────┐");
+
+        // Overall
+        let all_refs: Vec<&SimTrade> = all_trades.iter().collect();
+        info!("  │ {}", one_line_summary("ALL", &all_refs));
+
+        // Pump vs Dump
+        let pump_all: Vec<&SimTrade> = all_trades.iter().filter(|t| t.event_type == EventType::Pump).collect();
+        let dump_all: Vec<&SimTrade> = all_trades.iter().filter(|t| t.event_type == EventType::Dump).collect();
+        info!("  │ {}", one_line_summary("PUMP", &pump_all));
+        info!("  │ {}", one_line_summary("DUMP", &dump_all));
+        info!("  │");
+
+        // Per-TF one-liner
+        for &tf in TARGET_TFS {
+            let tf_trades: Vec<&SimTrade> = all_trades.iter().filter(|t| t.tf_minutes == tf).collect();
+            if !tf_trades.is_empty() {
+                info!("  │ {}", one_line_summary(&format!("TF {:>3}m", tf), &tf_trades));
+            }
+        }
+
+        // Breakeven WR
+        let breakeven_wr = sl_pct / (target_pct + sl_pct) * 100.0;
+        info!("  │");
+        info!("  │ Breakeven WR (R:R = {:.1}:{:.1}): {:.1}%", target_pct, sl_pct, breakeven_wr);
+        info!("  └───────────────────────────────────────────────────────────────┘");
+    }
+    info!("");
+
+    // ─── Per-TF Detailed Results ───
     for &tf in TARGET_TFS {
         let tf_trades: Vec<&SimTrade> = all_trades.iter()
             .filter(|t| t.tf_minutes == tf)
@@ -693,7 +779,6 @@ async fn main() -> Result<()> {
             continue;
         }
 
-        let _tf_bars = total_bars_scanned / TARGET_TFS.len() as u64; // approximate
         info!("  ═══════════════════════════════════════════════════");
         info!("  ═══ TF: {}m — {} trades total ═══", tf, tf_trades.len());
         info!("  ═══════════════════════════════════════════════════");
@@ -730,10 +815,10 @@ async fn main() -> Result<()> {
         info!("");
     }
 
-    // ─── Overall Summary ───
+    // ─── Overall Summary (Detailed) ───
     if !all_trades.is_empty() {
         info!("  ═══════════════════════════════════════════════════");
-        info!("  ═══ OVERALL SUMMARY ═══");
+        info!("  ═══ OVERALL DETAILED SUMMARY ═══");
         info!("  ═══════════════════════════════════════════════════");
 
         let all_refs: Vec<&SimTrade> = all_trades.iter().collect();
@@ -755,48 +840,86 @@ async fn main() -> Result<()> {
                 .filter(|t| &t.symbol == *sym)
                 .map(|t| t.pnl_pct)
                 .sum();
-            info!("      {}: {} trades, WR: {:.1}%, TotalPnL: {:.2}%",
+            info!("      {:>14}: {:>5} trades, WR: {:>5.1}%, TotalPnL: {:>8.2}%",
                   sym, count, *wins as f64 / *count as f64 * 100.0, sym_pnl);
         }
 
-        // ── Top 10 best trades ──
+        // ── Top 10 best/worst trades ──
         info!("");
         info!("    ─── Top 10 Best Trades ───");
         let mut sorted = all_trades.clone();
         sorted.sort_by(|a, b| b.pnl_pct.partial_cmp(&a.pnl_pct).unwrap_or(std::cmp::Ordering::Equal));
         for (i, t) in sorted.iter().take(10).enumerate() {
-            info!("      #{}: {} {} {} TF={}m pred={:.3} entry={:.4} P&L={:.2}% hold={} {}",
+            info!("      #{:>2}: {:>14} {} {} TF={}m pred={:.3} entry={:.4} P&L={:>+.2}% hold={} {}",
                   i + 1, t.symbol, t.entry_time.format("%Y-%m-%d %H:%M"),
                   t.event_type, t.tf_minutes, t.pred, t.entry_price,
                   t.pnl_pct, t.hold_candles, t.outcome);
         }
 
-        // ── Top 10 worst trades ──
         info!("");
         info!("    ─── Top 10 Worst Trades ───");
         for (i, t) in sorted.iter().rev().take(10).enumerate() {
-            info!("      #{}: {} {} {} TF={}m pred={:.3} entry={:.4} P&L={:.2}% hold={} {}",
+            info!("      #{:>2}: {:>14} {} {} TF={}m pred={:.3} entry={:.4} P&L={:>+.2}% hold={} {}",
                   i + 1, t.symbol, t.entry_time.format("%Y-%m-%d %H:%M"),
                   t.event_type, t.tf_minutes, t.pred, t.entry_price,
                   t.pnl_pct, t.hold_candles, t.outcome);
         }
 
-        // ── Quick verdict ──
+        // ═════════════════════════════════════════════════════════
+        //  FINAL VERDICT
+        // ═════════════════════════════════════════════════════════
         info!("");
+        info!("  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
+        info!("  ┃                        VERDICT                              ┃");
+        info!("  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫");
+
         let total = all_trades.len();
         let wins = all_trades.iter().filter(|t| t.outcome == TradeOutcome::TpHit).count();
+        let losses = all_trades.iter().filter(|t| t.outcome == TradeOutcome::SlHit).count();
         let wr = wins as f64 / total as f64 * 100.0;
         let avg_pnl: f64 = all_trades.iter().map(|t| t.pnl_pct).sum::<f64>() / total as f64;
-        let expectancy = avg_pnl; // already per-trade
+        let total_pnl: f64 = all_trades.iter().map(|t| t.pnl_pct).sum();
 
-        if wr > 50.0 && avg_pnl > 0.0 {
-            info!("  🟢 VERDICT: Model shows POSITIVE edge (WR={:.1}%, E[PnL]={:.2}%)", wr, expectancy);
-        } else if wr > 30.0 && avg_pnl > -2.0 {
-            info!("  🟡 VERDICT: Model shows MARGINAL edge (WR={:.1}%, E[PnL]={:.2}%)", wr, expectancy);
+        // Compute breakeven WR for asymmetric TP/SL
+        let breakeven_wr = sl_pct / (target_pct + sl_pct) * 100.0;
+
+        info!("  ┃  Total Trades:  {:>8}                                    ┃", total);
+        info!("  ┃  Win Rate:      {:>7.1}%  (TP:{} SL:{})             ┃", wr, wins, losses);
+        info!("  ┃  Avg P&L:       {:>+7.2}%                                   ┃", avg_pnl);
+        info!("  ┃  Total P&L:     {:>+8.1}%                                  ┃", total_pnl);
+        info!("  ┃  Breakeven WR:  {:>7.1}%  (R:R = {:.1}:{:.1})            ┃", breakeven_wr, target_pct, sl_pct);
+        info!("  ┃                                                           ┃");
+
+        if avg_pnl > 0.1 && wr > breakeven_wr {
+            info!("  ┃  🟢 STRONG EDGE — strategy is profitable                 ┃");
+        } else if avg_pnl > 0.0 || wr > breakeven_wr {
+            info!("  ┃  🟡 MARGINAL EDGE — needs higher pred threshold           ┃");
         } else {
-            info!("  🔴 VERDICT: Model shows NO edge (WR={:.1}%, E[PnL]={:.2}%)", wr, expectancy);
+            info!("  ┃  🔴 NO EDGE — model not profitable at pred ≥ {:.2}        ┃", min_signal);
         }
-        info!("  NOTE: Check cumulative thresholds — higher pred cutoff may yield positive edge");
+
+        // Find best threshold
+        let mut best_th = 0.50f32;
+        let mut best_avg = f64::NEG_INFINITY;
+        for &th in PRED_THRESHOLDS {
+            let above: Vec<&SimTrade> = all_trades.iter().filter(|t| t.pred >= th).collect();
+            if above.len() < 100 { continue; }
+            let avg: f64 = above.iter().map(|t| t.pnl_pct).sum::<f64>() / above.len() as f64;
+            if avg > best_avg {
+                best_avg = avg;
+                best_th = th;
+            }
+        }
+        if best_avg > f64::NEG_INFINITY {
+            let best_trades: Vec<&SimTrade> = all_trades.iter().filter(|t| t.pred >= best_th).collect();
+            let best_wr = best_trades.iter().filter(|t| t.outcome == TradeOutcome::TpHit).count() as f64
+                / best_trades.len() as f64 * 100.0;
+            info!("  ┃                                                           ┃");
+            info!("  ┃  Best threshold: pred ≥ {:.2} → {} trades, WR={:.1}%, AvgPnL={:+.2}%", 
+                  best_th, best_trades.len(), best_wr, best_avg);
+        }
+
+        info!("  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
     } else {
         info!("  ⚠️  No trades generated. Model never predicted above min_signal={:.2}", min_signal);
     }

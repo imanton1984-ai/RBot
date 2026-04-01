@@ -1,413 +1,1389 @@
-2026-03-28T21:43:17.350404Z  INFO ╔═══════════════════════════════════════════════════════════╗
-2026-03-28T21:43:17.350427Z  INFO ║  Pump/Dump Walk-Forward Backtest v3                        ║
-2026-03-28T21:43:17.350435Z  INFO ║  True Trade Simulation — No Look-Ahead Bias                ║
-2026-03-28T21:43:17.350449Z  INFO ╚═══════════════════════════════════════════════════════════╝
-2026-03-28T21:43:17.350458Z  INFO   Target TFs: [5, 15, 60, 240]
-2026-03-28T21:43:17.350465Z  INFO   Max hold: 6 candles
-2026-03-28T21:43:17.350474Z  INFO   Target: 15.0%, SL: 9.8% (fraction: 0.65)
-2026-03-28T21:43:17.350481Z  INFO   Pred step: 1 (predict every 1 bars)
-2026-03-28T21:43:17.350489Z  INFO   Cooldown: 6 bars between same-type signals
-2026-03-28T21:43:17.350496Z  INFO   Min signal: 0.50
-2026-03-28T21:43:17.350506Z  INFO   Device: Cpu
-2026-03-28T21:43:17.350514Z  INFO   Model type: both
-2026-03-28T21:43:17.350520Z  INFO PumpDump Config:
-2026-03-28T21:43:17.350527Z  INFO   threshold: 15.0% (same across all TFs)
-2026-03-28T21:43:17.350534Z  INFO   pre_event_lookback: 10 candles
-2026-03-28T21:43:17.350542Z  INFO   negative_ratio: 3:1
-2026-03-28T21:43:17.350548Z  INFO   prediction_horizon: 3 candles
-2026-03-28T21:43:17.350555Z  INFO   concentration_pct: 50% (of daily move in 1 hourly candle)
-2026-03-28T21:43:17.350564Z  INFO   max_hold_candles: 6 (max candles to reach target)
-2026-03-28T21:43:17.371127Z  INFO XGB Booster loaded: path=models/pump_dump_pump_v1.ubj, device=cpu, predictor=cpu_predictor
-2026-03-28T21:43:17.371166Z  INFO   ✅ Pump model: models/pump_dump_pump_v1.ubj
-2026-03-28T21:43:17.380476Z  INFO XGB Booster loaded: path=models/pump_dump_dump_v1.ubj, device=cpu, predictor=cpu_predictor
-2026-03-28T21:43:17.380517Z  INFO   ✅ Dump model: models/pump_dump_dump_v1.ubj
-2026-03-28T21:43:17.386566Z  INFO   Feature vector: 3950 features (5 TFs × 10 lookback × 79 per candle)
-2026-03-28T21:43:17.392778Z  INFO   158 active symbols
-2026-03-28T21:43:48.939946Z  INFO   [1/158] 0GUSDT — 5667 sym trades (total: 5667, predictions: 26788, 31.6s)
-2026-03-28T21:52:35.480625Z  INFO   [20/158] AVAXUSDT — 12700 sym trades (total: 187471, predictions: 667998, 558.1s)
-2026-03-28T22:00:19.938788Z  INFO   [40/158] CHZUSDT — 12725 sym trades (total: 332019, predictions: 1188197, 1022.6s)
-2026-03-28T22:09:07.952555Z  INFO   [60/158] ETHUSDT — 14292 sym trades (total: 518153, predictions: 1862525, 1550.6s)
-2026-03-28T22:25:57.231866Z  INFO   [100/158] ONTUSDT — 13248 sym trades (total: 813299, predictions: 2983033, 2559.8s)
-2026-03-28T22:33:55.580270Z  INFO   [120/158] RIVERUSDT — 6296 sym trades (total: 940679, predictions: 3438978, 3038.2s)
-2026-03-28T22:50:33.004560Z  INFO 
-2026-03-28T22:50:33.005563Z  INFO ╔════════════════════════════════════════════════════════════════╗
-2026-03-28T22:50:33.005603Z  INFO ║  PUMP/DUMP WALK-FORWARD BACKTEST RESULTS v3                    ║
-2026-03-28T22:50:33.005625Z  INFO ╚════════════════════════════════════════════════════════════════╝
-2026-03-28T22:50:33.005643Z  INFO   Symbols processed: 146 (skipped: 12)
-2026-03-28T22:50:33.005661Z  INFO   Bars scanned: 4664994
-2026-03-28T22:50:33.005679Z  INFO   Model predictions: 4664859
-2026-03-28T22:50:33.005699Z  INFO   Total signals (pred ≥ 0.50): 1277041
-2026-03-28T22:50:33.005717Z  INFO   Signal density: 0.2737 signals/bar (27.37%)
-2026-03-28T22:50:33.005736Z  INFO   Time: 4035.6s (67.3min)
-2026-03-28T22:50:33.005753Z  INFO 
-2026-03-28T22:50:33.011265Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.011295Z  INFO   ═══ TF: 5m — 198085 trades total ═══
-2026-03-28T22:50:33.011304Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.012984Z  INFO     📊 PUMP (98861 trades):
-2026-03-28T22:50:33.012998Z  INFO       WinRate: 0.1%  (TP:99 SL:206 Expired:98556 [46956+/51600−])
-2026-03-28T22:50:33.013006Z  INFO       Avg P&L: 0.02%,  Total P&L: 1654.75%
-2026-03-28T22:50:33.013012Z  INFO       Avg Hold: 6.0 candles
-2026-03-28T22:50:33.013018Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.013217Z  INFO         hold=1: 35 trades, WR: 20.0%, AvgPnL: -4.80%
-2026-03-28T22:50:33.013473Z  INFO         hold=2: 49 trades, WR: 36.7%, AvgPnL: -0.66%
-2026-03-28T22:50:33.013673Z  INFO         hold=3: 50 trades, WR: 28.0%, AvgPnL: -2.82%
-2026-03-28T22:50:33.013935Z  INFO         hold=4: 57 trades, WR: 35.1%, AvgPnL: -1.07%
-2026-03-28T22:50:33.014182Z  INFO         hold=5: 58 trades, WR: 39.7%, AvgPnL: 0.06%
-2026-03-28T22:50:33.014987Z  INFO         hold=6: 98612 trades, WR: 0.0%, AvgPnL: 0.02%
-2026-03-28T22:50:33.015002Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.015478Z  INFO         [0.50-0.55): 21471 trades, WR: 0.1% (TP:23 SL:45), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.015995Z  INFO         [0.55-0.60): 13634 trades, WR: 0.1% (TP:18 SL:34), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.016513Z  INFO         [0.60-0.65): 11606 trades, WR: 0.1% (TP:13 SL:21), AvgPnL: 0.03%, AvgHold: 6.0
-2026-03-28T22:50:33.016969Z  INFO         [0.65-0.70): 11192 trades, WR: 0.1% (TP:8 SL:17), AvgPnL: 0.03%, AvgHold: 6.0
-2026-03-28T22:50:33.017417Z  INFO         [0.70-0.75): 10492 trades, WR: 0.1% (TP:9 SL:23), AvgPnL: 0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.017819Z  INFO         [0.75-0.80): 9868 trades, WR: 0.1% (TP:12 SL:17), AvgPnL: 0.03%, AvgHold: 6.0
-2026-03-28T22:50:33.018131Z  INFO         [0.80-0.85): 8158 trades, WR: 0.1% (TP:8 SL:15), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.018396Z  INFO         [0.85-0.90): 6211 trades, WR: 0.1% (TP:4 SL:23), AvgPnL: -0.00%, AvgHold: 6.0
-2026-03-28T22:50:33.018645Z  INFO         [0.90-1.01): 6229 trades, WR: 0.1% (TP:4 SL:11), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.018655Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.019477Z  INFO         pred ≥ 0.50: 98861 trades, WR: 0.1% (TP:99 SL:206), AvgPnL: 0.02%
-2026-03-28T22:50:33.020303Z  INFO         pred ≥ 0.55: 77390 trades, WR: 0.1% (TP:76 SL:161), AvgPnL: 0.02%
-2026-03-28T22:50:33.021003Z  INFO         pred ≥ 0.60: 63756 trades, WR: 0.1% (TP:58 SL:127), AvgPnL: 0.02%
-2026-03-28T22:50:33.021821Z  INFO         pred ≥ 0.65: 52150 trades, WR: 0.1% (TP:45 SL:106), AvgPnL: 0.02%
-2026-03-28T22:50:33.022450Z  INFO         pred ≥ 0.70: 40958 trades, WR: 0.1% (TP:37 SL:89), AvgPnL: 0.01%
-2026-03-28T22:50:33.022868Z  INFO         pred ≥ 0.75: 30466 trades, WR: 0.1% (TP:28 SL:66), AvgPnL: 0.01%
-2026-03-28T22:50:33.023200Z  INFO         pred ≥ 0.80: 20598 trades, WR: 0.1% (TP:16 SL:49), AvgPnL: 0.01%
-2026-03-28T22:50:33.023433Z  INFO         pred ≥ 0.85: 12440 trades, WR: 0.1% (TP:8 SL:34), AvgPnL: 0.01%
-2026-03-28T22:50:33.023611Z  INFO         pred ≥ 0.90: 6229 trades, WR: 0.1% (TP:4 SL:11), AvgPnL: 0.01%
-2026-03-28T22:50:33.023625Z  INFO 
-2026-03-28T22:50:33.025393Z  INFO     📊 DUMP (99224 trades):
-2026-03-28T22:50:33.025413Z  INFO       WinRate: 0.1%  (TP:63 SL:252 Expired:98909 [48532+/50377−])
-2026-03-28T22:50:33.025423Z  INFO       Avg P&L: -0.01%,  Total P&L: -1241.55%
-2026-03-28T22:50:33.025431Z  INFO       Avg Hold: 6.0 candles
-2026-03-28T22:50:33.025439Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.025596Z  INFO         hold=1: 27 trades, WR: 22.2%, AvgPnL: -4.25%
-2026-03-28T22:50:33.025737Z  INFO         hold=2: 35 trades, WR: 31.4%, AvgPnL: -1.97%
-2026-03-28T22:50:33.025867Z  INFO         hold=3: 56 trades, WR: 10.7%, AvgPnL: -7.10%
-2026-03-28T22:50:33.025994Z  INFO         hold=4: 53 trades, WR: 15.1%, AvgPnL: -6.01%
-2026-03-28T22:50:33.026122Z  INFO         hold=5: 54 trades, WR: 24.1%, AvgPnL: -3.79%
-2026-03-28T22:50:33.026536Z  INFO         hold=6: 98999 trades, WR: 0.0%, AvgPnL: -0.00%
-2026-03-28T22:50:33.026546Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.026935Z  INFO         [0.50-0.55): 19096 trades, WR: 0.1% (TP:14 SL:65), AvgPnL: -0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.027332Z  INFO         [0.55-0.60): 11419 trades, WR: 0.1% (TP:12 SL:52), AvgPnL: -0.03%, AvgHold: 6.0
-2026-03-28T22:50:33.027729Z  INFO         [0.60-0.65): 9650 trades, WR: 0.0% (TP:4 SL:25), AvgPnL: -0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.028115Z  INFO         [0.65-0.70): 9508 trades, WR: 0.1% (TP:12 SL:22), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.028468Z  INFO         [0.70-0.75): 9552 trades, WR: 0.0% (TP:2 SL:20), AvgPnL: -0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.028793Z  INFO         [0.75-0.80): 9830 trades, WR: 0.1% (TP:9 SL:22), AvgPnL: -0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.029095Z  INFO         [0.80-0.85): 9913 trades, WR: 0.0% (TP:2 SL:20), AvgPnL: -0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.029359Z  INFO         [0.85-0.90): 9071 trades, WR: 0.1% (TP:5 SL:13), AvgPnL: -0.00%, AvgHold: 6.0
-2026-03-28T22:50:33.029596Z  INFO         [0.90-1.01): 11185 trades, WR: 0.0% (TP:3 SL:13), AvgPnL: -0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.029607Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.030099Z  INFO         pred ≥ 0.50: 99224 trades, WR: 0.1% (TP:63 SL:252), AvgPnL: -0.01%
-2026-03-28T22:50:33.030612Z  INFO         pred ≥ 0.55: 80128 trades, WR: 0.1% (TP:49 SL:187), AvgPnL: -0.01%
-2026-03-28T22:50:33.031079Z  INFO         pred ≥ 0.60: 68709 trades, WR: 0.1% (TP:37 SL:135), AvgPnL: -0.01%
-2026-03-28T22:50:33.031506Z  INFO         pred ≥ 0.65: 59059 trades, WR: 0.1% (TP:33 SL:110), AvgPnL: -0.01%
-2026-03-28T22:50:33.031988Z  INFO         pred ≥ 0.70: 49551 trades, WR: 0.0% (TP:21 SL:88), AvgPnL: -0.01%
-2026-03-28T22:50:33.032408Z  INFO         pred ≥ 0.75: 39999 trades, WR: 0.0% (TP:19 SL:68), AvgPnL: -0.01%
-2026-03-28T22:50:33.032779Z  INFO         pred ≥ 0.80: 30169 trades, WR: 0.0% (TP:10 SL:46), AvgPnL: -0.01%
-2026-03-28T22:50:33.033035Z  INFO         pred ≥ 0.85: 20256 trades, WR: 0.0% (TP:8 SL:26), AvgPnL: -0.01%
-2026-03-28T22:50:33.033229Z  INFO         pred ≥ 0.90: 11185 trades, WR: 0.0% (TP:3 SL:13), AvgPnL: -0.01%
-2026-03-28T22:50:33.033241Z  INFO 
-2026-03-28T22:50:33.033250Z  INFO     ─── Sample Trades (first 5) ───
-2026-03-28T22:50:33.033266Z  INFO       0GUSDT 2026-02-24 12:44 DUMP pred=0.549 entry=0.6149 exit=0.6160 hold=6 P&L=-0.18% ⏰EXP
-2026-03-28T22:50:33.033280Z  INFO       0GUSDT 2026-02-24 13:19 DUMP pred=0.517 entry=0.6139 exit=0.6178 hold=6 P&L=-0.64% ⏰EXP
-2026-03-28T22:50:33.033296Z  INFO       0GUSDT 2026-02-25 09:59 DUMP pred=0.637 entry=0.6484 exit=0.6528 hold=6 P&L=-0.68% ⏰EXP
-2026-03-28T22:50:33.033312Z  INFO       0GUSDT 2026-02-25 10:29 DUMP pred=0.703 entry=0.6528 exit=0.6525 hold=6 P&L=0.05% ⏰EXP
-2026-03-28T22:50:33.033328Z  INFO       0GUSDT 2026-02-25 10:59 PUMP pred=0.508 entry=0.6525 exit=0.6588 hold=6 P&L=0.97% ⏰EXP
-2026-03-28T22:50:33.033341Z  INFO 
-2026-03-28T22:50:33.038701Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.038729Z  INFO   ═══ TF: 15m — 448368 trades total ═══
-2026-03-28T22:50:33.038736Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.046425Z  INFO     📊 PUMP (225789 trades):
-2026-03-28T22:50:33.046457Z  INFO       WinRate: 0.2%  (TP:522 SL:1228 Expired:224039 [106925+/117114−])
-2026-03-28T22:50:33.046467Z  INFO       Avg P&L: -0.01%,  Total P&L: -2801.61%
-2026-03-28T22:50:33.046473Z  INFO       Avg Hold: 6.0 candles
-2026-03-28T22:50:33.046478Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.047383Z  INFO         hold=1: 170 trades, WR: 18.2%, AvgPnL: -5.24%
-2026-03-28T22:50:33.047995Z  INFO         hold=2: 265 trades, WR: 26.4%, AvgPnL: -3.21%
-2026-03-28T22:50:33.048677Z  INFO         hold=3: 332 trades, WR: 27.4%, AvgPnL: -2.97%
-2026-03-28T22:50:33.049287Z  INFO         hold=4: 315 trades, WR: 35.6%, AvgPnL: -0.95%
-2026-03-28T22:50:33.049824Z  INFO         hold=5: 280 trades, WR: 32.5%, AvgPnL: -1.71%
-2026-03-28T22:50:33.051880Z  INFO         hold=6: 224427 trades, WR: 0.1%, AvgPnL: 0.00%
-2026-03-28T22:50:33.051898Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.052948Z  INFO         [0.50-0.55): 15386 trades, WR: 0.3% (TP:47 SL:97), AvgPnL: 0.00%, AvgHold: 6.0
-2026-03-28T22:50:33.053973Z  INFO         [0.55-0.60): 12650 trades, WR: 0.2% (TP:30 SL:75), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.054981Z  INFO         [0.60-0.65): 12002 trades, WR: 0.4% (TP:45 SL:72), AvgPnL: 0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.056037Z  INFO         [0.65-0.70): 13118 trades, WR: 0.3% (TP:42 SL:85), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.057175Z  INFO         [0.70-0.75): 14666 trades, WR: 0.2% (TP:32 SL:85), AvgPnL: -0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.058755Z  INFO         [0.75-0.80): 16484 trades, WR: 0.3% (TP:53 SL:98), AvgPnL: -0.03%, AvgHold: 6.0
-2026-03-28T22:50:33.060416Z  INFO         [0.80-0.85): 19693 trades, WR: 0.3% (TP:54 SL:112), AvgPnL: -0.03%, AvgHold: 6.0
-2026-03-28T22:50:33.061977Z  INFO         [0.85-0.90): 31439 trades, WR: 0.2% (TP:51 SL:160), AvgPnL: -0.04%, AvgHold: 6.0
-2026-03-28T22:50:33.064330Z  INFO         [0.90-1.01): 90351 trades, WR: 0.2% (TP:168 SL:444), AvgPnL: -0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.064348Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.067623Z  INFO         pred ≥ 0.50: 225789 trades, WR: 0.2% (TP:522 SL:1228), AvgPnL: -0.01%
-2026-03-28T22:50:33.071391Z  INFO         pred ≥ 0.55: 210403 trades, WR: 0.2% (TP:475 SL:1131), AvgPnL: -0.01%
-2026-03-28T22:50:33.075519Z  INFO         pred ≥ 0.60: 197753 trades, WR: 0.2% (TP:445 SL:1056), AvgPnL: -0.01%
-2026-03-28T22:50:33.078617Z  INFO         pred ≥ 0.65: 185751 trades, WR: 0.2% (TP:400 SL:984), AvgPnL: -0.02%
-2026-03-28T22:50:33.080805Z  INFO         pred ≥ 0.70: 172633 trades, WR: 0.2% (TP:358 SL:899), AvgPnL: -0.02%
-2026-03-28T22:50:33.083001Z  INFO         pred ≥ 0.75: 157967 trades, WR: 0.2% (TP:326 SL:814), AvgPnL: -0.02%
-2026-03-28T22:50:33.085686Z  INFO         pred ≥ 0.80: 141483 trades, WR: 0.2% (TP:273 SL:716), AvgPnL: -0.02%
-2026-03-28T22:50:33.088222Z  INFO         pred ≥ 0.85: 121790 trades, WR: 0.2% (TP:219 SL:604), AvgPnL: -0.02%
-2026-03-28T22:50:33.089984Z  INFO         pred ≥ 0.90: 90351 trades, WR: 0.2% (TP:168 SL:444), AvgPnL: -0.01%
-2026-03-28T22:50:33.090002Z  INFO 
-2026-03-28T22:50:33.096220Z  INFO     📊 DUMP (222579 trades):
-2026-03-28T22:50:33.096245Z  INFO       WinRate: 0.1%  (TP:330 SL:1447 Expired:220802 [112091+/108711−])
-2026-03-28T22:50:33.096254Z  INFO       Avg P&L: 0.01%,  Total P&L: 2075.60%
-2026-03-28T22:50:33.096260Z  INFO       Avg Hold: 6.0 candles
-2026-03-28T22:50:33.096265Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.097334Z  INFO         hold=1: 138 trades, WR: 22.5%, AvgPnL: -4.19%
-2026-03-28T22:50:33.098383Z  INFO         hold=2: 271 trades, WR: 18.8%, AvgPnL: -5.09%
-2026-03-28T22:50:33.099367Z  INFO         hold=3: 301 trades, WR: 18.6%, AvgPnL: -5.15%
-2026-03-28T22:50:33.100419Z  INFO         hold=4: 312 trades, WR: 19.2%, AvgPnL: -4.99%
-2026-03-28T22:50:33.101547Z  INFO         hold=5: 384 trades, WR: 18.2%, AvgPnL: -5.24%
-2026-03-28T22:50:33.104408Z  INFO         hold=6: 221173 trades, WR: 0.0%, AvgPnL: 0.04%
-2026-03-28T22:50:33.104427Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.106119Z  INFO         [0.50-0.55): 21459 trades, WR: 0.2% (TP:41 SL:172), AvgPnL: -0.00%, AvgHold: 6.0
-2026-03-28T22:50:33.107574Z  INFO         [0.55-0.60): 15821 trades, WR: 0.2% (TP:29 SL:122), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.108743Z  INFO         [0.60-0.65): 13812 trades, WR: 0.2% (TP:29 SL:130), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.110297Z  INFO         [0.65-0.70): 13801 trades, WR: 0.2% (TP:32 SL:124), AvgPnL: 0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.111812Z  INFO         [0.70-0.75): 14857 trades, WR: 0.2% (TP:25 SL:100), AvgPnL: 0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.113264Z  INFO         [0.75-0.80): 18638 trades, WR: 0.2% (TP:34 SL:120), AvgPnL: 0.04%, AvgHold: 6.0
-2026-03-28T22:50:33.114965Z  INFO         [0.80-0.85): 29058 trades, WR: 0.1% (TP:33 SL:185), AvgPnL: 0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.117028Z  INFO         [0.85-0.90): 38969 trades, WR: 0.1% (TP:51 SL:215), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.118969Z  INFO         [0.90-1.01): 56164 trades, WR: 0.1% (TP:56 SL:279), AvgPnL: -0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.118988Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.122116Z  INFO         pred ≥ 0.50: 222579 trades, WR: 0.1% (TP:330 SL:1447), AvgPnL: 0.01%
-2026-03-28T22:50:33.124618Z  INFO         pred ≥ 0.55: 201120 trades, WR: 0.1% (TP:289 SL:1275), AvgPnL: 0.01%
-2026-03-28T22:50:33.127030Z  INFO         pred ≥ 0.60: 185299 trades, WR: 0.1% (TP:260 SL:1153), AvgPnL: 0.01%
-2026-03-28T22:50:33.130964Z  INFO         pred ≥ 0.65: 171487 trades, WR: 0.1% (TP:231 SL:1023), AvgPnL: 0.01%
-2026-03-28T22:50:33.133803Z  INFO         pred ≥ 0.70: 157686 trades, WR: 0.1% (TP:199 SL:899), AvgPnL: 0.01%
-2026-03-28T22:50:33.135991Z  INFO         pred ≥ 0.75: 142829 trades, WR: 0.1% (TP:174 SL:799), AvgPnL: 0.01%
-2026-03-28T22:50:33.138383Z  INFO         pred ≥ 0.80: 124191 trades, WR: 0.1% (TP:140 SL:679), AvgPnL: 0.00%
-2026-03-28T22:50:33.139962Z  INFO         pred ≥ 0.85: 95133 trades, WR: 0.1% (TP:107 SL:494), AvgPnL: -0.00%
-2026-03-28T22:50:33.140997Z  INFO         pred ≥ 0.90: 56164 trades, WR: 0.1% (TP:56 SL:279), AvgPnL: -0.01%
-2026-03-28T22:50:33.141009Z  INFO 
-2026-03-28T22:50:33.141015Z  INFO     ─── Sample Trades (first 5) ───
-2026-03-28T22:50:33.141033Z  INFO       0GUSDT 2025-11-13 15:14 PUMP pred=0.766 entry=1.3592 exit=1.3545 hold=6 P&L=-0.35% ⏰EXP
-2026-03-28T22:50:33.141040Z  INFO       0GUSDT 2025-11-13 15:14 DUMP pred=0.740 entry=1.3592 exit=1.3545 hold=6 P&L=0.35% ⏰EXP
-2026-03-28T22:50:33.141049Z  INFO       0GUSDT 2025-11-13 16:44 PUMP pred=0.638 entry=1.3545 exit=1.3078 hold=6 P&L=-3.45% ⏰EXP
-2026-03-28T22:50:33.141058Z  INFO       0GUSDT 2025-11-13 16:44 DUMP pred=0.524 entry=1.3545 exit=1.3078 hold=6 P&L=3.45% ⏰EXP
-2026-03-28T22:50:33.141065Z  INFO       0GUSDT 2025-11-13 18:14 PUMP pred=0.735 entry=1.3078 exit=1.2585 hold=6 P&L=-3.77% ⏰EXP
-2026-03-28T22:50:33.141072Z  INFO 
-2026-03-28T22:50:33.144612Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.144634Z  INFO   ═══ TF: 60m — 392140 trades total ═══
-2026-03-28T22:50:33.144641Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.150322Z  INFO     📊 PUMP (196559 trades):
-2026-03-28T22:50:33.150356Z  INFO       WinRate: 1.1%  (TP:2133 SL:4176 Expired:190250 [93206+/97044−])
-2026-03-28T22:50:33.150365Z  INFO       Avg P&L: -0.01%,  Total P&L: -1168.64%
-2026-03-28T22:50:33.150371Z  INFO       Avg Hold: 5.9 candles
-2026-03-28T22:50:33.150376Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.151059Z  INFO         hold=1: 649 trades, WR: 27.9%, AvgPnL: -2.85%
-2026-03-28T22:50:33.151595Z  INFO         hold=2: 910 trades, WR: 36.6%, AvgPnL: -0.69%
-2026-03-28T22:50:33.151978Z  INFO         hold=3: 1052 trades, WR: 35.9%, AvgPnL: -0.86%
-2026-03-28T22:50:33.152311Z  INFO         hold=4: 1070 trades, WR: 38.6%, AvgPnL: -0.20%
-2026-03-28T22:50:33.152694Z  INFO         hold=5: 1289 trades, WR: 31.2%, AvgPnL: -2.03%
-2026-03-28T22:50:33.154326Z  INFO         hold=6: 191589 trades, WR: 0.2%, AvgPnL: 0.03%
-2026-03-28T22:50:33.154342Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.154854Z  INFO         [0.50-0.55): 4152 trades, WR: 1.7% (TP:71 SL:110), AvgPnL: 0.06%, AvgHold: 5.9
-2026-03-28T22:50:33.155334Z  INFO         [0.55-0.60): 3895 trades, WR: 1.7% (TP:67 SL:107), AvgPnL: 0.07%, AvgHold: 5.9
-2026-03-28T22:50:33.155908Z  INFO         [0.60-0.65): 3652 trades, WR: 1.6% (TP:59 SL:93), AvgPnL: 0.04%, AvgHold: 5.9
-2026-03-28T22:50:33.156473Z  INFO         [0.65-0.70): 3567 trades, WR: 1.9% (TP:67 SL:84), AvgPnL: 0.17%, AvgHold: 5.9
-2026-03-28T22:50:33.156961Z  INFO         [0.70-0.75): 3722 trades, WR: 2.0% (TP:76 SL:85), AvgPnL: 0.11%, AvgHold: 5.9
-2026-03-28T22:50:33.157450Z  INFO         [0.75-0.80): 4119 trades, WR: 1.8% (TP:73 SL:95), AvgPnL: -0.00%, AvgHold: 5.9
-2026-03-28T22:50:33.158101Z  INFO         [0.80-0.85): 4714 trades, WR: 1.6% (TP:74 SL:140), AvgPnL: -0.12%, AvgHold: 5.9
-2026-03-28T22:50:33.158857Z  INFO         [0.85-0.90): 7744 trades, WR: 0.9% (TP:72 SL:226), AvgPnL: -0.23%, AvgHold: 5.9
-2026-03-28T22:50:33.161181Z  INFO         [0.90-1.01): 160994 trades, WR: 1.0% (TP:1574 SL:3236), AvgPnL: -0.00%, AvgHold: 5.9
-2026-03-28T22:50:33.161202Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.163605Z  INFO         pred ≥ 0.50: 196559 trades, WR: 1.1% (TP:2133 SL:4176), AvgPnL: -0.01%
-2026-03-28T22:50:33.165446Z  INFO         pred ≥ 0.55: 192407 trades, WR: 1.1% (TP:2062 SL:4066), AvgPnL: -0.01%
-2026-03-28T22:50:33.167381Z  INFO         pred ≥ 0.60: 188512 trades, WR: 1.1% (TP:1995 SL:3959), AvgPnL: -0.01%
-2026-03-28T22:50:33.169188Z  INFO         pred ≥ 0.65: 184860 trades, WR: 1.0% (TP:1936 SL:3866), AvgPnL: -0.01%
-2026-03-28T22:50:33.170699Z  INFO         pred ≥ 0.70: 181293 trades, WR: 1.0% (TP:1869 SL:3782), AvgPnL: -0.01%
-2026-03-28T22:50:33.172502Z  INFO         pred ≥ 0.75: 177571 trades, WR: 1.0% (TP:1793 SL:3697), AvgPnL: -0.02%
-2026-03-28T22:50:33.174231Z  INFO         pred ≥ 0.80: 173452 trades, WR: 1.0% (TP:1720 SL:3602), AvgPnL: -0.02%
-2026-03-28T22:50:33.176714Z  INFO         pred ≥ 0.85: 168738 trades, WR: 1.0% (TP:1646 SL:3462), AvgPnL: -0.01%
-2026-03-28T22:50:33.178879Z  INFO         pred ≥ 0.90: 160994 trades, WR: 1.0% (TP:1574 SL:3236), AvgPnL: -0.00%
-2026-03-28T22:50:33.178896Z  INFO 
-2026-03-28T22:50:33.182799Z  INFO     📊 DUMP (195581 trades):
-2026-03-28T22:50:33.182827Z  INFO       WinRate: 0.6%  (TP:1143 SL:5666 Expired:188772 [97974+/90798−])
-2026-03-28T22:50:33.182836Z  INFO       Avg P&L: 0.00%,  Total P&L: 129.88%
-2026-03-28T22:50:33.182842Z  INFO       Avg Hold: 5.9 candles
-2026-03-28T22:50:33.182848Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.183215Z  INFO         hold=1: 706 trades, WR: 16.4%, AvgPnL: -5.68%
-2026-03-28T22:50:33.183573Z  INFO         hold=2: 1212 trades, WR: 21.2%, AvgPnL: -4.50%
-2026-03-28T22:50:33.183974Z  INFO         hold=3: 1198 trades, WR: 11.4%, AvgPnL: -6.92%
-2026-03-28T22:50:33.184436Z  INFO         hold=4: 1107 trades, WR: 14.8%, AvgPnL: -6.08%
-2026-03-28T22:50:33.184875Z  INFO         hold=5: 1249 trades, WR: 16.2%, AvgPnL: -5.75%
-2026-03-28T22:50:33.187146Z  INFO         hold=6: 190109 trades, WR: 0.1%, AvgPnL: 0.17%
-2026-03-28T22:50:33.187172Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.187954Z  INFO         [0.50-0.55): 5863 trades, WR: 0.7% (TP:43 SL:249), AvgPnL: -0.02%, AvgHold: 5.9
-2026-03-28T22:50:33.188767Z  INFO         [0.55-0.60): 4809 trades, WR: 0.9% (TP:44 SL:190), AvgPnL: -0.01%, AvgHold: 5.9
-2026-03-28T22:50:33.189640Z  INFO         [0.60-0.65): 4078 trades, WR: 0.8% (TP:32 SL:162), AvgPnL: 0.03%, AvgHold: 5.9
-2026-03-28T22:50:33.190554Z  INFO         [0.65-0.70): 3625 trades, WR: 1.0% (TP:35 SL:145), AvgPnL: 0.08%, AvgHold: 5.9
-2026-03-28T22:50:33.191325Z  INFO         [0.70-0.75): 3627 trades, WR: 1.0% (TP:36 SL:161), AvgPnL: 0.01%, AvgHold: 5.9
-2026-03-28T22:50:33.192038Z  INFO         [0.75-0.80): 4361 trades, WR: 0.7% (TP:30 SL:166), AvgPnL: -0.03%, AvgHold: 5.9
-2026-03-28T22:50:33.192777Z  INFO         [0.80-0.85): 6797 trades, WR: 0.9% (TP:60 SL:217), AvgPnL: 0.08%, AvgHold: 5.9
-2026-03-28T22:50:33.193530Z  INFO         [0.85-0.90): 10252 trades, WR: 1.0% (TP:99 SL:298), AvgPnL: 0.07%, AvgHold: 5.9
-2026-03-28T22:50:33.195846Z  INFO         [0.90-1.01): 152169 trades, WR: 0.5% (TP:764 SL:4078), AvgPnL: -0.01%, AvgHold: 5.9
-2026-03-28T22:50:33.195867Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.197785Z  INFO         pred ≥ 0.50: 195581 trades, WR: 0.6% (TP:1143 SL:5666), AvgPnL: 0.00%
-2026-03-28T22:50:33.199159Z  INFO         pred ≥ 0.55: 189718 trades, WR: 0.6% (TP:1100 SL:5417), AvgPnL: 0.00%
-2026-03-28T22:50:33.201041Z  INFO         pred ≥ 0.60: 184909 trades, WR: 0.6% (TP:1056 SL:5227), AvgPnL: 0.00%
-2026-03-28T22:50:33.203042Z  INFO         pred ≥ 0.65: 180831 trades, WR: 0.6% (TP:1024 SL:5065), AvgPnL: 0.00%
-2026-03-28T22:50:33.205060Z  INFO         pred ≥ 0.70: 177206 trades, WR: 0.6% (TP:989 SL:4920), AvgPnL: -0.00%
-2026-03-28T22:50:33.207115Z  INFO         pred ≥ 0.75: 173579 trades, WR: 0.5% (TP:953 SL:4759), AvgPnL: -0.00%
-2026-03-28T22:50:33.208949Z  INFO         pred ≥ 0.80: 169218 trades, WR: 0.5% (TP:923 SL:4593), AvgPnL: -0.00%
-2026-03-28T22:50:33.210807Z  INFO         pred ≥ 0.85: 162421 trades, WR: 0.5% (TP:863 SL:4376), AvgPnL: -0.00%
-2026-03-28T22:50:33.212207Z  INFO         pred ≥ 0.90: 152169 trades, WR: 0.5% (TP:764 SL:4078), AvgPnL: -0.01%
-2026-03-28T22:50:33.212227Z  INFO 
-2026-03-28T22:50:33.212238Z  INFO     ─── Sample Trades (first 5) ───
-2026-03-28T22:50:33.212256Z  INFO       0GUSDT 2025-09-20 03:59 PUMP pred=0.988 entry=2.7639 exit=2.8033 hold=6 P&L=1.43% ⏰EXP
-2026-03-28T22:50:33.212275Z  INFO       0GUSDT 2025-09-20 03:59 DUMP pred=0.988 entry=2.7639 exit=2.8033 hold=6 P&L=-1.43% ⏰EXP
-2026-03-28T22:50:33.212292Z  INFO       0GUSDT 2025-09-20 09:59 PUMP pred=0.990 entry=2.8033 exit=2.7626 hold=6 P&L=-1.45% ⏰EXP
-2026-03-28T22:50:33.212322Z  INFO       0GUSDT 2025-09-20 09:59 DUMP pred=0.995 entry=2.8033 exit=2.7626 hold=6 P&L=1.45% ⏰EXP
-2026-03-28T22:50:33.212341Z  INFO       0GUSDT 2025-09-20 15:59 PUMP pred=0.994 entry=2.7626 exit=2.6957 hold=6 P&L=-2.42% ⏰EXP
-2026-03-28T22:50:33.212357Z  INFO 
-2026-03-28T22:50:33.215716Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.215735Z  INFO   ═══ TF: 240m — 238448 trades total ═══
-2026-03-28T22:50:33.215742Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.218672Z  INFO     📊 PUMP (119181 trades):
-2026-03-28T22:50:33.218696Z  INFO       WinRate: 4.4%  (TP:5246 SL:11437 Expired:102498 [51945+/50553−])
-2026-03-28T22:50:33.218708Z  INFO       Avg P&L: -0.02%,  Total P&L: -2365.81%
-2026-03-28T22:50:33.218719Z  INFO       Avg Hold: 5.7 candles
-2026-03-28T22:50:33.218728Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.218963Z  INFO         hold=1: 1786 trades, WR: 30.5%, AvgPnL: -2.21%
-2026-03-28T22:50:33.219187Z  INFO         hold=2: 2495 trades, WR: 31.4%, AvgPnL: -1.97%
-2026-03-28T22:50:33.219416Z  INFO         hold=3: 2455 trades, WR: 34.0%, AvgPnL: -1.34%
-2026-03-28T22:50:33.219675Z  INFO         hold=4: 3024 trades, WR: 34.0%, AvgPnL: -1.34%
-2026-03-28T22:50:33.219894Z  INFO         hold=5: 3510 trades, WR: 29.1%, AvgPnL: -2.55%
-2026-03-28T22:50:33.220746Z  INFO         hold=6: 105911 trades, WR: 1.0%, AvgPnL: 0.22%
-2026-03-28T22:50:33.220761Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.221101Z  INFO         [0.50-0.55): 975 trades, WR: 7.0% (TP:68 SL:93), AvgPnL: 0.08%, AvgHold: 5.6
-2026-03-28T22:50:33.221434Z  INFO         [0.55-0.60): 982 trades, WR: 8.1% (TP:80 SL:88), AvgPnL: 0.25%, AvgHold: 5.6
-2026-03-28T22:50:33.221830Z  INFO         [0.60-0.65): 988 trades, WR: 7.4% (TP:73 SL:90), AvgPnL: 0.22%, AvgHold: 5.6
-2026-03-28T22:50:33.222263Z  INFO         [0.65-0.70): 1096 trades, WR: 7.4% (TP:81 SL:104), AvgPnL: 0.26%, AvgHold: 5.6
-2026-03-28T22:50:33.222654Z  INFO         [0.70-0.75): 1072 trades, WR: 7.4% (TP:79 SL:98), AvgPnL: 0.10%, AvgHold: 5.6
-2026-03-28T22:50:33.223016Z  INFO         [0.75-0.80): 1241 trades, WR: 7.7% (TP:96 SL:116), AvgPnL: -0.00%, AvgHold: 5.6
-2026-03-28T22:50:33.223285Z  INFO         [0.80-0.85): 1352 trades, WR: 4.7% (TP:64 SL:132), AvgPnL: -0.55%, AvgHold: 5.7
-2026-03-28T22:50:33.223568Z  INFO         [0.85-0.90): 2155 trades, WR: 5.4% (TP:116 SL:245), AvgPnL: -0.61%, AvgHold: 5.6
-2026-03-28T22:50:33.224567Z  INFO         [0.90-1.01): 109320 trades, WR: 4.2% (TP:4589 SL:10471), AvgPnL: -0.01%, AvgHold: 5.7
-2026-03-28T22:50:33.224582Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.225222Z  INFO         pred ≥ 0.50: 119181 trades, WR: 4.4% (TP:5246 SL:11437), AvgPnL: -0.02%
-2026-03-28T22:50:33.225855Z  INFO         pred ≥ 0.55: 118206 trades, WR: 4.4% (TP:5178 SL:11344), AvgPnL: -0.02%
-2026-03-28T22:50:33.226543Z  INFO         pred ≥ 0.60: 117224 trades, WR: 4.3% (TP:5098 SL:11256), AvgPnL: -0.02%
-2026-03-28T22:50:33.227609Z  INFO         pred ≥ 0.65: 116236 trades, WR: 4.3% (TP:5025 SL:11166), AvgPnL: -0.03%
-2026-03-28T22:50:33.228541Z  INFO         pred ≥ 0.70: 115140 trades, WR: 4.3% (TP:4944 SL:11062), AvgPnL: -0.03%
-2026-03-28T22:50:33.229355Z  INFO         pred ≥ 0.75: 114068 trades, WR: 4.3% (TP:4865 SL:10964), AvgPnL: -0.03%
-2026-03-28T22:50:33.230343Z  INFO         pred ≥ 0.80: 112827 trades, WR: 4.2% (TP:4769 SL:10848), AvgPnL: -0.03%
-2026-03-28T22:50:33.231162Z  INFO         pred ≥ 0.85: 111475 trades, WR: 4.2% (TP:4705 SL:10716), AvgPnL: -0.02%
-2026-03-28T22:50:33.231967Z  INFO         pred ≥ 0.90: 109320 trades, WR: 4.2% (TP:4589 SL:10471), AvgPnL: -0.01%
-2026-03-28T22:50:33.231987Z  INFO 
-2026-03-28T22:50:33.234578Z  INFO     📊 DUMP (119267 trades):
-2026-03-28T22:50:33.234623Z  INFO       WinRate: 3.1%  (TP:3667 SL:12998 Expired:102602 [56473+/46129−])
-2026-03-28T22:50:33.234634Z  INFO       Avg P&L: -0.00%,  Total P&L: -435.06%
-2026-03-28T22:50:33.234643Z  INFO       Avg Hold: 5.7 candles
-2026-03-28T22:50:33.234653Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.234912Z  INFO         hold=1: 2034 trades, WR: 17.3%, AvgPnL: -5.48%
-2026-03-28T22:50:33.235119Z  INFO         hold=2: 2506 trades, WR: 19.1%, AvgPnL: -5.02%
-2026-03-28T22:50:33.235317Z  INFO         hold=3: 2791 trades, WR: 18.6%, AvgPnL: -5.15%
-2026-03-28T22:50:33.235530Z  INFO         hold=4: 3094 trades, WR: 18.2%, AvgPnL: -5.25%
-2026-03-28T22:50:33.235803Z  INFO         hold=5: 3134 trades, WR: 27.1%, AvgPnL: -3.05%
-2026-03-28T22:50:33.236537Z  INFO         hold=6: 105708 trades, WR: 0.9%, AvgPnL: 0.60%
-2026-03-28T22:50:33.236552Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.236895Z  INFO         [0.50-0.55): 1215 trades, WR: 3.0% (TP:37 SL:184), AvgPnL: -0.11%, AvgHold: 5.5
-2026-03-28T22:50:33.237175Z  INFO         [0.55-0.60): 1220 trades, WR: 4.5% (TP:55 SL:179), AvgPnL: 0.09%, AvgHold: 5.5
-2026-03-28T22:50:33.237422Z  INFO         [0.60-0.65): 1184 trades, WR: 4.7% (TP:56 SL:183), AvgPnL: 0.00%, AvgHold: 5.5
-2026-03-28T22:50:33.237670Z  INFO         [0.65-0.70): 1131 trades, WR: 4.8% (TP:54 SL:162), AvgPnL: 0.22%, AvgHold: 5.5
-2026-03-28T22:50:33.237946Z  INFO         [0.70-0.75): 3275 trades, WR: 1.8% (TP:59 SL:253), AvgPnL: 0.00%, AvgHold: 5.8
-2026-03-28T22:50:33.238557Z  INFO         [0.75-0.80): 22080 trades, WR: 2.1% (TP:454 SL:1813), AvgPnL: -0.12%, AvgHold: 5.8
-2026-03-28T22:50:33.239261Z  INFO         [0.80-0.85): 28590 trades, WR: 3.5% (TP:1002 SL:3067), AvgPnL: 0.02%, AvgHold: 5.7
-2026-03-28T22:50:33.239799Z  INFO         [0.85-0.90): 20358 trades, WR: 3.7% (TP:754 SL:2570), AvgPnL: 0.02%, AvgHold: 5.6
-2026-03-28T22:50:33.240297Z  INFO         [0.90-1.01): 40214 trades, WR: 3.0% (TP:1196 SL:4587), AvgPnL: 0.03%, AvgHold: 5.7
-2026-03-28T22:50:33.240311Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.241258Z  INFO         pred ≥ 0.50: 119267 trades, WR: 3.1% (TP:3667 SL:12998), AvgPnL: -0.00%
-2026-03-28T22:50:33.242115Z  INFO         pred ≥ 0.55: 118052 trades, WR: 3.1% (TP:3630 SL:12814), AvgPnL: -0.00%
-2026-03-28T22:50:33.242882Z  INFO         pred ≥ 0.60: 116832 trades, WR: 3.1% (TP:3575 SL:12635), AvgPnL: -0.00%
-2026-03-28T22:50:33.243635Z  INFO         pred ≥ 0.65: 115648 trades, WR: 3.0% (TP:3519 SL:12452), AvgPnL: -0.00%
-2026-03-28T22:50:33.244404Z  INFO         pred ≥ 0.70: 114517 trades, WR: 3.0% (TP:3465 SL:12290), AvgPnL: -0.01%
-2026-03-28T22:50:33.245206Z  INFO         pred ≥ 0.75: 111242 trades, WR: 3.1% (TP:3406 SL:12037), AvgPnL: -0.01%
-2026-03-28T22:50:33.246039Z  INFO         pred ≥ 0.80: 89162 trades, WR: 3.3% (TP:2952 SL:10224), AvgPnL: 0.02%
-2026-03-28T22:50:33.246728Z  INFO         pred ≥ 0.85: 60572 trades, WR: 3.2% (TP:1950 SL:7157), AvgPnL: 0.02%
-2026-03-28T22:50:33.247183Z  INFO         pred ≥ 0.90: 40214 trades, WR: 3.0% (TP:1196 SL:4587), AvgPnL: 0.03%
-2026-03-28T22:50:33.247195Z  INFO 
-2026-03-28T22:50:33.247202Z  INFO     ─── Sample Trades (first 5) ───
-2026-03-28T22:50:33.247214Z  INFO       0GUSDT 2025-09-27 15:59 PUMP pred=0.994 entry=3.5830 exit=3.6009 hold=6 P&L=0.50% ⏰EXP
-2026-03-28T22:50:33.247224Z  INFO       0GUSDT 2025-09-27 15:59 DUMP pred=0.972 entry=3.5830 exit=3.6009 hold=6 P&L=-0.50% ⏰EXP
-2026-03-28T22:50:33.247233Z  INFO       0GUSDT 2025-09-28 15:59 PUMP pred=0.989 entry=3.6009 exit=3.2498 hold=6 P&L=-9.75% ❌SL
-2026-03-28T22:50:33.247242Z  INFO       0GUSDT 2025-09-28 15:59 DUMP pred=0.971 entry=3.6009 exit=3.0608 hold=6 P&L=15.00% ✅TP
-2026-03-28T22:50:33.247253Z  INFO       0GUSDT 2025-09-29 15:59 PUMP pred=0.987 entry=2.8525 exit=2.5744 hold=5 P&L=-9.75% ❌SL
-2026-03-28T22:50:33.247260Z  INFO 
-2026-03-28T22:50:33.247269Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.247285Z  INFO   ═══ OVERALL SUMMARY ═══
-2026-03-28T22:50:33.247292Z  INFO   ═══════════════════════════════════════════════════
-2026-03-28T22:50:33.273819Z  INFO     📊 ALL TRADES (1277041 trades):
-2026-03-28T22:50:33.273851Z  INFO       WinRate: 1.0%  (TP:13203 SL:37410 Expired:1226428 [614102+/612326−])
-2026-03-28T22:50:33.273863Z  INFO       Avg P&L: -0.00%,  Total P&L: -4152.44%
-2026-03-28T22:50:33.273872Z  INFO       Avg Hold: 5.9 candles
-2026-03-28T22:50:33.273881Z  INFO       ─── Hold Time Distribution ───
-2026-03-28T22:50:33.277840Z  INFO         hold=1: 5545 trades, WR: 22.8%, AvgPnL: -4.09%
-2026-03-28T22:50:33.281875Z  INFO         hold=2: 7743 trades, WR: 25.9%, AvgPnL: -3.35%
-2026-03-28T22:50:33.286271Z  INFO         hold=3: 8235 trades, WR: 24.7%, AvgPnL: -3.63%
-2026-03-28T22:50:33.290411Z  INFO         hold=4: 9032 trades, WR: 26.2%, AvgPnL: -3.26%
-2026-03-28T22:50:33.295144Z  INFO         hold=5: 9958 trades, WR: 26.8%, AvgPnL: -3.11%
-2026-03-28T22:50:33.315265Z  INFO         hold=6: 1236528 trades, WR: 0.2%, AvgPnL: 0.11%
-2026-03-28T22:50:33.316009Z  INFO       ─── By Prediction Bucket ───
-2026-03-28T22:50:33.322487Z  INFO         [0.50-0.55): 89617 trades, WR: 0.4% (TP:344 SL:1015), AvgPnL: -0.00%, AvgHold: 6.0
-2026-03-28T22:50:33.329970Z  INFO         [0.55-0.60): 64430 trades, WR: 0.5% (TP:335 SL:847), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.336550Z  INFO         [0.60-0.65): 56972 trades, WR: 0.5% (TP:311 SL:776), AvgPnL: 0.02%, AvgHold: 6.0
-2026-03-28T22:50:33.343074Z  INFO         [0.65-0.70): 57038 trades, WR: 0.6% (TP:331 SL:743), AvgPnL: 0.04%, AvgHold: 6.0
-2026-03-28T22:50:33.349743Z  INFO         [0.70-0.75): 61263 trades, WR: 0.5% (TP:318 SL:825), AvgPnL: 0.01%, AvgHold: 6.0
-2026-03-28T22:50:33.357650Z  INFO         [0.75-0.80): 86621 trades, WR: 0.9% (TP:761 SL:2447), AvgPnL: -0.03%, AvgHold: 5.9
-2026-03-28T22:50:33.365930Z  INFO         [0.80-0.85): 108275 trades, WR: 1.2% (TP:1297 SL:3888), AvgPnL: -0.00%, AvgHold: 5.9
-2026-03-28T22:50:33.374235Z  INFO         [0.85-0.90): 126199 trades, WR: 0.9% (TP:1152 SL:3750), AvgPnL: -0.02%, AvgHold: 5.9
-2026-03-28T22:50:33.390448Z  INFO         [0.90-1.01): 626626 trades, WR: 1.3% (TP:8354 SL:23119), AvgPnL: -0.01%, AvgHold: 5.9
-2026-03-28T22:50:33.390477Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
-2026-03-28T22:50:33.408594Z  INFO         pred ≥ 0.50: 1277041 trades, WR: 1.0% (TP:13203 SL:37410), AvgPnL: -0.00%
-2026-03-28T22:50:33.425485Z  INFO         pred ≥ 0.55: 1187424 trades, WR: 1.1% (TP:12859 SL:36395), AvgPnL: -0.00%
-2026-03-28T22:50:33.442160Z  INFO         pred ≥ 0.60: 1122994 trades, WR: 1.1% (TP:12524 SL:35548), AvgPnL: -0.00%
-2026-03-28T22:50:33.458722Z  INFO         pred ≥ 0.65: 1066022 trades, WR: 1.1% (TP:12213 SL:34772), AvgPnL: -0.01%
-2026-03-28T22:50:33.475121Z  INFO         pred ≥ 0.70: 1008984 trades, WR: 1.2% (TP:11882 SL:34029), AvgPnL: -0.01%
-2026-03-28T22:50:33.490778Z  INFO         pred ≥ 0.75: 947721 trades, WR: 1.2% (TP:11564 SL:33204), AvgPnL: -0.01%
-2026-03-28T22:50:33.505743Z  INFO         pred ≥ 0.80: 861100 trades, WR: 1.3% (TP:10803 SL:30757), AvgPnL: -0.01%
-2026-03-28T22:50:33.519805Z  INFO         pred ≥ 0.85: 752825 trades, WR: 1.3% (TP:9506 SL:26869), AvgPnL: -0.01%
-2026-03-28T22:50:33.532666Z  INFO         pred ≥ 0.90: 626626 trades, WR: 1.3% (TP:8354 SL:23119), AvgPnL: -0.01%
-2026-03-28T22:50:33.532694Z  INFO 
-2026-03-28T22:50:33.532700Z  INFO     ─── Top 10 Symbols by Trade Count ───
-2026-03-28T22:50:33.560924Z  INFO       BTCUSDT: 14513 trades, WR: 0.1%, TotalPnL: -29.51%
-2026-03-28T22:50:33.564987Z  INFO       ETHUSDT: 14292 trades, WR: 0.3%, TotalPnL: -39.56%
-2026-03-28T22:50:33.569750Z  INFO       BNBUSDT: 14074 trades, WR: 0.4%, TotalPnL: -14.61%
-2026-03-28T22:50:33.574103Z  INFO       1000SHIBUSDT: 13724 trades, WR: 0.8%, TotalPnL: -231.02%
-2026-03-28T22:50:33.578802Z  INFO       ALGOUSDT: 13604 trades, WR: 1.0%, TotalPnL: 113.19%
-2026-03-28T22:50:33.583448Z  INFO       XMRUSDT: 13512 trades, WR: 0.4%, TotalPnL: 55.98%
-2026-03-28T22:50:33.587687Z  INFO       AAVEUSDT: 13498 trades, WR: 1.0%, TotalPnL: 56.86%
-2026-03-28T22:50:33.591449Z  INFO       ANKRUSDT: 13470 trades, WR: 0.9%, TotalPnL: -369.38%
-2026-03-28T22:50:33.596097Z  INFO       BCHUSDT: 13441 trades, WR: 0.7%, TotalPnL: 53.62%
-2026-03-28T22:50:33.601346Z  INFO       ZECUSDT: 13394 trades, WR: 1.4%, TotalPnL: 207.22%
-2026-03-28T22:50:33.601363Z  INFO 
-2026-03-28T22:50:33.601369Z  INFO     ─── Top 10 Best Trades ───
-2026-03-28T22:50:33.827325Z  INFO       #1: 1000BONKUSDT 2025-01-19 19:59 DUMP TF=60m pred=0.992 entry=0.0387 P&L=15.00% hold=4 ✅TP
-2026-03-28T22:50:33.827349Z  INFO       #2: 1000BONKUSDT 2023-12-25 23:59 DUMP TF=240m pred=0.790 entry=0.0187 P&L=15.00% hold=4 ✅TP
-2026-03-28T22:50:33.827358Z  INFO       #3: 1000PEPEUSDT 2023-08-16 23:59 DUMP TF=240m pred=0.868 entry=0.0012 P&L=15.00% hold=6 ✅TP
-2026-03-28T22:50:33.827365Z  INFO       #4: ADAUSDT 2022-12-16 03:59 DUMP TF=240m pred=0.797 entry=0.3001 P&L=15.00% hold=5 ✅TP
-2026-03-28T22:50:33.827372Z  INFO       #5: ADAUSDT 2024-01-03 03:59 DUMP TF=240m pred=0.813 entry=0.6097 P&L=15.00% hold=3 ✅TP
-2026-03-28T22:50:33.827379Z  INFO       #6: ADAUSDT 2024-04-12 03:59 DUMP TF=240m pred=0.851 entry=0.5914 P&L=15.00% hold=4 ✅TP
-2026-03-28T22:50:33.827386Z  INFO       #7: ALGOUSDT 2021-05-19 03:59 DUMP TF=240m pred=0.803 entry=1.2759 P&L=15.00% hold=2 ✅TP
-2026-03-28T22:50:33.827393Z  INFO       #8: ALGOUSDT 2024-11-24 03:59 DUMP TF=240m pred=0.992 entry=0.3266 P&L=15.00% hold=3 ✅TP
-2026-03-28T22:50:33.827400Z  INFO       #9: ANKRUSDT 2025-02-02 23:59 DUMP TF=240m pred=0.968 entry=0.0236 P&L=15.00% hold=1 ✅TP
-2026-03-28T22:50:33.827407Z  INFO       #10: ARCUSDT 2026-02-07 08:59 DUMP TF=60m pred=0.973 entry=0.0783 P&L=15.00% hold=4 ✅TP
-2026-03-28T22:50:33.827413Z  INFO 
-2026-03-28T22:50:33.827422Z  INFO     ─── Top 10 Worst Trades ───
-2026-03-28T22:50:33.827429Z  INFO       #1: ZROUSDT 2025-03-03 23:59 PUMP TF=240m pred=0.990 entry=2.3393 P&L=-9.75% hold=5 ❌SL
-2026-03-28T22:50:33.827436Z  INFO       #2: ZECUSDT 2025-11-08 03:59 PUMP TF=240m pred=0.999 entry=595.2100 P&L=-9.75% hold=1 ❌SL
-2026-03-28T22:50:33.827448Z  INFO       #3: ZECUSDT 2021-05-25 03:59 PUMP TF=240m pred=0.976 entry=144.5900 P&L=-9.75% hold=2 ❌SL
-2026-03-28T22:50:33.827456Z  INFO       #4: WIFUSDT 2025-01-31 23:59 PUMP TF=240m pred=0.988 entry=1.1351 P&L=-9.75% hold=5 ❌SL
-2026-03-28T22:50:33.827464Z  INFO       #5: UAIUSDT 2025-12-28 15:59 PUMP TF=240m pred=0.667 entry=0.1428 P&L=-9.75% hold=6 ❌SL
-2026-03-28T22:50:33.827471Z  INFO       #6: TURBOUSDT 2025-03-10 13:59 PUMP TF=60m pred=0.991 entry=0.0022 P&L=-9.75% hold=5 ❌SL
-2026-03-28T22:50:33.827479Z  INFO       #7: TAUSDT 2025-09-26 07:59 PUMP TF=240m pred=0.990 entry=0.0699 P&L=-9.75% hold=5 ❌SL
-2026-03-28T22:50:33.827487Z  INFO       #8: SOLUSDT 2024-07-07 03:59 PUMP TF=240m pred=0.980 entry=142.0580 P&L=-9.75% hold=6 ❌SL
-2026-03-28T22:50:33.827494Z  INFO       #9: SOLUSDT 2021-02-14 03:59 PUMP TF=240m pred=0.982 entry=8.9514 P&L=-9.75% hold=6 ❌SL
-2026-03-28T22:50:33.827502Z  INFO       #10: SEIUSDT 2025-04-06 23:59 PUMP TF=240m pred=0.994 entry=0.1448 P&L=-9.75% hold=2 ❌SL
-2026-03-28T22:50:33.827509Z  INFO 
-2026-03-28T22:50:33.836234Z  INFO   🔴 VERDICT: Model shows NO edge (WR=1.0%, E[PnL]=-0.00%)
-2026-03-28T22:50:33.836272Z  INFO   NOTE: Check cumulative thresholds — higher pred cutoff may yield positive edge
-2026-03-28T22:50:33.958017Z  INFO 
-2026-03-28T22:50:33.958043Z  INFO   Total time: 4035.6s (67.3min)
+2026-04-01T12:50:04.257192Z  INFO ╔═══════════════════════════════════════════════════════════╗
+2026-04-01T12:50:04.257247Z  INFO ║  Pump/Dump Walk-Forward Backtest v4 (bulk-load)           ║
+2026-04-01T12:50:04.257258Z  INFO ║  True Trade Simulation — No Look-Ahead Bias               ║
+2026-04-01T12:50:04.257267Z  INFO ╚═══════════════════════════════════════════════════════════╝
+2026-04-01T12:50:04.257274Z  INFO   Target TFs: [5, 15, 60, 240]
+2026-04-01T12:50:04.257281Z  INFO   Max hold: 6 candles
+2026-04-01T12:50:04.257292Z  INFO   Target: 15.0%, SL: 9.8% (fraction: 0.65), R:R = 15.0:9.8
+2026-04-01T12:50:04.257300Z  INFO   Pred step: 1 | Cooldown: 6 bars | Min signal: 0.50
+2026-04-01T12:50:04.257307Z  INFO   Device: Cpu | Model type: both
+2026-04-01T12:50:04.257319Z  INFO PumpDump Config:
+2026-04-01T12:50:04.257326Z  INFO   threshold: 15.0% (same across all TFs)
+2026-04-01T12:50:04.257334Z  INFO   pre_event_lookback: 10 candles
+2026-04-01T12:50:04.257347Z  INFO   negative_ratio: 3:1
+2026-04-01T12:50:04.257353Z  INFO   prediction_horizon: 3 candles
+2026-04-01T12:50:04.257362Z  INFO   concentration_pct: 50% (of daily move in 1 hourly candle)
+2026-04-01T12:50:04.257369Z  INFO   max_hold_candles: 6 (max candles to reach target)
+2026-04-01T12:50:04.284426Z  INFO XGB Booster loaded: path=models/pump_dump_pump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T12:50:04.284477Z  INFO   ✅ Pump model: models/pump_dump_pump_v1.ubj
+2026-04-01T12:50:04.296562Z  INFO XGB Booster loaded: path=models/pump_dump_dump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T12:50:04.296603Z  INFO   ✅ Dump model: models/pump_dump_dump_v1.ubj
+2026-04-01T12:50:04.303985Z  INFO   Feature vector: 3950 features (5 TFs × 10 lookback × 79 per candle)
+2026-04-01T12:50:04.304011Z  INFO 
+2026-04-01T12:50:04.304022Z  INFO   ⏳ Bulk loading all candle data...
+2026-04-01T12:50:36.240948Z  INFO     TF 1440m: 317 symbols,   238056 candles  (31.9s)
+2026-04-01T12:51:25.712789Z  INFO     TF  240m: 332 symbols,  1228750 candles  (49.5s)
+2026-04-01T12:52:32.657245Z  INFO     TF   60m: 332 symbols,  2176397 candles  (66.9s)
+2026-04-01T12:53:46.254033Z  INFO     TF   15m: 332 symbols,  2732605 candles  (73.6s)
+2026-04-01T12:54:54.765562Z  INFO     TF    5m: 332 symbols,  2337666 candles  (68.5s)
+2026-04-01T12:54:54.765594Z  INFO   ✅ Bulk load complete: 317 symbols in 290.5s
+2026-04-01T12:54:54.765602Z  INFO 
+2026-04-01T12:54:54.765609Z  INFO   🚀 Starting walk-forward simulation...
+2026-04-01T12:54:58.625750Z  INFO   [  1/317]    0.3% | 0GUSDT — 5260 trades | total: 5260 | ETA: 93006s
+2026-04-01T12:55:43.096626Z  INFO   [ 15/317]    4.7% | AEROUSDT — 1244 trades | total: 116112 | ETA: 6821s
+2026-04-01T12:56:27.323241Z  INFO   [ 30/317]    9.5% | APTUSDT — 9730 trades | total: 220973 | ETA: 3664s
+2026-04-01T12:57:26.730185Z  INFO   [ 45/317]   14.2% | BANANAS31USDT — 9726 trades | total: 352401 | ETA: 2674s
+2026-04-01T12:58:10.656986Z  INFO   [ 60/317]   18.9% | BOMEUSDT — 11572 trades | total: 453980 | ETA: 2083s
+2026-04-01T12:58:51.851558Z  INFO   [ 75/317]   23.7% | COLLECTUSDT — 5463 trades | total: 555539 | ETA: 1702s
+2026-04-01T12:59:54.242143Z  INFO   [ 90/317]   28.4% | DRIFTUSDT — 9338 trades | total: 698724 | ETA: 1488s
+2026-04-01T13:00:35.725811Z  INFO   [105/317]   33.1% | ETCUSDT — 10933 trades | total: 785132 | ETA: 1275s
+2026-04-01T13:01:21.714073Z  INFO   [120/317]   37.9% | GASUSDT — 8993 trades | total: 885841 | ETA: 1112s
+2026-04-01T13:01:53.863959Z  INFO   [135/317]   42.6% | HUMAUSDT — 9066 trades | total: 958156 | ETA: 957s
+2026-04-01T13:02:44.305727Z  INFO   [150/317]   47.3% | JELLYJELLYUSDT — 8828 trades | total: 1063925 | ETA: 846s
+2026-04-01T13:03:21.856775Z  INFO   [165/317]   52.1% | LDOUSDT — 10438 trades | total: 1145359 | ETA: 735s
+2026-04-01T13:04:08.424163Z  INFO   [180/317]   56.8% | MEUSDT — 9779 trades | total: 1245698 | ETA: 642s
+2026-04-01T13:04:58.429220Z  INFO   [195/317]   61.5% | ONDOUSDT — 9580 trades | total: 1350566 | ETA: 559s
+2026-04-01T13:05:40.550224Z  INFO   [210/317]   66.2% | PIPPINUSDT — 8644 trades | total: 1443091 | ETA: 477s
+2026-04-01T13:06:24.548604Z  INFO   [225/317]   71.0% | QUSDT — 1680 trades | total: 1544211 | ETA: 401s
+2026-04-01T13:07:00.597270Z  INFO   [240/317]   75.7% | SAHARAUSDT — 8772 trades | total: 1622583 | ETA: 326s
+2026-04-01T13:07:42.322953Z  INFO   [255/317]   80.4% | SPXUSDT — 8686 trades | total: 1714937 | ETA: 257s
+2026-04-01T13:08:26.272416Z  INFO   [270/317]   85.2% | TAUSDT — 8003 trades | total: 1813881 | ETA: 192s
+2026-04-01T13:09:14.038343Z  INFO   [285/317]   89.9% | UNIUSDT — 11150 trades | total: 1911591 | ETA: 129s
+2026-04-01T13:10:06.688730Z  INFO   [300/317]   94.6% | XLMUSDT — 12174 trades | total: 2022727 | ETA: 68s
+2026-04-01T13:10:58.789591Z  INFO   [315/317]   99.4% | ZKUSDT — 10607 trades | total: 2142573 | ETA: 8s
+2026-04-01T13:11:07.282586Z  INFO   [317/317]  100.0% | ZROUSDT — 8669 trades | total: 2158100 | ETA: 0s
+2026-04-01T13:11:07.282643Z  INFO 
+2026-04-01T13:11:07.282658Z  INFO ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+2026-04-01T13:11:07.282671Z  INFO ┃          PUMP/DUMP BACKTEST — FINAL REPORT (v4)                  ┃
+2026-04-01T13:11:07.282684Z  INFO ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+2026-04-01T13:11:07.282698Z  INFO 
+2026-04-01T13:11:07.282710Z  INFO   ┌─────────── EXECUTION ───────────┐
+2026-04-01T13:11:07.282721Z  INFO   │ Symbols: 288 processed, 29 skipped │
+2026-04-01T13:11:07.282733Z  INFO   │ Bars scanned:      8177860       │
+2026-04-01T13:11:07.282743Z  INFO   │ ML predictions:    8177579       │
+2026-04-01T13:11:07.282753Z  INFO   │ Total trades:      2158100       │
+2026-04-01T13:11:07.282765Z  INFO   │ Time: 1263.0s (21.0min)              │
+2026-04-01T13:11:07.282775Z  INFO   │ Data load: 290.5s | Sim: 972.5s      │
+2026-04-01T13:11:07.282785Z  INFO   └─────────────────────────────────┘
+2026-04-01T13:11:07.282795Z  INFO 
+2026-04-01T13:11:07.282804Z  INFO   ┌─────────── QUICK OVERVIEW ─────────────────────────────────────┐
+2026-04-01T13:11:07.311706Z  INFO   │ ALL: 2158100 trades | WR 1.0% (TP:21519 SL:61068) | AvgPnL -0.00% | TotalPnL -8455.8%
+2026-04-01T13:11:07.346866Z  INFO   │ PUMP: 1095533 trades | WR 1.2% (TP:13068 SL:27861) | AvgPnL -0.03% | TotalPnL -31002.5%
+2026-04-01T13:11:07.359376Z  INFO   │ DUMP: 1062567 trades | WR 0.8% (TP:8451 SL:33207) | AvgPnL 0.02% | TotalPnL 22546.7%
+2026-04-01T13:11:07.359414Z  INFO   │
+2026-04-01T13:11:07.370197Z  INFO   │ TF   5m: 350287 trades | WR 0.1% (TP:233 SL:672) | AvgPnL 0.00% | TotalPnL 789.3%
+2026-04-01T13:11:07.386505Z  INFO   │ TF  15m: 732955 trades | WR 0.2% (TP:1182 SL:3737) | AvgPnL -0.00% | TotalPnL -1298.3%
+2026-04-01T13:11:07.404354Z  INFO   │ TF  60m: 681883 trades | WR 0.8% (TP:5181 SL:15840) | AvgPnL -0.00% | TotalPnL -2110.7%
+2026-04-01T13:11:07.417116Z  INFO   │ TF 240m: 392975 trades | WR 3.8% (TP:14923 SL:40819) | AvgPnL -0.01% | TotalPnL -5836.0%
+2026-04-01T13:11:07.417147Z  INFO   │
+2026-04-01T13:11:07.417156Z  INFO   │ Breakeven WR (R:R = 15.0:9.8): 39.4%
+2026-04-01T13:11:07.417164Z  INFO   └───────────────────────────────────────────────────────────────┘
+2026-04-01T13:11:07.419834Z  INFO 
+2026-04-01T13:11:07.428278Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.428310Z  INFO   ═══ TF: 5m — 350287 trades total ═══
+2026-04-01T13:11:07.428316Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.435862Z  INFO     📊 PUMP (183912 trades):
+2026-04-01T13:11:07.435898Z  INFO       WinRate: 0.1%  (TP:152 SL:318 Expired:183442 [86552+/96890−])
+2026-04-01T13:11:07.435907Z  INFO       Avg P&L: 0.01%,  Total P&L: 2147.68%
+2026-04-01T13:11:07.435914Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T13:11:07.435921Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.436931Z  INFO         hold=1: 54 trades, WR: 22.2%, AvgPnL: -4.25%
+2026-04-01T13:11:07.437830Z  INFO         hold=2: 75 trades, WR: 33.3%, AvgPnL: -1.50%
+2026-04-01T13:11:07.438613Z  INFO         hold=3: 76 trades, WR: 34.2%, AvgPnL: -1.28%
+2026-04-01T13:11:07.439274Z  INFO         hold=4: 89 trades, WR: 37.1%, AvgPnL: -0.57%
+2026-04-01T13:11:07.439864Z  INFO         hold=5: 83 trades, WR: 34.9%, AvgPnL: -1.10%
+2026-04-01T13:11:07.442465Z  INFO         hold=6: 183535 trades, WR: 0.0%, AvgPnL: 0.01%
+2026-04-01T13:11:07.442502Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.444338Z  INFO         [0.50-0.55): 40905 trades, WR: 0.1% (TP:39 SL:78), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.445835Z  INFO         [0.55-0.60): 24939 trades, WR: 0.1% (TP:27 SL:38), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.447152Z  INFO         [0.60-0.65): 21266 trades, WR: 0.1% (TP:18 SL:36), AvgPnL: 0.03%, AvgHold: 6.0
+2026-04-01T13:11:07.448762Z  INFO         [0.65-0.70): 19822 trades, WR: 0.1% (TP:14 SL:34), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.450278Z  INFO         [0.70-0.75): 19001 trades, WR: 0.1% (TP:14 SL:38), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.451608Z  INFO         [0.75-0.80): 18351 trades, WR: 0.1% (TP:10 SL:33), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.452700Z  INFO         [0.80-0.85): 16349 trades, WR: 0.1% (TP:12 SL:25), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T13:11:07.453679Z  INFO         [0.85-0.90): 13061 trades, WR: 0.1% (TP:10 SL:26), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.454592Z  INFO         [0.90-1.01): 10218 trades, WR: 0.1% (TP:8 SL:10), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.454617Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.458139Z  INFO         pred ≥ 0.50: 183912 trades, WR: 0.1% (TP:152 SL:318), AvgPnL: 0.01%
+2026-04-01T13:11:07.460739Z  INFO         pred ≥ 0.55: 143007 trades, WR: 0.1% (TP:113 SL:240), AvgPnL: 0.01%
+2026-04-01T13:11:07.464237Z  INFO         pred ≥ 0.60: 118068 trades, WR: 0.1% (TP:86 SL:202), AvgPnL: 0.01%
+2026-04-01T13:11:07.466729Z  INFO         pred ≥ 0.65: 96802 trades, WR: 0.1% (TP:68 SL:166), AvgPnL: 0.01%
+2026-04-01T13:11:07.468088Z  INFO         pred ≥ 0.70: 76980 trades, WR: 0.1% (TP:54 SL:132), AvgPnL: 0.01%
+2026-04-01T13:11:07.469259Z  INFO         pred ≥ 0.75: 57979 trades, WR: 0.1% (TP:40 SL:94), AvgPnL: 0.01%
+2026-04-01T13:11:07.470187Z  INFO         pred ≥ 0.80: 39628 trades, WR: 0.1% (TP:30 SL:61), AvgPnL: 0.01%
+2026-04-01T13:11:07.471297Z  INFO         pred ≥ 0.85: 23279 trades, WR: 0.1% (TP:18 SL:36), AvgPnL: 0.01%
+2026-04-01T13:11:07.472209Z  INFO         pred ≥ 0.90: 10218 trades, WR: 0.1% (TP:8 SL:10), AvgPnL: 0.02%
+2026-04-01T13:11:07.472224Z  INFO 
+2026-04-01T13:11:07.475812Z  INFO     📊 DUMP (166375 trades):
+2026-04-01T13:11:07.475843Z  INFO       WinRate: 0.0%  (TP:81 SL:354 Expired:165940 [81290+/84650−])
+2026-04-01T13:11:07.475852Z  INFO       Avg P&L: -0.01%,  Total P&L: -1358.39%
+2026-04-01T13:11:07.475858Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T13:11:07.475863Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.476343Z  INFO         hold=1: 40 trades, WR: 15.0%, AvgPnL: -6.04%
+2026-04-01T13:11:07.476757Z  INFO         hold=2: 48 trades, WR: 16.7%, AvgPnL: -5.62%
+2026-04-01T13:11:07.477070Z  INFO         hold=3: 71 trades, WR: 12.7%, AvgPnL: -6.61%
+2026-04-01T13:11:07.477343Z  INFO         hold=4: 81 trades, WR: 17.3%, AvgPnL: -5.47%
+2026-04-01T13:11:07.477617Z  INFO         hold=5: 80 trades, WR: 23.8%, AvgPnL: -3.87%
+2026-04-01T13:11:07.478929Z  INFO         hold=6: 166055 trades, WR: 0.0%, AvgPnL: 0.00%
+2026-04-01T13:11:07.478949Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.479934Z  INFO         [0.50-0.55): 38141 trades, WR: 0.1% (TP:21 SL:99), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.480849Z  INFO         [0.55-0.60): 21929 trades, WR: 0.1% (TP:11 SL:66), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.481748Z  INFO         [0.60-0.65): 17919 trades, WR: 0.1% (TP:11 SL:27), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T13:11:07.482558Z  INFO         [0.65-0.70): 16556 trades, WR: 0.1% (TP:16 SL:37), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.483356Z  INFO         [0.70-0.75): 15362 trades, WR: 0.0% (TP:4 SL:35), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.484072Z  INFO         [0.75-0.80): 14875 trades, WR: 0.1% (TP:11 SL:24), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.484711Z  INFO         [0.80-0.85): 14757 trades, WR: 0.0% (TP:2 SL:29), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.485684Z  INFO         [0.85-0.90): 13596 trades, WR: 0.0% (TP:3 SL:19), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.487023Z  INFO         [0.90-1.01): 13240 trades, WR: 0.0% (TP:2 SL:18), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.487039Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.491819Z  INFO         pred ≥ 0.50: 166375 trades, WR: 0.0% (TP:81 SL:354), AvgPnL: -0.01%
+2026-04-01T13:11:07.497097Z  INFO         pred ≥ 0.55: 128234 trades, WR: 0.0% (TP:60 SL:255), AvgPnL: -0.01%
+2026-04-01T13:11:07.501929Z  INFO         pred ≥ 0.60: 106305 trades, WR: 0.0% (TP:49 SL:189), AvgPnL: -0.00%
+2026-04-01T13:11:07.505148Z  INFO         pred ≥ 0.65: 88386 trades, WR: 0.0% (TP:38 SL:162), AvgPnL: -0.00%
+2026-04-01T13:11:07.507769Z  INFO         pred ≥ 0.70: 71830 trades, WR: 0.0% (TP:22 SL:125), AvgPnL: -0.01%
+2026-04-01T13:11:07.511924Z  INFO         pred ≥ 0.75: 56468 trades, WR: 0.0% (TP:18 SL:90), AvgPnL: -0.00%
+2026-04-01T13:11:07.514359Z  INFO         pred ≥ 0.80: 41593 trades, WR: 0.0% (TP:7 SL:66), AvgPnL: -0.01%
+2026-04-01T13:11:07.516127Z  INFO         pred ≥ 0.85: 26836 trades, WR: 0.0% (TP:5 SL:37), AvgPnL: -0.01%
+2026-04-01T13:11:07.518595Z  INFO         pred ≥ 0.90: 13240 trades, WR: 0.0% (TP:2 SL:18), AvgPnL: -0.01%
+2026-04-01T13:11:07.518626Z  INFO 
+2026-04-01T13:11:07.518637Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:11:07.518661Z  INFO       0GUSDT 2026-02-24 12:44 DUMP pred=0.549 entry=0.6149 exit=0.6160 hold=6 P&L=-0.18% ⏰EXP
+2026-04-01T13:11:07.518678Z  INFO       0GUSDT 2026-02-24 13:19 DUMP pred=0.517 entry=0.6139 exit=0.6178 hold=6 P&L=-0.64% ⏰EXP
+2026-04-01T13:11:07.518690Z  INFO       0GUSDT 2026-02-25 09:59 DUMP pred=0.637 entry=0.6484 exit=0.6528 hold=6 P&L=-0.68% ⏰EXP
+2026-04-01T13:11:07.518708Z  INFO       0GUSDT 2026-02-25 10:29 DUMP pred=0.703 entry=0.6528 exit=0.6525 hold=6 P&L=0.05% ⏰EXP
+2026-04-01T13:11:07.518725Z  INFO       0GUSDT 2026-02-25 10:59 PUMP pred=0.508 entry=0.6525 exit=0.6588 hold=6 P&L=0.97% ⏰EXP
+2026-04-01T13:11:07.518737Z  INFO 
+2026-04-01T13:11:07.529273Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.529312Z  INFO   ═══ TF: 15m — 732955 trades total ═══
+2026-04-01T13:11:07.529318Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.543934Z  INFO     📊 PUMP (372736 trades):
+2026-04-01T13:11:07.543972Z  INFO       WinRate: 0.2%  (TP:731 SL:1687 Expired:370318 [175040+/195278−])
+2026-04-01T13:11:07.543979Z  INFO       Avg P&L: -0.01%,  Total P&L: -5488.19%
+2026-04-01T13:11:07.543984Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T13:11:07.543988Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.545484Z  INFO         hold=1: 251 trades, WR: 20.3%, AvgPnL: -4.72%
+2026-04-01T13:11:07.547121Z  INFO         hold=2: 363 trades, WR: 25.9%, AvgPnL: -3.34%
+2026-04-01T13:11:07.548479Z  INFO         hold=3: 470 trades, WR: 27.7%, AvgPnL: -2.90%
+2026-04-01T13:11:07.549689Z  INFO         hold=4: 422 trades, WR: 33.4%, AvgPnL: -1.48%
+2026-04-01T13:11:07.550922Z  INFO         hold=5: 418 trades, WR: 33.7%, AvgPnL: -1.40%
+2026-04-01T13:11:07.556037Z  INFO         hold=6: 370812 trades, WR: 0.0%, AvgPnL: -0.00%
+2026-04-01T13:11:07.556063Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.558536Z  INFO         [0.50-0.55): 28317 trades, WR: 0.3% (TP:80 SL:145), AvgPnL: -0.00%, AvgHold: 6.0
+2026-04-01T13:11:07.561017Z  INFO         [0.55-0.60): 22220 trades, WR: 0.2% (TP:49 SL:113), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T13:11:07.563454Z  INFO         [0.60-0.65): 21039 trades, WR: 0.3% (TP:64 SL:116), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.565666Z  INFO         [0.65-0.70): 22920 trades, WR: 0.3% (TP:64 SL:113), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.568196Z  INFO         [0.70-0.75): 25823 trades, WR: 0.2% (TP:54 SL:136), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.570510Z  INFO         [0.75-0.80): 28097 trades, WR: 0.3% (TP:76 SL:153), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.572988Z  INFO         [0.80-0.85): 31897 trades, WR: 0.2% (TP:68 SL:135), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.576280Z  INFO         [0.85-0.90): 46130 trades, WR: 0.2% (TP:73 SL:195), AvgPnL: -0.04%, AvgHold: 6.0
+2026-04-01T13:11:07.580853Z  INFO         [0.90-1.01): 146293 trades, WR: 0.1% (TP:203 SL:581), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.580880Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.588107Z  INFO         pred ≥ 0.50: 372736 trades, WR: 0.2% (TP:731 SL:1687), AvgPnL: -0.01%
+2026-04-01T13:11:07.595461Z  INFO         pred ≥ 0.55: 344419 trades, WR: 0.2% (TP:651 SL:1542), AvgPnL: -0.02%
+2026-04-01T13:11:07.601835Z  INFO         pred ≥ 0.60: 322199 trades, WR: 0.2% (TP:602 SL:1429), AvgPnL: -0.02%
+2026-04-01T13:11:07.607434Z  INFO         pred ≥ 0.65: 301160 trades, WR: 0.2% (TP:538 SL:1313), AvgPnL: -0.02%
+2026-04-01T13:11:07.613126Z  INFO         pred ≥ 0.70: 278240 trades, WR: 0.2% (TP:474 SL:1200), AvgPnL: -0.02%
+2026-04-01T13:11:07.618245Z  INFO         pred ≥ 0.75: 252417 trades, WR: 0.2% (TP:420 SL:1064), AvgPnL: -0.02%
+2026-04-01T13:11:07.622904Z  INFO         pred ≥ 0.80: 224320 trades, WR: 0.2% (TP:344 SL:911), AvgPnL: -0.02%
+2026-04-01T13:11:07.627007Z  INFO         pred ≥ 0.85: 192423 trades, WR: 0.1% (TP:276 SL:776), AvgPnL: -0.02%
+2026-04-01T13:11:07.630871Z  INFO         pred ≥ 0.90: 146293 trades, WR: 0.1% (TP:203 SL:581), AvgPnL: -0.02%
+2026-04-01T13:11:07.630906Z  INFO 
+2026-04-01T13:11:07.641266Z  INFO     📊 DUMP (360219 trades):
+2026-04-01T13:11:07.641301Z  INFO       WinRate: 0.1%  (TP:451 SL:2050 Expired:357718 [181155+/176563−])
+2026-04-01T13:11:07.641309Z  INFO       Avg P&L: 0.01%,  Total P&L: 4189.85%
+2026-04-01T13:11:07.641316Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T13:11:07.641322Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.642803Z  INFO         hold=1: 217 trades, WR: 20.7%, AvgPnL: -4.62%
+2026-04-01T13:11:07.644630Z  INFO         hold=2: 375 trades, WR: 20.8%, AvgPnL: -4.60%
+2026-04-01T13:11:07.646015Z  INFO         hold=3: 405 trades, WR: 16.0%, AvgPnL: -5.78%
+2026-04-01T13:11:07.647104Z  INFO         hold=4: 456 trades, WR: 18.0%, AvgPnL: -5.30%
+2026-04-01T13:11:07.648199Z  INFO         hold=5: 520 trades, WR: 16.7%, AvgPnL: -5.61%
+2026-04-01T13:11:07.653499Z  INFO         hold=6: 358246 trades, WR: 0.0%, AvgPnL: 0.04%
+2026-04-01T13:11:07.653537Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.656345Z  INFO         [0.50-0.55): 39433 trades, WR: 0.2% (TP:73 SL:275), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.659413Z  INFO         [0.55-0.60): 28443 trades, WR: 0.2% (TP:44 SL:209), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.661863Z  INFO         [0.60-0.65): 24122 trades, WR: 0.2% (TP:39 SL:188), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.664740Z  INFO         [0.65-0.70): 23649 trades, WR: 0.2% (TP:47 SL:189), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.667567Z  INFO         [0.70-0.75): 24916 trades, WR: 0.1% (TP:37 SL:150), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.669957Z  INFO         [0.75-0.80): 30779 trades, WR: 0.1% (TP:43 SL:183), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.673127Z  INFO         [0.80-0.85): 46275 trades, WR: 0.1% (TP:40 SL:228), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:07.676221Z  INFO         [0.85-0.90): 59837 trades, WR: 0.1% (TP:64 SL:287), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:07.679828Z  INFO         [0.90-1.01): 82765 trades, WR: 0.1% (TP:64 SL:341), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T13:11:07.679856Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.685486Z  INFO         pred ≥ 0.50: 360219 trades, WR: 0.1% (TP:451 SL:2050), AvgPnL: 0.01%
+2026-04-01T13:11:07.690588Z  INFO         pred ≥ 0.55: 320786 trades, WR: 0.1% (TP:378 SL:1775), AvgPnL: 0.01%
+2026-04-01T13:11:07.696164Z  INFO         pred ≥ 0.60: 292343 trades, WR: 0.1% (TP:334 SL:1566), AvgPnL: 0.01%
+2026-04-01T13:11:07.701192Z  INFO         pred ≥ 0.65: 268221 trades, WR: 0.1% (TP:295 SL:1378), AvgPnL: 0.01%
+2026-04-01T13:11:07.705892Z  INFO         pred ≥ 0.70: 244572 trades, WR: 0.1% (TP:248 SL:1189), AvgPnL: 0.01%
+2026-04-01T13:11:07.709911Z  INFO         pred ≥ 0.75: 219656 trades, WR: 0.1% (TP:211 SL:1039), AvgPnL: 0.01%
+2026-04-01T13:11:07.713641Z  INFO         pred ≥ 0.80: 188877 trades, WR: 0.1% (TP:168 SL:856), AvgPnL: 0.01%
+2026-04-01T13:11:07.716621Z  INFO         pred ≥ 0.85: 142602 trades, WR: 0.1% (TP:128 SL:628), AvgPnL: 0.01%
+2026-04-01T13:11:07.718603Z  INFO         pred ≥ 0.90: 82765 trades, WR: 0.1% (TP:64 SL:341), AvgPnL: 0.00%
+2026-04-01T13:11:07.718622Z  INFO 
+2026-04-01T13:11:07.718628Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:11:07.718639Z  INFO       0GUSDT 2025-11-27 18:59 PUMP pred=0.697 entry=1.2040 exit=1.2241 hold=6 P&L=1.67% ⏰EXP
+2026-04-01T13:11:07.718647Z  INFO       0GUSDT 2025-11-27 18:59 DUMP pred=0.665 entry=1.2040 exit=1.2241 hold=6 P&L=-1.67% ⏰EXP
+2026-04-01T13:11:07.718654Z  INFO       0GUSDT 2025-11-27 20:29 PUMP pred=0.542 entry=1.2241 exit=1.2307 hold=6 P&L=0.54% ⏰EXP
+2026-04-01T13:11:07.718662Z  INFO       0GUSDT 2025-11-27 20:29 DUMP pred=0.539 entry=1.2241 exit=1.2307 hold=6 P&L=-0.54% ⏰EXP
+2026-04-01T13:11:07.718677Z  INFO       0GUSDT 2025-11-27 21:59 PUMP pred=0.532 entry=1.2307 exit=1.2360 hold=6 P&L=0.43% ⏰EXP
+2026-04-01T13:11:07.718685Z  INFO 
+2026-04-01T13:11:07.725021Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.725046Z  INFO   ═══ TF: 60m — 681883 trades total ═══
+2026-04-01T13:11:07.725052Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.733698Z  INFO     📊 PUMP (342365 trades):
+2026-04-01T13:11:07.733737Z  INFO       WinRate: 1.0%  (TP:3392 SL:6586 Expired:332387 [160212+/172175−])
+2026-04-01T13:11:07.733746Z  INFO       Avg P&L: -0.03%,  Total P&L: -11651.11%
+2026-04-01T13:11:07.733753Z  INFO       Avg Hold: 5.9 candles
+2026-04-01T13:11:07.733760Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.734966Z  INFO         hold=1: 1065 trades, WR: 27.3%, AvgPnL: -2.99%
+2026-04-01T13:11:07.736027Z  INFO         hold=2: 1308 trades, WR: 39.0%, AvgPnL: -0.10%
+2026-04-01T13:11:07.737060Z  INFO         hold=3: 1592 trades, WR: 37.8%, AvgPnL: -0.39%
+2026-04-01T13:11:07.737993Z  INFO         hold=4: 1883 trades, WR: 35.2%, AvgPnL: -1.04%
+2026-04-01T13:11:07.738863Z  INFO         hold=5: 1907 trades, WR: 34.0%, AvgPnL: -1.34%
+2026-04-01T13:11:07.742851Z  INFO         hold=6: 334610 trades, WR: 0.2%, AvgPnL: -0.01%
+2026-04-01T13:11:07.742878Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.744159Z  INFO         [0.50-0.55): 7338 trades, WR: 1.3% (TP:97 SL:135), AvgPnL: 0.04%, AvgHold: 5.9
+2026-04-01T13:11:07.745422Z  INFO         [0.55-0.60): 6773 trades, WR: 1.3% (TP:90 SL:127), AvgPnL: 0.03%, AvgHold: 5.9
+2026-04-01T13:11:07.747021Z  INFO         [0.60-0.65): 6293 trades, WR: 1.3% (TP:82 SL:125), AvgPnL: 0.02%, AvgHold: 5.9
+2026-04-01T13:11:07.748562Z  INFO         [0.65-0.70): 6215 trades, WR: 1.4% (TP:89 SL:114), AvgPnL: 0.09%, AvgHold: 5.9
+2026-04-01T13:11:07.749913Z  INFO         [0.70-0.75): 6501 trades, WR: 1.6% (TP:104 SL:129), AvgPnL: 0.03%, AvgHold: 5.9
+2026-04-01T13:11:07.751232Z  INFO         [0.75-0.80): 6786 trades, WR: 1.5% (TP:103 SL:123), AvgPnL: 0.01%, AvgHold: 5.9
+2026-04-01T13:11:07.752573Z  INFO         [0.80-0.85): 7648 trades, WR: 1.2% (TP:90 SL:156), AvgPnL: -0.10%, AvgHold: 5.9
+2026-04-01T13:11:07.754338Z  INFO         [0.85-0.90): 11265 trades, WR: 0.8% (TP:88 SL:246), AvgPnL: -0.18%, AvgHold: 5.9
+2026-04-01T13:11:07.759430Z  INFO         [0.90-1.01): 283546 trades, WR: 0.9% (TP:2649 SL:5431), AvgPnL: -0.04%, AvgHold: 5.9
+2026-04-01T13:11:07.759466Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.764508Z  INFO         pred ≥ 0.50: 342365 trades, WR: 1.0% (TP:3392 SL:6586), AvgPnL: -0.03%
+2026-04-01T13:11:07.769296Z  INFO         pred ≥ 0.55: 335027 trades, WR: 1.0% (TP:3295 SL:6451), AvgPnL: -0.04%
+2026-04-01T13:11:07.773714Z  INFO         pred ≥ 0.60: 328254 trades, WR: 1.0% (TP:3205 SL:6324), AvgPnL: -0.04%
+2026-04-01T13:11:07.778367Z  INFO         pred ≥ 0.65: 321961 trades, WR: 1.0% (TP:3123 SL:6199), AvgPnL: -0.04%
+2026-04-01T13:11:07.782928Z  INFO         pred ≥ 0.70: 315746 trades, WR: 1.0% (TP:3034 SL:6085), AvgPnL: -0.04%
+2026-04-01T13:11:07.787309Z  INFO         pred ≥ 0.75: 309245 trades, WR: 0.9% (TP:2930 SL:5956), AvgPnL: -0.04%
+2026-04-01T13:11:07.792087Z  INFO         pred ≥ 0.80: 302459 trades, WR: 0.9% (TP:2827 SL:5833), AvgPnL: -0.04%
+2026-04-01T13:11:07.796568Z  INFO         pred ≥ 0.85: 294811 trades, WR: 0.9% (TP:2737 SL:5677), AvgPnL: -0.04%
+2026-04-01T13:11:07.800714Z  INFO         pred ≥ 0.90: 283546 trades, WR: 0.9% (TP:2649 SL:5431), AvgPnL: -0.04%
+2026-04-01T13:11:07.800733Z  INFO 
+2026-04-01T13:11:07.809121Z  INFO     📊 DUMP (339518 trades):
+2026-04-01T13:11:07.809154Z  INFO       WinRate: 0.5%  (TP:1789 SL:9254 Expired:328475 [172240+/156235−])
+2026-04-01T13:11:07.809161Z  INFO       Avg P&L: 0.03%,  Total P&L: 9540.38%
+2026-04-01T13:11:07.809166Z  INFO       Avg Hold: 5.9 candles
+2026-04-01T13:11:07.809171Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.810433Z  INFO         hold=1: 1182 trades, WR: 23.7%, AvgPnL: -3.89%
+2026-04-01T13:11:07.811543Z  INFO         hold=2: 1715 trades, WR: 13.4%, AvgPnL: -6.43%
+2026-04-01T13:11:07.812535Z  INFO         hold=3: 1875 trades, WR: 13.8%, AvgPnL: -6.33%
+2026-04-01T13:11:07.813500Z  INFO         hold=4: 1956 trades, WR: 13.6%, AvgPnL: -6.38%
+2026-04-01T13:11:07.814437Z  INFO         hold=5: 2180 trades, WR: 17.3%, AvgPnL: -5.47%
+2026-04-01T13:11:07.818868Z  INFO         hold=6: 330610 trades, WR: 0.1%, AvgPnL: 0.19%
+2026-04-01T13:11:07.818894Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.820236Z  INFO         [0.50-0.55): 10482 trades, WR: 0.7% (TP:69 SL:348), AvgPnL: 0.01%, AvgHold: 5.9
+2026-04-01T13:11:07.821544Z  INFO         [0.55-0.60): 8616 trades, WR: 0.8% (TP:65 SL:261), AvgPnL: 0.02%, AvgHold: 5.9
+2026-04-01T13:11:07.823048Z  INFO         [0.60-0.65): 7129 trades, WR: 0.8% (TP:56 SL:236), AvgPnL: 0.05%, AvgHold: 5.9
+2026-04-01T13:11:07.824744Z  INFO         [0.65-0.70): 6283 trades, WR: 0.8% (TP:52 SL:220), AvgPnL: 0.05%, AvgHold: 5.9
+2026-04-01T13:11:07.826516Z  INFO         [0.70-0.75): 5964 trades, WR: 0.7% (TP:44 SL:204), AvgPnL: 0.01%, AvgHold: 5.9
+2026-04-01T13:11:07.827917Z  INFO         [0.75-0.80): 7171 trades, WR: 0.5% (TP:37 SL:225), AvgPnL: -0.02%, AvgHold: 5.9
+2026-04-01T13:11:07.829397Z  INFO         [0.80-0.85): 10909 trades, WR: 0.8% (TP:91 SL:308), AvgPnL: 0.08%, AvgHold: 5.9
+2026-04-01T13:11:07.831236Z  INFO         [0.85-0.90): 15861 trades, WR: 0.7% (TP:118 SL:398), AvgPnL: 0.06%, AvgHold: 5.9
+2026-04-01T13:11:07.835868Z  INFO         [0.90-1.01): 267103 trades, WR: 0.5% (TP:1257 SL:7054), AvgPnL: 0.03%, AvgHold: 5.9
+2026-04-01T13:11:07.835892Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.841083Z  INFO         pred ≥ 0.50: 339518 trades, WR: 0.5% (TP:1789 SL:9254), AvgPnL: 0.03%
+2026-04-01T13:11:07.845760Z  INFO         pred ≥ 0.55: 329036 trades, WR: 0.5% (TP:1720 SL:8906), AvgPnL: 0.03%
+2026-04-01T13:11:07.850147Z  INFO         pred ≥ 0.60: 320420 trades, WR: 0.5% (TP:1655 SL:8645), AvgPnL: 0.03%
+2026-04-01T13:11:07.855015Z  INFO         pred ≥ 0.65: 313291 trades, WR: 0.5% (TP:1599 SL:8409), AvgPnL: 0.03%
+2026-04-01T13:11:07.860127Z  INFO         pred ≥ 0.70: 307008 trades, WR: 0.5% (TP:1547 SL:8189), AvgPnL: 0.03%
+2026-04-01T13:11:07.865889Z  INFO         pred ≥ 0.75: 301044 trades, WR: 0.5% (TP:1503 SL:7985), AvgPnL: 0.03%
+2026-04-01T13:11:07.870763Z  INFO         pred ≥ 0.80: 293873 trades, WR: 0.5% (TP:1466 SL:7760), AvgPnL: 0.03%
+2026-04-01T13:11:07.875333Z  INFO         pred ≥ 0.85: 282964 trades, WR: 0.5% (TP:1375 SL:7452), AvgPnL: 0.03%
+2026-04-01T13:11:07.879418Z  INFO         pred ≥ 0.90: 267103 trades, WR: 0.5% (TP:1257 SL:7054), AvgPnL: 0.03%
+2026-04-01T13:11:07.879454Z  INFO 
+2026-04-01T13:11:07.879461Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:11:07.879473Z  INFO       0GUSDT 2025-09-20 03:59 PUMP pred=0.988 entry=2.7639 exit=2.8033 hold=6 P&L=1.43% ⏰EXP
+2026-04-01T13:11:07.879481Z  INFO       0GUSDT 2025-09-20 03:59 DUMP pred=0.988 entry=2.7639 exit=2.8033 hold=6 P&L=-1.43% ⏰EXP
+2026-04-01T13:11:07.879488Z  INFO       0GUSDT 2025-09-20 09:59 PUMP pred=0.990 entry=2.8033 exit=2.7626 hold=6 P&L=-1.45% ⏰EXP
+2026-04-01T13:11:07.879494Z  INFO       0GUSDT 2025-09-20 09:59 DUMP pred=0.995 entry=2.8033 exit=2.7626 hold=6 P&L=1.45% ⏰EXP
+2026-04-01T13:11:07.879501Z  INFO       0GUSDT 2025-09-20 15:59 PUMP pred=0.994 entry=2.7626 exit=2.6957 hold=6 P&L=-2.42% ⏰EXP
+2026-04-01T13:11:07.879508Z  INFO 
+2026-04-01T13:11:07.885499Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.885523Z  INFO   ═══ TF: 240m — 392975 trades total ═══
+2026-04-01T13:11:07.885529Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.889754Z  INFO     📊 PUMP (196520 trades):
+2026-04-01T13:11:07.889784Z  INFO       WinRate: 4.5%  (TP:8793 SL:19270 Expired:168457 [84362+/84095−])
+2026-04-01T13:11:07.889791Z  INFO       Avg P&L: -0.08%,  Total P&L: -16010.91%
+2026-04-01T13:11:07.889796Z  INFO       Avg Hold: 5.7 candles
+2026-04-01T13:11:07.889801Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.890230Z  INFO         hold=1: 3223 trades, WR: 27.6%, AvgPnL: -2.92%
+2026-04-01T13:11:07.890594Z  INFO         hold=2: 4433 trades, WR: 31.2%, AvgPnL: -2.04%
+2026-04-01T13:11:07.890932Z  INFO         hold=3: 4156 trades, WR: 33.7%, AvgPnL: -1.42%
+2026-04-01T13:11:07.891266Z  INFO         hold=4: 4998 trades, WR: 33.6%, AvgPnL: -1.44%
+2026-04-01T13:11:07.891592Z  INFO         hold=5: 5829 trades, WR: 30.4%, AvgPnL: -2.22%
+2026-04-01T13:11:07.893319Z  INFO         hold=6: 173881 trades, WR: 1.0%, AvgPnL: 0.16%
+2026-04-01T13:11:07.893347Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.893936Z  INFO         [0.50-0.55): 1610 trades, WR: 6.2% (TP:100 SL:110), AvgPnL: 0.06%, AvgHold: 5.7
+2026-04-01T13:11:07.894413Z  INFO         [0.55-0.60): 1617 trades, WR: 7.1% (TP:115 SL:119), AvgPnL: 0.18%, AvgHold: 5.7
+2026-04-01T13:11:07.894814Z  INFO         [0.60-0.65): 1669 trades, WR: 5.7% (TP:95 SL:131), AvgPnL: -0.10%, AvgHold: 5.6
+2026-04-01T13:11:07.895211Z  INFO         [0.65-0.70): 1780 trades, WR: 6.5% (TP:115 SL:161), AvgPnL: -0.14%, AvgHold: 5.6
+2026-04-01T13:11:07.895636Z  INFO         [0.70-0.75): 1848 trades, WR: 5.7% (TP:106 SL:175), AvgPnL: -0.28%, AvgHold: 5.6
+2026-04-01T13:11:07.896035Z  INFO         [0.75-0.80): 1974 trades, WR: 6.2% (TP:123 SL:185), AvgPnL: -0.17%, AvgHold: 5.6
+2026-04-01T13:11:07.896420Z  INFO         [0.80-0.85): 2129 trades, WR: 4.7% (TP:100 SL:203), AvgPnL: -0.52%, AvgHold: 5.7
+2026-04-01T13:11:07.896822Z  INFO         [0.85-0.90): 3016 trades, WR: 4.8% (TP:144 SL:308), AvgPnL: -0.54%, AvgHold: 5.6
+2026-04-01T13:11:07.898574Z  INFO         [0.90-1.01): 180877 trades, WR: 4.4% (TP:7895 SL:17878), AvgPnL: -0.07%, AvgHold: 5.7
+2026-04-01T13:11:07.898590Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.900765Z  INFO         pred ≥ 0.50: 196520 trades, WR: 4.5% (TP:8793 SL:19270), AvgPnL: -0.08%
+2026-04-01T13:11:07.902813Z  INFO         pred ≥ 0.55: 194910 trades, WR: 4.5% (TP:8693 SL:19160), AvgPnL: -0.08%
+2026-04-01T13:11:07.904388Z  INFO         pred ≥ 0.60: 193293 trades, WR: 4.4% (TP:8578 SL:19041), AvgPnL: -0.08%
+2026-04-01T13:11:07.905701Z  INFO         pred ≥ 0.65: 191624 trades, WR: 4.4% (TP:8483 SL:18910), AvgPnL: -0.08%
+2026-04-01T13:11:07.907812Z  INFO         pred ≥ 0.70: 189844 trades, WR: 4.4% (TP:8368 SL:18749), AvgPnL: -0.08%
+2026-04-01T13:11:07.909366Z  INFO         pred ≥ 0.75: 187996 trades, WR: 4.4% (TP:8262 SL:18574), AvgPnL: -0.08%
+2026-04-01T13:11:07.910670Z  INFO         pred ≥ 0.80: 186022 trades, WR: 4.4% (TP:8139 SL:18389), AvgPnL: -0.08%
+2026-04-01T13:11:07.911922Z  INFO         pred ≥ 0.85: 183893 trades, WR: 4.4% (TP:8039 SL:18186), AvgPnL: -0.08%
+2026-04-01T13:11:07.913393Z  INFO         pred ≥ 0.90: 180877 trades, WR: 4.4% (TP:7895 SL:17878), AvgPnL: -0.07%
+2026-04-01T13:11:07.913414Z  INFO 
+2026-04-01T13:11:07.917120Z  INFO     📊 DUMP (196455 trades):
+2026-04-01T13:11:07.917146Z  INFO       WinRate: 3.1%  (TP:6130 SL:21549 Expired:168776 [94023+/74753−])
+2026-04-01T13:11:07.917152Z  INFO       Avg P&L: 0.05%,  Total P&L: 10174.87%
+2026-04-01T13:11:07.917157Z  INFO       Avg Hold: 5.7 candles
+2026-04-01T13:11:07.917162Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.917619Z  INFO         hold=1: 3378 trades, WR: 19.2%, AvgPnL: -4.99%
+2026-04-01T13:11:07.917994Z  INFO         hold=2: 4429 trades, WR: 19.0%, AvgPnL: -5.04%
+2026-04-01T13:11:07.918323Z  INFO         hold=3: 4452 trades, WR: 19.7%, AvgPnL: -4.89%
+2026-04-01T13:11:07.918645Z  INFO         hold=4: 5000 trades, WR: 19.3%, AvgPnL: -4.98%
+2026-04-01T13:11:07.918959Z  INFO         hold=5: 5493 trades, WR: 25.6%, AvgPnL: -3.41%
+2026-04-01T13:11:07.920415Z  INFO         hold=6: 173703 trades, WR: 0.8%, AvgPnL: 0.66%
+2026-04-01T13:11:07.920438Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:07.921108Z  INFO         [0.50-0.55): 2179 trades, WR: 2.5% (TP:54 SL:277), AvgPnL: 0.02%, AvgHold: 5.6
+2026-04-01T13:11:07.921633Z  INFO         [0.55-0.60): 2097 trades, WR: 3.4% (TP:72 SL:265), AvgPnL: 0.15%, AvgHold: 5.6
+2026-04-01T13:11:07.922063Z  INFO         [0.60-0.65): 2012 trades, WR: 3.1% (TP:63 SL:262), AvgPnL: 0.13%, AvgHold: 5.6
+2026-04-01T13:11:07.922466Z  INFO         [0.65-0.70): 1899 trades, WR: 3.6% (TP:69 SL:240), AvgPnL: 0.28%, AvgHold: 5.6
+2026-04-01T13:11:07.922957Z  INFO         [0.70-0.75): 5171 trades, WR: 1.5% (TP:79 SL:398), AvgPnL: -0.02%, AvgHold: 5.8
+2026-04-01T13:11:07.923949Z  INFO         [0.75-0.80): 35262 trades, WR: 2.2% (TP:780 SL:3096), AvgPnL: -0.13%, AvgHold: 5.8
+2026-04-01T13:11:07.925115Z  INFO         [0.80-0.85): 46197 trades, WR: 3.6% (TP:1654 SL:4941), AvgPnL: 0.08%, AvgHold: 5.7
+2026-04-01T13:11:07.926041Z  INFO         [0.85-0.90): 32310 trades, WR: 3.6% (TP:1173 SL:4090), AvgPnL: 0.02%, AvgHold: 5.6
+2026-04-01T13:11:07.927017Z  INFO         [0.90-1.01): 69328 trades, WR: 3.2% (TP:2186 SL:7980), AvgPnL: 0.14%, AvgHold: 5.7
+2026-04-01T13:11:07.927029Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:07.929254Z  INFO         pred ≥ 0.50: 196455 trades, WR: 3.1% (TP:6130 SL:21549), AvgPnL: 0.05%
+2026-04-01T13:11:07.930851Z  INFO         pred ≥ 0.55: 194276 trades, WR: 3.1% (TP:6076 SL:21272), AvgPnL: 0.05%
+2026-04-01T13:11:07.932114Z  INFO         pred ≥ 0.60: 192179 trades, WR: 3.1% (TP:6004 SL:21007), AvgPnL: 0.05%
+2026-04-01T13:11:07.933245Z  INFO         pred ≥ 0.65: 190167 trades, WR: 3.1% (TP:5941 SL:20745), AvgPnL: 0.05%
+2026-04-01T13:11:07.935088Z  INFO         pred ≥ 0.70: 188268 trades, WR: 3.1% (TP:5872 SL:20505), AvgPnL: 0.05%
+2026-04-01T13:11:07.936708Z  INFO         pred ≥ 0.75: 183097 trades, WR: 3.2% (TP:5793 SL:20107), AvgPnL: 0.05%
+2026-04-01T13:11:07.938015Z  INFO         pred ≥ 0.80: 147835 trades, WR: 3.4% (TP:5013 SL:17011), AvgPnL: 0.09%
+2026-04-01T13:11:07.938982Z  INFO         pred ≥ 0.85: 101638 trades, WR: 3.3% (TP:3359 SL:12070), AvgPnL: 0.10%
+2026-04-01T13:11:07.939663Z  INFO         pred ≥ 0.90: 69328 trades, WR: 3.2% (TP:2186 SL:7980), AvgPnL: 0.14%
+2026-04-01T13:11:07.939676Z  INFO 
+2026-04-01T13:11:07.939681Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:11:07.939692Z  INFO       0GUSDT 2025-09-27 15:59 PUMP pred=0.994 entry=3.5830 exit=3.6009 hold=6 P&L=0.50% ⏰EXP
+2026-04-01T13:11:07.939700Z  INFO       0GUSDT 2025-09-27 15:59 DUMP pred=0.972 entry=3.5830 exit=3.6009 hold=6 P&L=-0.50% ⏰EXP
+2026-04-01T13:11:07.939707Z  INFO       0GUSDT 2025-09-28 15:59 PUMP pred=0.989 entry=3.6009 exit=3.2498 hold=6 P&L=-9.75% ❌SL
+2026-04-01T13:11:07.939715Z  INFO       0GUSDT 2025-09-28 15:59 DUMP pred=0.971 entry=3.6009 exit=3.0608 hold=6 P&L=15.00% ✅TP
+2026-04-01T13:11:07.939722Z  INFO       0GUSDT 2025-09-29 15:59 PUMP pred=0.987 entry=2.8525 exit=2.5744 hold=5 P&L=-9.75% ❌SL
+2026-04-01T13:11:07.939728Z  INFO 
+2026-04-01T13:11:07.939734Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.939740Z  INFO   ═══ OVERALL DETAILED SUMMARY ═══
+2026-04-01T13:11:07.939745Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:11:07.978955Z  INFO     📊 ALL TRADES (2158100 trades):
+2026-04-01T13:11:07.978984Z  INFO       WinRate: 1.0%  (TP:21519 SL:61068 Expired:2075513 [1034874+/1040639−])
+2026-04-01T13:11:07.978992Z  INFO       Avg P&L: -0.00%,  Total P&L: -8455.82%
+2026-04-01T13:11:07.978997Z  INFO       Avg Hold: 5.9 candles
+2026-04-01T13:11:07.979002Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:11:07.985623Z  INFO         hold=1: 9410 trades, WR: 23.6%, AvgPnL: -3.90%
+2026-04-01T13:11:07.992302Z  INFO         hold=2: 12746 trades, WR: 24.9%, AvgPnL: -3.60%
+2026-04-01T13:11:07.998516Z  INFO         hold=3: 13097 trades, WR: 25.7%, AvgPnL: -3.39%
+2026-04-01T13:11:08.004782Z  INFO         hold=4: 14885 trades, WR: 25.8%, AvgPnL: -3.37%
+2026-04-01T13:11:08.010984Z  INFO         hold=5: 16510 trades, WR: 27.1%, AvgPnL: -3.03%
+2026-04-01T13:11:08.037284Z  INFO         hold=6: 2091452 trades, WR: 0.2%, AvgPnL: 0.10%
+2026-04-01T13:11:08.037309Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:11:08.048036Z  INFO         [0.50-0.55): 168405 trades, WR: 0.3% (TP:533 SL:1467), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T13:11:08.058312Z  INFO         [0.55-0.60): 116634 trades, WR: 0.4% (TP:473 SL:1198), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T13:11:08.068951Z  INFO         [0.60-0.65): 101449 trades, WR: 0.4% (TP:428 SL:1121), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:08.078884Z  INFO         [0.65-0.70): 99124 trades, WR: 0.5% (TP:466 SL:1108), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T13:11:08.089384Z  INFO         [0.70-0.75): 104586 trades, WR: 0.4% (TP:442 SL:1265), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T13:11:08.100085Z  INFO         [0.75-0.80): 143295 trades, WR: 0.8% (TP:1183 SL:4022), AvgPnL: -0.03%, AvgHold: 5.9
+2026-04-01T13:11:08.112764Z  INFO         [0.80-0.85): 176161 trades, WR: 1.2% (TP:2057 SL:6025), AvgPnL: 0.02%, AvgHold: 5.9
+2026-04-01T13:11:08.125329Z  INFO         [0.85-0.90): 195076 trades, WR: 0.9% (TP:1673 SL:5569), AvgPnL: -0.02%, AvgHold: 5.9
+2026-04-01T13:11:08.149731Z  INFO         [0.90-1.01): 1053370 trades, WR: 1.4% (TP:14264 SL:39293), AvgPnL: -0.01%, AvgHold: 5.9
+2026-04-01T13:11:08.149772Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:11:08.183271Z  INFO         pred ≥ 0.50: 2158100 trades, WR: 1.0% (TP:21519 SL:61068), AvgPnL: -0.00%
+2026-04-01T13:11:08.210094Z  INFO         pred ≥ 0.55: 1989695 trades, WR: 1.1% (TP:20986 SL:59601), AvgPnL: -0.00%
+2026-04-01T13:11:08.235856Z  INFO         pred ≥ 0.60: 1873061 trades, WR: 1.1% (TP:20513 SL:58403), AvgPnL: -0.01%
+2026-04-01T13:11:08.261060Z  INFO         pred ≥ 0.65: 1771612 trades, WR: 1.1% (TP:20085 SL:57282), AvgPnL: -0.01%
+2026-04-01T13:11:08.285761Z  INFO         pred ≥ 0.70: 1672488 trades, WR: 1.2% (TP:19619 SL:56174), AvgPnL: -0.01%
+2026-04-01T13:11:08.310004Z  INFO         pred ≥ 0.75: 1567902 trades, WR: 1.2% (TP:19177 SL:54909), AvgPnL: -0.01%
+2026-04-01T13:11:08.333551Z  INFO         pred ≥ 0.80: 1424607 trades, WR: 1.3% (TP:17994 SL:50887), AvgPnL: -0.01%
+2026-04-01T13:11:08.355379Z  INFO         pred ≥ 0.85: 1248446 trades, WR: 1.3% (TP:15937 SL:44862), AvgPnL: -0.01%
+2026-04-01T13:11:08.377352Z  INFO         pred ≥ 0.90: 1053370 trades, WR: 1.4% (TP:14264 SL:39293), AvgPnL: -0.01%
+2026-04-01T13:11:08.377381Z  INFO 
+2026-04-01T13:11:08.377388Z  INFO     ─── Top 10 Symbols by Trade Count ───
+2026-04-01T13:11:08.424638Z  INFO             DENTUSDT: 14208 trades, WR:   1.3%, TotalPnL:   268.28%
+2026-04-01T13:11:08.431384Z  INFO              BTCUSDT: 13973 trades, WR:   0.2%, TotalPnL:   -15.11%
+2026-04-01T13:11:08.437886Z  INFO              ZILUSDT: 13560 trades, WR:   1.0%, TotalPnL:    -4.46%
+2026-04-01T13:11:08.444370Z  INFO              ETHUSDT: 13515 trades, WR:   0.3%, TotalPnL:   -29.36%
+2026-04-01T13:11:08.450764Z  INFO              ONTUSDT: 13413 trades, WR:   1.0%, TotalPnL:    53.03%
+2026-04-01T13:11:08.456717Z  INFO             ANKRUSDT: 13391 trades, WR:   1.0%, TotalPnL:  -299.30%
+2026-04-01T13:11:08.462573Z  INFO         1000SHIBUSDT: 13384 trades, WR:   0.8%, TotalPnL:  -222.22%
+2026-04-01T13:11:08.469085Z  INFO             GALAUSDT: 13317 trades, WR:   1.0%, TotalPnL:   -57.44%
+2026-04-01T13:11:08.476323Z  INFO              CHZUSDT: 13273 trades, WR:   1.0%, TotalPnL:    59.36%
+2026-04-01T13:11:08.482967Z  INFO             KAVAUSDT: 13090 trades, WR:   1.0%, TotalPnL:  -188.81%
+2026-04-01T13:11:08.482986Z  INFO 
+2026-04-01T13:11:08.482992Z  INFO     ─── Top 10 Best Trades ───
+2026-04-01T13:11:08.895940Z  INFO       # 1:   1000BONKUSDT 2023-12-25 23:59 DUMP TF=240m pred=0.790 entry=0.0187 P&L=+15.00% hold=4 ✅TP
+2026-04-01T13:11:08.895973Z  INFO       # 2:  1000FLOKIUSDT 2024-04-12 23:59 DUMP TF=240m pred=0.828 entry=0.1581 P&L=+15.00% hold=5 ✅TP
+2026-04-01T13:11:08.895981Z  INFO       # 3:   1000PEPEUSDT 2023-08-16 23:59 DUMP TF=240m pred=0.868 entry=0.0012 P&L=+15.00% hold=6 ✅TP
+2026-04-01T13:11:08.895987Z  INFO       # 4:   1000SATSUSDT 2025-09-21 23:59 DUMP TF=240m pred=0.956 entry=0.0000 P&L=+15.00% hold=2 ✅TP
+2026-04-01T13:11:08.895993Z  INFO       # 5:        ACXUSDT 2025-10-10 21:59 DUMP TF=60m pred=0.946 entry=0.0786 P&L=+15.00% hold=1 ✅TP
+2026-04-01T13:11:08.896000Z  INFO       # 6:        ADAUSDT 2020-11-25 19:59 DUMP TF=240m pred=0.867 entry=0.1645 P&L=+15.00% hold=2 ✅TP
+2026-04-01T13:11:08.896007Z  INFO       # 7:        ADAUSDT 2024-01-02 19:59 DUMP TF=240m pred=0.824 entry=0.6149 P&L=+15.00% hold=5 ✅TP
+2026-04-01T13:11:08.896021Z  INFO       # 8:        ADAUSDT 2024-07-04 19:59 DUMP TF=240m pred=0.820 entry=0.3775 P&L=+15.00% hold=2 ✅TP
+2026-04-01T13:11:08.896028Z  INFO       # 9:       AGLDUSDT 2023-09-03 23:59 DUMP TF=240m pred=0.831 entry=0.7254 P&L=+15.00% hold=2 ✅TP
+2026-04-01T13:11:08.896036Z  INFO       #10:       AGLDUSDT 2026-02-23 15:59 DUMP TF=240m pred=0.950 entry=0.3427 P&L=+15.00% hold=3 ✅TP
+2026-04-01T13:11:08.896042Z  INFO 
+2026-04-01T13:11:08.896047Z  INFO     ─── Top 10 Worst Trades ───
+2026-04-01T13:11:08.896055Z  INFO       # 1:        ZROUSDT 2025-03-03 23:59 PUMP TF=240m pred=0.990 entry=2.3393 P&L=-9.75% hold=5 ❌SL
+2026-04-01T13:11:08.896064Z  INFO       # 2:       ZORAUSDT 2026-01-18 11:59 PUMP TF=240m pred=0.954 entry=0.0352 P&L=-9.75% hold=4 ❌SL
+2026-04-01T13:11:08.896070Z  INFO       # 3:         ZKUSDT 2024-08-01 23:59 PUMP TF=240m pred=0.980 entry=0.1418 P&L=-9.75% hold=4 ❌SL
+2026-04-01T13:11:08.896077Z  INFO       # 4:        ZILUSDT 2021-01-31 03:59 PUMP TF=240m pred=0.987 entry=0.0743 P&L=-9.75% hold=4 ❌SL
+2026-04-01T13:11:08.896085Z  INFO       # 5:        ZILUSDT 2021-01-03 03:59 PUMP TF=240m pred=0.981 entry=0.0743 P&L=-9.75% hold=1 ❌SL
+2026-04-01T13:11:08.896091Z  INFO       # 6:        ZECUSDT 2021-05-27 19:59 PUMP TF=240m pred=0.982 entry=148.6800 P&L=-9.75% hold=4 ❌SL
+2026-04-01T13:11:08.896098Z  INFO       # 7:        XLMUSDT 2021-12-04 19:59 PUMP TF=240m pred=0.982 entry=0.2895 P&L=-9.75% hold=5 ❌SL
+2026-04-01T13:11:08.896106Z  INFO       # 8:        XLMUSDT 2021-02-13 19:59 PUMP TF=240m pred=0.983 entry=0.5558 P&L=-9.75% hold=5 ❌SL
+2026-04-01T13:11:08.896114Z  INFO       # 9:        WIFUSDT 2025-01-31 23:59 PUMP TF=240m pred=0.988 entry=1.1351 P&L=-9.75% hold=5 ❌SL
+2026-04-01T13:11:08.896121Z  INFO       #10:    USELESSUSDT 2026-02-06 19:59 PUMP TF=240m pred=0.794 entry=0.0362 P&L=-9.75% hold=3 ❌SL
+2026-04-01T13:11:08.896126Z  INFO 
+2026-04-01T13:11:08.896133Z  INFO   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+2026-04-01T13:11:08.896144Z  INFO   ┃                        VERDICT                              ┃
+2026-04-01T13:11:08.896152Z  INFO   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+2026-04-01T13:11:08.927826Z  INFO   ┃  Total Trades:   2158100                                    ┃
+2026-04-01T13:11:08.927870Z  INFO   ┃  Win Rate:          1.0%  (TP:21519 SL:61068)             ┃
+2026-04-01T13:11:08.927880Z  INFO   ┃  Avg P&L:         -0.00%                                   ┃
+2026-04-01T13:11:08.927888Z  INFO   ┃  Total P&L:      -8455.8%                                  ┃
+2026-04-01T13:11:08.927899Z  INFO   ┃  Breakeven WR:     39.4%  (R:R = 15.0:9.8)            ┃
+2026-04-01T13:11:08.927907Z  INFO   ┃                                                           ┃
+2026-04-01T13:11:08.927915Z  INFO   ┃  🔴 NO EDGE — model not profitable at pred ≥ 0.50        ┃
+2026-04-01T13:11:09.069822Z  INFO   ┃                                                           ┃
+2026-04-01T13:11:09.069851Z  INFO   ┃  Best threshold: pred ≥ 0.50 → 2158100 trades, WR=1.0%, AvgPnL=-0.00%
+2026-04-01T13:11:09.070747Z  INFO   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+2026-04-01T13:11:09.352528Z  INFO 
+2026-04-01T13:11:09.352570Z  INFO   Total time: 1263.0s (21.0min)
+2026-04-01T13:21:17.014075Z  INFO ╔═══════════════════════════════════════════════════════════╗
+2026-04-01T13:21:17.014125Z  INFO ║  Pump/Dump Walk-Forward Backtest v4 (bulk-load)           ║
+2026-04-01T13:21:17.014141Z  INFO ║  True Trade Simulation — No Look-Ahead Bias               ║
+2026-04-01T13:21:17.014152Z  INFO ╚═══════════════════════════════════════════════════════════╝
+2026-04-01T13:21:17.014164Z  INFO   Target TFs: [5, 15, 60, 240]
+2026-04-01T13:21:17.014182Z  INFO   Max hold: 6 candles
+2026-04-01T13:21:17.014203Z  INFO   Target: 15.0%, SL: 9.8% (fraction: 0.65), R:R = 15.0:9.8
+2026-04-01T13:21:17.014221Z  INFO   Pred step: 1 | Cooldown: 6 bars | Min signal: 0.50
+2026-04-01T13:21:17.014230Z  INFO   Device: Cpu | Model type: both
+2026-04-01T13:21:17.014239Z  INFO PumpDump Config:
+2026-04-01T13:21:17.014249Z  INFO   threshold: 15.0% (same across all TFs)
+2026-04-01T13:21:17.014258Z  INFO   pre_event_lookback: 10 candles
+2026-04-01T13:21:17.014266Z  INFO   negative_ratio: 3:1
+2026-04-01T13:21:17.014276Z  INFO   prediction_horizon: 3 candles
+2026-04-01T13:21:17.014286Z  INFO   concentration_pct: 50% (of daily move in 1 hourly candle)
+2026-04-01T13:21:17.014294Z  INFO   max_hold_candles: 6 (max candles to reach target)
+2026-04-01T13:21:17.032827Z  INFO XGB Booster loaded: path=models/pump_dump_pump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T13:21:17.032884Z  INFO   ✅ Pump model: models/pump_dump_pump_v1.ubj
+2026-04-01T13:21:17.044952Z  INFO XGB Booster loaded: path=models/pump_dump_dump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T13:21:17.044995Z  INFO   ✅ Dump model: models/pump_dump_dump_v1.ubj
+2026-04-01T13:21:17.051082Z  INFO   Feature vector: 3950 features (5 TFs × 10 lookback × 79 per candle)
+2026-04-01T13:21:17.051105Z  INFO 
+2026-04-01T13:21:17.051113Z  INFO   ⏳ Bulk loading all candle data...
+2026-04-01T13:21:49.087886Z  INFO     TF 1440m: 317 symbols,   238056 candles  (32.0s)
+2026-04-01T13:22:39.875174Z  INFO     TF  240m: 332 symbols,  1228750 candles  (50.8s)
+2026-04-01T13:23:41.782944Z  INFO     TF   60m: 332 symbols,  2176614 candles  (61.9s)
+2026-04-01T13:24:51.316140Z  INFO     TF   15m: 332 symbols,  2732877 candles  (69.5s)
+2026-04-01T13:25:55.934936Z  INFO     TF    5m: 332 symbols,  2339658 candles  (64.6s)
+2026-04-01T13:25:55.934975Z  INFO   ✅ Bulk load complete: 317 symbols in 278.9s
+2026-04-01T13:25:55.934986Z  INFO 
+2026-04-01T13:25:55.934994Z  INFO   🚀 Starting walk-forward simulation...
+2026-04-01T13:25:59.430365Z  INFO   [  1/317]    0.3% | 0GUSDT — 5259 trades | total: 5259 | ETA: 89232s
+2026-04-01T13:26:39.498758Z  INFO   [ 15/317]    4.7% | AEROUSDT — 1246 trades | total: 116118 | ETA: 6492s
+2026-04-01T13:27:19.840642Z  INFO   [ 30/317]    9.5% | APTUSDT — 9729 trades | total: 220995 | ETA: 3471s
+2026-04-01T13:28:14.721665Z  INFO   [ 45/317]   14.2% | BANANAS31USDT — 9726 trades | total: 352422 | ETA: 2525s
+2026-04-01T13:28:56.855648Z  INFO   [ 60/317]   18.9% | BOMEUSDT — 11573 trades | total: 454008 | ETA: 1969s
+2026-04-01T13:29:36.226927Z  INFO   [ 75/317]   23.7% | COLLECTUSDT — 5466 trades | total: 555582 | ETA: 1611s
+2026-04-01T13:30:33.842694Z  INFO   [ 90/317]   28.4% | DRIFTUSDT — 9338 trades | total: 698784 | ETA: 1404s
+2026-04-01T13:31:09.203377Z  INFO   [105/317]   33.1% | ETCUSDT — 10933 trades | total: 785195 | ETA: 1196s
+2026-04-01T13:31:50.406321Z  INFO   [120/317]   37.9% | GASUSDT — 8991 trades | total: 885914 | ETA: 1040s
+2026-04-01T13:32:18.678268Z  INFO   [135/317]   42.6% | HUMAUSDT — 9068 trades | total: 958241 | ETA: 892s
+2026-04-01T13:33:02.832518Z  INFO   [150/317]   47.3% | JELLYJELLYUSDT — 8831 trades | total: 1064015 | ETA: 786s
+2026-04-01T13:33:36.039362Z  INFO   [165/317]   52.1% | LDOUSDT — 10438 trades | total: 1145468 | ETA: 681s
+2026-04-01T13:34:18.266312Z  INFO   [180/317]   56.8% | MEUSDT — 9779 trades | total: 1245833 | ETA: 595s
+2026-04-01T13:35:03.440331Z  INFO   [195/317]   61.5% | ONDOUSDT — 9580 trades | total: 1350720 | ETA: 517s
+2026-04-01T13:35:41.181048Z  INFO   [210/317]   66.2% | PIPPINUSDT — 8644 trades | total: 1443253 | ETA: 440s
+2026-04-01T13:36:20.920052Z  INFO   [225/317]   71.0% | QUSDT — 1684 trades | total: 1544397 | ETA: 370s
+2026-04-01T13:36:52.935436Z  INFO   [240/317]   75.7% | SAHARAUSDT — 8773 trades | total: 1622786 | ETA: 300s
+2026-04-01T13:37:30.500449Z  INFO   [255/317]   80.4% | SPXUSDT — 8687 trades | total: 1715159 | ETA: 237s
+2026-04-01T13:38:11.774223Z  INFO   [270/317]   85.2% | TAUSDT — 8006 trades | total: 1814124 | ETA: 177s
+2026-04-01T13:38:54.607531Z  INFO   [285/317]   89.9% | UNIUSDT — 11148 trades | total: 1911844 | ETA: 119s
+2026-04-01T13:39:40.732445Z  INFO   [300/317]   94.6% | XLMUSDT — 12173 trades | total: 2022988 | ETA: 63s
+2026-04-01T13:40:26.567038Z  INFO   [315/317]   99.4% | ZKUSDT — 10607 trades | total: 2142848 | ETA: 7s
+2026-04-01T13:40:32.924686Z  INFO   [317/317]  100.0% | ZROUSDT — 8669 trades | total: 2158373 | ETA: 0s
+2026-04-01T13:40:32.924901Z  INFO 
+2026-04-01T13:40:32.925000Z  INFO ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+2026-04-01T13:40:32.925086Z  INFO ┃          PUMP/DUMP BACKTEST — FINAL REPORT (v4)                  ┃
+2026-04-01T13:40:32.925170Z  INFO ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+2026-04-01T13:40:32.925250Z  INFO 
+2026-04-01T13:40:32.925329Z  INFO   ┌─────────── EXECUTION ───────────┐
+2026-04-01T13:40:32.925408Z  INFO   │ Symbols: 288 processed, 29 skipped │
+2026-04-01T13:40:32.925497Z  INFO   │ Bars scanned:      8179945       │
+2026-04-01T13:40:32.925588Z  INFO   │ ML predictions:    8179664       │
+2026-04-01T13:40:32.925679Z  INFO   │ Total trades:      2158373       │
+2026-04-01T13:40:32.925763Z  INFO   │ Time: 1155.9s (19.3min)              │
+2026-04-01T13:40:32.925839Z  INFO   │ Data load: 278.9s | Sim: 877.0s      │
+2026-04-01T13:40:32.925914Z  INFO   └─────────────────────────────────┘
+2026-04-01T13:40:32.925987Z  INFO 
+2026-04-01T13:40:32.926060Z  INFO   ┌─────────── QUICK OVERVIEW ─────────────────────────────────────┐
+2026-04-01T13:40:32.953029Z  INFO   │ ALL: 2158373 trades | WR 0.0% (TP:12 SL:2158361) | AvgPnL 9.75% | TotalPnL 21043839.8%
+2026-04-01T13:40:32.985030Z  INFO   │ PUMP: 1095675 trades | WR 0.0% (TP:7 SL:1095668) | AvgPnL 9.75% | TotalPnL 10682658.0%
+2026-04-01T13:40:32.997250Z  INFO   │ DUMP: 1062698 trades | WR 0.0% (TP:5 SL:1062693) | AvgPnL 9.75% | TotalPnL 10361181.8%
+2026-04-01T13:40:32.997279Z  INFO   │
+2026-04-01T13:40:33.006425Z  INFO   │ TF   5m: 350557 trades | WR 0.0% (TP:5 SL:350552) | AvgPnL 9.75% | TotalPnL 3417807.0%
+2026-04-01T13:40:33.019821Z  INFO   │ TF  15m: 732915 trades | WR 0.0% (TP:3 SL:732912) | AvgPnL 9.75% | TotalPnL 7145847.0%
+2026-04-01T13:40:33.031882Z  INFO   │ TF  60m: 681926 trades | WR 0.0% (TP:2 SL:681924) | AvgPnL 9.75% | TotalPnL 6648729.0%
+2026-04-01T13:40:33.041209Z  INFO   │ TF 240m: 392975 trades | WR 0.0% (TP:2 SL:392973) | AvgPnL 9.75% | TotalPnL 3831456.8%
+2026-04-01T13:40:33.041241Z  INFO   │
+2026-04-01T13:40:33.041254Z  INFO   │ Breakeven WR (R:R = 15.0:9.8): 39.4%
+2026-04-01T13:40:33.041269Z  INFO   └───────────────────────────────────────────────────────────────┘
+2026-04-01T13:40:33.043604Z  INFO 
+2026-04-01T13:40:33.050021Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.050049Z  INFO   ═══ TF: 5m — 350557 trades total ═══
+2026-04-01T13:40:33.050065Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.054190Z  INFO     📊 PUMP (184056 trades):
+2026-04-01T13:40:33.054220Z  INFO       WinRate: 0.0%  (TP:4 SL:184052 Expired:0 [0+/0−])
+2026-04-01T13:40:33.054228Z  INFO       Avg P&L: 9.75%,  Total P&L: 1794447.00%
+2026-04-01T13:40:33.054235Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.054241Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.055904Z  INFO         hold=1: 184056 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.058487Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.059619Z  INFO         [0.50-0.55): 40935 trades, WR: 0.0% (TP:1 SL:40934), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.060725Z  INFO         [0.55-0.60): 24959 trades, WR: 0.0% (TP:0 SL:24959), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.061895Z  INFO         [0.60-0.65): 21284 trades, WR: 0.0% (TP:0 SL:21284), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.062952Z  INFO         [0.65-0.70): 19832 trades, WR: 0.0% (TP:1 SL:19831), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.064016Z  INFO         [0.70-0.75): 19014 trades, WR: 0.0% (TP:1 SL:19013), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.065160Z  INFO         [0.75-0.80): 18364 trades, WR: 0.0% (TP:0 SL:18364), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.066043Z  INFO         [0.80-0.85): 16359 trades, WR: 0.0% (TP:0 SL:16359), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.066766Z  INFO         [0.85-0.90): 13074 trades, WR: 0.0% (TP:0 SL:13074), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.067422Z  INFO         [0.90-1.01): 10235 trades, WR: 0.0% (TP:1 SL:10234), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.067459Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.070032Z  INFO         pred ≥ 0.50: 184056 trades, WR: 0.0% (TP:4 SL:184052), AvgPnL: 9.75%
+2026-04-01T13:40:33.072416Z  INFO         pred ≥ 0.55: 143121 trades, WR: 0.0% (TP:3 SL:143118), AvgPnL: 9.75%
+2026-04-01T13:40:33.074286Z  INFO         pred ≥ 0.60: 118162 trades, WR: 0.0% (TP:3 SL:118159), AvgPnL: 9.75%
+2026-04-01T13:40:33.075856Z  INFO         pred ≥ 0.65: 96878 trades, WR: 0.0% (TP:3 SL:96875), AvgPnL: 9.75%
+2026-04-01T13:40:33.077218Z  INFO         pred ≥ 0.70: 77046 trades, WR: 0.0% (TP:2 SL:77044), AvgPnL: 9.75%
+2026-04-01T13:40:33.078207Z  INFO         pred ≥ 0.75: 58032 trades, WR: 0.0% (TP:1 SL:58031), AvgPnL: 9.75%
+2026-04-01T13:40:33.079002Z  INFO         pred ≥ 0.80: 39668 trades, WR: 0.0% (TP:1 SL:39667), AvgPnL: 9.75%
+2026-04-01T13:40:33.079966Z  INFO         pred ≥ 0.85: 23309 trades, WR: 0.0% (TP:1 SL:23308), AvgPnL: 9.75%
+2026-04-01T13:40:33.080775Z  INFO         pred ≥ 0.90: 10235 trades, WR: 0.0% (TP:1 SL:10234), AvgPnL: 9.75%
+2026-04-01T13:40:33.080795Z  INFO 
+2026-04-01T13:40:33.084348Z  INFO     📊 DUMP (166501 trades):
+2026-04-01T13:40:33.084374Z  INFO       WinRate: 0.0%  (TP:1 SL:166500 Expired:0 [0+/0−])
+2026-04-01T13:40:33.084383Z  INFO       Avg P&L: 9.75%,  Total P&L: 1623360.00%
+2026-04-01T13:40:33.084392Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.084399Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.086355Z  INFO         hold=1: 166501 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.087836Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.089050Z  INFO         [0.50-0.55): 38172 trades, WR: 0.0% (TP:0 SL:38172), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.090259Z  INFO         [0.55-0.60): 21948 trades, WR: 0.0% (TP:1 SL:21947), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.091477Z  INFO         [0.60-0.65): 17937 trades, WR: 0.0% (TP:0 SL:17937), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.092489Z  INFO         [0.65-0.70): 16571 trades, WR: 0.0% (TP:0 SL:16571), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.093551Z  INFO         [0.70-0.75): 15373 trades, WR: 0.0% (TP:0 SL:15373), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.094354Z  INFO         [0.75-0.80): 14882 trades, WR: 0.0% (TP:0 SL:14882), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.095129Z  INFO         [0.80-0.85): 14759 trades, WR: 0.0% (TP:0 SL:14759), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.095849Z  INFO         [0.85-0.90): 13602 trades, WR: 0.0% (TP:0 SL:13602), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.096522Z  INFO         [0.90-1.01): 13257 trades, WR: 0.0% (TP:0 SL:13257), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.096540Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.098518Z  INFO         pred ≥ 0.50: 166501 trades, WR: 0.0% (TP:1 SL:166500), AvgPnL: 9.75%
+2026-04-01T13:40:33.100068Z  INFO         pred ≥ 0.55: 128329 trades, WR: 0.0% (TP:1 SL:128328), AvgPnL: 9.75%
+2026-04-01T13:40:33.101354Z  INFO         pred ≥ 0.60: 106381 trades, WR: 0.0% (TP:0 SL:106381), AvgPnL: 9.75%
+2026-04-01T13:40:33.102629Z  INFO         pred ≥ 0.65: 88444 trades, WR: 0.0% (TP:0 SL:88444), AvgPnL: 9.75%
+2026-04-01T13:40:33.103698Z  INFO         pred ≥ 0.70: 71873 trades, WR: 0.0% (TP:0 SL:71873), AvgPnL: 9.75%
+2026-04-01T13:40:33.104671Z  INFO         pred ≥ 0.75: 56500 trades, WR: 0.0% (TP:0 SL:56500), AvgPnL: 9.75%
+2026-04-01T13:40:33.105535Z  INFO         pred ≥ 0.80: 41618 trades, WR: 0.0% (TP:0 SL:41618), AvgPnL: 9.75%
+2026-04-01T13:40:33.106152Z  INFO         pred ≥ 0.85: 26859 trades, WR: 0.0% (TP:0 SL:26859), AvgPnL: 9.75%
+2026-04-01T13:40:33.106590Z  INFO         pred ≥ 0.90: 13257 trades, WR: 0.0% (TP:0 SL:13257), AvgPnL: 9.75%
+2026-04-01T13:40:33.106607Z  INFO 
+2026-04-01T13:40:33.106616Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:40:33.106633Z  INFO       0GUSDT 2026-02-24 12:44 DUMP pred=0.549 entry=0.6149 exit=0.6749 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.106654Z  INFO       0GUSDT 2026-02-24 13:19 DUMP pred=0.517 entry=0.6139 exit=0.6738 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.106665Z  INFO       0GUSDT 2026-02-25 09:59 DUMP pred=0.637 entry=0.6484 exit=0.7116 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.106674Z  INFO       0GUSDT 2026-02-25 10:29 DUMP pred=0.703 entry=0.6528 exit=0.7164 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.106690Z  INFO       0GUSDT 2026-02-25 10:59 PUMP pred=0.508 entry=0.6525 exit=0.5889 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.106701Z  INFO 
+2026-04-01T13:40:33.113361Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.113395Z  INFO   ═══ TF: 15m — 732915 trades total ═══
+2026-04-01T13:40:33.113406Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.124623Z  INFO     📊 PUMP (372705 trades):
+2026-04-01T13:40:33.124660Z  INFO       WinRate: 0.0%  (TP:1 SL:372704 Expired:0 [0+/0−])
+2026-04-01T13:40:33.124671Z  INFO       Avg P&L: 9.75%,  Total P&L: 3633849.00%
+2026-04-01T13:40:33.124680Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.124688Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.130113Z  INFO         hold=1: 372705 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.137285Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.139692Z  INFO         [0.50-0.55): 28316 trades, WR: 0.0% (TP:0 SL:28316), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.142285Z  INFO         [0.55-0.60): 22223 trades, WR: 0.0% (TP:0 SL:22223), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.144894Z  INFO         [0.60-0.65): 21006 trades, WR: 0.0% (TP:1 SL:21005), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.147447Z  INFO         [0.65-0.70): 22948 trades, WR: 0.0% (TP:0 SL:22948), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.150129Z  INFO         [0.70-0.75): 25869 trades, WR: 0.0% (TP:0 SL:25869), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.152753Z  INFO         [0.75-0.80): 28050 trades, WR: 0.0% (TP:0 SL:28050), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.155570Z  INFO         [0.80-0.85): 31873 trades, WR: 0.0% (TP:0 SL:31873), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.158759Z  INFO         [0.85-0.90): 46181 trades, WR: 0.0% (TP:0 SL:46181), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.163430Z  INFO         [0.90-1.01): 146239 trades, WR: 0.0% (TP:0 SL:146239), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.163473Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.170626Z  INFO         pred ≥ 0.50: 372705 trades, WR: 0.0% (TP:1 SL:372704), AvgPnL: 9.75%
+2026-04-01T13:40:33.177247Z  INFO         pred ≥ 0.55: 344389 trades, WR: 0.0% (TP:1 SL:344388), AvgPnL: 9.75%
+2026-04-01T13:40:33.183594Z  INFO         pred ≥ 0.60: 322166 trades, WR: 0.0% (TP:1 SL:322165), AvgPnL: 9.75%
+2026-04-01T13:40:33.189468Z  INFO         pred ≥ 0.65: 301160 trades, WR: 0.0% (TP:0 SL:301160), AvgPnL: 9.75%
+2026-04-01T13:40:33.195110Z  INFO         pred ≥ 0.70: 278212 trades, WR: 0.0% (TP:0 SL:278212), AvgPnL: 9.75%
+2026-04-01T13:40:33.200691Z  INFO         pred ≥ 0.75: 252343 trades, WR: 0.0% (TP:0 SL:252343), AvgPnL: 9.75%
+2026-04-01T13:40:33.205875Z  INFO         pred ≥ 0.80: 224293 trades, WR: 0.0% (TP:0 SL:224293), AvgPnL: 9.75%
+2026-04-01T13:40:33.210370Z  INFO         pred ≥ 0.85: 192420 trades, WR: 0.0% (TP:0 SL:192420), AvgPnL: 9.75%
+2026-04-01T13:40:33.214354Z  INFO         pred ≥ 0.90: 146239 trades, WR: 0.0% (TP:0 SL:146239), AvgPnL: 9.75%
+2026-04-01T13:40:33.214392Z  INFO 
+2026-04-01T13:40:33.224482Z  INFO     📊 DUMP (360210 trades):
+2026-04-01T13:40:33.224519Z  INFO       WinRate: 0.0%  (TP:2 SL:360208 Expired:0 [0+/0−])
+2026-04-01T13:40:33.224531Z  INFO       Avg P&L: 9.75%,  Total P&L: 3511998.00%
+2026-04-01T13:40:33.224542Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.224552Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.229271Z  INFO         hold=1: 360210 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.235654Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.238252Z  INFO         [0.50-0.55): 39445 trades, WR: 0.0% (TP:0 SL:39445), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.240608Z  INFO         [0.55-0.60): 28438 trades, WR: 0.0% (TP:2 SL:28436), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.243000Z  INFO         [0.60-0.65): 24115 trades, WR: 0.0% (TP:0 SL:24115), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.245221Z  INFO         [0.65-0.70): 23648 trades, WR: 0.0% (TP:0 SL:23648), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.247242Z  INFO         [0.70-0.75): 24948 trades, WR: 0.0% (TP:0 SL:24948), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.249716Z  INFO         [0.75-0.80): 30774 trades, WR: 0.0% (TP:0 SL:30774), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.252536Z  INFO         [0.80-0.85): 46264 trades, WR: 0.0% (TP:0 SL:46264), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.255772Z  INFO         [0.85-0.90): 59820 trades, WR: 0.0% (TP:0 SL:59820), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.259237Z  INFO         [0.90-1.01): 82758 trades, WR: 0.0% (TP:0 SL:82758), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.259268Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.265602Z  INFO         pred ≥ 0.50: 360210 trades, WR: 0.0% (TP:2 SL:360208), AvgPnL: 9.75%
+2026-04-01T13:40:33.271753Z  INFO         pred ≥ 0.55: 320765 trades, WR: 0.0% (TP:2 SL:320763), AvgPnL: 9.75%
+2026-04-01T13:40:33.277525Z  INFO         pred ≥ 0.60: 292327 trades, WR: 0.0% (TP:0 SL:292327), AvgPnL: 9.75%
+2026-04-01T13:40:33.283411Z  INFO         pred ≥ 0.65: 268212 trades, WR: 0.0% (TP:0 SL:268212), AvgPnL: 9.75%
+2026-04-01T13:40:33.288769Z  INFO         pred ≥ 0.70: 244564 trades, WR: 0.0% (TP:0 SL:244564), AvgPnL: 9.75%
+2026-04-01T13:40:33.293719Z  INFO         pred ≥ 0.75: 219616 trades, WR: 0.0% (TP:0 SL:219616), AvgPnL: 9.75%
+2026-04-01T13:40:33.298272Z  INFO         pred ≥ 0.80: 188842 trades, WR: 0.0% (TP:0 SL:188842), AvgPnL: 9.75%
+2026-04-01T13:40:33.302221Z  INFO         pred ≥ 0.85: 142578 trades, WR: 0.0% (TP:0 SL:142578), AvgPnL: 9.75%
+2026-04-01T13:40:33.305285Z  INFO         pred ≥ 0.90: 82758 trades, WR: 0.0% (TP:0 SL:82758), AvgPnL: 9.75%
+2026-04-01T13:40:33.305314Z  INFO 
+2026-04-01T13:40:33.305326Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:40:33.305343Z  INFO       0GUSDT 2025-11-27 19:29 PUMP pred=0.688 entry=1.2068 exit=1.0891 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.305359Z  INFO       0GUSDT 2025-11-27 19:29 DUMP pred=0.629 entry=1.2068 exit=1.3245 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.305374Z  INFO       0GUSDT 2025-11-27 20:59 PUMP pred=0.556 entry=1.2228 exit=1.1036 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.305391Z  INFO       0GUSDT 2025-11-27 21:14 DUMP pred=0.510 entry=1.2181 exit=1.3369 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.305405Z  INFO       0GUSDT 2025-11-27 22:29 PUMP pred=0.574 entry=1.2423 exit=1.1212 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.305418Z  INFO 
+2026-04-01T13:40:33.311814Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.311849Z  INFO   ═══ TF: 60m — 681926 trades total ═══
+2026-04-01T13:40:33.311861Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.321739Z  INFO     📊 PUMP (342394 trades):
+2026-04-01T13:40:33.321772Z  INFO       WinRate: 0.0%  (TP:1 SL:342393 Expired:0 [0+/0−])
+2026-04-01T13:40:33.321782Z  INFO       Avg P&L: 9.75%,  Total P&L: 3338316.75%
+2026-04-01T13:40:33.321792Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.321802Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.325785Z  INFO         hold=1: 342394 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.331459Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.333398Z  INFO         [0.50-0.55): 7325 trades, WR: 0.0% (TP:1 SL:7324), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.334849Z  INFO         [0.55-0.60): 6753 trades, WR: 0.0% (TP:0 SL:6753), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.336210Z  INFO         [0.60-0.65): 6335 trades, WR: 0.0% (TP:0 SL:6335), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.337775Z  INFO         [0.65-0.70): 6225 trades, WR: 0.0% (TP:0 SL:6225), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.339503Z  INFO         [0.70-0.75): 6555 trades, WR: 0.0% (TP:0 SL:6555), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.341435Z  INFO         [0.75-0.80): 6771 trades, WR: 0.0% (TP:0 SL:6771), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.343047Z  INFO         [0.80-0.85): 7653 trades, WR: 0.0% (TP:0 SL:7653), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.344694Z  INFO         [0.85-0.90): 11222 trades, WR: 0.0% (TP:0 SL:11222), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.350614Z  INFO         [0.90-1.01): 283555 trades, WR: 0.0% (TP:0 SL:283555), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.350651Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.356528Z  INFO         pred ≥ 0.50: 342394 trades, WR: 0.0% (TP:1 SL:342393), AvgPnL: 9.75%
+2026-04-01T13:40:33.361957Z  INFO         pred ≥ 0.55: 335069 trades, WR: 0.0% (TP:0 SL:335069), AvgPnL: 9.75%
+2026-04-01T13:40:33.367310Z  INFO         pred ≥ 0.60: 328316 trades, WR: 0.0% (TP:0 SL:328316), AvgPnL: 9.75%
+2026-04-01T13:40:33.372691Z  INFO         pred ≥ 0.65: 321981 trades, WR: 0.0% (TP:0 SL:321981), AvgPnL: 9.75%
+2026-04-01T13:40:33.378196Z  INFO         pred ≥ 0.70: 315756 trades, WR: 0.0% (TP:0 SL:315756), AvgPnL: 9.75%
+2026-04-01T13:40:33.383410Z  INFO         pred ≥ 0.75: 309201 trades, WR: 0.0% (TP:0 SL:309201), AvgPnL: 9.75%
+2026-04-01T13:40:33.388903Z  INFO         pred ≥ 0.80: 302430 trades, WR: 0.0% (TP:0 SL:302430), AvgPnL: 9.75%
+2026-04-01T13:40:33.394783Z  INFO         pred ≥ 0.85: 294777 trades, WR: 0.0% (TP:0 SL:294777), AvgPnL: 9.75%
+2026-04-01T13:40:33.399908Z  INFO         pred ≥ 0.90: 283555 trades, WR: 0.0% (TP:0 SL:283555), AvgPnL: 9.75%
+2026-04-01T13:40:33.399943Z  INFO 
+2026-04-01T13:40:33.409803Z  INFO     📊 DUMP (339532 trades):
+2026-04-01T13:40:33.409844Z  INFO       WinRate: 0.0%  (TP:1 SL:339531 Expired:0 [0+/0−])
+2026-04-01T13:40:33.409858Z  INFO       Avg P&L: 9.75%,  Total P&L: 3310412.25%
+2026-04-01T13:40:33.409867Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.409874Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.414162Z  INFO         hold=1: 339532 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.421902Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.424017Z  INFO         [0.50-0.55): 10484 trades, WR: 0.0% (TP:0 SL:10484), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.426082Z  INFO         [0.55-0.60): 8635 trades, WR: 0.0% (TP:0 SL:8635), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.427754Z  INFO         [0.60-0.65): 7117 trades, WR: 0.0% (TP:0 SL:7117), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.429651Z  INFO         [0.65-0.70): 6313 trades, WR: 0.0% (TP:0 SL:6313), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.431515Z  INFO         [0.70-0.75): 5954 trades, WR: 0.0% (TP:1 SL:5953), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.433375Z  INFO         [0.75-0.80): 7147 trades, WR: 0.0% (TP:0 SL:7147), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.435628Z  INFO         [0.80-0.85): 10933 trades, WR: 0.0% (TP:0 SL:10933), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.437801Z  INFO         [0.85-0.90): 15860 trades, WR: 0.0% (TP:0 SL:15860), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.444174Z  INFO         [0.90-1.01): 267089 trades, WR: 0.0% (TP:0 SL:267089), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.444217Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.450375Z  INFO         pred ≥ 0.50: 339532 trades, WR: 0.0% (TP:1 SL:339531), AvgPnL: 9.75%
+2026-04-01T13:40:33.455770Z  INFO         pred ≥ 0.55: 329048 trades, WR: 0.0% (TP:1 SL:329047), AvgPnL: 9.75%
+2026-04-01T13:40:33.461131Z  INFO         pred ≥ 0.60: 320413 trades, WR: 0.0% (TP:1 SL:320412), AvgPnL: 9.75%
+2026-04-01T13:40:33.466377Z  INFO         pred ≥ 0.65: 313296 trades, WR: 0.0% (TP:1 SL:313295), AvgPnL: 9.75%
+2026-04-01T13:40:33.471388Z  INFO         pred ≥ 0.70: 306983 trades, WR: 0.0% (TP:1 SL:306982), AvgPnL: 9.75%
+2026-04-01T13:40:33.476499Z  INFO         pred ≥ 0.75: 301029 trades, WR: 0.0% (TP:0 SL:301029), AvgPnL: 9.75%
+2026-04-01T13:40:33.481366Z  INFO         pred ≥ 0.80: 293882 trades, WR: 0.0% (TP:0 SL:293882), AvgPnL: 9.75%
+2026-04-01T13:40:33.485805Z  INFO         pred ≥ 0.85: 282949 trades, WR: 0.0% (TP:0 SL:282949), AvgPnL: 9.75%
+2026-04-01T13:40:33.490177Z  INFO         pred ≥ 0.90: 267089 trades, WR: 0.0% (TP:0 SL:267089), AvgPnL: 9.75%
+2026-04-01T13:40:33.490210Z  INFO 
+2026-04-01T13:40:33.490219Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:40:33.490236Z  INFO       0GUSDT 2025-09-20 03:59 PUMP pred=0.988 entry=2.7639 exit=2.4944 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.490248Z  INFO       0GUSDT 2025-09-20 03:59 DUMP pred=0.988 entry=2.7639 exit=3.0334 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.490259Z  INFO       0GUSDT 2025-09-20 09:59 PUMP pred=0.990 entry=2.8033 exit=2.5300 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.490274Z  INFO       0GUSDT 2025-09-20 09:59 DUMP pred=0.995 entry=2.8033 exit=3.0766 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.490286Z  INFO       0GUSDT 2025-09-20 15:59 PUMP pred=0.994 entry=2.7626 exit=2.4932 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.490294Z  INFO 
+2026-04-01T13:40:33.497019Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.497048Z  INFO   ═══ TF: 240m — 392975 trades total ═══
+2026-04-01T13:40:33.497064Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.501602Z  INFO     📊 PUMP (196520 trades):
+2026-04-01T13:40:33.501633Z  INFO       WinRate: 0.0%  (TP:1 SL:196519 Expired:0 [0+/0−])
+2026-04-01T13:40:33.501642Z  INFO       Avg P&L: 9.75%,  Total P&L: 1916045.25%
+2026-04-01T13:40:33.501651Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.501659Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.503511Z  INFO         hold=1: 196520 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.505531Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.506370Z  INFO         [0.50-0.55): 1610 trades, WR: 0.0% (TP:0 SL:1610), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.507204Z  INFO         [0.55-0.60): 1617 trades, WR: 0.0% (TP:0 SL:1617), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.507943Z  INFO         [0.60-0.65): 1668 trades, WR: 0.0% (TP:0 SL:1668), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.508752Z  INFO         [0.65-0.70): 1779 trades, WR: 0.0% (TP:0 SL:1779), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.509380Z  INFO         [0.70-0.75): 1847 trades, WR: 0.0% (TP:0 SL:1847), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.510149Z  INFO         [0.75-0.80): 1977 trades, WR: 0.0% (TP:0 SL:1977), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.510865Z  INFO         [0.80-0.85): 2129 trades, WR: 0.0% (TP:0 SL:2129), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.511547Z  INFO         [0.85-0.90): 3016 trades, WR: 0.0% (TP:1 SL:3015), AvgPnL: 9.74%, AvgHold: 1.0
+2026-04-01T13:40:33.515150Z  INFO         [0.90-1.01): 180877 trades, WR: 0.0% (TP:0 SL:180877), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.515191Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.517513Z  INFO         pred ≥ 0.50: 196520 trades, WR: 0.0% (TP:1 SL:196519), AvgPnL: 9.75%
+2026-04-01T13:40:33.519027Z  INFO         pred ≥ 0.55: 194910 trades, WR: 0.0% (TP:1 SL:194909), AvgPnL: 9.75%
+2026-04-01T13:40:33.521753Z  INFO         pred ≥ 0.60: 193293 trades, WR: 0.0% (TP:1 SL:193292), AvgPnL: 9.75%
+2026-04-01T13:40:33.524116Z  INFO         pred ≥ 0.65: 191625 trades, WR: 0.0% (TP:1 SL:191624), AvgPnL: 9.75%
+2026-04-01T13:40:33.526002Z  INFO         pred ≥ 0.70: 189846 trades, WR: 0.0% (TP:1 SL:189845), AvgPnL: 9.75%
+2026-04-01T13:40:33.528625Z  INFO         pred ≥ 0.75: 187999 trades, WR: 0.0% (TP:1 SL:187998), AvgPnL: 9.75%
+2026-04-01T13:40:33.533022Z  INFO         pred ≥ 0.80: 186022 trades, WR: 0.0% (TP:1 SL:186021), AvgPnL: 9.75%
+2026-04-01T13:40:33.538336Z  INFO         pred ≥ 0.85: 183893 trades, WR: 0.0% (TP:1 SL:183892), AvgPnL: 9.75%
+2026-04-01T13:40:33.543342Z  INFO         pred ≥ 0.90: 180877 trades, WR: 0.0% (TP:0 SL:180877), AvgPnL: 9.75%
+2026-04-01T13:40:33.543380Z  INFO 
+2026-04-01T13:40:33.550828Z  INFO     📊 DUMP (196455 trades):
+2026-04-01T13:40:33.550867Z  INFO       WinRate: 0.0%  (TP:1 SL:196454 Expired:0 [0+/0−])
+2026-04-01T13:40:33.550880Z  INFO       Avg P&L: 9.75%,  Total P&L: 1915411.50%
+2026-04-01T13:40:33.550894Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.550905Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.553762Z  INFO         hold=1: 196455 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.558502Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.559997Z  INFO         [0.50-0.55): 2180 trades, WR: 0.0% (TP:0 SL:2180), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.561291Z  INFO         [0.55-0.60): 2096 trades, WR: 0.0% (TP:1 SL:2095), AvgPnL: 9.74%, AvgHold: 1.0
+2026-04-01T13:40:33.562772Z  INFO         [0.60-0.65): 2014 trades, WR: 0.0% (TP:0 SL:2014), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.563882Z  INFO         [0.65-0.70): 1899 trades, WR: 0.0% (TP:0 SL:1899), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.564899Z  INFO         [0.70-0.75): 5171 trades, WR: 0.0% (TP:0 SL:5171), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.566677Z  INFO         [0.75-0.80): 35261 trades, WR: 0.0% (TP:0 SL:35261), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.569077Z  INFO         [0.80-0.85): 46197 trades, WR: 0.0% (TP:0 SL:46197), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.570636Z  INFO         [0.85-0.90): 32309 trades, WR: 0.0% (TP:0 SL:32309), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.572165Z  INFO         [0.90-1.01): 69328 trades, WR: 0.0% (TP:0 SL:69328), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.572191Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.574268Z  INFO         pred ≥ 0.50: 196455 trades, WR: 0.0% (TP:1 SL:196454), AvgPnL: 9.75%
+2026-04-01T13:40:33.576733Z  INFO         pred ≥ 0.55: 194275 trades, WR: 0.0% (TP:1 SL:194274), AvgPnL: 9.75%
+2026-04-01T13:40:33.578916Z  INFO         pred ≥ 0.60: 192179 trades, WR: 0.0% (TP:0 SL:192179), AvgPnL: 9.75%
+2026-04-01T13:40:33.581375Z  INFO         pred ≥ 0.65: 190165 trades, WR: 0.0% (TP:0 SL:190165), AvgPnL: 9.75%
+2026-04-01T13:40:33.586808Z  INFO         pred ≥ 0.70: 188266 trades, WR: 0.0% (TP:0 SL:188266), AvgPnL: 9.75%
+2026-04-01T13:40:33.590488Z  INFO         pred ≥ 0.75: 183095 trades, WR: 0.0% (TP:0 SL:183095), AvgPnL: 9.75%
+2026-04-01T13:40:33.593371Z  INFO         pred ≥ 0.80: 147834 trades, WR: 0.0% (TP:0 SL:147834), AvgPnL: 9.75%
+2026-04-01T13:40:33.595337Z  INFO         pred ≥ 0.85: 101637 trades, WR: 0.0% (TP:0 SL:101637), AvgPnL: 9.75%
+2026-04-01T13:40:33.596693Z  INFO         pred ≥ 0.90: 69328 trades, WR: 0.0% (TP:0 SL:69328), AvgPnL: 9.75%
+2026-04-01T13:40:33.596717Z  INFO 
+2026-04-01T13:40:33.596725Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T13:40:33.596737Z  INFO       0GUSDT 2025-09-27 15:59 PUMP pred=0.994 entry=3.5830 exit=3.2337 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.596747Z  INFO       0GUSDT 2025-09-27 15:59 DUMP pred=0.972 entry=3.5830 exit=3.9323 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.596755Z  INFO       0GUSDT 2025-09-28 15:59 PUMP pred=0.989 entry=3.6009 exit=3.2498 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.596765Z  INFO       0GUSDT 2025-09-28 15:59 DUMP pred=0.971 entry=3.6009 exit=3.9520 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.596775Z  INFO       0GUSDT 2025-09-29 15:59 PUMP pred=0.987 entry=2.8525 exit=2.5744 hold=1 P&L=9.75% ❌SL
+2026-04-01T13:40:33.596782Z  INFO 
+2026-04-01T13:40:33.596790Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.596800Z  INFO   ═══ OVERALL DETAILED SUMMARY ═══
+2026-04-01T13:40:33.596808Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T13:40:33.639234Z  INFO     📊 ALL TRADES (2158373 trades):
+2026-04-01T13:40:33.639262Z  INFO       WinRate: 0.0%  (TP:12 SL:2158361 Expired:0 [0+/0−])
+2026-04-01T13:40:33.639271Z  INFO       Avg P&L: 9.75%,  Total P&L: 21043839.75%
+2026-04-01T13:40:33.639280Z  INFO       Avg Hold: 1.0 candles
+2026-04-01T13:40:33.639287Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T13:40:33.672863Z  INFO         hold=1: 2158373 trades, WR: 0.0%, AvgPnL: 9.75%
+2026-04-01T13:40:33.705723Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T13:40:33.717766Z  INFO         [0.50-0.55): 168467 trades, WR: 0.0% (TP:2 SL:168465), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.727877Z  INFO         [0.55-0.60): 116669 trades, WR: 0.0% (TP:4 SL:116665), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.738558Z  INFO         [0.60-0.65): 101476 trades, WR: 0.0% (TP:1 SL:101475), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.749005Z  INFO         [0.65-0.70): 99215 trades, WR: 0.0% (TP:1 SL:99214), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.760439Z  INFO         [0.70-0.75): 104731 trades, WR: 0.0% (TP:2 SL:104729), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.773067Z  INFO         [0.75-0.80): 143226 trades, WR: 0.0% (TP:0 SL:143226), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.786352Z  INFO         [0.80-0.85): 176167 trades, WR: 0.0% (TP:0 SL:176167), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.799848Z  INFO         [0.85-0.90): 195084 trades, WR: 0.0% (TP:1 SL:195083), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.826770Z  INFO         [0.90-1.01): 1053338 trades, WR: 0.0% (TP:1 SL:1053337), AvgPnL: 9.75%, AvgHold: 1.0
+2026-04-01T13:40:33.826801Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T13:40:33.861688Z  INFO         pred ≥ 0.50: 2158373 trades, WR: 0.0% (TP:12 SL:2158361), AvgPnL: 9.75%
+2026-04-01T13:40:33.892148Z  INFO         pred ≥ 0.55: 1989906 trades, WR: 0.0% (TP:10 SL:1989896), AvgPnL: 9.75%
+2026-04-01T13:40:33.921157Z  INFO         pred ≥ 0.60: 1873237 trades, WR: 0.0% (TP:6 SL:1873231), AvgPnL: 9.75%
+2026-04-01T13:40:33.951169Z  INFO         pred ≥ 0.65: 1771761 trades, WR: 0.0% (TP:5 SL:1771756), AvgPnL: 9.75%
+2026-04-01T13:40:33.981610Z  INFO         pred ≥ 0.70: 1672546 trades, WR: 0.0% (TP:4 SL:1672542), AvgPnL: 9.75%
+2026-04-01T13:40:34.011406Z  INFO         pred ≥ 0.75: 1567815 trades, WR: 0.0% (TP:2 SL:1567813), AvgPnL: 9.75%
+2026-04-01T13:40:34.040818Z  INFO         pred ≥ 0.80: 1424589 trades, WR: 0.0% (TP:2 SL:1424587), AvgPnL: 9.75%
+2026-04-01T13:40:34.071201Z  INFO         pred ≥ 0.85: 1248422 trades, WR: 0.0% (TP:2 SL:1248420), AvgPnL: 9.75%
+2026-04-01T13:40:34.092749Z  INFO         pred ≥ 0.90: 1053338 trades, WR: 0.0% (TP:1 SL:1053337), AvgPnL: 9.75%
+2026-04-01T13:40:34.092781Z  INFO 
+2026-04-01T13:40:34.092788Z  INFO     ─── Top 10 Symbols by Trade Count ───
+2026-04-01T13:40:34.138498Z  INFO             DENTUSDT: 14210 trades, WR:   0.0%, TotalPnL: 138547.50%
+2026-04-01T13:40:34.145008Z  INFO              BTCUSDT: 13976 trades, WR:   0.0%, TotalPnL: 136266.00%
+2026-04-01T13:40:34.151815Z  INFO              ZILUSDT: 13562 trades, WR:   0.0%, TotalPnL: 132229.50%
+2026-04-01T13:40:34.158713Z  INFO              ETHUSDT: 13516 trades, WR:   0.0%, TotalPnL: 131781.00%
+2026-04-01T13:40:34.165700Z  INFO              ONTUSDT: 13416 trades, WR:   0.0%, TotalPnL: 130806.00%
+2026-04-01T13:40:34.172127Z  INFO             ANKRUSDT: 13390 trades, WR:   0.0%, TotalPnL: 130552.50%
+2026-04-01T13:40:34.178023Z  INFO         1000SHIBUSDT: 13383 trades, WR:   0.0%, TotalPnL: 130484.25%
+2026-04-01T13:40:34.184958Z  INFO             GALAUSDT: 13318 trades, WR:   0.0%, TotalPnL: 129850.50%
+2026-04-01T13:40:34.192415Z  INFO              CHZUSDT: 13271 trades, WR:   0.0%, TotalPnL: 129392.25%
+2026-04-01T13:40:34.199286Z  INFO             KAVAUSDT: 13092 trades, WR:   0.0%, TotalPnL: 127647.00%
+2026-04-01T13:40:34.199313Z  INFO 
+2026-04-01T13:40:34.199321Z  INFO     ─── Top 10 Best Trades ───
+2026-04-01T13:40:34.462586Z  INFO       # 1:         0GUSDT 2026-03-12 10:59 PUMP TF=5m pred=0.533 entry=0.5792 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462619Z  INFO       # 2:         0GUSDT 2025-12-26 00:44 PUMP TF=15m pred=0.677 entry=1.1424 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462629Z  INFO       # 3:         0GUSDT 2026-02-13 10:14 PUMP TF=15m pred=0.922 entry=0.5948 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462637Z  INFO       # 4:         0GUSDT 2025-11-25 21:59 PUMP TF=60m pred=0.984 entry=1.1969 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462644Z  INFO       # 5:         0GUSDT 2026-02-03 18:59 PUMP TF=60m pred=0.879 entry=0.5799 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462652Z  INFO       # 6:         0GUSDT 2026-02-04 00:59 PUMP TF=60m pred=0.852 entry=0.5988 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462659Z  INFO       # 7:   1000BONKUSDT 2025-12-01 13:59 PUMP TF=15m pred=0.947 entry=0.0088 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462667Z  INFO       # 8:   1000BONKUSDT 2025-12-06 10:59 PUMP TF=15m pred=0.954 entry=0.0090 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462677Z  INFO       # 9:   1000BONKUSDT 2026-01-03 09:29 PUMP TF=15m pred=0.860 entry=0.0090 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462695Z  INFO       #10:   1000BONKUSDT 2026-01-21 04:14 PUMP TF=15m pred=0.964 entry=0.0091 P&L=+9.75% hold=1 ❌SL
+2026-04-01T13:40:34.462703Z  INFO 
+2026-04-01T13:40:34.462709Z  INFO     ─── Top 10 Worst Trades ───
+2026-04-01T13:40:34.462720Z  INFO       # 1:      ORDERUSDT 2026-03-19 09:14 DUMP TF=15m pred=0.564 entry=0.0536 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462728Z  INFO       # 2:      ORDERUSDT 2026-03-19 09:14 DUMP TF=5m pred=0.564 entry=0.0536 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462736Z  INFO       # 3:       SENTUSDT 2026-03-29 07:59 DUMP TF=240m pred=0.568 entry=0.0165 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462744Z  INFO       # 4:       DUSKUSDT 2026-03-20 13:14 DUMP TF=15m pred=0.586 entry=0.0812 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462752Z  INFO       # 5:          CUSDT 2026-03-21 08:59 DUMP TF=60m pred=0.701 entry=0.0541 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462760Z  INFO       # 6: 1MBABYDOGEUSDT 2026-03-16 13:14 PUMP TF=15m pred=0.619 entry=0.0004 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462769Z  INFO       # 7:    USELESSUSDT 2026-03-24 03:59 PUMP TF=240m pred=0.862 entry=0.0353 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462776Z  INFO       # 8:        YGGUSDT 2026-03-16 13:19 PUMP TF=5m pred=0.510 entry=0.0408 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462785Z  INFO       # 9:        THEUSDT 2026-02-07 23:59 PUMP TF=60m pred=0.512 entry=0.2688 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462794Z  INFO       #10:         ONUSDT 2026-03-28 09:19 PUMP TF=5m pred=0.912 entry=0.1630 P&L=-15.00% hold=1 ✅TP
+2026-04-01T13:40:34.462801Z  INFO 
+2026-04-01T13:40:34.462807Z  INFO   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+2026-04-01T13:40:34.462813Z  INFO   ┃                        VERDICT                              ┃
+2026-04-01T13:40:34.462821Z  INFO   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+2026-04-01T13:40:34.488103Z  INFO   ┃  Total Trades:   2158373                                    ┃
+2026-04-01T13:40:34.488132Z  INFO   ┃  Win Rate:          0.0%  (TP:12 SL:2158361)             ┃
+2026-04-01T13:40:34.488140Z  INFO   ┃  Avg P&L:         +9.75%                                   ┃
+2026-04-01T13:40:34.488148Z  INFO   ┃  Total P&L:     +21043839.8%                                  ┃
+2026-04-01T13:40:34.488155Z  INFO   ┃  Breakeven WR:     39.4%  (R:R = 15.0:9.8)            ┃
+2026-04-01T13:40:34.488162Z  INFO   ┃                                                           ┃
+2026-04-01T13:40:34.488169Z  INFO   ┃  🟡 MARGINAL EDGE — needs higher pred threshold           ┃
+2026-04-01T13:40:34.617837Z  INFO   ┃                                                           ┃
+2026-04-01T13:40:34.617867Z  INFO   ┃  Best threshold: pred ≥ 0.90 → 1053338 trades, WR=0.0%, AvgPnL=+9.75%
+2026-04-01T13:40:34.617876Z  INFO   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+2026-04-01T13:40:34.811627Z  INFO 
+2026-04-01T13:40:34.811651Z  INFO   Total time: 1155.9s (19.3min)
+2026-04-01T14:08:01.144189Z  INFO ╔═══════════════════════════════════════════════════════════╗
+2026-04-01T14:08:01.144214Z  INFO ║  Pump/Dump Walk-Forward Backtest v4 (bulk-load)           ║
+2026-04-01T14:08:01.144223Z  INFO ║  True Trade Simulation — No Look-Ahead Bias               ║
+2026-04-01T14:08:01.144231Z  INFO ╚═══════════════════════════════════════════════════════════╝
+2026-04-01T14:08:01.144245Z  INFO   Target TFs: [5, 15, 60, 240]
+2026-04-01T14:08:01.144252Z  INFO   Max hold: 6 candles
+2026-04-01T14:08:01.144262Z  INFO   Target: 15.0%, SL: 9.8% (fraction: 0.65), R:R = 15.0:9.8
+2026-04-01T14:08:01.144274Z  INFO   Pred step: 1 | Cooldown: 6 bars | Min signal: 0.50
+2026-04-01T14:08:01.144283Z  INFO   Device: Cpu | Model type: both
+2026-04-01T14:08:01.144290Z  INFO PumpDump Config:
+2026-04-01T14:08:01.144297Z  INFO   threshold: 15.0% (same across all TFs)
+2026-04-01T14:08:01.144306Z  INFO   pre_event_lookback: 10 candles
+2026-04-01T14:08:01.144312Z  INFO   negative_ratio: 3:1
+2026-04-01T14:08:01.144319Z  INFO   prediction_horizon: 3 candles
+2026-04-01T14:08:01.144327Z  INFO   concentration_pct: 50% (of daily move in 1 hourly candle)
+2026-04-01T14:08:01.144333Z  INFO   max_hold_candles: 6 (max candles to reach target)
+2026-04-01T14:08:01.166043Z  INFO XGB Booster loaded: path=models/pump_dump_pump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T14:08:01.166083Z  INFO   ✅ Pump model: models/pump_dump_pump_v1.ubj
+2026-04-01T14:08:01.183963Z  INFO XGB Booster loaded: path=models/pump_dump_dump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T14:08:01.183998Z  INFO   ✅ Dump model: models/pump_dump_dump_v1.ubj
+2026-04-01T14:08:01.187941Z  INFO   Feature vector: 3950 features (5 TFs × 10 lookback × 79 per candle)
+2026-04-01T14:08:01.187968Z  INFO 
+2026-04-01T14:08:01.187978Z  INFO   ⏳ Bulk loading all candle data...
+2026-04-01T14:08:32.843860Z  INFO     TF 1440m: 317 symbols,   238056 candles  (31.7s)
+2026-04-01T14:09:24.191983Z  INFO     TF  240m: 332 symbols,  1228750 candles  (51.3s)
+2026-04-01T14:10:26.899978Z  INFO     TF   60m: 332 symbols,  2176831 candles  (62.7s)
+2026-04-01T14:11:39.073266Z  INFO     TF   15m: 332 symbols,  2733285 candles  (72.2s)
+2026-04-01T14:12:45.422603Z  INFO     TF    5m: 332 symbols,  2342978 candles  (66.3s)
+2026-04-01T14:12:45.422637Z  INFO   ✅ Bulk load complete: 317 symbols in 284.2s
+2026-04-01T14:12:45.422646Z  INFO 
+2026-04-01T14:12:45.422653Z  INFO   🚀 Starting walk-forward simulation...
+2026-04-01T14:12:49.003320Z  INFO   [  1/317]    0.3% | 0GUSDT — 5260 trades | total: 5260 | ETA: 90950s
+2026-04-01T14:13:29.323064Z  INFO   [ 15/317]    4.7% | AEROUSDT — 1251 trades | total: 116153 | ETA: 6606s
+2026-04-01T14:14:10.110641Z  INFO   [ 30/317]    9.5% | APTUSDT — 9726 trades | total: 221042 | ETA: 3529s
+2026-04-01T14:15:04.602542Z  INFO   [ 45/317]   14.2% | BANANAS31USDT — 9729 trades | total: 352480 | ETA: 2559s
+2026-04-01T14:15:45.677844Z  INFO   [ 60/317]   18.9% | BOMEUSDT — 11577 trades | total: 454091 | ETA: 1990s
+2026-04-01T14:16:24.533837Z  INFO   [ 75/317]   23.7% | COLLECTUSDT — 5469 trades | total: 555704 | ETA: 1624s
+2026-04-01T14:17:21.106923Z  INFO   [ 90/317]   28.4% | DRIFTUSDT — 9339 trades | total: 698942 | ETA: 1412s
+2026-04-01T14:17:55.508118Z  INFO   [105/317]   33.1% | ETCUSDT — 10930 trades | total: 785359 | ETA: 1200s
+2026-04-01T14:18:35.748232Z  INFO   [120/317]   37.9% | GASUSDT — 8991 trades | total: 886108 | ETA: 1042s
+2026-04-01T14:19:04.021886Z  INFO   [135/317]   42.6% | HUMAUSDT — 9071 trades | total: 958454 | ETA: 894s
+2026-04-01T14:19:47.646077Z  INFO   [150/317]   47.3% | JELLYJELLYUSDT — 8835 trades | total: 1064246 | ETA: 787s
+2026-04-01T14:20:21.018706Z  INFO   [165/317]   52.1% | LDOUSDT — 10437 trades | total: 1145724 | ETA: 682s
+2026-04-01T14:21:02.619572Z  INFO   [180/317]   56.8% | MEUSDT — 9779 trades | total: 1246126 | ETA: 595s
+2026-04-01T14:21:46.349024Z  INFO   [195/317]   61.5% | ONDOUSDT — 9585 trades | total: 1351033 | ETA: 516s
+2026-04-01T14:22:20.155000Z  INFO   [210/317]   66.2% | PIPPINUSDT — 8645 trades | total: 1443589 | ETA: 438s
+2026-04-01T14:22:54.088135Z  INFO   [225/317]   71.0% | QUSDT — 1689 trades | total: 1544764 | ETA: 365s
+2026-04-01T14:23:21.148463Z  INFO   [240/317]   75.7% | SAHARAUSDT — 8773 trades | total: 1623170 | ETA: 295s
+2026-04-01T14:23:52.442181Z  INFO   [255/317]   80.4% | SPXUSDT — 8687 trades | total: 1715575 | ETA: 231s
+2026-04-01T14:24:25.303655Z  INFO   [270/317]   85.2% | TAUSDT — 8008 trades | total: 1814559 | ETA: 171s
+2026-04-01T14:25:01.114940Z  INFO   [285/317]   89.9% | UNIUSDT — 11148 trades | total: 1912297 | ETA: 115s
+2026-04-01T14:25:40.410298Z  INFO   [300/317]   94.6% | XLMUSDT — 12171 trades | total: 2023455 | ETA: 60s
+2026-04-01T14:26:19.216769Z  INFO   [315/317]   99.4% | ZKUSDT — 10608 trades | total: 2143327 | ETA: 7s
+2026-04-01T14:26:25.137312Z  INFO   [317/317]  100.0% | ZROUSDT — 8667 trades | total: 2158852 | ETA: 0s
+2026-04-01T14:26:25.137370Z  INFO 
+2026-04-01T14:26:25.137387Z  INFO ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+2026-04-01T14:26:25.137401Z  INFO ┃          PUMP/DUMP BACKTEST — FINAL REPORT (v4)                  ┃
+2026-04-01T14:26:25.137414Z  INFO ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+2026-04-01T14:26:25.137428Z  INFO 
+2026-04-01T14:26:25.137448Z  INFO   ┌─────────── EXECUTION ───────────┐
+2026-04-01T14:26:25.137469Z  INFO   │ Symbols: 288 processed, 29 skipped │
+2026-04-01T14:26:25.137483Z  INFO   │ Bars scanned:      8183274       │
+2026-04-01T14:26:25.137506Z  INFO   │ ML predictions:    8182993       │
+2026-04-01T14:26:25.137523Z  INFO   │ Total trades:      2158852       │
+2026-04-01T14:26:25.137539Z  INFO   │ Time: 1103.9s (18.4min)              │
+2026-04-01T14:26:25.137552Z  INFO   │ Data load: 284.2s | Sim: 819.7s      │
+2026-04-01T14:26:25.137566Z  INFO   └─────────────────────────────────┘
+2026-04-01T14:26:25.137581Z  INFO 
+2026-04-01T14:26:25.137594Z  INFO   ┌─────────── QUICK OVERVIEW ─────────────────────────────────────┐
+2026-04-01T14:26:25.165450Z  INFO   │ ALL: 2158852 trades | WR 1.0% (TP:21544 SL:60942) | AvgPnL -0.00% | TotalPnL -7984.2%
+2026-04-01T14:26:25.197937Z  INFO   │ PUMP: 1095956 trades | WR 1.2% (TP:13101 SL:27641) | AvgPnL -0.03% | TotalPnL -30040.6%
+2026-04-01T14:26:25.210317Z  INFO   │ DUMP: 1062896 trades | WR 0.8% (TP:8443 SL:33301) | AvgPnL 0.02% | TotalPnL 22056.4%
+2026-04-01T14:26:25.210345Z  INFO   │
+2026-04-01T14:26:25.218817Z  INFO   │ TF   5m: 351054 trades | WR 0.1% (TP:235 SL:677) | AvgPnL 0.00% | TotalPnL 786.7%
+2026-04-01T14:26:25.231814Z  INFO   │ TF  15m: 732856 trades | WR 0.2% (TP:1183 SL:3726) | AvgPnL -0.00% | TotalPnL -1303.2%
+2026-04-01T14:26:25.243229Z  INFO   │ TF  60m: 681967 trades | WR 0.8% (TP:5203 SL:15720) | AvgPnL -0.00% | TotalPnL -1623.6%
+2026-04-01T14:26:25.251954Z  INFO   │ TF 240m: 392975 trades | WR 3.8% (TP:14923 SL:40819) | AvgPnL -0.01% | TotalPnL -5844.1%
+2026-04-01T14:26:25.251984Z  INFO   │
+2026-04-01T14:26:25.251995Z  INFO   │ Breakeven WR (R:R = 15.0:9.8): 39.4%
+2026-04-01T14:26:25.252005Z  INFO   └───────────────────────────────────────────────────────────────┘
+2026-04-01T14:26:25.254662Z  INFO 
+2026-04-01T14:26:25.260405Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.260432Z  INFO   ═══ TF: 5m — 351054 trades total ═══
+2026-04-01T14:26:25.260447Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.264863Z  INFO     📊 PUMP (184321 trades):
+2026-04-01T14:26:25.264901Z  INFO       WinRate: 0.1%  (TP:154 SL:321 Expired:183846 [86724+/97122−])
+2026-04-01T14:26:25.264910Z  INFO       Avg P&L: 0.01%,  Total P&L: 2093.39%
+2026-04-01T14:26:25.264919Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T14:26:25.264926Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.265298Z  INFO         hold=1: 55 trades, WR: 21.8%, AvgPnL: -4.35%
+2026-04-01T14:26:25.265629Z  INFO         hold=2: 75 trades, WR: 33.3%, AvgPnL: -1.50%
+2026-04-01T14:26:25.265931Z  INFO         hold=3: 77 trades, WR: 35.1%, AvgPnL: -1.07%
+2026-04-01T14:26:25.266305Z  INFO         hold=4: 90 trades, WR: 36.7%, AvgPnL: -0.68%
+2026-04-01T14:26:25.266642Z  INFO         hold=5: 84 trades, WR: 35.7%, AvgPnL: -0.91%
+2026-04-01T14:26:25.268176Z  INFO         hold=6: 183940 trades, WR: 0.0%, AvgPnL: 0.01%
+2026-04-01T14:26:25.268197Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.269412Z  INFO         [0.50-0.55): 40989 trades, WR: 0.1% (TP:39 SL:79), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.270821Z  INFO         [0.55-0.60): 24985 trades, WR: 0.1% (TP:27 SL:38), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.272122Z  INFO         [0.60-0.65): 21317 trades, WR: 0.1% (TP:18 SL:37), AvgPnL: 0.03%, AvgHold: 6.0
+2026-04-01T14:26:25.273326Z  INFO         [0.65-0.70): 19861 trades, WR: 0.1% (TP:15 SL:34), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.274524Z  INFO         [0.70-0.75): 19030 trades, WR: 0.1% (TP:14 SL:38), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T14:26:25.275619Z  INFO         [0.75-0.80): 18385 trades, WR: 0.1% (TP:11 SL:34), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.276580Z  INFO         [0.80-0.85): 16383 trades, WR: 0.1% (TP:12 SL:25), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T14:26:25.277428Z  INFO         [0.85-0.90): 13095 trades, WR: 0.1% (TP:10 SL:26), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.278073Z  INFO         [0.90-1.01): 10276 trades, WR: 0.1% (TP:8 SL:10), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.278089Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.280064Z  INFO         pred ≥ 0.50: 184321 trades, WR: 0.1% (TP:154 SL:321), AvgPnL: 0.01%
+2026-04-01T14:26:25.281672Z  INFO         pred ≥ 0.55: 143332 trades, WR: 0.1% (TP:115 SL:242), AvgPnL: 0.01%
+2026-04-01T14:26:25.283146Z  INFO         pred ≥ 0.60: 118347 trades, WR: 0.1% (TP:88 SL:204), AvgPnL: 0.01%
+2026-04-01T14:26:25.284433Z  INFO         pred ≥ 0.65: 97030 trades, WR: 0.1% (TP:70 SL:167), AvgPnL: 0.01%
+2026-04-01T14:26:25.285532Z  INFO         pred ≥ 0.70: 77169 trades, WR: 0.1% (TP:55 SL:133), AvgPnL: 0.01%
+2026-04-01T14:26:25.286431Z  INFO         pred ≥ 0.75: 58139 trades, WR: 0.1% (TP:41 SL:95), AvgPnL: 0.01%
+2026-04-01T14:26:25.287135Z  INFO         pred ≥ 0.80: 39754 trades, WR: 0.1% (TP:30 SL:61), AvgPnL: 0.01%
+2026-04-01T14:26:25.287733Z  INFO         pred ≥ 0.85: 23371 trades, WR: 0.1% (TP:18 SL:36), AvgPnL: 0.01%
+2026-04-01T14:26:25.288308Z  INFO         pred ≥ 0.90: 10276 trades, WR: 0.1% (TP:8 SL:10), AvgPnL: 0.02%
+2026-04-01T14:26:25.288325Z  INFO 
+2026-04-01T14:26:25.291919Z  INFO     📊 DUMP (166733 trades):
+2026-04-01T14:26:25.291946Z  INFO       WinRate: 0.0%  (TP:81 SL:356 Expired:166296 [81493+/84803−])
+2026-04-01T14:26:25.291954Z  INFO       Avg P&L: -0.01%,  Total P&L: -1306.71%
+2026-04-01T14:26:25.291960Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T14:26:25.291967Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.292301Z  INFO         hold=1: 40 trades, WR: 15.0%, AvgPnL: -6.04%
+2026-04-01T14:26:25.292571Z  INFO         hold=2: 48 trades, WR: 16.7%, AvgPnL: -5.62%
+2026-04-01T14:26:25.292822Z  INFO         hold=3: 71 trades, WR: 12.7%, AvgPnL: -6.61%
+2026-04-01T14:26:25.293072Z  INFO         hold=4: 81 trades, WR: 17.3%, AvgPnL: -5.47%
+2026-04-01T14:26:25.293301Z  INFO         hold=5: 82 trades, WR: 23.2%, AvgPnL: -4.02%
+2026-04-01T14:26:25.294408Z  INFO         hold=6: 166411 trades, WR: 0.0%, AvgPnL: 0.00%
+2026-04-01T14:26:25.294425Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.295512Z  INFO         [0.50-0.55): 38211 trades, WR: 0.1% (TP:21 SL:100), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.296612Z  INFO         [0.55-0.60): 21982 trades, WR: 0.1% (TP:11 SL:66), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.297436Z  INFO         [0.60-0.65): 17963 trades, WR: 0.1% (TP:11 SL:27), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T14:26:25.298243Z  INFO         [0.65-0.70): 16600 trades, WR: 0.1% (TP:16 SL:37), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.299072Z  INFO         [0.70-0.75): 15401 trades, WR: 0.0% (TP:4 SL:35), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.299853Z  INFO         [0.75-0.80): 14900 trades, WR: 0.1% (TP:11 SL:24), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.300612Z  INFO         [0.80-0.85): 14780 trades, WR: 0.0% (TP:2 SL:29), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.301236Z  INFO         [0.85-0.90): 13615 trades, WR: 0.0% (TP:3 SL:19), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.301693Z  INFO         [0.90-1.01): 13281 trades, WR: 0.0% (TP:2 SL:19), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.301705Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.302927Z  INFO         pred ≥ 0.50: 166733 trades, WR: 0.0% (TP:81 SL:356), AvgPnL: -0.01%
+2026-04-01T14:26:25.304276Z  INFO         pred ≥ 0.55: 128522 trades, WR: 0.0% (TP:60 SL:256), AvgPnL: -0.01%
+2026-04-01T14:26:25.305586Z  INFO         pred ≥ 0.60: 106540 trades, WR: 0.0% (TP:49 SL:190), AvgPnL: -0.00%
+2026-04-01T14:26:25.306773Z  INFO         pred ≥ 0.65: 88577 trades, WR: 0.0% (TP:38 SL:163), AvgPnL: -0.00%
+2026-04-01T14:26:25.307621Z  INFO         pred ≥ 0.70: 71977 trades, WR: 0.0% (TP:22 SL:126), AvgPnL: -0.01%
+2026-04-01T14:26:25.308460Z  INFO         pred ≥ 0.75: 56576 trades, WR: 0.0% (TP:18 SL:91), AvgPnL: -0.00%
+2026-04-01T14:26:25.309170Z  INFO         pred ≥ 0.80: 41676 trades, WR: 0.0% (TP:7 SL:67), AvgPnL: -0.01%
+2026-04-01T14:26:25.309764Z  INFO         pred ≥ 0.85: 26896 trades, WR: 0.0% (TP:5 SL:38), AvgPnL: -0.01%
+2026-04-01T14:26:25.310145Z  INFO         pred ≥ 0.90: 13281 trades, WR: 0.0% (TP:2 SL:19), AvgPnL: -0.01%
+2026-04-01T14:26:25.310159Z  INFO 
+2026-04-01T14:26:25.310165Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T14:26:25.310177Z  INFO       0GUSDT 2026-02-24 12:44 DUMP pred=0.549 entry=0.6149 exit=0.6160 hold=6 P&L=-0.18% ⏰EXP
+2026-04-01T14:26:25.310187Z  INFO       0GUSDT 2026-02-24 13:19 DUMP pred=0.517 entry=0.6139 exit=0.6178 hold=6 P&L=-0.64% ⏰EXP
+2026-04-01T14:26:25.310197Z  INFO       0GUSDT 2026-02-25 09:59 DUMP pred=0.637 entry=0.6484 exit=0.6528 hold=6 P&L=-0.68% ⏰EXP
+2026-04-01T14:26:25.310206Z  INFO       0GUSDT 2026-02-25 10:29 DUMP pred=0.703 entry=0.6528 exit=0.6525 hold=6 P&L=0.05% ⏰EXP
+2026-04-01T14:26:25.310215Z  INFO       0GUSDT 2026-02-25 10:59 PUMP pred=0.508 entry=0.6525 exit=0.6588 hold=6 P&L=0.97% ⏰EXP
+2026-04-01T14:26:25.310225Z  INFO 
+2026-04-01T14:26:25.316474Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.316503Z  INFO   ═══ TF: 15m — 732856 trades total ═══
+2026-04-01T14:26:25.316512Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.327316Z  INFO     📊 PUMP (372689 trades):
+2026-04-01T14:26:25.327347Z  INFO       WinRate: 0.2%  (TP:732 SL:1681 Expired:370276 [175028+/195248−])
+2026-04-01T14:26:25.327357Z  INFO       Avg P&L: -0.01%,  Total P&L: -5408.82%
+2026-04-01T14:26:25.327365Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T14:26:25.327373Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.328703Z  INFO         hold=1: 249 trades, WR: 20.9%, AvgPnL: -4.58%
+2026-04-01T14:26:25.329913Z  INFO         hold=2: 361 trades, WR: 25.8%, AvgPnL: -3.37%
+2026-04-01T14:26:25.331125Z  INFO         hold=3: 475 trades, WR: 27.8%, AvgPnL: -2.87%
+2026-04-01T14:26:25.332424Z  INFO         hold=4: 424 trades, WR: 34.7%, AvgPnL: -1.17%
+2026-04-01T14:26:25.333736Z  INFO         hold=5: 408 trades, WR: 32.1%, AvgPnL: -1.80%
+2026-04-01T14:26:25.338452Z  INFO         hold=6: 370772 trades, WR: 0.0%, AvgPnL: -0.00%
+2026-04-01T14:26:25.338474Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.340665Z  INFO         [0.50-0.55): 28323 trades, WR: 0.3% (TP:81 SL:145), AvgPnL: -0.00%, AvgHold: 6.0
+2026-04-01T14:26:25.342777Z  INFO         [0.55-0.60): 22229 trades, WR: 0.2% (TP:50 SL:113), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T14:26:25.344997Z  INFO         [0.60-0.65): 21019 trades, WR: 0.3% (TP:63 SL:111), AvgPnL: 0.03%, AvgHold: 6.0
+2026-04-01T14:26:25.347262Z  INFO         [0.65-0.70): 22953 trades, WR: 0.3% (TP:62 SL:115), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.349526Z  INFO         [0.70-0.75): 25798 trades, WR: 0.2% (TP:56 SL:138), AvgPnL: -0.03%, AvgHold: 6.0
+2026-04-01T14:26:25.351898Z  INFO         [0.75-0.80): 28079 trades, WR: 0.3% (TP:74 SL:150), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.354273Z  INFO         [0.80-0.85): 31911 trades, WR: 0.2% (TP:68 SL:133), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.356893Z  INFO         [0.85-0.90): 46127 trades, WR: 0.2% (TP:72 SL:197), AvgPnL: -0.04%, AvgHold: 6.0
+2026-04-01T14:26:25.361263Z  INFO         [0.90-1.01): 146250 trades, WR: 0.1% (TP:206 SL:579), AvgPnL: -0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.361290Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.366887Z  INFO         pred ≥ 0.50: 372689 trades, WR: 0.2% (TP:732 SL:1681), AvgPnL: -0.01%
+2026-04-01T14:26:25.372528Z  INFO         pred ≥ 0.55: 344366 trades, WR: 0.2% (TP:651 SL:1536), AvgPnL: -0.02%
+2026-04-01T14:26:25.378188Z  INFO         pred ≥ 0.60: 322137 trades, WR: 0.2% (TP:601 SL:1423), AvgPnL: -0.02%
+2026-04-01T14:26:25.383269Z  INFO         pred ≥ 0.65: 301118 trades, WR: 0.2% (TP:538 SL:1312), AvgPnL: -0.02%
+2026-04-01T14:26:25.388541Z  INFO         pred ≥ 0.70: 278165 trades, WR: 0.2% (TP:476 SL:1197), AvgPnL: -0.02%
+2026-04-01T14:26:25.393164Z  INFO         pred ≥ 0.75: 252367 trades, WR: 0.2% (TP:420 SL:1059), AvgPnL: -0.02%
+2026-04-01T14:26:25.397495Z  INFO         pred ≥ 0.80: 224288 trades, WR: 0.2% (TP:346 SL:909), AvgPnL: -0.02%
+2026-04-01T14:26:25.401308Z  INFO         pred ≥ 0.85: 192377 trades, WR: 0.1% (TP:278 SL:776), AvgPnL: -0.02%
+2026-04-01T14:26:25.404704Z  INFO         pred ≥ 0.90: 146250 trades, WR: 0.1% (TP:206 SL:579), AvgPnL: -0.02%
+2026-04-01T14:26:25.404727Z  INFO 
+2026-04-01T14:26:25.414990Z  INFO     📊 DUMP (360167 trades):
+2026-04-01T14:26:25.415024Z  INFO       WinRate: 0.1%  (TP:451 SL:2045 Expired:357671 [181087+/176584−])
+2026-04-01T14:26:25.415032Z  INFO       Avg P&L: 0.01%,  Total P&L: 4105.63%
+2026-04-01T14:26:25.415039Z  INFO       Avg Hold: 6.0 candles
+2026-04-01T14:26:25.415045Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.416391Z  INFO         hold=1: 223 trades, WR: 21.1%, AvgPnL: -4.53%
+2026-04-01T14:26:25.417642Z  INFO         hold=2: 368 trades, WR: 20.1%, AvgPnL: -4.77%
+2026-04-01T14:26:25.418861Z  INFO         hold=3: 403 trades, WR: 16.4%, AvgPnL: -5.70%
+2026-04-01T14:26:25.420091Z  INFO         hold=4: 455 trades, WR: 18.2%, AvgPnL: -5.24%
+2026-04-01T14:26:25.421391Z  INFO         hold=5: 513 trades, WR: 17.0%, AvgPnL: -5.55%
+2026-04-01T14:26:25.426110Z  INFO         hold=6: 358205 trades, WR: 0.0%, AvgPnL: 0.04%
+2026-04-01T14:26:25.426133Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.428606Z  INFO         [0.50-0.55): 39449 trades, WR: 0.2% (TP:73 SL:277), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.430957Z  INFO         [0.55-0.60): 28447 trades, WR: 0.1% (TP:42 SL:206), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.433111Z  INFO         [0.60-0.65): 24148 trades, WR: 0.2% (TP:39 SL:188), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.435139Z  INFO         [0.65-0.70): 23624 trades, WR: 0.2% (TP:47 SL:191), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.437298Z  INFO         [0.70-0.75): 24920 trades, WR: 0.1% (TP:37 SL:151), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.439516Z  INFO         [0.75-0.80): 30734 trades, WR: 0.1% (TP:42 SL:179), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.442155Z  INFO         [0.80-0.85): 46333 trades, WR: 0.1% (TP:42 SL:228), AvgPnL: 0.03%, AvgHold: 6.0
+2026-04-01T14:26:25.445125Z  INFO         [0.85-0.90): 59770 trades, WR: 0.1% (TP:62 SL:284), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.447951Z  INFO         [0.90-1.01): 82742 trades, WR: 0.1% (TP:67 SL:341), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T14:26:25.447968Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.453869Z  INFO         pred ≥ 0.50: 360167 trades, WR: 0.1% (TP:451 SL:2045), AvgPnL: 0.01%
+2026-04-01T14:26:25.459420Z  INFO         pred ≥ 0.55: 320718 trades, WR: 0.1% (TP:378 SL:1768), AvgPnL: 0.01%
+2026-04-01T14:26:25.464717Z  INFO         pred ≥ 0.60: 292271 trades, WR: 0.1% (TP:336 SL:1562), AvgPnL: 0.01%
+2026-04-01T14:26:25.469687Z  INFO         pred ≥ 0.65: 268123 trades, WR: 0.1% (TP:297 SL:1374), AvgPnL: 0.01%
+2026-04-01T14:26:25.474269Z  INFO         pred ≥ 0.70: 244499 trades, WR: 0.1% (TP:250 SL:1183), AvgPnL: 0.01%
+2026-04-01T14:26:25.478302Z  INFO         pred ≥ 0.75: 219579 trades, WR: 0.1% (TP:213 SL:1032), AvgPnL: 0.01%
+2026-04-01T14:26:25.481923Z  INFO         pred ≥ 0.80: 188845 trades, WR: 0.1% (TP:171 SL:853), AvgPnL: 0.01%
+2026-04-01T14:26:25.484684Z  INFO         pred ≥ 0.85: 142512 trades, WR: 0.1% (TP:129 SL:625), AvgPnL: 0.00%
+2026-04-01T14:26:25.486830Z  INFO         pred ≥ 0.90: 82742 trades, WR: 0.1% (TP:67 SL:341), AvgPnL: 0.00%
+2026-04-01T14:26:25.486853Z  INFO 
+2026-04-01T14:26:25.486861Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T14:26:25.486872Z  INFO       0GUSDT 2025-11-27 20:14 PUMP pred=0.503 entry=1.2221 exit=1.2227 hold=6 P&L=0.05% ⏰EXP
+2026-04-01T14:26:25.486882Z  INFO       0GUSDT 2025-11-27 20:14 DUMP pred=0.598 entry=1.2221 exit=1.2227 hold=6 P&L=-0.05% ⏰EXP
+2026-04-01T14:26:25.486890Z  INFO       0GUSDT 2025-11-27 21:44 PUMP pred=0.594 entry=1.2227 exit=1.2358 hold=6 P&L=1.07% ⏰EXP
+2026-04-01T14:26:25.486900Z  INFO       0GUSDT 2025-11-27 22:14 DUMP pred=0.512 entry=1.2322 exit=1.2372 hold=6 P&L=-0.41% ⏰EXP
+2026-04-01T14:26:25.486908Z  INFO       0GUSDT 2025-11-27 23:14 PUMP pred=0.555 entry=1.2358 exit=1.2363 hold=6 P&L=0.04% ⏰EXP
+2026-04-01T14:26:25.486915Z  INFO 
+2026-04-01T14:26:25.492867Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.492893Z  INFO   ═══ TF: 60m — 681967 trades total ═══
+2026-04-01T14:26:25.492901Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.501220Z  INFO     📊 PUMP (342426 trades):
+2026-04-01T14:26:25.501251Z  INFO       WinRate: 1.0%  (TP:3422 SL:6369 Expired:332635 [160694+/171941−])
+2026-04-01T14:26:25.501258Z  INFO       Avg P&L: -0.03%,  Total P&L: -10714.24%
+2026-04-01T14:26:25.501265Z  INFO       Avg Hold: 5.9 candles
+2026-04-01T14:26:25.501271Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.502481Z  INFO         hold=1: 950 trades, WR: 31.4%, AvgPnL: -1.99%
+2026-04-01T14:26:25.503592Z  INFO         hold=2: 1335 trades, WR: 36.9%, AvgPnL: -0.63%
+2026-04-01T14:26:25.504719Z  INFO         hold=3: 1585 trades, WR: 36.8%, AvgPnL: -0.63%
+2026-04-01T14:26:25.505687Z  INFO         hold=4: 1904 trades, WR: 36.6%, AvgPnL: -0.69%
+2026-04-01T14:26:25.506837Z  INFO         hold=5: 1868 trades, WR: 35.3%, AvgPnL: -1.02%
+2026-04-01T14:26:25.510557Z  INFO         hold=6: 334784 trades, WR: 0.2%, AvgPnL: -0.01%
+2026-04-01T14:26:25.510581Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.511961Z  INFO         [0.50-0.55): 7344 trades, WR: 1.3% (TP:95 SL:137), AvgPnL: 0.02%, AvgHold: 5.9
+2026-04-01T14:26:25.513315Z  INFO         [0.55-0.60): 6750 trades, WR: 1.3% (TP:90 SL:127), AvgPnL: 0.04%, AvgHold: 5.9
+2026-04-01T14:26:25.514718Z  INFO         [0.60-0.65): 6341 trades, WR: 1.3% (TP:85 SL:125), AvgPnL: 0.03%, AvgHold: 5.9
+2026-04-01T14:26:25.516040Z  INFO         [0.65-0.70): 6210 trades, WR: 1.4% (TP:89 SL:112), AvgPnL: 0.09%, AvgHold: 5.9
+2026-04-01T14:26:25.517307Z  INFO         [0.70-0.75): 6504 trades, WR: 1.6% (TP:104 SL:130), AvgPnL: 0.00%, AvgHold: 5.9
+2026-04-01T14:26:25.518610Z  INFO         [0.75-0.80): 6777 trades, WR: 1.6% (TP:109 SL:120), AvgPnL: 0.04%, AvgHold: 5.9
+2026-04-01T14:26:25.519989Z  INFO         [0.80-0.85): 7713 trades, WR: 1.1% (TP:88 SL:161), AvgPnL: -0.12%, AvgHold: 5.9
+2026-04-01T14:26:25.521470Z  INFO         [0.85-0.90): 11241 trades, WR: 0.8% (TP:88 SL:237), AvgPnL: -0.16%, AvgHold: 5.9
+2026-04-01T14:26:25.526985Z  INFO         [0.90-1.01): 283546 trades, WR: 0.9% (TP:2674 SL:5220), AvgPnL: -0.03%, AvgHold: 5.9
+2026-04-01T14:26:25.527016Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.532021Z  INFO         pred ≥ 0.50: 342426 trades, WR: 1.0% (TP:3422 SL:6369), AvgPnL: -0.03%
+2026-04-01T14:26:25.536607Z  INFO         pred ≥ 0.55: 335082 trades, WR: 1.0% (TP:3327 SL:6232), AvgPnL: -0.03%
+2026-04-01T14:26:25.541515Z  INFO         pred ≥ 0.60: 328332 trades, WR: 1.0% (TP:3237 SL:6105), AvgPnL: -0.03%
+2026-04-01T14:26:25.546176Z  INFO         pred ≥ 0.65: 321991 trades, WR: 1.0% (TP:3152 SL:5980), AvgPnL: -0.04%
+2026-04-01T14:26:25.550778Z  INFO         pred ≥ 0.70: 315781 trades, WR: 1.0% (TP:3063 SL:5868), AvgPnL: -0.04%
+2026-04-01T14:26:25.555484Z  INFO         pred ≥ 0.75: 309277 trades, WR: 1.0% (TP:2959 SL:5738), AvgPnL: -0.04%
+2026-04-01T14:26:25.559866Z  INFO         pred ≥ 0.80: 302500 trades, WR: 0.9% (TP:2850 SL:5618), AvgPnL: -0.04%
+2026-04-01T14:26:25.564143Z  INFO         pred ≥ 0.85: 294787 trades, WR: 0.9% (TP:2762 SL:5457), AvgPnL: -0.04%
+2026-04-01T14:26:25.568119Z  INFO         pred ≥ 0.90: 283546 trades, WR: 0.9% (TP:2674 SL:5220), AvgPnL: -0.03%
+2026-04-01T14:26:25.568151Z  INFO 
+2026-04-01T14:26:25.576928Z  INFO     📊 DUMP (339541 trades):
+2026-04-01T14:26:25.576961Z  INFO       WinRate: 0.5%  (TP:1781 SL:9351 Expired:328409 [171775+/156634−])
+2026-04-01T14:26:25.576973Z  INFO       Avg P&L: 0.03%,  Total P&L: 9090.67%
+2026-04-01T14:26:25.576981Z  INFO       Avg Hold: 5.9 candles
+2026-04-01T14:26:25.576990Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.577990Z  INFO         hold=1: 1117 trades, WR: 18.7%, AvgPnL: -5.12%
+2026-04-01T14:26:25.578939Z  INFO         hold=2: 1741 trades, WR: 13.6%, AvgPnL: -6.38%
+2026-04-01T14:26:25.579934Z  INFO         hold=3: 1934 trades, WR: 15.7%, AvgPnL: -5.87%
+2026-04-01T14:26:25.581005Z  INFO         hold=4: 2007 trades, WR: 13.1%, AvgPnL: -6.51%
+2026-04-01T14:26:25.582048Z  INFO         hold=5: 2183 trades, WR: 18.6%, AvgPnL: -5.15%
+2026-04-01T14:26:25.586143Z  INFO         hold=6: 330559 trades, WR: 0.1%, AvgPnL: 0.19%
+2026-04-01T14:26:25.586176Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.587516Z  INFO         [0.50-0.55): 10511 trades, WR: 0.7% (TP:69 SL:348), AvgPnL: 0.01%, AvgHold: 5.9
+2026-04-01T14:26:25.588964Z  INFO         [0.55-0.60): 8607 trades, WR: 0.8% (TP:65 SL:261), AvgPnL: 0.02%, AvgHold: 5.9
+2026-04-01T14:26:25.590515Z  INFO         [0.60-0.65): 7136 trades, WR: 0.8% (TP:56 SL:236), AvgPnL: 0.06%, AvgHold: 5.9
+2026-04-01T14:26:25.591989Z  INFO         [0.65-0.70): 6303 trades, WR: 0.8% (TP:52 SL:221), AvgPnL: 0.05%, AvgHold: 5.9
+2026-04-01T14:26:25.593319Z  INFO         [0.70-0.75): 5949 trades, WR: 0.7% (TP:44 SL:203), AvgPnL: 0.00%, AvgHold: 5.9
+2026-04-01T14:26:25.594688Z  INFO         [0.75-0.80): 7157 trades, WR: 0.5% (TP:37 SL:224), AvgPnL: -0.02%, AvgHold: 5.9
+2026-04-01T14:26:25.596287Z  INFO         [0.80-0.85): 10916 trades, WR: 0.8% (TP:91 SL:312), AvgPnL: 0.08%, AvgHold: 5.9
+2026-04-01T14:26:25.598074Z  INFO         [0.85-0.90): 15868 trades, WR: 0.7% (TP:119 SL:392), AvgPnL: 0.07%, AvgHold: 5.9
+2026-04-01T14:26:25.602914Z  INFO         [0.90-1.01): 267094 trades, WR: 0.5% (TP:1248 SL:7154), AvgPnL: 0.02%, AvgHold: 5.9
+2026-04-01T14:26:25.602949Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.607989Z  INFO         pred ≥ 0.50: 339541 trades, WR: 0.5% (TP:1781 SL:9351), AvgPnL: 0.03%
+2026-04-01T14:26:25.612811Z  INFO         pred ≥ 0.55: 329030 trades, WR: 0.5% (TP:1712 SL:9003), AvgPnL: 0.03%
+2026-04-01T14:26:25.617399Z  INFO         pred ≥ 0.60: 320423 trades, WR: 0.5% (TP:1647 SL:8742), AvgPnL: 0.03%
+2026-04-01T14:26:25.621874Z  INFO         pred ≥ 0.65: 313287 trades, WR: 0.5% (TP:1591 SL:8506), AvgPnL: 0.03%
+2026-04-01T14:26:25.626473Z  INFO         pred ≥ 0.70: 306984 trades, WR: 0.5% (TP:1539 SL:8285), AvgPnL: 0.03%
+2026-04-01T14:26:25.630791Z  INFO         pred ≥ 0.75: 301035 trades, WR: 0.5% (TP:1495 SL:8082), AvgPnL: 0.03%
+2026-04-01T14:26:25.635268Z  INFO         pred ≥ 0.80: 293878 trades, WR: 0.5% (TP:1458 SL:7858), AvgPnL: 0.03%
+2026-04-01T14:26:25.639708Z  INFO         pred ≥ 0.85: 282962 trades, WR: 0.5% (TP:1367 SL:7546), AvgPnL: 0.03%
+2026-04-01T14:26:25.643462Z  INFO         pred ≥ 0.90: 267094 trades, WR: 0.5% (TP:1248 SL:7154), AvgPnL: 0.02%
+2026-04-01T14:26:25.643486Z  INFO 
+2026-04-01T14:26:25.643493Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T14:26:25.643507Z  INFO       0GUSDT 2025-09-20 03:59 PUMP pred=0.988 entry=2.7639 exit=2.8033 hold=6 P&L=1.43% ⏰EXP
+2026-04-01T14:26:25.643516Z  INFO       0GUSDT 2025-09-20 03:59 DUMP pred=0.988 entry=2.7639 exit=2.8033 hold=6 P&L=-1.43% ⏰EXP
+2026-04-01T14:26:25.643524Z  INFO       0GUSDT 2025-09-20 09:59 PUMP pred=0.990 entry=2.8033 exit=2.7626 hold=6 P&L=-1.45% ⏰EXP
+2026-04-01T14:26:25.643532Z  INFO       0GUSDT 2025-09-20 09:59 DUMP pred=0.995 entry=2.8033 exit=2.7626 hold=6 P&L=1.45% ⏰EXP
+2026-04-01T14:26:25.643541Z  INFO       0GUSDT 2025-09-20 15:59 PUMP pred=0.994 entry=2.7626 exit=2.6957 hold=6 P&L=-2.42% ⏰EXP
+2026-04-01T14:26:25.643548Z  INFO 
+2026-04-01T14:26:25.649802Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.649827Z  INFO   ═══ TF: 240m — 392975 trades total ═══
+2026-04-01T14:26:25.649834Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.654113Z  INFO     📊 PUMP (196520 trades):
+2026-04-01T14:26:25.654138Z  INFO       WinRate: 4.5%  (TP:8793 SL:19270 Expired:168457 [84362+/84095−])
+2026-04-01T14:26:25.654145Z  INFO       Avg P&L: -0.08%,  Total P&L: -16010.91%
+2026-04-01T14:26:25.654151Z  INFO       Avg Hold: 5.7 candles
+2026-04-01T14:26:25.654158Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.654549Z  INFO         hold=1: 3223 trades, WR: 27.6%, AvgPnL: -2.92%
+2026-04-01T14:26:25.654947Z  INFO         hold=2: 4433 trades, WR: 31.2%, AvgPnL: -2.04%
+2026-04-01T14:26:25.655316Z  INFO         hold=3: 4156 trades, WR: 33.7%, AvgPnL: -1.42%
+2026-04-01T14:26:25.655657Z  INFO         hold=4: 4998 trades, WR: 33.6%, AvgPnL: -1.44%
+2026-04-01T14:26:25.655970Z  INFO         hold=5: 5829 trades, WR: 30.4%, AvgPnL: -2.22%
+2026-04-01T14:26:25.657328Z  INFO         hold=6: 173881 trades, WR: 1.0%, AvgPnL: 0.16%
+2026-04-01T14:26:25.657345Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.657893Z  INFO         [0.50-0.55): 1609 trades, WR: 6.2% (TP:100 SL:110), AvgPnL: 0.06%, AvgHold: 5.7
+2026-04-01T14:26:25.658424Z  INFO         [0.55-0.60): 1617 trades, WR: 7.1% (TP:115 SL:119), AvgPnL: 0.18%, AvgHold: 5.7
+2026-04-01T14:26:25.658949Z  INFO         [0.60-0.65): 1668 trades, WR: 5.7% (TP:95 SL:131), AvgPnL: -0.10%, AvgHold: 5.6
+2026-04-01T14:26:25.659363Z  INFO         [0.65-0.70): 1779 trades, WR: 6.5% (TP:115 SL:161), AvgPnL: -0.14%, AvgHold: 5.6
+2026-04-01T14:26:25.659786Z  INFO         [0.70-0.75): 1848 trades, WR: 5.7% (TP:106 SL:175), AvgPnL: -0.28%, AvgHold: 5.6
+2026-04-01T14:26:25.660199Z  INFO         [0.75-0.80): 1973 trades, WR: 6.2% (TP:123 SL:185), AvgPnL: -0.17%, AvgHold: 5.6
+2026-04-01T14:26:25.660632Z  INFO         [0.80-0.85): 2127 trades, WR: 4.7% (TP:100 SL:203), AvgPnL: -0.52%, AvgHold: 5.7
+2026-04-01T14:26:25.661068Z  INFO         [0.85-0.90): 3019 trades, WR: 4.8% (TP:144 SL:308), AvgPnL: -0.54%, AvgHold: 5.6
+2026-04-01T14:26:25.662834Z  INFO         [0.90-1.01): 180880 trades, WR: 4.4% (TP:7895 SL:17878), AvgPnL: -0.07%, AvgHold: 5.7
+2026-04-01T14:26:25.662851Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.664255Z  INFO         pred ≥ 0.50: 196520 trades, WR: 4.5% (TP:8793 SL:19270), AvgPnL: -0.08%
+2026-04-01T14:26:25.666135Z  INFO         pred ≥ 0.55: 194911 trades, WR: 4.5% (TP:8693 SL:19160), AvgPnL: -0.08%
+2026-04-01T14:26:25.667875Z  INFO         pred ≥ 0.60: 193294 trades, WR: 4.4% (TP:8578 SL:19041), AvgPnL: -0.08%
+2026-04-01T14:26:25.669163Z  INFO         pred ≥ 0.65: 191626 trades, WR: 4.4% (TP:8483 SL:18910), AvgPnL: -0.08%
+2026-04-01T14:26:25.670644Z  INFO         pred ≥ 0.70: 189847 trades, WR: 4.4% (TP:8368 SL:18749), AvgPnL: -0.08%
+2026-04-01T14:26:25.672412Z  INFO         pred ≥ 0.75: 187999 trades, WR: 4.4% (TP:8262 SL:18574), AvgPnL: -0.08%
+2026-04-01T14:26:25.674294Z  INFO         pred ≥ 0.80: 186026 trades, WR: 4.4% (TP:8139 SL:18389), AvgPnL: -0.08%
+2026-04-01T14:26:25.675679Z  INFO         pred ≥ 0.85: 183899 trades, WR: 4.4% (TP:8039 SL:18186), AvgPnL: -0.08%
+2026-04-01T14:26:25.676874Z  INFO         pred ≥ 0.90: 180880 trades, WR: 4.4% (TP:7895 SL:17878), AvgPnL: -0.07%
+2026-04-01T14:26:25.676887Z  INFO 
+2026-04-01T14:26:25.680815Z  INFO     📊 DUMP (196455 trades):
+2026-04-01T14:26:25.680844Z  INFO       WinRate: 3.1%  (TP:6130 SL:21549 Expired:168776 [94018+/74758−])
+2026-04-01T14:26:25.680852Z  INFO       Avg P&L: 0.05%,  Total P&L: 10166.78%
+2026-04-01T14:26:25.680858Z  INFO       Avg Hold: 5.7 candles
+2026-04-01T14:26:25.680864Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.681327Z  INFO         hold=1: 3378 trades, WR: 19.2%, AvgPnL: -4.99%
+2026-04-01T14:26:25.681683Z  INFO         hold=2: 4429 trades, WR: 19.0%, AvgPnL: -5.04%
+2026-04-01T14:26:25.681991Z  INFO         hold=3: 4452 trades, WR: 19.7%, AvgPnL: -4.89%
+2026-04-01T14:26:25.682295Z  INFO         hold=4: 5000 trades, WR: 19.3%, AvgPnL: -4.98%
+2026-04-01T14:26:25.682604Z  INFO         hold=5: 5493 trades, WR: 25.6%, AvgPnL: -3.41%
+2026-04-01T14:26:25.683823Z  INFO         hold=6: 173703 trades, WR: 0.8%, AvgPnL: 0.66%
+2026-04-01T14:26:25.683839Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.684291Z  INFO         [0.50-0.55): 2184 trades, WR: 2.5% (TP:54 SL:278), AvgPnL: 0.02%, AvgHold: 5.6
+2026-04-01T14:26:25.684659Z  INFO         [0.55-0.60): 2095 trades, WR: 3.4% (TP:72 SL:264), AvgPnL: 0.16%, AvgHold: 5.6
+2026-04-01T14:26:25.684989Z  INFO         [0.60-0.65): 2009 trades, WR: 3.1% (TP:63 SL:261), AvgPnL: 0.13%, AvgHold: 5.6
+2026-04-01T14:26:25.685354Z  INFO         [0.65-0.70): 1901 trades, WR: 3.6% (TP:69 SL:241), AvgPnL: 0.28%, AvgHold: 5.6
+2026-04-01T14:26:25.685916Z  INFO         [0.70-0.75): 5169 trades, WR: 1.5% (TP:79 SL:398), AvgPnL: -0.03%, AvgHold: 5.8
+2026-04-01T14:26:25.687195Z  INFO         [0.75-0.80): 35261 trades, WR: 2.2% (TP:780 SL:3098), AvgPnL: -0.13%, AvgHold: 5.8
+2026-04-01T14:26:25.688582Z  INFO         [0.80-0.85): 46205 trades, WR: 3.6% (TP:1654 SL:4942), AvgPnL: 0.08%, AvgHold: 5.7
+2026-04-01T14:26:25.689515Z  INFO         [0.85-0.90): 32326 trades, WR: 3.6% (TP:1174 SL:4094), AvgPnL: 0.02%, AvgHold: 5.6
+2026-04-01T14:26:25.690369Z  INFO         [0.90-1.01): 69305 trades, WR: 3.2% (TP:2185 SL:7973), AvgPnL: 0.14%, AvgHold: 5.7
+2026-04-01T14:26:25.690381Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.691783Z  INFO         pred ≥ 0.50: 196455 trades, WR: 3.1% (TP:6130 SL:21549), AvgPnL: 0.05%
+2026-04-01T14:26:25.693562Z  INFO         pred ≥ 0.55: 194271 trades, WR: 3.1% (TP:6076 SL:21271), AvgPnL: 0.05%
+2026-04-01T14:26:25.695521Z  INFO         pred ≥ 0.60: 192176 trades, WR: 3.1% (TP:6004 SL:21007), AvgPnL: 0.05%
+2026-04-01T14:26:25.696776Z  INFO         pred ≥ 0.65: 190167 trades, WR: 3.1% (TP:5941 SL:20746), AvgPnL: 0.05%
+2026-04-01T14:26:25.697916Z  INFO         pred ≥ 0.70: 188266 trades, WR: 3.1% (TP:5872 SL:20505), AvgPnL: 0.05%
+2026-04-01T14:26:25.699645Z  INFO         pred ≥ 0.75: 183097 trades, WR: 3.2% (TP:5793 SL:20107), AvgPnL: 0.05%
+2026-04-01T14:26:25.701313Z  INFO         pred ≥ 0.80: 147836 trades, WR: 3.4% (TP:5013 SL:17009), AvgPnL: 0.09%
+2026-04-01T14:26:25.702482Z  INFO         pred ≥ 0.85: 101631 trades, WR: 3.3% (TP:3359 SL:12067), AvgPnL: 0.10%
+2026-04-01T14:26:25.703136Z  INFO         pred ≥ 0.90: 69305 trades, WR: 3.2% (TP:2185 SL:7973), AvgPnL: 0.14%
+2026-04-01T14:26:25.703146Z  INFO 
+2026-04-01T14:26:25.703153Z  INFO     ─── Sample Trades (first 5) ───
+2026-04-01T14:26:25.703164Z  INFO       0GUSDT 2025-09-27 15:59 PUMP pred=0.994 entry=3.5830 exit=3.6009 hold=6 P&L=0.50% ⏰EXP
+2026-04-01T14:26:25.703173Z  INFO       0GUSDT 2025-09-27 15:59 DUMP pred=0.972 entry=3.5830 exit=3.6009 hold=6 P&L=-0.50% ⏰EXP
+2026-04-01T14:26:25.703182Z  INFO       0GUSDT 2025-09-28 15:59 PUMP pred=0.989 entry=3.6009 exit=3.2498 hold=6 P&L=-9.75% ❌SL
+2026-04-01T14:26:25.703191Z  INFO       0GUSDT 2025-09-28 15:59 DUMP pred=0.971 entry=3.6009 exit=3.0608 hold=6 P&L=15.00% ✅TP
+2026-04-01T14:26:25.703200Z  INFO       0GUSDT 2025-09-29 15:59 PUMP pred=0.987 entry=2.8525 exit=2.5744 hold=5 P&L=-9.75% ❌SL
+2026-04-01T14:26:25.703207Z  INFO 
+2026-04-01T14:26:25.703215Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.703222Z  INFO   ═══ OVERALL DETAILED SUMMARY ═══
+2026-04-01T14:26:25.703228Z  INFO   ═══════════════════════════════════════════════════
+2026-04-01T14:26:25.742286Z  INFO     📊 ALL TRADES (2158852 trades):
+2026-04-01T14:26:25.742313Z  INFO       WinRate: 1.0%  (TP:21544 SL:60942 Expired:2076366 [1035181+/1041185−])
+2026-04-01T14:26:25.742322Z  INFO       Avg P&L: -0.00%,  Total P&L: -7984.22%
+2026-04-01T14:26:25.742328Z  INFO       Avg Hold: 5.9 candles
+2026-04-01T14:26:25.742334Z  INFO       ─── Hold Time Distribution ───
+2026-04-01T14:26:25.747818Z  INFO         hold=1: 9235 trades, WR: 23.4%, AvgPnL: -3.95%
+2026-04-01T14:26:25.753786Z  INFO         hold=2: 12790 trades, WR: 24.6%, AvgPnL: -3.65%
+2026-04-01T14:26:25.759743Z  INFO         hold=3: 13153 trades, WR: 25.8%, AvgPnL: -3.36%
+2026-04-01T14:26:25.765734Z  INFO         hold=4: 14959 trades, WR: 25.9%, AvgPnL: -3.33%
+2026-04-01T14:26:25.771717Z  INFO         hold=5: 16460 trades, WR: 27.4%, AvgPnL: -2.97%
+2026-04-01T14:26:25.796383Z  INFO         hold=6: 2092255 trades, WR: 0.2%, AvgPnL: 0.10%
+2026-04-01T14:26:25.796410Z  INFO       ─── By Prediction Bucket ───
+2026-04-01T14:26:25.806748Z  INFO         [0.50-0.55): 168620 trades, WR: 0.3% (TP:532 SL:1474), AvgPnL: 0.00%, AvgHold: 6.0
+2026-04-01T14:26:25.816235Z  INFO         [0.55-0.60): 116712 trades, WR: 0.4% (TP:472 SL:1194), AvgPnL: 0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.826363Z  INFO         [0.60-0.65): 101601 trades, WR: 0.4% (TP:430 SL:1116), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.836066Z  INFO         [0.65-0.70): 99231 trades, WR: 0.5% (TP:465 SL:1112), AvgPnL: 0.02%, AvgHold: 6.0
+2026-04-01T14:26:25.846272Z  INFO         [0.70-0.75): 104619 trades, WR: 0.4% (TP:444 SL:1268), AvgPnL: -0.01%, AvgHold: 6.0
+2026-04-01T14:26:25.857057Z  INFO         [0.75-0.80): 143266 trades, WR: 0.8% (TP:1187 SL:4014), AvgPnL: -0.03%, AvgHold: 5.9
+2026-04-01T14:26:25.869131Z  INFO         [0.80-0.85): 176368 trades, WR: 1.2% (TP:2057 SL:6033), AvgPnL: 0.02%, AvgHold: 5.9
+2026-04-01T14:26:25.881026Z  INFO         [0.85-0.90): 195061 trades, WR: 0.9% (TP:1672 SL:5557), AvgPnL: -0.02%, AvgHold: 5.9
+2026-04-01T14:26:25.904329Z  INFO         [0.90-1.01): 1053374 trades, WR: 1.4% (TP:14285 SL:39174), AvgPnL: -0.01%, AvgHold: 5.9
+2026-04-01T14:26:25.904356Z  INFO       ─── Cumulative Thresholds (pred ≥ X) ───
+2026-04-01T14:26:25.935911Z  INFO         pred ≥ 0.50: 2158852 trades, WR: 1.0% (TP:21544 SL:60942), AvgPnL: -0.00%
+2026-04-01T14:26:25.962185Z  INFO         pred ≥ 0.55: 1990232 trades, WR: 1.1% (TP:21012 SL:59468), AvgPnL: -0.00%
+2026-04-01T14:26:25.998300Z  INFO         pred ≥ 0.60: 1873520 trades, WR: 1.1% (TP:20540 SL:58274), AvgPnL: -0.01%
+2026-04-01T14:26:26.032323Z  INFO         pred ≥ 0.65: 1771919 trades, WR: 1.1% (TP:20110 SL:57158), AvgPnL: -0.01%
+2026-04-01T14:26:26.057480Z  INFO         pred ≥ 0.70: 1672688 trades, WR: 1.2% (TP:19645 SL:56046), AvgPnL: -0.01%
+2026-04-01T14:26:26.081483Z  INFO         pred ≥ 0.75: 1568069 trades, WR: 1.2% (TP:19201 SL:54778), AvgPnL: -0.01%
+2026-04-01T14:26:26.104426Z  INFO         pred ≥ 0.80: 1424803 trades, WR: 1.3% (TP:18014 SL:50764), AvgPnL: -0.01%
+2026-04-01T14:26:26.125732Z  INFO         pred ≥ 0.85: 1248435 trades, WR: 1.3% (TP:15957 SL:44731), AvgPnL: -0.01%
+2026-04-01T14:26:26.144934Z  INFO         pred ≥ 0.90: 1053374 trades, WR: 1.4% (TP:14285 SL:39174), AvgPnL: -0.01%
+2026-04-01T14:26:26.144958Z  INFO 
+2026-04-01T14:26:26.144965Z  INFO     ─── Top 10 Symbols by Trade Count ───
+2026-04-01T14:26:26.189817Z  INFO             DENTUSDT: 14212 trades, WR:   1.3%, TotalPnL:   271.07%
+2026-04-01T14:26:26.196030Z  INFO              BTCUSDT: 13980 trades, WR:   0.2%, TotalPnL:   -14.76%
+2026-04-01T14:26:26.202519Z  INFO              ZILUSDT: 13564 trades, WR:   1.0%, TotalPnL:   -12.18%
+2026-04-01T14:26:26.208989Z  INFO              ETHUSDT: 13519 trades, WR:   0.3%, TotalPnL:   -37.21%
+2026-04-01T14:26:26.215511Z  INFO              ONTUSDT: 13417 trades, WR:   1.0%, TotalPnL:    98.58%
+2026-04-01T14:26:26.221567Z  INFO             ANKRUSDT: 13390 trades, WR:   1.0%, TotalPnL:  -289.22%
+2026-04-01T14:26:26.227311Z  INFO         1000SHIBUSDT: 13383 trades, WR:   0.8%, TotalPnL:  -178.96%
+2026-04-01T14:26:26.233841Z  INFO             GALAUSDT: 13318 trades, WR:   1.0%, TotalPnL:   -51.70%
+2026-04-01T14:26:26.240439Z  INFO              CHZUSDT: 13272 trades, WR:   1.0%, TotalPnL:    80.69%
+2026-04-01T14:26:26.246569Z  INFO             KAVAUSDT: 13095 trades, WR:   1.0%, TotalPnL:  -201.11%
+2026-04-01T14:26:26.246585Z  INFO 
+2026-04-01T14:26:26.246592Z  INFO     ─── Top 10 Best Trades ───
+2026-04-01T14:26:26.613455Z  INFO       # 1:   1000BONKUSDT 2023-12-25 23:59 DUMP TF=240m pred=0.790 entry=0.0187 P&L=+15.00% hold=4 ✅TP
+2026-04-01T14:26:26.613491Z  INFO       # 2:  1000FLOKIUSDT 2024-04-12 23:59 DUMP TF=240m pred=0.828 entry=0.1581 P&L=+15.00% hold=5 ✅TP
+2026-04-01T14:26:26.613501Z  INFO       # 3:   1000PEPEUSDT 2023-08-16 23:59 DUMP TF=240m pred=0.868 entry=0.0012 P&L=+15.00% hold=6 ✅TP
+2026-04-01T14:26:26.613508Z  INFO       # 4:   1000SATSUSDT 2025-09-21 23:59 DUMP TF=240m pred=0.956 entry=0.0000 P&L=+15.00% hold=2 ✅TP
+2026-04-01T14:26:26.613516Z  INFO       # 5:        ACXUSDT 2025-10-10 21:59 DUMP TF=60m pred=0.946 entry=0.0786 P&L=+15.00% hold=1 ✅TP
+2026-04-01T14:26:26.613524Z  INFO       # 6:        ADAUSDT 2020-11-25 19:59 DUMP TF=240m pred=0.867 entry=0.1645 P&L=+15.00% hold=2 ✅TP
+2026-04-01T14:26:26.613532Z  INFO       # 7:        ADAUSDT 2024-01-02 19:59 DUMP TF=240m pred=0.824 entry=0.6149 P&L=+15.00% hold=5 ✅TP
+2026-04-01T14:26:26.613541Z  INFO       # 8:        ADAUSDT 2024-07-04 19:59 DUMP TF=240m pred=0.820 entry=0.3775 P&L=+15.00% hold=2 ✅TP
+2026-04-01T14:26:26.613548Z  INFO       # 9:       AGLDUSDT 2023-09-03 23:59 DUMP TF=240m pred=0.831 entry=0.7254 P&L=+15.00% hold=2 ✅TP
+2026-04-01T14:26:26.613556Z  INFO       #10:       AGLDUSDT 2026-02-23 15:59 DUMP TF=240m pred=0.950 entry=0.3427 P&L=+15.00% hold=3 ✅TP
+2026-04-01T14:26:26.613574Z  INFO 
+2026-04-01T14:26:26.613581Z  INFO     ─── Top 10 Worst Trades ───
+2026-04-01T14:26:26.613589Z  INFO       # 1:        ZROUSDT 2025-03-03 23:59 PUMP TF=240m pred=0.990 entry=2.3393 P&L=-9.75% hold=5 ❌SL
+2026-04-01T14:26:26.613598Z  INFO       # 2:       ZORAUSDT 2026-01-18 11:59 PUMP TF=240m pred=0.954 entry=0.0352 P&L=-9.75% hold=4 ❌SL
+2026-04-01T14:26:26.613606Z  INFO       # 3:         ZKUSDT 2024-08-01 23:59 PUMP TF=240m pred=0.980 entry=0.1418 P&L=-9.75% hold=4 ❌SL
+2026-04-01T14:26:26.613614Z  INFO       # 4:        ZILUSDT 2021-01-31 03:59 PUMP TF=240m pred=0.987 entry=0.0743 P&L=-9.75% hold=4 ❌SL
+2026-04-01T14:26:26.613622Z  INFO       # 5:        ZILUSDT 2021-01-03 03:59 PUMP TF=240m pred=0.981 entry=0.0743 P&L=-9.75% hold=1 ❌SL
+2026-04-01T14:26:26.613631Z  INFO       # 6:        ZECUSDT 2021-05-27 19:59 PUMP TF=240m pred=0.982 entry=148.6800 P&L=-9.75% hold=4 ❌SL
+2026-04-01T14:26:26.613638Z  INFO       # 7:        ZECUSDT 2025-11-08 03:59 PUMP TF=60m pred=0.999 entry=595.2100 P&L=-9.75% hold=3 ❌SL
+2026-04-01T14:26:26.613646Z  INFO       # 8:        XLMUSDT 2021-12-04 19:59 PUMP TF=240m pred=0.982 entry=0.2895 P&L=-9.75% hold=5 ❌SL
+2026-04-01T14:26:26.613653Z  INFO       # 9:        XLMUSDT 2021-02-13 19:59 PUMP TF=240m pred=0.983 entry=0.5558 P&L=-9.75% hold=5 ❌SL
+2026-04-01T14:26:26.613662Z  INFO       #10:        WIFUSDT 2025-01-31 23:59 PUMP TF=240m pred=0.988 entry=1.1351 P&L=-9.75% hold=5 ❌SL
+2026-04-01T14:26:26.613669Z  INFO 
+2026-04-01T14:26:26.613675Z  INFO   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+2026-04-01T14:26:26.613681Z  INFO   ┃                        VERDICT                              ┃
+2026-04-01T14:26:26.613687Z  INFO   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+2026-04-01T14:26:26.637652Z  INFO   ┃  Total Trades:   2158852                                    ┃
+2026-04-01T14:26:26.637678Z  INFO   ┃  Win Rate:          1.0%  (TP:21544 SL:60942)             ┃
+2026-04-01T14:26:26.637686Z  INFO   ┃  Avg P&L:         -0.00%                                   ┃
+2026-04-01T14:26:26.637692Z  INFO   ┃  Total P&L:      -7984.2%                                  ┃
+2026-04-01T14:26:26.637700Z  INFO   ┃  Breakeven WR:     39.4%  (R:R = 15.0:9.8)            ┃
+2026-04-01T14:26:26.637707Z  INFO   ┃                                                           ┃
+2026-04-01T14:26:26.637714Z  INFO   ┃  🔴 NO EDGE — model not profitable at pred ≥ 0.50        ┃
+2026-04-01T14:26:26.766366Z  INFO   ┃                                                           ┃
+2026-04-01T14:26:26.766393Z  INFO   ┃  Best threshold: pred ≥ 0.50 → 2158852 trades, WR=1.0%, AvgPnL=-0.00%
+2026-04-01T14:26:26.767323Z  INFO   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+2026-04-01T14:26:27.015585Z  INFO 
+2026-04-01T14:26:27.015607Z  INFO   Total time: 1103.9s (18.4min)
+2026-04-01T18:57:48.632392Z  INFO ╔═══════════════════════════════════════════════════════════╗
+2026-04-01T18:57:48.632422Z  INFO ║  Pump/Dump Walk-Forward Backtest v4 (bulk-load)           ║
+2026-04-01T18:57:48.632432Z  INFO ║  True Trade Simulation — No Look-Ahead Bias               ║
+2026-04-01T18:57:48.632440Z  INFO ╚═══════════════════════════════════════════════════════════╝
+2026-04-01T18:57:48.632474Z  INFO   Target TFs: [5, 15, 60, 240]
+2026-04-01T18:57:48.632495Z  INFO   Max hold: 6 candles
+2026-04-01T18:57:48.632523Z  INFO   Target: 15.0%, SL: 9.8% (fraction: 0.65), R:R = 15.0:9.8
+2026-04-01T18:57:48.632538Z  INFO   Pred step: 1 | Cooldown: 6 bars | Min signal: 0.50
+2026-04-01T18:57:48.632548Z  INFO   Device: Cpu | Model type: both
+2026-04-01T18:57:48.632557Z  INFO PumpDump Config:
+2026-04-01T18:57:48.632565Z  INFO   threshold: 15.0% (same across all TFs)
+2026-04-01T18:57:48.632573Z  INFO   pre_event_lookback: 10 candles
+2026-04-01T18:57:48.632579Z  INFO   negative_ratio: 3:1
+2026-04-01T18:57:48.632585Z  INFO   prediction_horizon: 3 candles
+2026-04-01T18:57:48.632592Z  INFO   concentration_pct: 50% (of daily move in 1 hourly candle)
+2026-04-01T18:57:48.632600Z  INFO   max_hold_candles: 6 (max candles to reach target)
+2026-04-01T18:57:48.651500Z  INFO XGB Booster loaded: path=models/pump_dump_pump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T18:57:48.651645Z  INFO   ✅ Pump model: models/pump_dump_pump_v1.ubj
+2026-04-01T18:57:48.659217Z  INFO XGB Booster loaded: path=models/pump_dump_dump_v1.ubj, device=cpu, predictor=cpu_predictor
+2026-04-01T18:57:48.659348Z  INFO   ✅ Dump model: models/pump_dump_dump_v1.ubj
+2026-04-01T18:57:48.665505Z  INFO   Feature vector: 3950 features (5 TFs × 10 lookback × 79 per candle)
+2026-04-01T18:57:48.665528Z  INFO 
+2026-04-01T18:57:48.665537Z  INFO   ⏳ Bulk loading all candle data...
+2026-04-01T18:58:18.975789Z  INFO     TF 1440m: 316 symbols,   239517 candles  (30.3s)
+2026-04-01T18:59:05.521509Z  INFO     TF  240m: 317 symbols,  1208766 candles  (46.5s)
+2026-04-01T19:00:05.384732Z  INFO     TF   60m: 317 symbols,  2142210 candles  (59.9s)
+2026-04-01T19:01:12.759906Z  INFO     TF   15m: 317 symbols,  2694064 candles  (67.4s)
+2026-04-01T19:02:17.790969Z  INFO     TF    5m: 317 symbols,  2308741 candles  (65.0s)
+2026-04-01T19:02:17.791004Z  INFO   ✅ Bulk load complete: 316 symbols in 269.1s
+2026-04-01T19:02:17.791012Z  INFO 
+2026-04-01T19:02:17.791018Z  INFO   🚀 Starting walk-forward simulation...
+2026-04-01T19:02:20.524989Z  INFO   [  1/316]    0.3% | 0GUSDT — 5212 trades | total: 5212 | ETA: 85636s
+2026-04-01T19:02:52.475883Z  INFO   [ 15/316]    4.7% | AEROUSDT — 1127 trades | total: 107951 | ETA: 6096s
+2026-04-01T19:03:33.885065Z  INFO   [ 30/316]    9.5% | ARIAUSDT — 7440 trades | total: 231148 | ETA: 3291s
+2026-04-01T19:04:14.755801Z  INFO   [ 45/316]   14.2% | BANUSDT — 10142 trades | total: 344763 | ETA: 2325s
+2026-04-01T19:05:16.585175Z  INFO   [ 75/316]   23.7% | COMPUSDT — 11328 trades | total: 528205 | ETA: 1439s
+2026-04-01T19:05:59.881291Z  INFO   [ 90/316]   28.5% | DRIFTUSDT — 9247 trades | total: 656232 | ETA: 1233s
+2026-04-01T19:06:33.576179Z  INFO   [105/316]   33.2% | ETHFIUSDT — 8799 trades | total: 750195 | ETA: 1055s
+2026-04-01T19:07:06.869051Z  INFO   [120/316]   38.0% | GIGGLEUSDT — 5684 trades | total: 846522 | ETA: 912s
+2026-04-01T19:07:33.420151Z  INFO   [135/316]   42.7% | HYPEUSDT — 7087 trades | total: 926511 | ETA: 784s
+2026-04-01T19:08:06.592037Z  INFO   [150/316]   47.5% | JSTUSDT — 1181 trades | total: 1018647 | ETA: 684s
+2026-04-01T19:08:35.671357Z  INFO   [165/316]   52.2% | LIGHTUSDT — 5043 trades | total: 1102427 | ETA: 592s
+2026-04-01T19:09:07.992671Z  INFO   [180/316]   57.0% | MONUSDT — 7369 trades | total: 1196890 | ETA: 513s
+2026-04-01T19:09:40.758715Z  INFO   [195/316]   61.7% | OGUSDT — 950 trades | total: 1289502 | ETA: 442s
+2026-04-01T19:10:12.272106Z  INFO   [210/316]   66.5% | PHAUSDT — 10314 trades | total: 1381616 | ETA: 375s

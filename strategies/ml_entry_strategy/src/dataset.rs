@@ -216,6 +216,13 @@ pub struct SuperEntryExample {
     pub magnitude_pct: f64,
     pub is_super: bool,
     pub future_return_20: f64, // close[t+20] / close[t] - 1 (in %)
+    /// Directional super labels for no-direction-model approach:
+    /// is_super_long = is_super AND close[t+lookahead] > close[t]
+    /// This means: model predicts simultaneously "strong move" AND "price goes UP"
+    pub is_super_long: bool,
+    /// is_super_short = is_super AND close[t+lookahead] < close[t]
+    /// This means: model predicts simultaneously "strong move" AND "price goes DOWN"
+    pub is_super_short: bool,
 }
 
 /// Compute dynamic/temporal features for candle at index `t` using lookback
@@ -854,8 +861,16 @@ pub fn build_labels_with_htf(
 
         // Future return at exactly lookahead bars
         let future_close_idx = (t + lookahead).min(n - 1);
+        let future_close = candles[future_close_idx].close;
         let future_return_20 =
-            (candles[future_close_idx].close - entry_price) / entry_price * 100.0;
+            (future_close - entry_price) / entry_price * 100.0;
+
+        // Directional super labels: combine is_super with price direction
+        // at the END of the lookahead window. This embeds direction info
+        // directly into the super label, eliminating the need for a separate
+        // direction model.
+        let is_super_long = is_super && future_close > entry_price;
+        let is_super_short = is_super && future_close < entry_price;
 
         // Static features (indicators + derived) + dynamic temporal features
         // HTF lookup: find the latest HTF candle at or before current candle time
@@ -880,6 +895,8 @@ pub fn build_labels_with_htf(
             magnitude_pct: magnitude,
             is_super,
             future_return_20,
+            is_super_long,
+            is_super_short,
         });
     }
 
@@ -1192,7 +1209,7 @@ pub fn export_dataset_csv(
         header.push(',');
         header.push_str(name);
     }
-    header.push_str(",max_up_move_pct,max_down_move_pct,direction,magnitude_pct,is_super,future_return_20");
+    header.push_str(",max_up_move_pct,max_down_move_pct,direction,magnitude_pct,is_super,future_return_20,is_super_long,is_super_short");
     writeln!(buf, "{}", header)?;
 
     // Rows — pre-allocate line buffer to avoid per-row allocation
@@ -1206,13 +1223,15 @@ pub fn export_dataset_csv(
         }
         write!(
             line,
-            ",{:.6},{:.6},{},{:.6},{},{:.6}",
+            ",{:.6},{:.6},{},{:.6},{},{:.6},{},{}",
             ex.max_up_move_pct,
             ex.max_down_move_pct,
             ex.direction,
             ex.magnitude_pct,
             if ex.is_super { 1 } else { 0 },
-            ex.future_return_20
+            ex.future_return_20,
+            if ex.is_super_long { 1 } else { 0 },
+            if ex.is_super_short { 1 } else { 0 },
         )
         .unwrap();
         writeln!(buf, "{}", line)?;

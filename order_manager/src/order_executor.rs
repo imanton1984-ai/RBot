@@ -54,6 +54,13 @@ impl OrderExecutor {
         let entry_side = side.entry_side_str();
         let close_side = side.close_side_str();
 
+        // Lazy-refresh exchange info if cache is empty (startup without Binance connectivity)
+        if self.exchange_info.is_empty().await {
+            info!("Exchange info cache empty, refreshing before trade...");
+            self.exchange_info.refresh().await
+                .context("Failed to load exchange info — cannot trade without symbol precision data")?;
+        }
+
         // 1. Рассчитать количество (с учётом Exchange Info stepSize)
         let qty = self.calculate_quantity(signal.current_price, symbol).await?;
 
@@ -164,6 +171,8 @@ impl OrderExecutor {
             self.insert_order_record(signal, position_id, tp, "TAKE_PROFIT_MARKET", true).await.ok();
         }
 
+        let effective_hold = self.config.effective_max_hold_bars();
+
         let managed = ManagedPosition {
             position_id,
             symbol: symbol.clone(),
@@ -175,8 +184,8 @@ impl OrderExecutor {
             tp_price: signal.tp_price,
             qty: filled_qty,
             leverage: self.config.leverage,
-            candles_left: self.config.max_hold_bars,
-            max_hold_bars: self.config.max_hold_bars,
+            candles_left: effective_hold,
+            max_hold_bars: effective_hold,
             unrealized_pnl: 0.0,
             unrealized_pnl_pct: 0.0,
             current_price: filled_price,
@@ -191,7 +200,7 @@ impl OrderExecutor {
         info!(
             "📊 Position #{} opened: {} {} entry={:.4} SL={:.4} TP={:.4} tf={}m candles_left={}",
             position_id, symbol, side, filled_price, signal.sl_price, signal.tp_price,
-            signal.tf_minutes, self.config.max_hold_bars
+            signal.tf_minutes, effective_hold
         );
 
         Ok(managed)
@@ -592,8 +601,8 @@ impl OrderExecutor {
         .bind(PositionStatus::Open.as_i16())
         .bind(signal.tf_minutes)
         .bind(signal.signal_time)
-        .bind(self.config.max_hold_bars)
-        .bind(self.config.max_hold_bars)
+        .bind(self.config.effective_max_hold_bars())
+        .bind(self.config.effective_max_hold_bars())
         .bind(signal.sl_price)
         .bind(signal.tp_price)
         .bind(signal.combined_score)

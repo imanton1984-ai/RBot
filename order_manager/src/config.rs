@@ -14,6 +14,150 @@ use tracing::{info, warn};
 
 use crate::types::TimeframeAllocation;
 
+/// Настройки Pump/Dump стратегии (подсекция [pump_dump] в order_manager.toml)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PumpDumpSettings {
+    /// Включить стратегию pump_dump
+    #[serde(default)]
+    pub enabled: bool,
+    /// Таргет: минимальное движение цены (%) для TP
+    #[serde(default = "default_pd_target_pct")]
+    pub target_pct: f64,
+    /// Максимальное количество баров удержания позиции
+    #[serde(default = "default_pd_max_hold_bars")]
+    pub max_hold_bars: i16,
+    /// Стоп-лосс как доля от таргета (0.65 = SL = 65% от TP)
+    #[serde(default = "default_pd_sl_fraction")]
+    pub sl_fraction: f64,
+    /// Минимальный порог prediction для генерации сигнала
+    #[serde(default = "default_pd_min_pred")]
+    pub min_pred: f32,
+    /// Минимальный finest_tf (1 = 1m)
+    #[serde(default = "default_pd_min_finest_tf")]
+    pub min_finest_tf: i32,
+    /// Максимальный finest_tf (60 = 1h)
+    #[serde(default = "default_pd_max_finest_tf")]
+    pub max_finest_tf: i32,
+
+    // Per-TF минимальные пороги prediction для order_manager
+    #[serde(default = "default_pd_pred_min")]
+    pub pd_pred_min_5m: f32,
+    #[serde(default = "default_pd_pred_min")]
+    pub pd_pred_min_15m: f32,
+    #[serde(default = "default_pd_pred_min")]
+    pub pd_pred_min_1h: f32,
+    #[serde(default)]
+    pub pd_pred_min_4h: f32,
+    #[serde(default)]
+    pub pd_pred_min_1d: f32,
+
+    // Распределение слотов по таймфреймам
+    #[serde(default = "default_pd_tf_5m_pct")]
+    pub pd_tf_5m_pct: u16,
+    #[serde(default = "default_pd_tf_15m_pct")]
+    pub pd_tf_15m_pct: u16,
+    #[serde(default = "default_pd_tf_1h_pct")]
+    pub pd_tf_1h_pct: u16,
+    #[serde(default)]
+    pub pd_tf_4h_pct: u16,
+    #[serde(default)]
+    pub pd_tf_1d_pct: u16,
+}
+
+fn default_pd_target_pct() -> f64 { 15.0 }
+fn default_pd_max_hold_bars() -> i16 { 3 }
+fn default_pd_sl_fraction() -> f64 { 0.65 }
+fn default_pd_min_pred() -> f32 { 0.65 }
+fn default_pd_min_finest_tf() -> i32 { 1 }
+fn default_pd_max_finest_tf() -> i32 { 60 }
+fn default_pd_pred_min() -> f32 { 0.65 }
+fn default_pd_tf_5m_pct() -> u16 { 30 }
+fn default_pd_tf_15m_pct() -> u16 { 40 }
+fn default_pd_tf_1h_pct() -> u16 { 30 }
+
+impl Default for PumpDumpSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            target_pct: 15.0,
+            max_hold_bars: 3,
+            sl_fraction: 0.65,
+            min_pred: 0.65,
+            min_finest_tf: 1,
+            max_finest_tf: 60,
+            pd_pred_min_5m: 0.70,
+            pd_pred_min_15m: 0.65,
+            pd_pred_min_1h: 0.65,
+            pd_pred_min_4h: 0.0,
+            pd_pred_min_1d: 0.0,
+            pd_tf_5m_pct: 30,
+            pd_tf_15m_pct: 40,
+            pd_tf_1h_pct: 30,
+            pd_tf_4h_pct: 0,
+            pd_tf_1d_pct: 0,
+        }
+    }
+}
+
+impl PumpDumpSettings {
+    /// Получить минимальный порог prediction для данного TF
+    pub fn get_pred_min_for_tf(&self, tf_minutes: i16) -> f32 {
+        match tf_minutes {
+            5 => self.pd_pred_min_5m,
+            15 => self.pd_pred_min_15m,
+            60 => self.pd_pred_min_1h,
+            240 => self.pd_pred_min_4h,
+            1440 => self.pd_pred_min_1d,
+            _ => 0.0,
+        }
+    }
+
+    /// Вычислить распределение слотов по таймфреймам для pump_dump
+    pub fn timeframe_allocation(&self, total_slots: u16) -> TimeframeAllocation {
+        let slots_5m = (total_slots as f64 * self.pd_tf_5m_pct as f64 / 100.0).floor() as u16;
+        let slots_15m = (total_slots as f64 * self.pd_tf_15m_pct as f64 / 100.0).floor() as u16;
+        let slots_4h = (total_slots as f64 * self.pd_tf_4h_pct as f64 / 100.0).floor() as u16;
+        let slots_1d = (total_slots as f64 * self.pd_tf_1d_pct as f64 / 100.0).floor() as u16;
+        let slots_1h = total_slots
+            .saturating_sub(slots_5m)
+            .saturating_sub(slots_15m)
+            .saturating_sub(slots_4h)
+            .saturating_sub(slots_1d);
+
+        TimeframeAllocation {
+            slots: vec![
+                (1, 0),
+                (5, slots_5m),
+                (15, slots_15m),
+                (60, slots_1h),
+                (240, slots_4h),
+                (1440, slots_1d),
+            ],
+            total: total_slots,
+        }
+    }
+
+    /// Валидация
+    pub fn validate(&self) -> anyhow::Result<()> {
+        if self.target_pct <= 0.0 || self.target_pct > 100.0 {
+            anyhow::bail!("pump_dump.target_pct must be in (0, 100], got {}", self.target_pct);
+        }
+        if self.max_hold_bars <= 0 {
+            anyhow::bail!("pump_dump.max_hold_bars must be > 0, got {}", self.max_hold_bars);
+        }
+        let total_pct = self.pd_tf_5m_pct + self.pd_tf_15m_pct + self.pd_tf_1h_pct
+            + self.pd_tf_4h_pct + self.pd_tf_1d_pct;
+        if total_pct != 100 {
+            anyhow::bail!(
+                "pump_dump TF percentages must sum to 100, got {} (5m={}%, 15m={}%, 1h={}%, 4h={}%, 1d={}%)",
+                total_pct, self.pd_tf_5m_pct, self.pd_tf_15m_pct, self.pd_tf_1h_pct,
+                self.pd_tf_4h_pct, self.pd_tf_1d_pct
+            );
+        }
+        Ok(())
+    }
+}
+
 /// Полная конфигурация Order Manager (единый файл config/order_manager.toml)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderManagerConfig {
@@ -130,6 +274,11 @@ pub struct OrderManagerConfig {
     /// DEPRECATED: use p_super_min_* per TF. Kept for backward compat, ignored if per-TF set.
     #[serde(default = "default_p_super_min")]
     pub p_super_min: f32,
+
+    // ─── Pump/Dump Strategy Settings ────────────────────────
+    /// Настройки стратегии pump_dump (подсекция [pump_dump] в TOML)
+    #[serde(default)]
+    pub pump_dump: PumpDumpSettings,
 }
 
 fn default_trade_size_type() -> String { "fixed_usdt".to_string() }
@@ -199,6 +348,7 @@ impl Default for OrderManagerConfig {
                 "postgres://postgres:postgres@127.0.0.1:5433/timescaledb_binance".to_string()
             ),
             binance_testnet: false,
+            pump_dump: PumpDumpSettings::default(),
         }
     }
 }
@@ -207,6 +357,29 @@ impl OrderManagerConfig {
     /// Is trading mode auto?
     pub fn is_auto(&self) -> bool {
         self.trading_mode == "auto"
+    }
+
+    /// Is pump_dump strategy active?
+    pub fn is_pump_dump(&self) -> bool {
+        self.strategy_type == "ml_pump_dump" || self.pump_dump.enabled
+    }
+
+    /// Get effective max_hold_bars (uses pump_dump setting when active)
+    pub fn effective_max_hold_bars(&self) -> i16 {
+        if self.is_pump_dump() {
+            self.pump_dump.max_hold_bars
+        } else {
+            self.max_hold_bars
+        }
+    }
+
+    /// Get effective timeframe allocation (uses pump_dump settings when active)
+    pub fn effective_timeframe_allocation(&self) -> TimeframeAllocation {
+        if self.is_pump_dump() {
+            self.pump_dump.timeframe_allocation(self.max_orders_at_a_time)
+        } else {
+            self.timeframe_allocation()
+        }
     }
 
     /// Get P(SUPER) minimum threshold for a given timeframe.
@@ -389,6 +562,10 @@ impl OrderManagerConfig {
                 self.tf_1h_pct, self.tf_4h_pct, self.tf_1d_pct
             );
         }
+        // Validate pump_dump subsection if enabled
+        if self.pump_dump.enabled || self.strategy_type == "ml_pump_dump" {
+            self.pump_dump.validate()?;
+        }
         Ok(())
     }
 
@@ -421,8 +598,24 @@ impl OrderManagerConfig {
     }
 
     /// Lookback-окно для таймфрейма (в минутах).
+    ///
+    /// For pump_dump strategy: uses much wider lookback because pump/dump
+    /// signals are rare events (not generated every candle like super_entry).
+    /// 60 minutes for intraday TFs, longer for higher TFs.
     pub fn lookback_minutes_for_tf(&self, tf_minutes: i16) -> i64 {
-        tf_minutes as i64
+        if self.is_pump_dump() {
+            // Pump/dump signals are rare — widen the lookback window significantly
+            match tf_minutes {
+                5 => 60,       // look back 1h for 5m signals
+                15 => 120,     // look back 2h for 15m signals
+                60 => 240,     // look back 4h for 1h signals
+                240 => 480,    // look back 8h for 4h signals
+                1440 => 1440,  // look back 24h for 1d signals
+                _ => 60,
+            }
+        } else {
+            tf_minutes as i64
+        }
     }
 }
 

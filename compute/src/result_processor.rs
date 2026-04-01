@@ -24,13 +24,16 @@ pub struct ResultProcessor {
 }
 
 impl ResultProcessor {
-    /// Check if ACTIVE_STRATEGY is "super_entry" — in that case raw_signals are unused.
+    /// Check if ACTIVE_STRATEGY uses ML-based signals — in that case raw_signals are unused.
+    /// Strategies that skip raw_signals: super_entry, pump_dump, ml_pump_dump.
     fn should_skip_raw_signals() -> bool {
         let strategy = std::env::var("ACTIVE_STRATEGY").unwrap_or_else(|_| "level".to_string());
-        let skip = strategy == "super_entry";
+        let skip = strategy == "super_entry"
+            || strategy == "pump_dump"
+            || strategy == "ml_pump_dump";
         if skip {
             tracing::info!(
-                "ACTIVE_STRATEGY={} — raw_signals processing DISABLED (not used by super_entry)",
+                "ACTIVE_STRATEGY={} — raw_signals processing DISABLED (not used by ML strategies)",
                 strategy
             );
         }

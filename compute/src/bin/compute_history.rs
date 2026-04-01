@@ -30,6 +30,11 @@ fn is_super_entry_enabled() -> bool {
     strategy == "super_entry" || strategy == "combined" || explicit
 }
 
+/// Check if pump_dump strategy is enabled
+fn is_pump_dump_enabled() -> bool {
+    compute_lib::pump_dump_stage::is_pump_dump_enabled()
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
@@ -42,12 +47,15 @@ async fn main() -> Result<()> {
 
     let run_predictors = should_run_predictors();
     let is_super = is_super_entry_enabled();
+    let is_pump_dump = is_pump_dump_enabled();
 
     if run_predictors {
         tracing::info!("compute_history: Running predictors + trade_signals pipeline (level strategy)");
+    } else if is_pump_dump {
+        tracing::info!("compute_history: MODE: indicators + pump_dump_signals (DB-based backfill)");
     } else if is_super {
         tracing::info!("compute_history: MODE: indicators + raw_signals + super_entry_signals (ZERO-COPY)");
-        tracing::info!("compute_history: SUPER_ENTRY_ENABLED={}", 
+        tracing::info!("compute_history: SUPER_ENTRY_ENABLED={}",
             std::env::var("SUPER_ENTRY_ENABLED").unwrap_or_else(|_| "false".to_string()));
     } else {
         tracing::info!("compute_history: Skipping predictors pipeline (strategy: {})", active_strategy);
@@ -135,6 +143,12 @@ async fn main() -> Result<()> {
             config.use_cuda,
         ).await;
         None
+    } else if is_pump_dump {
+        // Pump/Dump strategy: indicators only (backfill runs after main loop)
+        // Drop feature_rx — we don't need in-memory stage for history mode
+        drop(feature_rx);
+        tracing::info!("compute_history: Pump/Dump mode — feature channel dropped (DB-based backfill after indicators)");
+        None
     } else if is_super {
         // ═══════════════════════════════════════════════════════════════════
         // SUPER ENTRY ZERO-COPY PATH:
@@ -178,16 +192,8 @@ async fn main() -> Result<()> {
     // --- PIPELINE SETUP END ---
 
     // =====================================================================
-    // INCREMENTAL GAP-AWARE PROCESSING LOOP (v2 — optimized)
+    // PROCESSING: Strategy-specific paths
     // =====================================================================
-    //
-    // Key optimizations vs v1:
-    //   1. Smart polling instead of hardcoded sleep(120s)
-    //   2. Bulk gap detection: ONE SQL query for ALL symbols×TFs
-    //   3. Ingestor-aware exit: tracks candle growth to know when ingestor is done
-    //   4. No N+1 diagnostic queries
-
-    let poll_interval_secs: u64 = 15;  // faster polling for gap check
 
     // 1) Wait for active pairs to appear
     let symbols = wait_for_active_symbols(&db_pool).await?;
@@ -203,7 +209,19 @@ async fn main() -> Result<()> {
         Timeframe::D1,
     ];
 
-    let timeframes: Vec<Timeframe> = if is_super {
+    let timeframes: Vec<Timeframe> = if is_pump_dump {
+        // Pump/Dump needs ALL analysis TFs for multi-TF feature extraction
+        let pd_tfs = compute_lib::pump_dump_stage::pump_dump_analysis_tfs();
+        let filtered: Vec<Timeframe> = all_timeframes.iter()
+            .filter(|tf| pd_tfs.contains(&(tf.to_minutes() as i32)))
+            .copied()
+            .collect();
+        tracing::info!(
+            "compute_history (pump_dump): FILTERED timeframes: {:?}",
+            filtered.iter().map(|tf| tf.as_str()).collect::<Vec<_>>()
+        );
+        filtered
+    } else if is_super {
         use ml_entry_strategy::config::SuperEntryConfig;
         let active_tfs = SuperEntryConfig::timeframes();
         let filtered: Vec<Timeframe> = all_timeframes.iter()
@@ -220,9 +238,6 @@ async fn main() -> Result<()> {
     };
 
     // ─── Decompress ALL target hypertable chunks ────────────────────
-    // TimescaleDB compression causes "tuple decompression limit exceeded by operation"
-    // on bulk INSERT into compressed chunks (especially with 20+ pairs × deep history).
-    // Decompress ALL tables that BulkPersistor writes to before starting.
     {
         let tables_to_decompress = [
             "market.indicators_wide",
@@ -250,9 +265,7 @@ async fn main() -> Result<()> {
         tracing::info!("All target tables decompressed — safe for bulk INSERT");
     }
 
-    // ─── Smart wait for ingestor (replaces hardcoded sleep 120s) ──────
-    // Poll every 5s, start as soon as ANY candle data appears in required TFs.
-    // Max wait 180s to handle cold-start.
+    // ─── Smart wait for ingestor ──────────────────────────────────────
     {
         let wait_start = std::time::Instant::now();
         let max_wait = Duration::from_secs(180);
@@ -283,117 +296,167 @@ async fn main() -> Result<()> {
         }
     }
 
-    // ─── Bulk diagnostic (ONE query instead of 724) ───────────────────
-    if is_super {
-        let tf_list: Vec<i16> = timeframes.iter().map(|tf| tf.to_minutes() as i16).collect();
-        let diag = bulk_gap_summary(&db_pool, &timeframes).await;
+    // =====================================================================
+    // PUMP/DUMP FAST PATH — single pass, no polling loop
+    // =====================================================================
+    if is_pump_dump {
+        tracing::info!("compute_history: === PUMP/DUMP FAST PATH ===");
+        tracing::info!("compute_history: One-shot gap detection → submit all → wait → backfill → exit");
+
+        // Fast gap detection using MAX(time_ms) only (no COUNT(*))
+        let all_gaps = find_all_gaps_fast(&db_pool, &timeframes).await;
+        let actionable_gaps: Vec<&BulkGapInfo> = all_gaps.iter()
+            .filter(|g| g.gap_candles >= 25)
+            .collect();
+
         tracing::info!(
-            "compute_history: {} symbols, {} TFs ({:?}). Gaps: {}/{} symbol×TF pairs need indicators",
-            symbols.len(), tf_list.len(), tf_list, diag.gaps_with_work, diag.total_pairs
+            "compute_history: Found {} gaps ({} actionable ≥25 candles)",
+            all_gaps.len(), actionable_gaps.len()
         );
-    }
 
-    // ─── Main processing loop ─────────────────────────────────────────
-    // Ingestor-aware: we track total candle count across all TFs.
-    // If candle count grows between cycles → ingestor still loading → don't exit.
-    // If candle count stable AND no gaps → truly done.
-    let mut prev_total_candles: i64 = 0;
-    let mut stable_cycles: u32 = 0;          // cycles where candle count didn't grow AND no gaps
-    let max_stable_cycles: u32 = 2;          // exit after 2 consecutive stable+idle cycles
-    let mut total_jobs_submitted: u64 = 0;
-    let mut cycle_count: u64 = 0;
+        if !actionable_gaps.is_empty() {
+            let mut total_jobs = 0u64;
+            for gap in &actionable_gaps {
+                let symbol = Symbol::from(gap.symbol.clone());
+                let timeframe = match gap.tf_str.parse::<Timeframe>() {
+                    Ok(tf) => tf,
+                    Err(_) => continue,
+                };
+                let length = (gap.gap_candles as usize + 200).min(10_000);
 
-    loop {
-        cycle_count += 1;
-        let mut jobs_this_cycle: u64 = 0;
+                let window_spec = WindowSpec {
+                    length,
+                    warmup: 100,
+                };
 
-        // ── BULK gap detection: ONE SQL per TF (instead of 724 individual queries) ──
-        let all_gaps = find_all_gaps_bulk(&db_pool, &timeframes).await;
-
-        for gap in &all_gaps {
-            if gap.gap_candles < 25 {
-                continue;
+                if let Err(e) = job_scheduler
+                    .submit_batch(timeframe, vec![symbol.clone()], window_spec)
+                    .await
+                {
+                    tracing::error!("Submit failed: {} {}: {}", gap.symbol, gap.tf_str, e);
+                } else {
+                    total_jobs += 1;
+                }
             }
 
-            let symbol = Symbol::from(gap.symbol.clone());
-            let timeframe = match gap.tf_str.parse::<Timeframe>() {
-                Ok(tf) => tf,
-                Err(_) => continue,
-            };
+            tracing::info!("compute_history: Submitted {} indicator jobs. Waiting for completion...", total_jobs);
 
-            let length = (gap.gap_candles as usize + 200).min(10_000);
+            // Wait proportional to jobs, but with a cap.
+            // GPU computes ~50 jobs/sec, so 1000 jobs ≈ 20s + buffer.
+            let wait_secs = ((total_jobs as f64 / 20.0) + 15.0).min(120.0) as u64;
+            tracing::info!("compute_history: Waiting {}s for indicator computation to complete...", wait_secs);
+            tokio::time::sleep(Duration::from_secs(wait_secs)).await;
+        } else {
+            tracing::info!("compute_history: No indicator gaps — all indicators up to date");
+        }
+    } else {
+        // =====================================================================
+        // STANDARD POLLING LOOP (for level / super_entry strategies)
+        // =====================================================================
+        let poll_interval_secs: u64 = 15;
 
+        // ─── Bulk diagnostic ───────────────────────────────────────────
+        if is_super {
+            let tf_list: Vec<i16> = timeframes.iter().map(|tf| tf.to_minutes() as i16).collect();
+            let diag = bulk_gap_summary(&db_pool, &timeframes).await;
             tracing::info!(
-                "Gap detected: {} {} gap_candles={} total_fetch={}",
-                gap.symbol, gap.tf_str, gap.gap_candles, length
+                "compute_history: {} symbols, {} TFs ({:?}). Gaps: {}/{} symbol×TF pairs need indicators",
+                symbols.len(), tf_list.len(), tf_list, diag.gaps_with_work, diag.total_pairs
             );
-
-            let window_spec = WindowSpec {
-                length,
-                warmup: 100,
-            };
-
-            if let Err(e) = job_scheduler
-                .submit_batch(timeframe, vec![symbol], window_spec)
-                .await
-            {
-                tracing::error!("Submit batch failed for {} {}: {}", gap.symbol, gap.tf_str, e);
-            } else {
-                jobs_this_cycle += 1;
-            }
         }
 
-        total_jobs_submitted += jobs_this_cycle;
+        let mut prev_total_candles: i64 = 0;
+        let mut stable_cycles: u32 = 0;
+        let max_stable_cycles: u32 = 2;
+        let mut total_jobs_submitted: u64 = 0;
+        let mut cycle_count: u64 = 0;
 
-        // ── Check ingestor progress: are candles still growing? ──
-        let current_total_candles = count_total_candles(&db_pool, &timeframes).await;
-        let candles_growing = current_total_candles > prev_total_candles;
-        prev_total_candles = current_total_candles;
+        loop {
+            cycle_count += 1;
+            let mut jobs_this_cycle: u64 = 0;
 
-        if jobs_this_cycle > 0 {
-            stable_cycles = 0;
-            tracing::info!(
-                "Cycle {}: submitted {} jobs (total: {}). Candles: {} ({}). Waiting for processing...",
-                cycle_count, jobs_this_cycle, total_jobs_submitted,
-                current_total_candles,
-                if candles_growing { "growing" } else { "stable" }
-            );
-            // Scale wait by job count — but not excessively
-            let wait = if jobs_this_cycle > 100 {
-                Duration::from_secs(60)
-            } else if jobs_this_cycle > 20 {
-                Duration::from_secs(30)
-            } else {
-                Duration::from_secs(poll_interval_secs)
-            };
-            tokio::time::sleep(wait).await;
-        } else {
-            // No gaps found this cycle
-            if candles_growing {
-                // Ingestor still loading — new candles appeared, wait and recheck
+            let all_gaps = find_all_gaps_bulk(&db_pool, &timeframes).await;
+
+            for gap in &all_gaps {
+                if gap.gap_candles < 25 {
+                    continue;
+                }
+
+                let symbol = Symbol::from(gap.symbol.clone());
+                let timeframe = match gap.tf_str.parse::<Timeframe>() {
+                    Ok(tf) => tf,
+                    Err(_) => continue,
+                };
+
+                let length = (gap.gap_candles as usize + 200).min(10_000);
+
+                tracing::info!(
+                    "Gap detected: {} {} gap_candles={} total_fetch={}",
+                    gap.symbol, gap.tf_str, gap.gap_candles, length
+                );
+
+                let window_spec = WindowSpec {
+                    length,
+                    warmup: 100,
+                };
+
+                if let Err(e) = job_scheduler
+                    .submit_batch(timeframe, vec![symbol], window_spec)
+                    .await
+                {
+                    tracing::error!("Submit batch failed for {} {}: {}", gap.symbol, gap.tf_str, e);
+                } else {
+                    jobs_this_cycle += 1;
+                }
+            }
+
+            total_jobs_submitted += jobs_this_cycle;
+
+            let current_total_candles = count_total_candles(&db_pool, &timeframes).await;
+            let candles_growing = current_total_candles > prev_total_candles;
+            prev_total_candles = current_total_candles;
+
+            if jobs_this_cycle > 0 {
                 stable_cycles = 0;
                 tracing::info!(
-                    "Cycle {}: no gaps but candles still growing ({} total, +{}). Ingestor active — waiting...",
-                    cycle_count, current_total_candles,
-                    current_total_candles - prev_total_candles + (current_total_candles - prev_total_candles).abs()
+                    "Cycle {}: submitted {} jobs (total: {}). Candles: {} ({}). Waiting for processing...",
+                    cycle_count, jobs_this_cycle, total_jobs_submitted,
+                    current_total_candles,
+                    if candles_growing { "growing" } else { "stable" }
                 );
-                tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
+                let wait = if jobs_this_cycle > 100 {
+                    Duration::from_secs(60)
+                } else if jobs_this_cycle > 20 {
+                    Duration::from_secs(30)
+                } else {
+                    Duration::from_secs(poll_interval_secs)
+                };
+                tokio::time::sleep(wait).await;
             } else {
-                // Candles stable AND no gaps → possible completion
-                stable_cycles += 1;
-                tracing::info!(
-                    "Cycle {}: no gaps, candles stable ({} total). Stable cycle {}/{}. Total jobs: {}",
-                    cycle_count, current_total_candles, stable_cycles, max_stable_cycles, total_jobs_submitted
-                );
-                if stable_cycles >= max_stable_cycles {
+                if candles_growing {
+                    stable_cycles = 0;
                     tracing::info!(
-                        "Ingestor done + no gaps for {} cycles. History processing complete. \
-                         Total cycles: {}, total jobs: {}, total candles: {}",
-                        max_stable_cycles, cycle_count, total_jobs_submitted, current_total_candles
+                        "Cycle {}: no gaps but candles still growing ({} total, +{}). Ingestor active — waiting...",
+                        cycle_count, current_total_candles,
+                        current_total_candles - prev_total_candles + (current_total_candles - prev_total_candles).abs()
                     );
-                    break;
+                    tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
+                } else {
+                    stable_cycles += 1;
+                    tracing::info!(
+                        "Cycle {}: no gaps, candles stable ({} total). Stable cycle {}/{}. Total jobs: {}",
+                        cycle_count, current_total_candles, stable_cycles, max_stable_cycles, total_jobs_submitted
+                    );
+                    if stable_cycles >= max_stable_cycles {
+                        tracing::info!(
+                            "Ingestor done + no gaps for {} cycles. History processing complete. \
+                             Total cycles: {}, total jobs: {}, total candles: {}",
+                            max_stable_cycles, cycle_count, total_jobs_submitted, current_total_candles
+                        );
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
                 }
-                tokio::time::sleep(Duration::from_secs(poll_interval_secs)).await;
             }
         }
     }
@@ -433,6 +496,29 @@ async fn main() -> Result<()> {
             }
             Err(_) => {
                 tracing::error!("compute_history: ❌ SuperEntryStage timed out after 300s");
+            }
+        }
+    } else if is_pump_dump {
+        // ═══════════════════════════════════════════════════════════════════
+        // PUMP/DUMP: DB-based backfill after indicators are computed.
+        // Reads candles+indicators from DB (identical to backtest).
+        // Uses BULK loading: 5 SQL queries total, then in-memory inference.
+        // ═══════════════════════════════════════════════════════════════════
+        tracing::info!("compute_history: === PUMP/DUMP BACKFILL ===");
+        
+        // Short flush wait — indicators should be mostly flushed after the wait in fast path
+        tracing::info!("Waiting 10s for final DB flush...");
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        match compute_lib::pump_dump_stage::run_pump_dump_backfill(&db_pool, config.use_cuda).await {
+            Ok(total_signals) => {
+                tracing::info!(
+                    "compute_history: ✅ Pump/Dump backfill complete: {} signals written",
+                    total_signals
+                );
+            }
+            Err(e) => {
+                tracing::error!("compute_history: ❌ Pump/Dump backfill failed: {}", e);
             }
         }
     } else if is_super {
@@ -692,14 +778,82 @@ struct GapSummary {
     gaps_with_work: u64,
 }
 
-/// Find ALL uncomputed gaps across ALL symbols and TFs in bulk.
-/// Uses ONE SQL query per TF — NO correlated subqueries (fast: <100ms).
+/// Find ALL uncomputed gaps — FAST version.
+/// Uses ONLY MAX(time_ms) comparisons (no COUNT(*) which is slow on huge tables).
 ///
-/// Strategy: Compare MAX(time_ms) in candles vs MAX(time_ms) in indicators.
-/// When last_indicator IS NULL → all candles are gaps (total_candles).
-/// When last_candle > last_indicator → estimate gap from time difference.
-/// This avoids the slow `COUNT(*) WHERE time > X` correlated subquery
-/// that was taking 3-5 seconds per TF on compressed TimescaleDB tables.
+/// When indicators don't exist yet for a symbol: uses a fixed estimate of 5000 gap candles.
+/// This avoids the full table scan COUNT(*) that was taking minutes on 10M+ row tables.
+async fn find_all_gaps_fast(pool: &PgPool, timeframes: &[Timeframe]) -> Vec<BulkGapInfo> {
+    let mut all_gaps = Vec::new();
+
+    for tf in timeframes {
+        let candle_table = format!("market.candles_{}", tf.as_str());
+        let tf_minutes = tf.to_minutes() as i16;
+        let tf_str = tf.as_str().to_string();
+        let interval_ms = tf.to_minutes() as i64 * 60 * 1000;
+
+        // FAST query: MAX(time_ms) only — no COUNT(*) full table scan.
+        // For symbols with no indicators yet: estimate 5000 gap candles.
+        let query = format!(
+            r#"
+            WITH candle_max AS (
+                SELECT symbol, MAX(time_ms) as last_candle_ms
+                FROM {}
+                GROUP BY symbol
+            ),
+            indicator_max AS (
+                SELECT symbol, MAX(time_ms) as last_indicator_ms
+                FROM market.indicators_wide
+                WHERE tf_minutes = $1
+                GROUP BY symbol
+            )
+            SELECT
+                c.symbol,
+                CASE
+                    WHEN i.last_indicator_ms IS NULL THEN 5000::bigint
+                    WHEN c.last_candle_ms > i.last_indicator_ms THEN
+                        GREATEST(1, (c.last_candle_ms - i.last_indicator_ms) / $2)
+                    ELSE 0::bigint
+                END as gap_candles
+            FROM candle_max c
+            LEFT JOIN indicator_max i ON c.symbol = i.symbol
+            WHERE i.last_indicator_ms IS NULL
+               OR c.last_candle_ms > i.last_indicator_ms
+            "#,
+            candle_table
+        );
+
+        match sqlx::query(&query)
+            .bind(tf_minutes)
+            .bind(interval_ms)
+            .fetch_all(pool)
+            .await
+        {
+            Ok(rows) => {
+                for row in rows {
+                    let symbol: String = row.get("symbol");
+                    let gap_candles: i64 = row.get("gap_candles");
+                    all_gaps.push(BulkGapInfo {
+                        symbol,
+                        tf_str: tf_str.clone(),
+                        gap_candles,
+                    });
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Fast gap detection failed for TF {}: {}", tf.as_str(), e);
+            }
+        }
+    }
+
+    all_gaps
+}
+
+/// Find ALL uncomputed gaps across ALL symbols and TFs in bulk.
+/// Uses ONE SQL query per TF — NO correlated subqueries.
+///
+/// NOTE: Uses COUNT(*) which is slow on huge tables. Prefer find_all_gaps_fast
+/// for pump_dump mode where speed is critical.
 async fn find_all_gaps_bulk(pool: &PgPool, timeframes: &[Timeframe]) -> Vec<BulkGapInfo> {
     let mut all_gaps = Vec::new();
 
@@ -709,8 +863,6 @@ async fn find_all_gaps_bulk(pool: &PgPool, timeframes: &[Timeframe]) -> Vec<Bulk
         let tf_str = tf.as_str().to_string();
         let interval_ms = tf.to_minutes() as i64 * 60 * 1000;
 
-        // Fast query: NO correlated subqueries.
-        // Uses MAX(time_ms) comparison and estimates gap size from time delta.
         let query = format!(
             r#"
             WITH candle_stats AS (

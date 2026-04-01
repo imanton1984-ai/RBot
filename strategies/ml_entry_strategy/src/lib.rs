@@ -1,10 +1,14 @@
 // strategies/ml_entry_strategy/src/lib.rs
 //
-// ML Entry Strategy — Super Entry Model
+// ML Entry Strategy — Super Entry Model (NoDir)
 //
-// A standalone strategy that uses XGBoost models to identify
-// high-probability entry points ("super entries") that are likely
-// to produce significant moves in the target direction.
+// A standalone strategy that uses two XGBoost models to identify
+// high-probability entry points:
+//   - P(super_long):  strong upward move probability
+//   - P(super_short): strong downward move probability
+//
+// Direction is embedded in the labels — NO separate direction model.
+// Conflict filter handles cases where both models fire simultaneously.
 //
 // This strategy is independent from the existing entry_policy and
 // signal quality models. It can be enabled/disabled via config flags.
@@ -12,11 +16,12 @@
 // MODULES:
 //   - config: Configuration and TF-specific target thresholds
 //   - dataset: Training data preparation (labeling, features)
-//   - model: XGBoost model loading and inference
-//   - scorer: Decision logic (P(super), direction, overheated filter)
+//   - model: XGBoost model loading and inference (NoDir: super_long + super_short)
+//   - scorer: Decision logic (per-TF thresholds, conflict filter)
 //   - signal_generator: Trade signal generation in system format
 //   - pipeline: Full orchestration pipeline
 //   - strategy: High-level strategy interface
+//   - direction: DEPRECATED — kept for backward compat but not used in production
 
 pub mod config;
 pub mod dataset;

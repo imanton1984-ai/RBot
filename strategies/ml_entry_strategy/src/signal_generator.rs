@@ -1,16 +1,15 @@
 // strategies/ml_entry_strategy/src/signal_generator.rs
 //
-// Signal Generator for Super Entry Strategy
+// Signal Generator for Super Entry Strategy (NoDir)
 //
 // Converts SuperEntryDecision into a trade signal compatible with
-// the existing system format (trade.final_signals table schema).
+// the existing system format (trade.super_entry_signals table schema).
 //
-// The generated signal includes:
-//   - entry_price (close of the current candle)
-//   - sl_price (derived from target move * sl_fraction)
-//   - tp_price (= target move %)
-//   - direction (LONG/SHORT from model)
-//   - reason JSON with strategy metadata
+// NoDir approach:
+//   - p_super comes from the winning model (super_long or super_short)
+//   - p_long stores P(super_long) for reference
+//   - dir_confidence stores the margin between P(super_long) and P(super_short)
+//   - No separate direction model
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -42,14 +41,12 @@ pub struct SuperEntrySignal {
     pub tp_price: f64,
     /// Combined score from the scorer (0..1+)
     pub final_score: f32,
-    /// P(super) from the model
+    /// P(super) for the chosen direction (p_super_long or p_super_short)
     pub p_super: f32,
-    /// P(LONG) / P(UP) from the direction model
+    /// P(super_long) — stored for reference (backward compat with p_long column)
     pub p_long: f32,
-    /// Direction confidence from model:
-    ///   v4: P(predicted_class) ∈ [0.5, 1.0]
-    ///   v3: abs(regression)
-    ///   legacy: |p_long - 0.5|
+    /// Direction confidence = margin between P(super_long) and P(super_short)
+    /// Backward compat with dir_confidence column in DB
     pub dir_confidence: f32,
     /// Strategy metadata as JSON
     pub reason: serde_json::Value,
@@ -58,12 +55,12 @@ pub struct SuperEntrySignal {
 impl SuperEntrySignal {
     /// Check if this is a LONG signal
     pub fn is_long(&self) -> bool {
-        self.side == 1
+        self.side == -1
     }
 
     /// Check if this is a SHORT signal
     pub fn is_short(&self) -> bool {
-        self.side == -1
+        self.side == 1
     }
 
     /// Get the target move in % for this signal's TF
@@ -151,19 +148,23 @@ impl SignalGenerator {
             (tp, sl)
         };
 
-        // p_long: for v4 this is P(UP) directly, for legacy it's 0.5 ± confidence
-        let p_long = if direction == 1 {
-            0.5 + dir_confidence.min(0.5)
+        // p_long: store the raw P(super_long) value for backward compat
+        // For LONG signals, p_long = p_super (the winning probability)
+        // For SHORT signals, p_long = p_super - dir_confidence (approx)
+        // Actually we store p_super directly in p_long for simplicity
+        let p_long = if direction == -1 {
+            p_super
         } else {
-            0.5 - dir_confidence.min(0.5)
+            // For SHORT, p_long ≈ p_super_short - margin
+            (p_super - dir_confidence).max(0.0)
         };
 
         let reason = json!({
-            "strategy": "ml_entry_strategy",
-            "model_version": "v1",
+            "strategy": "ml_entry_strategy_nodir",
+            "model_version": "nodir_v1",
             "p_super": p_super,
             "p_long": p_long,
-            "direction": if direction == 1 { "LONG" } else { "SHORT" },
+            "direction": if direction == -1 { "LONG" } else { "SHORT" },
             "dir_confidence": dir_confidence,
             "combined_score": combined_score,
             "target_move_pct": target_pct,
@@ -171,6 +172,7 @@ impl SignalGenerator {
             "atr": atr,
             "lookahead_bars": self.config.lookahead_bars,
             "p_threshold": self.config.p_threshold,
+            "approach": "P(super_long)+P(super_short), no direction model",
         });
 
         let time_ms = time.timestamp_millis();
@@ -187,7 +189,7 @@ impl SignalGenerator {
             tp_price,
             final_score: combined_score,
             p_super,
-            p_long: p_long as f32,
+            p_long,
             dir_confidence,
             reason,
         })
@@ -204,10 +206,10 @@ mod tests {
         let generator = SignalGenerator::new(config.clone());
 
         let decision = SuperEntryDecision::SuperEntry {
-            direction: 1,
-            p_super: 0.80,
-            dir_confidence: 0.30,
-            combined_score: 1.04,
+            direction: -1,
+            p_super: 0.85,
+            dir_confidence: 0.55,
+            combined_score: 1.275,
         };
 
         let signal = generator.generate(
@@ -223,7 +225,7 @@ mod tests {
         assert!(signal.is_some());
         let sig = signal.unwrap();
         assert!(sig.is_long());
-        assert_eq!(sig.side, 1);
+        assert_eq!(sig.side, -1);
         assert!(sig.tp_price > sig.entry_price); // TP above entry for LONG
         assert!(sig.sl_price < sig.entry_price); // SL below entry for LONG
         assert!((sig.tp_pct() - config.target_pct_for_tf(60)).abs() < 0.01);
@@ -235,10 +237,10 @@ mod tests {
         let generator = SignalGenerator::new(config);
 
         let decision = SuperEntryDecision::SuperEntry {
-            direction: -1,
-            p_super: 0.70,
-            dir_confidence: 0.25,
-            combined_score: 0.88,
+            direction: 1,
+            p_super: 0.90,
+            dir_confidence: 0.40,
+            combined_score: 1.26,
         };
 
         let signal = generator.generate(

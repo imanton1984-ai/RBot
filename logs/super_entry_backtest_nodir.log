@@ -1,0 +1,14 @@
+2026-03-30T14:15:33.689348Z  INFO SuperEntry compute timeframes: [5, 15, 60, 240, 1440] (from SUPER_ENTRY_TIMEFRAMES)
+2026-03-30T14:15:33.708533Z  INFO XGB Booster loaded: path=models/super_long_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:15:33.717507Z  INFO XGB Booster loaded: path=models/super_short_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:15:33.729077Z  INFO XGB Booster loaded: path=models/super_long_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:15:33.740754Z  INFO XGB Booster loaded: path=models/super_short_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:15:33.751699Z  INFO XGB Booster loaded: path=models/super_long_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:15:33.764150Z  INFO XGB Booster loaded: path=models/super_short_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:24:03.196464Z  INFO SuperEntry compute timeframes: [5, 15, 60, 240, 1440] (from SUPER_ENTRY_TIMEFRAMES)
+2026-03-30T14:24:03.205563Z  INFO XGB Booster loaded: path=models/super_long_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:24:03.218449Z  INFO XGB Booster loaded: path=models/super_short_v1_tf15.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:24:03.226027Z  INFO XGB Booster loaded: path=models/super_long_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:24:03.235507Z  INFO XGB Booster loaded: path=models/super_short_v1_tf60.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:24:03.249462Z  INFO XGB Booster loaded: path=models/super_long_v1_tf240.ubj, device=cpu, predictor=cpu_predictor
+2026-03-30T14:24:03.256814Z  INFO XGB Booster loaded: path=models/super_short_v1_tf240.ubj, device=cpu, predictor=cpu_predictor

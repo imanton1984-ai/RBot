@@ -165,8 +165,8 @@ pub fn generate_signal(
     }
 
     let side: i16 = match event_type {
-        EventType::Pump => 1,
-        EventType::Dump => -1,
+        EventType::Dump => 1,
+        EventType::Pump => -1,
     };
 
     let target_pct = config.target_pct;

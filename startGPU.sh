@@ -30,6 +30,7 @@ section "START (GPU MODE)"
 # Parse strategy flags
 STRATEGY="${STRATEGY:-default}"
 RUN_SUPER_ENTRY=false
+RUN_PUMP_DUMP=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -40,6 +41,11 @@ while [[ $# -gt 0 ]]; do
         --super-entry)
             RUN_SUPER_ENTRY=true
             STRATEGY="super_entry"  # Override strategy to super_entry
+            shift
+            ;;
+        --pump-dump)
+            RUN_PUMP_DUMP=true
+            STRATEGY="pump_dump"  # Override strategy to pump_dump
             shift
             ;;
         *)
@@ -63,6 +69,11 @@ if [ "$RUN_SUPER_ENTRY" = true ]; then
     log "SUPER ENTRY: ${C_GREEN}ENABLED${C_RESET}"
     log "SUPER_ENTRY_TIMEFRAMES: ${C_BOLD}$SUPER_ENTRY_TIMEFRAMES${C_RESET}"
 fi
+if [ "$RUN_PUMP_DUMP" = true ]; then
+    log "PUMP/DUMP: ${C_GREEN}ENABLED${C_RESET}"
+    log "  TFs for feature extraction: 5m, 15m, 1h, 4h, 1d"
+    log "  Trading TFs configured in config/order_manager.toml [pump_dump] section"
+fi
 
 # 1. System Check
 ./scripts/sys_check_gpu.sh
@@ -82,7 +93,7 @@ fi
 # 6. Run Services
 ./scripts/run.sh "release" "gpu"
 
-# 7. Super Entry Strategy info
+# 7. Strategy info
 if [ "$RUN_SUPER_ENTRY" = true ]; then
     section "SUPER ENTRY STRATEGY"
     log "Super Entry strategy is ENABLED"
@@ -92,6 +103,17 @@ if [ "$RUN_SUPER_ENTRY" = true ]; then
     ok "Super Entry integrated into compute pipeline"
 fi
 
+if [ "$RUN_PUMP_DUMP" = true ]; then
+    section "PUMP/DUMP STRATEGY"
+    log "Pump/Dump detection strategy is ENABLED"
+    log "  History backfill: integrated into compute_history (DB-based backfill after indicators)"
+    log "  Realtime signals: integrated into compute_realtime (pump_dump_stage)"
+    log "  Config: config/order_manager.toml [pump_dump] section"
+    log "  Models: models/pump_dump_pump_v1.ubj + models/pump_dump_dump_v1.ubj"
+    ok "Pump/Dump integrated into compute pipeline"
+fi
+
 echo -e "\n\033[1;32mGPU BOT STARTED SUCCESSFULLY\033[0m"
 echo -e "Active strategy: $STRATEGY"
 [ "$RUN_SUPER_ENTRY" = true ] && echo -e "Super Entry: \033[1;32mENABLED\033[0m"
+[ "$RUN_PUMP_DUMP" = true ] && echo -e "Pump/Dump: \033[1;32mENABLED\033[0m"

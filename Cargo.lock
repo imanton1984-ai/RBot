@@ -320,6 +320,7 @@ dependencies = [
  "dotenvy",
  "futures-util",
  "ml_entry_strategy",
+ "ml_pump_dump",
  "ndarray",
  "predictors",
  "raw_signals",

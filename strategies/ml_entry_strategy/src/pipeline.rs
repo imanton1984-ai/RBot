@@ -1,21 +1,19 @@
 // strategies/ml_entry_strategy/src/pipeline.rs
 //
-// Pipeline for Super Entry Strategy (v2 — ML-only, Direction v4)
+// Pipeline for Super Entry Strategy (NoDir — P(super_long) + P(super_short))
 //
 // Orchestrates the full flow:
 //   1. Load candles + indicators from DB
-//   2. Build feature vectors:
-//      a. 128 features for P(super) model
-//      b. v4 pattern features for Direction model (CNN-like sliding window)
-//   3. Run model inference
-//   4. Score predictions (apply P(super) threshold + per-TF direction confidence gate)
+//   2. Build 128-feature vectors (same for both models)
+//   3. Run batch inference: P(super_long) + P(super_short)
+//   4. Score predictions (per-TF threshold + conflict filter)
 //   5. Generate trade signals
 //
-// v2 changes (ML-only):
-//   - Direction v4 pattern model replaces v3 (32-feature regression)
-//   - Removed: heuristic cross-TF filter, danger zone filter, overheated filter
-//   - Only P(super) and direction confidence affect signal generation
-//   - Per-TF confidence thresholds: 15m≥0.75, 1h≥0.70, 4h≥0.65
+// NoDir changes:
+//   - REMOVED: Direction v4/v3/legacy models and their feature computation
+//   - REMOVED: Direction confidence gate
+//   - ADDED: Two-model inference (super_long + super_short) with conflict filter
+//   - Same 128 features used for both models
 //
 // Can be used both for:
 //   - Historical backtesting (batch processing all candles)
@@ -30,11 +28,6 @@ use crate::dataset::{CandleWithIndicators, fetch_candles_with_indicators, fetch_
 use crate::model::{SuperEntryModelManager, SuperEntryPrediction};
 use crate::scorer::{SuperEntryScorer, SuperEntryDecision};
 use crate::signal_generator::{SignalGenerator, SuperEntrySignal};
-use crate::direction::DirectionConfig;
-use crate::direction::features::{
-    compute_direction_v3_features, resolve_btc_context, resolve_htf_context,
-    compute_pattern_features, DIRECTION_V3_FEATURE_COUNT,
-};
 
 /// Result of processing a single candle through the pipeline
 #[derive(Debug, Clone)]
@@ -51,15 +44,15 @@ pub struct PipelineResult {
     pub agrees_count: Option<usize>,
 }
 
-/// Super Entry Pipeline
+/// Super Entry Pipeline (NoDir)
 ///
 /// Full pipeline: DB → features → model → scorer → signal
+/// Uses P(super_long) + P(super_short) models, no direction model.
 pub struct SuperEntryPipeline {
     config: SuperEntryConfig,
     model_manager: SuperEntryModelManager,
     scorer: SuperEntryScorer,
     signal_generator: SignalGenerator,
-    dir_config: DirectionConfig,
 }
 
 impl SuperEntryPipeline {
@@ -68,14 +61,12 @@ impl SuperEntryPipeline {
         let model_manager = SuperEntryModelManager::new(config.clone(), use_gpu)?;
         let scorer = SuperEntryScorer::from_strategy_config(&config);
         let signal_generator = SignalGenerator::new(config.clone());
-        let dir_config = DirectionConfig::from_env();
 
         Ok(Self {
             config,
             model_manager,
             scorer,
             signal_generator,
-            dir_config,
         })
     }
 
@@ -98,9 +89,8 @@ impl SuperEntryPipeline {
 
     /// Process candles with optional HTF (Higher Timeframe) context.
     ///
-    /// When `htf_candles` is provided:
-    ///   - HTF features in 128-set are populated
-    ///   - Direction v3 htf_supertrend_dir is populated (fallback only)
+    /// HTF context is used for dynamic features (htf_trend, htf_supertrend_dir, etc.)
+    /// but NOT for direction model (removed).
     pub fn process_candles_with_htf(
         &self,
         candles: &[CandleWithIndicators],
@@ -112,13 +102,14 @@ impl SuperEntryPipeline {
     }
 
     /// Process candles with HTF and BTC context.
+    /// BTC context is IGNORED in NoDir (was used for direction v3 features).
     pub fn process_candles_full(
         &self,
         candles: &[CandleWithIndicators],
         tf_minutes: i32,
         use_gpu: bool,
         htf_candles: Option<&[CandleWithIndicators]>,
-        btc_candles: Option<&[CandleWithIndicators]>,
+        _btc_candles: Option<&[CandleWithIndicators]>,
     ) -> Result<Vec<PipelineResult>> {
         if !self.model_manager.has_model_for_tf(tf_minutes) {
             warn!("No model for TF {}m, skipping", tf_minutes);
@@ -135,27 +126,9 @@ impl SuperEntryPipeline {
         let process_start = warmup;
         let batch_size = n - process_start;
 
-        let has_dir_v4 = self.model_manager.has_direction_v4_for_tf(tf_minutes);
-        let has_dir_v3 = self.model_manager.has_direction_v3_for_tf(tf_minutes);
-
-        // Build feature matrix for batch inference — zero-copy: write f32 directly
+        // Build feature matrix for batch inference — 128 features, zero-copy f32
         let ncol = crate::config::total_feature_count();
         let mut features_flat: Vec<f32> = Vec::with_capacity(batch_size * ncol);
-
-        // Direction v4 pattern features — if v4 model is loaded
-        let dir_v4_ncol = self.dir_config.total_features();
-        let mut dir_v4_flat: Vec<f32> = if has_dir_v4 {
-            Vec::with_capacity(batch_size * dir_v4_ncol)
-        } else {
-            Vec::new()
-        };
-
-        // Direction v3 features (32 × batch_size) — fallback if v4 not available
-        let mut dir_v3_flat: Vec<f32> = if !has_dir_v4 && has_dir_v3 {
-            Vec::with_capacity(batch_size * DIRECTION_V3_FEATURE_COUNT)
-        } else {
-            Vec::new()
-        };
 
         for i in process_start..n {
             // ═══ 128 super_entry features ═══
@@ -233,73 +206,27 @@ impl SuperEntryPipeline {
             for v in &dyn_feats {
                 features_flat.push(*v as f32);
             }
-
-            // ═══ Direction v4+ pattern features (CNN-like sliding window + summary + HTF) ═══
-            if has_dir_v4 {
-                match compute_pattern_features(candles, i, &self.dir_config, htf_candles) {
-                    Some(feats) => {
-                        for v in &feats {
-                            dir_v4_flat.push(*v as f32);
-                        }
-                    }
-                    None => {
-                        // Not enough history for pattern window — pad with zeros
-                        for _ in 0..dir_v4_ncol {
-                            dir_v4_flat.push(0.0f32);
-                        }
-                    }
-                }
-            }
-
-            // ═══ Direction v3 features (32) — fallback if v4 not available ═══
-            if !has_dir_v4 && has_dir_v3 {
-                let btc_ctx = btc_candles
-                    .and_then(|btc| resolve_btc_context(btc, candles[i].time));
-                let htf_ctx = htf_candles
-                    .and_then(|htf| resolve_htf_context(htf, candles[i].time));
-
-                let dir_feats = compute_direction_v3_features(
-                    candles, i,
-                    btc_ctx.as_ref(),
-                    htf_ctx.as_ref(),
-                );
-                for v in &dir_feats {
-                    dir_v3_flat.push(*v as f32);
-                }
-            }
         }
 
-        // Batch inference
-        let dir_v3_ref = if !has_dir_v4 && has_dir_v3 && !dir_v3_flat.is_empty() {
-            Some(dir_v3_flat.as_slice())
-        } else {
-            None
-        };
-
-        let dir_v4_ref = if has_dir_v4 && !dir_v4_flat.is_empty() {
-            Some(dir_v4_flat.as_slice())
-        } else {
-            None
-        };
-
+        // Batch inference — NoDir: both models use same 128 features
+        // Direction-related params are None (no direction models)
         let predictions = self.model_manager.predict_batch(
             tf_minutes,
             &features_flat,
             batch_size,
             ncol,
-            dir_v3_ref,
-            dir_v4_ref,
-            dir_v4_ncol,
+            None, // no dir_v3
+            None, // no dir_v4
+            0,    // no dir_v4_ncol
             use_gpu,
         )?;
 
-        // Score each prediction — only ML models (P(super) + direction confidence)
+        // Score each prediction — NoDir: P(super_long) vs P(super_short) + conflict filter
         let mut results = Vec::with_capacity(batch_size);
         for (idx, pred) in predictions.iter().enumerate() {
             let candle_idx = process_start + idx;
             let candle = &candles[candle_idx];
 
-            // Score with per-TF direction confidence threshold
             let decision = self.scorer.score(pred, tf_minutes);
 
             let signal = self.signal_generator.generate(
@@ -327,7 +254,7 @@ impl SuperEntryPipeline {
     /// Process a single candle (for real-time use).
     ///
     /// # Arguments
-    /// * `candle_history` - Slice of recent candles
+    /// * `candle_history` - Slice of recent candles (for dynamic feature lookback)
     /// * `candle` - The candle to generate features for (must be the last in history)
     /// * `tf_minutes` - Timeframe in minutes
     /// * `use_gpu` - Whether to use GPU
@@ -337,6 +264,27 @@ impl SuperEntryPipeline {
         candle: &CandleWithIndicators,
         tf_minutes: i32,
         use_gpu: bool,
+    ) -> Result<PipelineResult> {
+        self.process_single_with_htf_context(candle_history, candle, tf_minutes, use_gpu, None)
+    }
+
+    /// Process a single candle with HTF context (for real-time use).
+    ///
+    /// # Arguments
+    /// * `candle_history` - Slice of recent candles (for dynamic feature lookback)
+    /// * `candle` - The candle to generate features for (must be the last in history)
+    /// * `tf_minutes` - Timeframe in minutes
+    /// * `use_gpu` - Whether to use GPU
+    /// * `htf_candles` - Optional higher-timeframe candles for HTF features
+    ///   (htf_trend, htf_supertrend_dir, htf_ema20_slope).
+    ///   Without this, 3 killer features = 0.0 → model sees different input than backtest.
+    pub fn process_single_with_htf_context(
+        &self,
+        candle_history: Option<&[CandleWithIndicators]>,
+        candle: &CandleWithIndicators,
+        tf_minutes: i32,
+        use_gpu: bool,
+        htf_candles: Option<&[CandleWithIndicators]>,
     ) -> Result<PipelineResult> {
         if !self.model_manager.has_model_for_tf(tf_minutes) {
             return Ok(PipelineResult {
@@ -351,59 +299,34 @@ impl SuperEntryPipeline {
         let mut features: Vec<f32> = candle.full_features().into_iter().map(|v| v as f32).collect();
 
         // Add dynamic features using candle history for lookback context
+        // Use HTF context if available (matches backtest behavior)
         let dyn_feats = match candle_history {
             Some(history) if !history.is_empty() => {
                 let last_idx = history.len() - 1;
-                crate::dataset::compute_dynamic_features(history, last_idx)
+                // Find matching HTF candle for the current timestamp
+                let htf_candle_ref = htf_candles.and_then(|htf| {
+                    let target_time = candle.time;
+                    let idx = htf.partition_point(|c| c.time <= target_time);
+                    if idx > 0 { Some(&htf[idx - 1]) } else { None }
+                });
+                crate::dataset::compute_dynamic_features_with_htf(history, last_idx, htf_candle_ref)
             }
             _ => vec![0.0f64; crate::config::dynamic_feature_count()],
         };
         features.extend(dyn_feats.iter().map(|&v| v as f32));
 
-        // Compute direction v4+ pattern features (preferred)
-        // Note: no HTF data in single-candle mode (pass None)
-        let dir_v4_feats = if self.model_manager.has_direction_v4_for_tf(tf_minutes) {
-            match candle_history {
-                Some(history) if history.len() >= self.dir_config.window_size => {
-                    let last_idx = history.len() - 1;
-                    compute_pattern_features(history, last_idx, &self.dir_config, None)
-                        .map(|feats| feats.iter().map(|&v| v as f32).collect::<Vec<f32>>())
-                }
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        // Fallback: compute direction v3 features if v4 not available
-        let dir_v3_feats = if dir_v4_feats.is_none()
-            && self.model_manager.has_direction_v3_for_tf(tf_minutes)
-        {
-            match candle_history {
-                Some(history) if history.len() > 50 => {
-                    let last_idx = history.len() - 1;
-                    let feats = compute_direction_v3_features(history, last_idx, None, None);
-                    Some(feats)
-                }
-                _ => None,
-            }
-        } else {
-            None
-        };
-
-        let dir_v4_ncol = self.dir_config.total_features();
+        // NoDir: no direction features needed — just 128 features for both models
         let prediction = self.model_manager.predict(
             tf_minutes,
             &features,
-            dir_v3_feats.as_deref(),
-            dir_v4_feats.as_deref(),
-            dir_v4_ncol,
+            None,  // no dir_v3
+            None,  // no dir_v4
+            0,     // no dir_v4_ncol
             use_gpu,
         )?;
 
         let result = match prediction {
             Some(pred) => {
-                // Score with per-TF direction confidence threshold
                 let decision = self.scorer.score(&pred, tf_minutes);
 
                 let signal = self.signal_generator.generate(

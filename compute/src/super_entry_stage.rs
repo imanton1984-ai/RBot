@@ -10,12 +10,10 @@
 // REALTIME PATH:
 //   Kafka close event → indicators → FeatureSnapshot → SuperEntryStage → DB
 //
-// CROSS-TF HEURISTIC FILTER (v2):
-//   After ML inference generates a signal, apply cross-TF heuristic direction filter.
-//   Uses weighted voting from current + higher + lower TF trend indicators.
-//   Mode "filter" (default): reject signals where heuristic disagrees with ML direction.
-//   This improves WR from ~63.9% to ~67.4% on 1h backtest.
-//   Controlled by env vars: HEURISTIC_DIR_MODE, HEURISTIC_DIR_CONFIDENCE.
+// NoDir architecture (v3):
+//   Uses P(super_long) + P(super_short) models instead of P(super) + P(direction).
+//   Direction is embedded in the labels. Conflict filter applied when both fire.
+//   No heuristic cross-TF filter needed — the directional models handle it.
 
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -30,7 +28,6 @@ use ml_entry_strategy::{
     SuperEntryConfig,
     SuperEntryPipeline,
     dataset::CandleWithIndicators,
-    heuristic::CrossTfStore,
 };
 // SuperEntryConfig::timeframes() used to filter production TFs in the run loop
 use crate::predictors::pipeline::FeatureSnapshot;
@@ -45,9 +42,8 @@ fn parse_tf_minutes(tf_str: &str) -> Option<i32> {
 /// Super Entry Stage — consumes feature snapshots and generates signals
 /// Works in both HISTORY (batch) and REALTIME (single-candle) modes.
 ///
-/// v2: Includes cross-TF heuristic direction filter.
-/// Maintains a CrossTfStore updated on EVERY incoming candle (all TFs)
-/// to support heuristic lookups for higher/lower TF trend confirmation.
+/// NoDir v3: Uses P(super_long) + P(super_short) models.
+/// No heuristic filter, no direction model — direction embedded in labels.
 pub struct SuperEntryStage {
     pipeline: Arc<SuperEntryPipeline>,
     config: SuperEntryConfig,
@@ -57,9 +53,6 @@ pub struct SuperEntryStage {
     /// Cache: symbol name → symbol_id from market.pairs
     /// Prevents repeated DB lookups for the same symbol.
     symbol_id_cache: HashMap<String, i64>,
-    /// Cross-TF store for potential cross-TF context.
-    /// Updated on every incoming FeatureSnapshot (even non-active TFs).
-    cross_tf_store: CrossTfStore,
 }
 
 impl SuperEntryStage {
@@ -73,7 +66,7 @@ impl SuperEntryStage {
         let pipeline = Arc::new(SuperEntryPipeline::new(config.clone(), use_gpu)?);
 
         info!(target: "super_entry_stage",
-            "ML-only mode: P(super) + Direction confidence gates (no heuristic filter)");
+            "NoDir mode: P(super_long) + P(super_short) with conflict filter");
 
         Ok(Self {
             pipeline,
@@ -82,7 +75,6 @@ impl SuperEntryStage {
             feature_rx,
             use_gpu,
             symbol_id_cache: HashMap::new(),
-            cross_tf_store: CrossTfStore::new(),
         })
     }
 
@@ -138,10 +130,10 @@ impl SuperEntryStage {
     /// For history: buffers candles per (symbol, tf) and batch-processes.
     /// When channel closes, flushes ALL remaining buffers.
     ///
-    /// v2: Every incoming candle updates cross_tf_store (even non-active TFs).
-    /// After signal generation, heuristic filter is applied before DB persistence.
+    /// NoDir v3: no heuristic filter, no direction model.
+    /// Uses P(super_long) + P(super_short) with conflict filter (in scorer).
     pub async fn run(mut self) -> Result<()> {
-        info!(target: "super_entry_stage", "Super Entry Stage started (ML-only, no heuristic filter)");
+        info!(target: "super_entry_stage", "Super Entry Stage started (NoDir: P(super_long)+P(super_short))");
         
         // Pre-load symbol_ids to avoid per-candle DB lookups
         self.preload_symbol_ids().await;
@@ -162,29 +154,36 @@ impl SuperEntryStage {
         // Without this, dynamic features (54 of 106) would be zeros until
         // enough candles accumulate (e.g., 50+ hours for 1h TF!).
         // Loads last `rt_context_size` candles per (symbol, tf) from DB.
+        //
+        // IMPORTANT: Also loads HTF (Higher Timeframe) candles for each production TF.
+        // Without HTF context, 3 killer features (htf_trend, htf_supertrend_dir,
+        // htf_ema20_slope) = 0.0 → model sees different input than backtest.
         {
             let production_tfs = SuperEntryConfig::timeframes();
-            let all_tfs: &[i32] = &[1, 5, 15, 60, 240, 1440];
+            // Collect all TFs needed: production + their HTFs
+            let mut needed_tfs: Vec<i32> = production_tfs.to_vec();
+            for &tf in production_tfs {
+                if let Some(htf) = ml_entry_strategy::heuristic::get_higher_tf(tf) {
+                    if !needed_tfs.contains(&htf) {
+                        needed_tfs.push(htf);
+                    }
+                }
+            }
+            needed_tfs.sort_unstable();
+            needed_tfs.dedup();
+
             let mut total_loaded = 0usize;
             let mut total_pairs = 0usize;
 
-            for &tf in all_tfs {
-                let is_production_tf = production_tfs.contains(&tf);
+            for &tf in &needed_tfs {
                 match ml_entry_strategy::dataset::fetch_all_candles_for_tf(
                     &self.db_pool, tf, rt_context_size
                 ).await {
                     Ok(grouped) => {
                         for (symbol, candles) in grouped {
                             if candles.is_empty() { continue; }
-                            // Update cross-TF store with the latest candle (all TFs)
-                            if let Some(last) = candles.last() {
-                                self.cross_tf_store.update(last.clone(), tf);
-                            }
-                            // Only fill rt_context for production TFs (where we run inference)
-                            if is_production_tf {
-                                total_pairs += 1;
-                                rt_context.insert((symbol, tf), candles);
-                            }
+                            total_pairs += 1;
+                            rt_context.insert((symbol, tf), candles);
                             total_loaded += 1;
                         }
                     }
@@ -196,8 +195,8 @@ impl SuperEntryStage {
             }
 
             info!(target: "super_entry_stage",
-                "✅ Prefilled rt_context: {} symbol/tf pairs ({} total incl. cross-TF), context_size={}",
-                total_pairs, total_loaded, rt_context_size);
+                "✅ Prefilled rt_context: {} symbol/tf pairs, needed_tfs={:?}, context_size={}",
+                total_pairs, needed_tfs, rt_context_size);
         }
 
         let warmup = self.pipeline.config().warmup_bars;
@@ -221,18 +220,29 @@ impl SuperEntryStage {
                 }
             };
 
-            // ── CROSS-TF STORE UPDATE ────────────────────────────────
-            // Update cross-TF store with EVERY candle (even non-active TFs).
-            // This ensures higher/lower TF data is available for heuristic lookups.
-            // Must happen BEFORE the production_tfs filter below.
             let symbol_id = self.resolve_symbol_id(&snapshot.symbol).await;
             let candle = snapshot_to_candle(&snapshot, symbol_id);
-            self.cross_tf_store.update(candle.clone(), tf_minutes);
 
             // Filter: only production timeframes from SUPER_ENTRY_TIMEFRAMES env var.
             // Default: 15m, 1h, 4h, 1d. Configurable via SUPER_ENTRY_TIMEFRAMES="15,60,240,1440"
+            //
+            // BUT: also store non-production TF candles in rt_context if they are
+            // HTF for any production TF. This ensures HTF features are available.
             let production_tfs = SuperEntryConfig::timeframes();
             if !production_tfs.contains(&tf_minutes) {
+                // Check if this TF is an HTF for any production TF
+                // If so, store it in rt_context but don't run inference
+                let is_htf_for_production = production_tfs.iter().any(|&ptf| {
+                    ml_entry_strategy::heuristic::get_higher_tf(ptf) == Some(tf_minutes)
+                });
+                if is_htf_for_production && snapshot.is_realtime {
+                    let key = (snapshot.symbol.clone(), tf_minutes);
+                    let ctx = rt_context.entry(key).or_default();
+                    ctx.push(candle);
+                    if ctx.len() > rt_context_size {
+                        ctx.drain(0..ctx.len() - rt_context_size);
+                    }
+                }
                 continue;
             }
 
@@ -245,28 +255,43 @@ impl SuperEntryStage {
 
             if snapshot.is_realtime {
                 // REALTIME: maintain rolling context for dynamic features,
-                // then use process_single_with_context for immediate inference
-                let key = (snapshot.symbol.clone(), tf_minutes);
-                let ctx = rt_context.entry(key).or_default();
-                ctx.push(candle.clone());
-                // Keep only last rt_context_size candles
-                if ctx.len() > rt_context_size {
-                    ctx.drain(0..ctx.len() - rt_context_size);
-                }
+                // then use process_single_with_htf_context for immediate inference.
+                // HTF context is critical: without it, 3 killer features (htf_trend,
+                // htf_supertrend_dir, htf_ema20_slope) = 0.0 → model sees different
+                // input than backtest → degraded predictions.
 
-                match self.pipeline.process_single_with_context(
-                    Some(ctx.as_slice()),
+                // Step 1: Push candle into rt_context
+                let key = (snapshot.symbol.clone(), tf_minutes);
+                {
+                    let ctx = rt_context.entry(key.clone()).or_default();
+                    ctx.push(candle.clone());
+                    if ctx.len() > rt_context_size {
+                        ctx.drain(0..ctx.len() - rt_context_size);
+                    }
+                }
+                // Step 2: Now borrow immutably for both ctx and HTF
+                // (mutable borrow from step 1 is dropped)
+                let ctx_slice = rt_context.get(&key).map(|v| v.as_slice());
+                let htf_tf = ml_entry_strategy::heuristic::get_higher_tf(tf_minutes);
+                let htf_candles_ref: Option<&[CandleWithIndicators]> = htf_tf.and_then(|htf| {
+                    let htf_key = (snapshot.symbol.clone(), htf);
+                    rt_context.get(&htf_key).map(|v| v.as_slice())
+                });
+
+                match self.pipeline.process_single_with_htf_context(
+                    ctx_slice,
                     &candle,
                     tf_minutes,
                     self.use_gpu,
+                    htf_candles_ref,
                 ) {
                     Ok(result) => {
                         if let Some(signal) = result.signal {
-                            // ML-only: no heuristic filter, signal goes directly to DB
-                            debug!(target: "super_entry_stage",
-                                "RT signal: {} {}m side={} p_super={:.3} dir_conf={:.3}",
-                                snapshot.symbol, tf_minutes,
-                                signal.side, signal.p_super, signal.dir_confidence);
+                                // NoDir: signal goes directly to DB (conflict filter in scorer)
+                                debug!(target: "super_entry_stage",
+                                    "RT signal: {} {}m side={} p_super={:.3} margin={:.3}",
+                                    snapshot.symbol, tf_minutes,
+                                    signal.side, signal.p_super, signal.dir_confidence);
 
                             if let Err(e) = ml_entry_strategy::db_writer::insert_signals_batch(
                                 &self.db_pool, &[signal]
@@ -328,16 +353,16 @@ impl SuperEntryStage {
             }
         }
         
-        info!(target: "super_entry_stage", 
+        info!(target: "super_entry_stage",
             "Super Entry Stage stopped. Total: received={} candles, processed={} batches, \
-             generated={} signals (ML-only, no heuristic filter)",
+             generated={} signals (NoDir: P(super_long)+P(super_short))",
             total_candles_received, total_batches_processed,
             total_signals_generated);
         Ok(())
     }
 
     /// Flush a buffer: run XGBoost inference on accumulated candles, persist signals.
-    /// Returns (signals_generated, signals_filtered_by_heuristic).
+    /// Returns (signals_generated, signals_filtered_by_conflict).
     /// After processing, retains only the last `warmup` candles for context.
     async fn flush_buffer(
         &self,
@@ -354,7 +379,7 @@ impl SuperEntryStage {
 
         let (signals_count, filtered_count) = match result {
             Ok(results) => {
-                // ML-only: collect all signals directly (no heuristic filter)
+                // NoDir: collect all signals directly (conflict filter is in scorer)
                 let kept_signals: Vec<_> = results
                     .into_iter()
                     .filter_map(|r| r.signal)
@@ -495,7 +520,7 @@ pub async fn setup_super_entry_stage(
             }
             
             info!(target: "super_entry_stage",
-                "✅ Super Entry stage initialized (GPU={}, ML-only mode)",
+                "✅ Super Entry stage initialized (GPU={}, NoDir mode: P(super_long)+P(super_short))",
                 use_gpu);
             Some(tokio::spawn(async move { stage.run().await }))
         }

@@ -24,6 +24,10 @@ path = "src/bin/direction_dataset.rs"
 name = "direction_backtest"
 path = "src/bin/direction_backtest.rs"
 
+[[bin]]
+name = "super_entry_backtest_nodir"
+path = "src/bin/backtest_nodir.rs"
+
 [dependencies]
 # Workspace deps
 tokio = { workspace = true }

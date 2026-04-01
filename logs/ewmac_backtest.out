@@ -1,0 +1,126 @@
+╔══════════════════════════════════════════════════════════════╗
+║         EWMAC STRATEGY BACKTESTER                            ║
+╚══════════════════════════════════════════════════════════════╝
+
+  Config:
+    Min forecast:   10
+    Max forecast:   20
+    Warmup bars:    300
+    Max hold bars:  30
+    Cooldown bars:  20
+    Min pairs agree:4
+    FDM:            1
+    Min ATR%:       0.05
+    Pairs:          6
+
+    TF     1m:  SL=ATR*2.0  TP=ATR*3.0
+    TF     5m:  SL=ATR*2.0  TP=ATR*3.0
+    TF    15m:  SL=ATR*2.5  TP=ATR*4.0
+    TF    60m:  SL=ATR*2.5  TP=ATR*4.0
+    TF   240m:  SL=ATR*3.0  TP=ATR*5.0
+    TF  1440m:  SL=ATR*3.5  TP=ATR*6.0
+
+[2m2026-04-01T11:53:31.098774Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m331370 [3mrows_returned[0m[2m=[0m331370 [3melapsed[0m[2m=[0m1.65214115s [3melapsed_secs[0m[2m=[0m1.6521411499999998 [3mslow_threshold[0m[2m=[0m1s
+  TF     1m: fetched 332 symbols in 1.7s, processing...
+  TF     1m: 1799 trades in 1.7s
+[2m2026-04-01T11:53:32.360070Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_5m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m314617 [3mrows_returned[0m[2m=[0m314617 [3melapsed[0m[2m=[0m1.1740627s [3melapsed_secs[0m[2m=[0m1.1740627 [3mslow_threshold[0m[2m=[0m1s
+  TF     5m: fetched 332 symbols in 1.2s, processing...
+  TF     5m: 1124 trades in 1.2s
+[2m2026-04-01T11:53:33.705686Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_15m c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m310015 [3mrows_returned[0m[2m=[0m310015 [3melapsed[0m[2m=[0m1.281423259s [3melapsed_secs[0m[2m=[0m1.2814232589999999 [3mslow_threshold[0m[2m=[0m1s
+  TF    15m: fetched 332 symbols in 1.3s, processing...
+  TF    15m: 1315 trades in 1.3s
+[2m2026-04-01T11:53:34.846744Z[0m [33m WARN[0m [2msqlx::query[0m[2m:[0m slow statement: execution time exceeded alert threshold [3msummary[0m[2m=[0m"WITH ranked AS ( …" [3mdb.statement[0m[2m=[0m"\n\n\n        WITH ranked AS (\n            SELECT\n                c.time, c.symbol, p.symbol_id,\n                c.open, c.high, c.low, c.close, c.volume,\n                ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.time DESC) as rn\n            FROM market.candles_1h c\n            JOIN market.pairs p ON p.symbol = c.symbol AND p.is_active = true\n        )\n        SELECT time, symbol, symbol_id, open, high, low, close, volume\n        FROM ranked\n        WHERE rn <= $1\n        ORDER BY symbol, time ASC\n        \n" [3mrows_affected[0m[2m=[0m298062 [3mrows_returned[0m[2m=[0m298062 [3melapsed[0m[2m=[0m1.084657165s [3melapsed_secs[0m[2m=[0m1.084657165 [3mslow_threshold[0m[2m=[0m1s
+  TF    60m: fetched 332 symbols in 1.1s, processing...
+  TF    60m: 1136 trades in 1.1s
+  TF   240m: fetched 332 symbols in 0.8s, processing...
+  TF   240m: 1736 trades in 0.9s
+  TF  1440m: fetched 317 symbols in 0.4s, processing...
+  TF  1440m: 998 trades in 0.5s
+
+  Total backtest time: 6.8s
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    EWMAC BACKTEST RESULTS                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+TF      Trades   Wins   Loss   Exprd  WinRate   AvgPnL%   Sharpe   Cover%
+---------------------------------------------------------------------------
+1m        1799    635    991     173    35.3%  -0.0009%   -0.001    0.78%
+5m        1124    390    623     111    34.7%  -0.0048%   -0.002    0.52%
+15m       1315    333    619     363    25.3%   0.1037%    0.031    0.62%
+1h        1136    291    503     342    25.6%   0.3938%    0.056    0.55%
+4h        1736    302    646     788    17.4%   1.1197%    0.087    0.86%
+1d         998     39    257     702     3.9%  -0.7254%   -0.029    1.03%
+---------------------------------------------------------------------------
+TOTAL     8108   1990   3639    2479    24.5%   0.2216%
+
+======== FORECAST BUCKET ANALYSIS ========
+TF           5-10      10-15      15-20         20
+1m            -   35%(1774)    28%(25)         -  
+5m            -   35%(1119)     40%(5)         -  
+15m           -   25%(1299)    31%(16)         -  
+1h            -   26%(1115)     0%(21)         -  
+4h            -   18%(1699)    11%(37)         -  
+1d            -     4%(970)     0%(28)         -  
+
+======== DIRECTION BREAKDOWN ========
+TF         LONG    SHORT    LongWR%   ShortWR%   LongPnL%  ShortPnL%
+1m         1073      726      39.0%      29.9%    0.0043%   -0.0087%
+5m          661      463      37.1%      31.3%    0.0097%   -0.0256%
+15m         298     1017      23.2%      26.0%   -0.1484%    0.1776%
+1h          282      854      27.7%      24.9%   -0.5180%    0.6949%
+4h          178     1558      32.0%      15.7%    1.0027%    1.1330%
+1d           81      917      27.2%       1.9%   -0.9614%   -0.7046%
+
+======== AVG BARS TO OUTCOME ========
+TF     AvgWinBars AvgLossBars AvgExpBars
+1m           10.2         8.7       25.8
+5m            9.9         9.4       27.2
+15m          13.7        11.4       28.3
+1h           13.9        11.3       28.7
+4h           15.6        13.2       29.1
+1d           14.1        13.6       26.9
+
+======== TOP 5 SYMBOLS BY PNL (per TF) ========
+  1m — top 5:
+    SIRENUSDT    PnL:   +14.43%  trades:    7  WR:  28.6%
+    ONTUSDT      PnL:    +6.61%  trades:    7  WR:  57.1%
+    RAVEUSDT     PnL:    +6.22%  trades:   16  WR:  56.2%
+    EDGEUSDT     PnL:    +6.18%  trades:    7  WR:  71.4%
+    NOMUSDT      PnL:    +6.15%  trades:    3  WR:  66.7%
+  5m — top 5:
+    SIRENUSDT    PnL:   +51.96%  trades:   11  WR:  63.6%
+    DUSDT        PnL:   +18.91%  trades:    6  WR:  66.7%
+    STOUSDT      PnL:   +17.88%  trades:    8  WR:  50.0%
+    KERNELUSDT   PnL:   +14.26%  trades:    8  WR:  62.5%
+    CETUSUSDT    PnL:   +12.95%  trades:   14  WR:  64.3%
+  15m — top 5:
+    SIRENUSDT    PnL:   +72.35%  trades:   11  WR:  27.3%
+    NOMUSDT      PnL:   +30.73%  trades:    3  WR:  66.7%
+    LYNUSDT      PnL:   +29.53%  trades:    7  WR:  57.1%
+    PLAYUSDT     PnL:   +28.17%  trades:    4  WR:  75.0%
+    STOUSDT      PnL:   +24.17%  trades:    9  WR:  33.3%
+  1h — top 5:
+    POWERUSDT    PnL:  +101.17%  trades:   16  WR:  18.8%
+    PIPPINUSDT   PnL:   +87.52%  trades:   14  WR:  35.7%
+    RESOLVUSDT   PnL:   +68.86%  trades:   14  WR:  50.0%
+    LYNUSDT      PnL:   +67.73%  trades:    9  WR:  33.3%
+    STOUSDT      PnL:   +65.33%  trades:    6  WR:  66.7%
+  4h — top 5:
+    TAKEUSDT     PnL:  +180.81%  trades:   17  WR:  17.6%
+    MYXUSDT      PnL:  +178.19%  trades:   14  WR:   7.1%
+    AIOTUSDT     PnL:  +168.06%  trades:   25  WR:  28.0%
+    IPUSDT       PnL:  +152.33%  trades:   19  WR:  31.6%
+    PLAYUSDT     PnL:  +128.44%  trades:    8  WR:  25.0%
+  1d — top 5:
+    EIGENUSDT    PnL:  +142.88%  trades:    7  WR:   0.0%
+    NEIROUSDT    PnL:  +123.43%  trades:    7  WR:  14.3%
+    RONINUSDT    PnL:  +122.68%  trades:   14  WR:   7.1%
+    DRIFTUSDT    PnL:  +121.37%  trades:    6  WR:   0.0%
+    BOMEUSDT     PnL:  +115.69%  trades:   11  WR:   0.0%
+
+Backtest results exported to: /home/anton/Desktop/Rust_trader/dataset/ewmac_backtest_results.csv
+╔══════════════════════════════════════════════════════════════╗
+║         BACKTEST COMPLETE                                    ║
+╚══════════════════════════════════════════════════════════════╝

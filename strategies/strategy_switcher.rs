@@ -37,6 +37,8 @@ pub enum StrategyId {
     SuperLevel,
     /// Комбинированный режим: Level + SuperEntry фильтр
     Combined,
+    /// Pump/Dump Detection Strategy (ML-детектор аномальных движений)
+    PumpDump,
 }
 
 impl StrategyId {
@@ -47,6 +49,7 @@ impl StrategyId {
             "super_entry" | "super-entry" | "superentry" => Some(Self::SuperEntry),
             "super_level" | "super-level" | "superlevel" | "sniper" => Some(Self::SuperLevel),
             "combined" | "both" | "all" => Some(Self::Combined),
+            "pump_dump" | "pump-dump" | "pumpdump" | "ml_pump_dump" => Some(Self::PumpDump),
             _ => None,
         }
     }
@@ -58,6 +61,7 @@ impl StrategyId {
             Self::SuperEntry => "super_entry",
             Self::SuperLevel => "super_level",
             Self::Combined => "combined",
+            Self::PumpDump => "pump_dump",
         }
     }
 
@@ -68,6 +72,7 @@ impl StrategyId {
             Self::SuperEntry => "Super Entry: ML-модель поиска точек с сильным движением",
             Self::SuperLevel => "Super Level: Level-First Sniper (уровни → EWMAC → ML → Entry Agent → ATR Risk)",
             Self::Combined => "Комбинированный: Level + Super Entry фильтр качества",
+            Self::PumpDump => "Pump/Dump: ML-детектор аномальных движений (памп/дамп) на мульти-ТФ",
         }
     }
 }
@@ -148,6 +153,18 @@ impl StrategyConfig {
             params: HashMap::new(),
         }
     }
+
+    /// Конфиг для Pump/Dump
+    pub fn pump_dump_default() -> Self {
+        Self {
+            id: StrategyId::PumpDump,
+            enabled: false, // По умолчанию выключена
+            priority: 1,
+            weight: 1.0,
+            timeframes: vec![5, 15, 60, 240, 1440], // ANALYSIS_TIMEFRAMES
+            params: HashMap::new(),
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -189,6 +206,7 @@ impl StrategySwitcher {
         strategies.insert(StrategyId::SuperEntry, StrategyConfig::super_entry_default());
         strategies.insert(StrategyId::SuperLevel, StrategyConfig::super_level_default());
         strategies.insert(StrategyId::Combined, StrategyConfig::combined_default());
+        strategies.insert(StrategyId::PumpDump, StrategyConfig::pump_dump_default());
 
         Self {
             strategies: Arc::new(RwLock::new(strategies)),
@@ -356,6 +374,8 @@ mod tests {
         assert_eq!(StrategyId::from_str("super_level"), Some(StrategyId::SuperLevel));
         assert_eq!(StrategyId::from_str("sniper"), Some(StrategyId::SuperLevel));
         assert_eq!(StrategyId::from_str("combined"), Some(StrategyId::Combined));
+        assert_eq!(StrategyId::from_str("pump_dump"), Some(StrategyId::PumpDump));
+        assert_eq!(StrategyId::from_str("ml_pump_dump"), Some(StrategyId::PumpDump));
         assert_eq!(StrategyId::from_str("unknown"), None);
     }
 
@@ -399,9 +419,19 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    fn test_pump_dump_switch() {
+        let switcher = StrategySwitcher::new();
+        switcher.switch_to(StrategyId::PumpDump);
+        assert!(switcher.is_active(StrategyId::PumpDump));
+        assert!(!switcher.is_active(StrategyId::Level));
+        assert!(!switcher.is_active(StrategyId::SuperEntry));
+    }
+
+    #[test]
     fn test_summary() {
         let switcher = StrategySwitcher::new();
         let summary = switcher.summary();
-        assert_eq!(summary.len(), 4);
+        assert_eq!(summary.len(), 5);
     }
 }

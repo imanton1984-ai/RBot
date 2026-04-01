@@ -1,23 +1,23 @@
 // strategies/ml_entry_strategy/src/scorer.rs
 //
-// Scorer for Super Entry Strategy (v2 — ML-only)
+// Scorer for Super Entry Strategy (NoDir — P(super_long) + P(super_short))
 //
-// Decision logic (SIMPLIFIED — only ML models matter):
-//   1. If p_super >= p_threshold → potential super signal
-//   2. Direction from Direction model (v4 preferred, v3/legacy fallback)
-//   3. Confidence gate: dir_confidence >= per-TF threshold
-//      - 15m: ≥ 0.75
-//      - 1h:  ≥ 0.70
-//      - 4h:  ≥ 0.65
-//   4. Generate signal with combined score
+// Decision logic (SYMMETRIC — identical to backtest):
+//   1. If P(super_long) >= threshold AND P(super_short) < threshold → LONG
+//   2. If P(super_short) >= threshold AND P(super_long) < threshold → SHORT
+//   3. CONFLICT: Both >= threshold → pick higher probability (like backtest)
+//   4. Neither >= threshold → BelowThreshold
 //
-// REMOVED (v2):
-//   - Overheated (indicator) filter — was indicator-based, not ML
-//   - HTF hard filter — now subsumed by direction v4 model's pattern learning
-//   - Danger zone filter — indicator agrees_count removed from pipeline
-//   - Heuristic cross-TF filter — removed from super_entry_stage.rs
+// UNIFIED thresholds per TF (same for LONG and SHORT):
+//   Eliminates directional bias. If models have different distributions,
+//   the fix is model calibration (Platt scaling), NOT asymmetric thresholds.
 //
-// Only P(super) and Direction model confidence affect signal generation.
+// Per-TF thresholds (from backtest validation):
+//   5m:  0.85 (noisy TF, high bar)
+//   15m: 0.85
+//   1h:  0.75
+//   4h:  0.75
+//   1d:  0.75
 
 use crate::config::SuperEntryConfig;
 use crate::model::SuperEntryPrediction;
@@ -30,20 +30,19 @@ pub enum SuperEntryDecision {
     SuperEntry {
         /// 1 = LONG, -1 = SHORT
         direction: i8,
-        /// P(super) confidence
+        /// P(super) for the chosen direction (p_super_long or p_super_short)
         p_super: f32,
-        /// Directional confidence
-        /// v4: P(predicted_class) ∈ [0.5, 1.0]
-        /// v3: abs(regression)
-        /// legacy: |p_long - 0.5|
+        /// Directional confidence = margin between long and short probabilities
+        /// Stored for backward compat with DB schema (dir_confidence column)
         dir_confidence: f32,
-        /// Combined score (p_super * dir_confidence_factor)
+        /// Combined score (p_super * margin_factor)
         combined_score: f32,
     },
     /// Below threshold — no signal
     NoSignal {
         /// Reason for rejection
         reason: RejectReason,
+        /// Max of (p_super_long, p_super_short) for diagnostics
         p_super: f32,
     },
 }
@@ -51,15 +50,17 @@ pub enum SuperEntryDecision {
 /// Reason why a signal was not generated
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum RejectReason {
-    /// P(super) below threshold
+    /// Both P(super_long) and P(super_short) below threshold
     BelowThreshold,
-    /// Directional confidence too low (per-TF threshold)
+    /// DEPRECATED: kept for backward compat (conflict now resolved by picking higher p)
+    ConflictAmbiguous,
+    /// DEPRECATED: kept for backward compat
     WeakDirection,
-    /// DEPRECATED: Indicators suggest overheated entry (no longer used)
+    /// DEPRECATED
     Overheated,
-    /// DEPRECATED: Direction conflicts with HTF supertrend (no longer used)
+    /// DEPRECATED
     HtfConflict,
-    /// DEPRECATED: Indicator agrees_count in danger zone (no longer used)
+    /// DEPRECATED
     DangerZone,
 }
 
@@ -86,43 +87,73 @@ impl SuperEntryDecision {
     }
 }
 
+/// Per-TF thresholds — UNIFIED for both LONG and SHORT.
+/// Kept as struct for backward compat but long_threshold == short_threshold.
+#[derive(Debug, Clone)]
+pub struct TfThresholds {
+    pub long_threshold: f32,
+    pub short_threshold: f32,
+}
+
+impl TfThresholds {
+    /// Create unified threshold (same for both directions)
+    pub fn unified(threshold: f32) -> Self {
+        Self {
+            long_threshold: threshold,
+            short_threshold: threshold,
+        }
+    }
+}
+
 /// Configuration for the scorer
 #[derive(Debug, Clone)]
 pub struct ScorerConfig {
-    /// Minimum P(super) to consider as a potential signal
-    pub p_threshold: f64,
-    /// Per-TF direction confidence thresholds (from SuperEntryConfig)
-    /// Key = tf_minutes, Value = min P(predicted_class)
-    pub direction_confidence_thresholds: std::collections::HashMap<i32, f64>,
-    /// Fallback minimum directional confidence if TF not in thresholds map
-    pub default_min_dir_confidence: f64,
+    /// Per-TF thresholds — UNIFIED (same for LONG and SHORT).
+    /// Key = tf_minutes
+    pub tf_thresholds: std::collections::HashMap<i32, TfThresholds>,
+    /// Fallback threshold if TF not in map (same for both directions)
+    pub default_long_threshold: f32,
+    pub default_short_threshold: f32,
+    /// DEPRECATED: conflict is now resolved by picking higher p (like backtest)
+    pub conflict_min_margin: f32,
 }
 
 impl Default for ScorerConfig {
     fn default() -> Self {
-        let cfg = SuperEntryConfig::default();
+        let mut tf_thresholds = std::collections::HashMap::new();
+
+        // UNIFIED thresholds — same for LONG and SHORT.
+        // Eliminates directional bias. Values from backtest validation:
+        //   15m=0.85 → positive WR in backtest
+        //   1h=0.75  → positive WR in backtest
+        //   4h=0.75  → positive WR in backtest
+        tf_thresholds.insert(5, TfThresholds::unified(0.85));
+        tf_thresholds.insert(15, TfThresholds::unified(0.85));
+        tf_thresholds.insert(60, TfThresholds::unified(0.75));
+        tf_thresholds.insert(240, TfThresholds::unified(0.75));
+        tf_thresholds.insert(1440, TfThresholds::unified(0.75));
+
         Self {
-            p_threshold: 0.55,
-            direction_confidence_thresholds: cfg.direction_confidence_thresholds,
-            default_min_dir_confidence: 0.65,
+            tf_thresholds,
+            default_long_threshold: 0.75,
+            default_short_threshold: 0.75,
+            conflict_min_margin: 0.0, // Not used — conflict resolved by picking higher p
         }
     }
 }
 
 impl From<&SuperEntryConfig> for ScorerConfig {
-    fn from(cfg: &SuperEntryConfig) -> Self {
-        Self {
-            p_threshold: cfg.p_threshold,
-            direction_confidence_thresholds: cfg.direction_confidence_thresholds.clone(),
-            default_min_dir_confidence: 0.65,
-        }
+    fn from(_cfg: &SuperEntryConfig) -> Self {
+        Self::default()
     }
 }
 
-/// Super Entry Scorer
+/// Super Entry Scorer (NoDir)
 ///
-/// Evaluates predictions from the model and makes entry decisions.
-/// Only ML model outputs (P(super) + direction confidence) affect decisions.
+/// Evaluates predictions from P(super_long) + P(super_short) models.
+/// Uses UNIFIED thresholds per TF (same for both directions) to eliminate
+/// directional bias. Conflict resolved by picking higher probability
+/// (identical to backtest logic).
 pub struct SuperEntryScorer {
     config: ScorerConfig,
 }
@@ -138,61 +169,85 @@ impl SuperEntryScorer {
         Self::new(ScorerConfig::from(cfg))
     }
 
-    /// Score a prediction and return a decision.
+    /// Score a prediction (NoDir).
     ///
-    /// Only ML models (P(super) + direction) influence the decision.
-    /// No indicator-based filters (overheated, danger zone, heuristic).
-    ///
-    /// # Arguments
-    /// * `prediction` - Model prediction output (includes dir_confidence)
-    /// * `tf_minutes` - Timeframe for per-TF confidence threshold
+    /// SYMMETRIC logic identical to backtest:
+    ///   - If P(super_long) >= threshold → LONG candidate
+    ///   - If P(super_short) >= threshold → SHORT candidate
+    ///   - If both → pick higher probability
+    ///   - If neither → no signal
     pub fn score(
         &self,
         prediction: &SuperEntryPrediction,
         tf_minutes: i32,
     ) -> SuperEntryDecision {
-        let p_super = prediction.p_super;
-        let direction = prediction.direction;
-        let dir_confidence = prediction.dir_confidence;
+        let p_long = prediction.p_super_long;
+        let p_short = prediction.p_super_short;
 
-        // 1. Check P(super) threshold
-        if (p_super as f64) < self.config.p_threshold {
-            return SuperEntryDecision::NoSignal {
-                reason: RejectReason::BelowThreshold,
-                p_super,
-            };
-        }
+        // UNIFIED per-TF threshold (same for both directions)
+        let threshold = match self.config.tf_thresholds.get(&tf_minutes) {
+            Some(t) => t.long_threshold, // == short_threshold (unified)
+            None => self.config.default_long_threshold,
+        };
 
-        // 2. Check directional confidence (per-TF threshold)
-        let min_confidence = self.config.direction_confidence_thresholds
-            .get(&tf_minutes)
-            .copied()
-            .unwrap_or(self.config.default_min_dir_confidence);
+        let long_fires = p_long >= threshold;
+        let short_fires = p_short >= threshold;
 
-        if (dir_confidence as f64) < min_confidence {
-            return SuperEntryDecision::NoSignal {
-                reason: RejectReason::WeakDirection,
-                p_super,
-            };
-        }
-
-        // 3. Calculate combined score
-        // For v4: dir_confidence is P(predicted_class) ∈ [0.5, 1.0]
-        // For v3: dir_confidence is abs(regression prediction), typically 0..0.5
-        // For legacy: dir_confidence is |p_long - 0.5|, typically 0..0.5
-        let dir_factor = 1.0 + dir_confidence.min(0.5); // Range [1.0, 1.5]
-        let combined_score = p_super * dir_factor;
-
-        SuperEntryDecision::SuperEntry {
-            direction,
-            p_super,
-            dir_confidence,
-            combined_score,
+        match (long_fires, short_fires) {
+            // Case 1: Only LONG fires
+            (true, false) => {
+                let margin = (p_long - p_short).abs();
+                let combined = p_long * (1.0 + margin.min(0.5));
+                SuperEntryDecision::SuperEntry {
+                    direction: 1,
+                    p_super: p_long,
+                    dir_confidence: margin,
+                    combined_score: combined,
+                }
+            }
+            // Case 2: Only SHORT fires
+            (false, true) => {
+                let margin = (p_short - p_long).abs();
+                let combined = p_short * (1.0 + margin.min(0.5));
+                SuperEntryDecision::SuperEntry {
+                    direction: -1,
+                    p_super: p_short,
+                    dir_confidence: margin,
+                    combined_score: combined,
+                }
+            }
+            // Case 3: CONFLICT — both fire → pick higher probability (like backtest)
+            (true, true) => {
+                let margin = (p_long - p_short).abs();
+                if p_long >= p_short {
+                    let combined = p_long * (1.0 + margin.min(0.5));
+                    SuperEntryDecision::SuperEntry {
+                        direction: 1,
+                        p_super: p_long,
+                        dir_confidence: margin,
+                        combined_score: combined,
+                    }
+                } else {
+                    let combined = p_short * (1.0 + margin.min(0.5));
+                    SuperEntryDecision::SuperEntry {
+                        direction: -1,
+                        p_super: p_short,
+                        dir_confidence: margin,
+                        combined_score: combined,
+                    }
+                }
+            }
+            // Case 4: Neither fires
+            (false, false) => {
+                SuperEntryDecision::NoSignal {
+                    reason: RejectReason::BelowThreshold,
+                    p_super: p_long.max(p_short),
+                }
+            }
         }
     }
 
-    /// Legacy score method that accepts OverheatedFeatures for backward compatibility.
-    /// Ignores the features — only ML models affect decision.
+    /// Legacy score method for backward compatibility.
     pub fn score_legacy(
         &self,
         prediction: &SuperEntryPrediction,
@@ -219,8 +274,7 @@ pub struct OverheatedFeatures {
 }
 
 impl OverheatedFeatures {
-    /// DEPRECATED: Always returns false. Overheated filter is disabled.
-    /// Only ML model confidence gates are used for signal filtering.
+    /// DEPRECATED: Always returns false.
     pub fn is_overheated(&self, _direction: i8) -> bool {
         false
     }
@@ -229,36 +283,50 @@ impl OverheatedFeatures {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::DirectionModelVersion;
+
+    fn make_pred(p_long: f32, p_short: f32) -> SuperEntryPrediction {
+        SuperEntryPrediction {
+            p_super_long: p_long,
+            p_super_short: p_short,
+            direction: if p_long >= p_short { 1 } else { -1 },
+            p_super: p_long.max(p_short),
+            conflict_margin: (p_long - p_short).abs(),
+            is_conflict: p_long > 0.5 && p_short > 0.5,
+            estimated_magnitude_pct: 5.0,
+        }
+    }
 
     #[test]
-    fn test_super_entry_above_threshold() {
+    fn test_long_fires_above_unified_threshold() {
         let scorer = SuperEntryScorer::new(ScorerConfig::default());
-        let pred = SuperEntryPrediction {
-            p_super: 0.75,
-            p_long: 0.80,
-            direction: 1,
-            dir_confidence: 0.80, // v4: P(UP) = 0.80, above any TF threshold
-            estimated_magnitude_pct: 2.0,
-            direction_model_version: DirectionModelVersion::V4,
-        };
+        // 1h: unified threshold = 0.75
+        // P(super_long)=0.80 >= 0.75 → LONG fires
+        // P(super_short)=0.40 < 0.75 → SHORT doesn't
+        let pred = make_pred(0.80, 0.40);
 
-        let decision = scorer.score(&pred, 60); // 1h TF
+        let decision = scorer.score(&pred, 60);
         assert!(decision.is_super_entry());
         assert_eq!(decision.direction(), Some(1));
     }
 
     #[test]
-    fn test_below_threshold() {
+    fn test_short_fires_above_unified_threshold() {
         let scorer = SuperEntryScorer::new(ScorerConfig::default());
-        let pred = SuperEntryPrediction {
-            p_super: 0.40,
-            p_long: 0.80,
-            direction: 1,
-            dir_confidence: 0.80,
-            estimated_magnitude_pct: 1.0,
-            direction_model_version: DirectionModelVersion::V4,
-        };
+        // 1h: unified threshold = 0.75
+        // P(super_short)=0.80 >= 0.75, P(super_long)=0.40 < 0.75
+        let pred = make_pred(0.40, 0.80);
+
+        let decision = scorer.score(&pred, 60);
+        assert!(decision.is_super_entry());
+        assert_eq!(decision.direction(), Some(-1));
+    }
+
+    #[test]
+    fn test_neither_fires() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        // 1h: unified threshold = 0.75
+        // P(long)=0.50 < 0.75, P(short)=0.60 < 0.75
+        let pred = make_pred(0.50, 0.60);
 
         let decision = scorer.score(&pred, 60);
         assert!(!decision.is_super_entry());
@@ -266,81 +334,105 @@ mod tests {
             SuperEntryDecision::NoSignal { reason, .. } => {
                 assert_eq!(reason, RejectReason::BelowThreshold);
             }
-            _ => panic!("Expected NoSignal"),
+            _ => panic!("Expected BelowThreshold"),
         }
     }
 
     #[test]
-    fn test_weak_direction_per_tf() {
+    fn test_conflict_resolved_by_higher_p() {
         let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        // 1h: unified threshold = 0.75
+        // Both fire: P(long)=0.80, P(short)=0.85
+        // SHORT wins because higher probability (like backtest)
+        let pred = make_pred(0.80, 0.85);
 
-        // v4 model: P(UP) = 0.68 → confidence = 0.68
-        let pred = SuperEntryPrediction {
-            p_super: 0.75,
-            p_long: 0.68,
-            direction: 1,
-            dir_confidence: 0.68,
-            estimated_magnitude_pct: 2.0,
-            direction_model_version: DirectionModelVersion::V4,
-        };
-
-        // For 15m (threshold 0.75): should be rejected (0.68 < 0.75)
-        let decision_15m = scorer.score(&pred, 15);
-        assert!(!decision_15m.is_super_entry());
-        match decision_15m {
-            SuperEntryDecision::NoSignal { reason, .. } => {
-                assert_eq!(reason, RejectReason::WeakDirection);
-            }
-            _ => panic!("Expected WeakDirection for 15m"),
-        }
-
-        // For 1h (threshold 0.70): should be rejected (0.68 < 0.70)
-        let decision_1h = scorer.score(&pred, 60);
-        assert!(!decision_1h.is_super_entry());
-
-        // For 4h (threshold 0.65): should PASS (0.68 >= 0.65)
-        let decision_4h = scorer.score(&pred, 240);
-        assert!(decision_4h.is_super_entry());
-    }
-
-    #[test]
-    fn test_no_overheated_filter() {
-        let scorer = SuperEntryScorer::new(ScorerConfig::default());
-
-        let pred = SuperEntryPrediction {
-            p_super: 0.80,
-            p_long: 0.85,
-            direction: 1,
-            dir_confidence: 0.85, // v4 confidence
-            estimated_magnitude_pct: 3.0,
-            direction_model_version: DirectionModelVersion::V4,
-        };
-
-        // Should pass even with "overheated" indicators — no indicator filter
-        let decision = scorer.score(&pred, 240);
+        let decision = scorer.score(&pred, 60);
         assert!(decision.is_super_entry());
+        assert_eq!(decision.direction(), Some(-1)); // SHORT wins — higher p
     }
 
     #[test]
-    fn test_combined_score_with_v4_confidence() {
+    fn test_conflict_long_wins_when_higher() {
         let scorer = SuperEntryScorer::new(ScorerConfig::default());
-        let pred = SuperEntryPrediction {
-            p_super: 0.80,
-            p_long: 0.75,
-            direction: 1,
-            dir_confidence: 0.75,
-            estimated_magnitude_pct: 3.0,
-            direction_model_version: DirectionModelVersion::V4,
-        };
+        // 1h: unified threshold = 0.75
+        // Both fire: P(long)=0.90, P(short)=0.80
+        // LONG wins because higher probability
+        let pred = make_pred(0.90, 0.80);
 
-        let decision = scorer.score(&pred, 240);
+        let decision = scorer.score(&pred, 60);
+        assert!(decision.is_super_entry());
+        assert_eq!(decision.direction(), Some(1)); // LONG wins — higher p
+    }
+
+    #[test]
+    fn test_symmetric_thresholds_no_bias() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        // 1h: unified threshold = 0.75
+        // Same probability for both → LONG (default tie-break)
+        let pred = make_pred(0.76, 0.76);
+        let decision = scorer.score(&pred, 60);
+        assert!(decision.is_super_entry());
+        assert_eq!(decision.direction(), Some(1)); // Tie → LONG (p_long >= p_short)
+
+        // Slightly higher short → SHORT wins
+        let pred2 = make_pred(0.76, 0.77);
+        let decision2 = scorer.score(&pred2, 60);
+        assert!(decision2.is_super_entry());
+        assert_eq!(decision2.direction(), Some(-1)); // SHORT wins
+    }
+
+    #[test]
+    fn test_15m_needs_085() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        // 15m: unified threshold = 0.85
+        // P(long)=0.80 < 0.85 → doesn't fire
+        let pred = make_pred(0.80, 0.40);
+        let decision = scorer.score(&pred, 15);
+        assert!(!decision.is_super_entry());
+
+        // P(long)=0.88 >= 0.85 → fires
+        let pred2 = make_pred(0.88, 0.40);
+        let decision2 = scorer.score(&pred2, 15);
+        assert!(decision2.is_super_entry());
+        assert_eq!(decision2.direction(), Some(1));
+
+        // P(short)=0.80 < 0.85 → doesn't fire
+        let pred3 = make_pred(0.30, 0.80);
+        let decision3 = scorer.score(&pred3, 15);
+        assert!(!decision3.is_super_entry());
+
+        // P(short)=0.88 >= 0.85 → fires
+        let pred4 = make_pred(0.30, 0.88);
+        let decision4 = scorer.score(&pred4, 15);
+        assert!(decision4.is_super_entry());
+        assert_eq!(decision4.direction(), Some(-1));
+    }
+
+    #[test]
+    fn test_combined_score_for_long() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        // 1h: P(long)=0.80, P(short)=0.40
+        // margin = 0.40, combined = 0.80 * (1 + 0.40) = 1.12
+        let pred = make_pred(0.80, 0.40);
+        let decision = scorer.score(&pred, 60);
+
         match decision {
-            SuperEntryDecision::SuperEntry { combined_score, .. } => {
-                // combined = p_super * (1 + min(0.75, 0.5))
-                // = 0.80 * 1.5 = 1.2
-                assert!((combined_score - 1.2).abs() < 0.01);
+            SuperEntryDecision::SuperEntry { p_super, combined_score, dir_confidence, .. } => {
+                assert!((p_super - 0.80).abs() < 1e-5);
+                assert!((dir_confidence - 0.40).abs() < 1e-5);
+                assert!((combined_score - 1.12).abs() < 1e-3);
             }
             _ => panic!("Expected SuperEntry"),
         }
+    }
+
+    #[test]
+    fn test_below_threshold_not_biased() {
+        let scorer = SuperEntryScorer::new(ScorerConfig::default());
+        // 1h: unified threshold = 0.75
+        // P(long)=0.60 — would have fired with old long_thresh=0.55, now doesn't
+        let pred = make_pred(0.60, 0.40);
+        let decision = scorer.score(&pred, 60);
+        assert!(!decision.is_super_entry()); // No bias — same threshold for both
     }
 }

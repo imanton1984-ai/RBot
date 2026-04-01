@@ -3,13 +3,16 @@
 // Signal Scanner — сканирует trade.super_entry_signals на предмет свежих,
 // квалифицированных сигналов для открытия позиций.
 //
-// Логика фильтрации (два ML-фильтра):
-//   1. p_super >= p_super_min_X для каждого таймфрейма (P(super move) от XGBoost)
-//   2. dir_confidence >= dir_confidence_min_X для каждого TF (P(predicted_class) от Direction model)
-//   3. Таймфреймы: 1m, 5m, 15m, 1h, 4h, 1d
-//   4. Только сигналы в окне lookback (для 4h смотрим -4ч от текущего времени)
-//   5. Проверка дрифта цены: |current_price - entry_price| / entry_price <= max_price_drift_pct
-//   6. Не используем сигнал, если для него уже открыта позиция
+// Логика фильтрации (NoDir — один ML-фильтр):
+//   1. p_super >= p_super_min_X для каждого таймфрейма
+//      (P(super_long) или P(super_short) — направление уже встроено в сигнал)
+//   2. Таймфреймы: 1m, 5m, 15m, 1h, 4h, 1d
+//   3. Только сигналы в окне lookback (для 4h смотрим -4ч от текущего времени)
+//   4. Проверка дрифта цены: |current_price - entry_price| / entry_price <= max_price_drift_pct
+//   5. Не используем сигнал, если для него уже открыта позиция
+//
+// NoDir: dir_confidence filter REMOVED — direction is embedded in p_super signal.
+// The dir_confidence column now stores margin (|p_long - p_short|) for diagnostics only.
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -44,6 +47,11 @@ struct RawSignalRow {
 impl SignalScanner {
     pub fn new(pool: PgPool, config: OrderManagerConfig) -> Self {
         Self { pool, config }
+    }
+
+    /// Is pump_dump strategy active?
+    fn is_pump_dump(&self) -> bool {
+        self.config.is_pump_dump()
     }
 
     /// Основной метод: найти все квалифицированные сигналы для указанных таймфреймов.
@@ -82,8 +90,12 @@ impl SignalScanner {
     async fn scan_timeframe(&self, tf_minutes: i16, max_count: u16) -> Result<Vec<QualifiedSignal>> {
         let lookback_minutes = self.config.lookback_minutes_for_tf(tf_minutes);
 
-        // 1. Получить сырые сигналы из БД
-        let raw_signals = self.fetch_raw_signals(tf_minutes, lookback_minutes, max_count * 3).await?;
+        // 1. Получить сырые сигналы из БД (из разных таблиц в зависимости от стратегии)
+        let raw_signals = if self.is_pump_dump() {
+            self.fetch_pump_dump_signals(tf_minutes, lookback_minutes, max_count * 3).await?
+        } else {
+            self.fetch_raw_signals(tf_minutes, lookback_minutes, max_count * 3).await?
+        };
 
         if raw_signals.is_empty() {
             debug!(
@@ -190,9 +202,9 @@ impl SignalScanner {
         lookback_minutes: i64,
         limit: u16,
     ) -> Result<Vec<RawSignalRow>> {
-        // Two ML filters: P(super) and direction confidence (per-TF)
+        // NoDir: only P(super) filter — direction is embedded in the signal
+        // dir_confidence is no longer a filter (stores margin for diagnostics)
         let p_super_min = self.config.get_p_super_min_for_tf(tf_minutes);
-        let dir_confidence_min = self.config.get_dir_confidence_min_for_tf(tf_minutes);
 
         let rows = sqlx::query(
             r#"
@@ -203,15 +215,13 @@ impl SignalScanner {
             FROM trade.super_entry_signals
             WHERE tf_minutes = $1
               AND p_super >= $2
-              AND dir_confidence >= $3
-              AND time >= now() - make_interval(mins => $4::int)
+              AND time >= now() - make_interval(mins => $3::int)
             ORDER BY combined_score DESC, time DESC
-            LIMIT $5
+            LIMIT $4
             "#,
         )
         .bind(tf_minutes)
         .bind(p_super_min)
-        .bind(dir_confidence_min)
         .bind(lookback_minutes as i32)
         .bind(limit as i64)
         .fetch_all(&self.pool)
@@ -230,6 +240,56 @@ impl SignalScanner {
                 sl_price: row.get("sl_price"),
                 tp_price: row.get("tp_price"),
                 p_super: row.get("p_super"),
+                combined_score: row.get("combined_score"),
+            })
+            .collect();
+
+        Ok(signals)
+    }
+
+    /// Получить сырые сигналы из trade.pump_dump_signals (для pump_dump стратегии)
+    async fn fetch_pump_dump_signals(
+        &self,
+        tf_minutes: i16,
+        lookback_minutes: i64,
+        limit: u16,
+    ) -> Result<Vec<RawSignalRow>> {
+        let pd_pred_min = self.config.pump_dump.get_pred_min_for_tf(tf_minutes);
+
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                time, time_ms, symbol, symbol_id, tf_minutes,
+                side, entry_price, sl_price, tp_price,
+                pred, pred as combined_score
+            FROM trade.pump_dump_signals
+            WHERE tf_minutes = $1
+              AND pred >= $2
+              AND time >= now() - make_interval(mins => $3::int)
+            ORDER BY pred DESC, time DESC
+            LIMIT $4
+            "#,
+        )
+        .bind(tf_minutes)
+        .bind(pd_pred_min)
+        .bind(lookback_minutes as i32)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let signals: Vec<RawSignalRow> = rows
+            .iter()
+            .map(|row| RawSignalRow {
+                time: row.get("time"),
+                time_ms: row.get("time_ms"),
+                symbol: row.get("symbol"),
+                symbol_id: row.get("symbol_id"),
+                tf_minutes: row.get("tf_minutes"),
+                side: row.get("side"),
+                entry_price: row.get("entry_price"),
+                sl_price: row.get("sl_price"),
+                tp_price: row.get("tp_price"),
+                p_super: row.get("pred"),
                 combined_score: row.get("combined_score"),
             })
             .collect();
