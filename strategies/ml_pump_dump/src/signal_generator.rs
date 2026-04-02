@@ -47,7 +47,7 @@ impl Default for PumpDumpSignalConfig {
     fn default() -> Self {
         Self {
             min_pred: 0.65,
-            target_pct: 15.0,
+            target_pct: 9.0,
             sl_fraction: 0.65,
             max_hold_bars: 10,
             min_finest_tf: 1,
@@ -165,8 +165,8 @@ pub fn generate_signal(
     }
 
     let side: i16 = match event_type {
-        EventType::Dump => 1,
-        EventType::Pump => -1,
+        EventType::Pump => 1,   // LONG
+        EventType::Dump => -1,  // SHORT
     };
 
     let target_pct = config.target_pct;

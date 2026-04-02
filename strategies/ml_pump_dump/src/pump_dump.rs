@@ -33,7 +33,7 @@ use std::collections::HashMap;
 pub const ANALYSIS_TIMEFRAMES: &[i32] = &[1440, 240, 60, 15, 5];
 
 /// Number of candles to look back BEFORE the pump/dump onset for feature extraction.
-pub const PRE_EVENT_LOOKBACK: usize = 10;
+pub const PRE_EVENT_LOOKBACK: usize = 3;
 
 /// Minimum candles required per symbol per TF to be useful.
 pub const MIN_CANDLES_PER_TF: usize = 50;
@@ -80,7 +80,7 @@ pub struct PumpDumpConfig {
 impl Default for PumpDumpConfig {
     fn default() -> Self {
         Self {
-            daily_threshold_pct: 15.0,
+            daily_threshold_pct: 9.0,
             pre_event_lookback: PRE_EVENT_LOOKBACK,
             negative_ratio: 3,
             prediction_horizon: 3,
@@ -952,7 +952,8 @@ mod tests {
         assert_eq!(BODY_FEATURE_NAMES.len(), 4);
         assert_eq!(TEMPORAL_FEATURE_NAMES.len(), TEMPORAL_FEATURE_COUNT);
         assert_eq!(FEATURES_PER_CANDLE, 56);
-        assert_eq!(FULL_FEATURES_PER_CANDLE, 82);
+        // 56 (raw+derived+body) + 23 (temporal) = 79
+        assert_eq!(FULL_FEATURES_PER_CANDLE, 79);
     }
 
     #[test]
@@ -980,8 +981,8 @@ mod tests {
     #[test]
     fn test_config_default() {
         let cfg = PumpDumpConfig::default();
-        assert!((cfg.daily_threshold_pct - 15.0).abs() < 1e-6);
-        assert_eq!(cfg.pre_event_lookback, 10);
+        assert!((cfg.daily_threshold_pct - 9.0).abs() < 1e-6);
+        assert_eq!(cfg.pre_event_lookback, 3);
         assert_eq!(cfg.negative_ratio, 3);
         assert!((cfg.concentration_pct - 0.50).abs() < 1e-6);
         assert_eq!(cfg.max_hold_candles, 6);

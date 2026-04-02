@@ -58,7 +58,8 @@ use predictors::ml::xgb_runtime::{Booster, Device, ModelKind};
 // ─────────────────────────────────────────────────────────────────────
 
 /// Target timeframes for trade simulation
-const TARGET_TFS: &[i32] = &[5, 15, 60, 240];
+/// Trade execution TFs. 240m excluded as it's only a feature TF (drill-down from daily).
+const TARGET_TFS: &[i32] = &[5, 15, 60];
 
 /// Batch size for XGBoost predictions (amortises DMatrix creation overhead)
 const PRED_BATCH_SIZE: usize = 256;
@@ -203,6 +204,7 @@ fn simulate_trade(
         match event_type {
             EventType::Pump => {
                 // LONG: SL if low <= sl_price, TP if high >= tp_price
+                // (tp above entry, sl below entry)
                 if c.low <= sl_price {
                     let pnl = (sl_price - entry_price) / entry_price * 100.0;
                     return Some((TradeOutcome::SlHit, hold, sl_price, pnl));
@@ -214,6 +216,7 @@ fn simulate_trade(
             }
             EventType::Dump => {
                 // SHORT: SL if high >= sl_price, TP if low <= tp_price
+                // (tp below entry, sl above entry)
                 if c.high >= sl_price {
                     let pnl = (entry_price - sl_price) / entry_price * 100.0;
                     return Some((TradeOutcome::SlHit, hold, sl_price, pnl));
@@ -427,9 +430,9 @@ async fn main() -> Result<()> {
     let max_hold: usize = std::env::var("PD_MAX_HOLD_CANDLES")
         .ok().and_then(|v| v.parse().ok()).unwrap_or(6);
     let target_pct: f64 = std::env::var("PD_TARGET_PCT")
-        .ok().and_then(|v| v.parse().ok()).unwrap_or(15.0);
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(3.0);
     let sl_fraction: f64 = std::env::var("PD_SL_FRACTION")
-        .ok().and_then(|v| v.parse().ok()).unwrap_or(0.65);
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(0.3);
     let sl_pct = target_pct * sl_fraction;
     let pred_step: usize = std::env::var("PD_PRED_STEP")
         .ok().and_then(|v| v.parse().ok()).unwrap_or(1).max(1);
@@ -444,6 +447,10 @@ async fn main() -> Result<()> {
 
     let model_type = std::env::var("PD_MODEL_TYPE")
         .unwrap_or_else(|_| "both".to_string());
+
+    // PD_REVERSE_MODELS=1 → use pump_model for SHORT signals, dump_model for LONG signals
+    let reverse_models = std::env::var("PD_REVERSE_MODELS")
+        .map_or(false, |v| v == "1" || v.to_lowercase() == "true");
 
     let wfo_min_date: Option<DateTime<Utc>> = std::env::var("WFO_MIN_DATE").ok()
         .and_then(|s| NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d").ok()
@@ -462,6 +469,12 @@ async fn main() -> Result<()> {
     if let Some(d) = &wfo_min_date {
         info!("  WFO OOS filter: signals after {}", d.format("%Y-%m-%d"));
     }
+    if reverse_models {
+        info!("  ⚠️  REVERSE mode: pump_model → DUMP/SHORT, dump_model → PUMP/LONG (contrarian)");
+    } else {
+        info!("  ℹ️  Direct mode: pump_model → PUMP/LONG, dump_model → DUMP/SHORT");
+    }
+    info!("  ℹ️  Conflict resolution: if both fire on same bar, take strongest direction only");
     config.log_summary();
 
     // ─── Load Models ───
@@ -611,9 +624,15 @@ async fn main() -> Result<()> {
 
                 // Flush batch when full
                 if batch_indices.len() >= PRED_BATCH_SIZE {
+                    // In reverse mode: dump_model → pump signals, pump_model → dump signals
+                    let (pm, dm) = if reverse_models {
+                        (dump_model.as_ref(), pump_model.as_ref())
+                    } else {
+                        (pump_model.as_ref(), dump_model.as_ref())
+                    };
                     total_predictions += flush_predictions(
                         &batch_features, &batch_indices,
-                        pump_model.as_ref(), dump_model.as_ref(),
+                        pm, dm,
                         n_features, min_signal, &mut signals,
                     )?;
                     batch_features.clear();
@@ -625,9 +644,14 @@ async fn main() -> Result<()> {
 
             // Flush remaining
             if !batch_indices.is_empty() {
+                let (pm, dm) = if reverse_models {
+                    (dump_model.as_ref(), pump_model.as_ref())
+                } else {
+                    (pump_model.as_ref(), dump_model.as_ref())
+                };
                 total_predictions += flush_predictions(
                     &batch_features, &batch_indices,
-                    pump_model.as_ref(), dump_model.as_ref(),
+                    pm, dm,
                     n_features, min_signal, &mut signals,
                 )?;
                 batch_features.clear();
@@ -642,8 +666,16 @@ async fn main() -> Result<()> {
                 let entry_price = target_candles[sig_bar].close;
                 if entry_price < 1e-12 { continue; }
 
-                // ── Pump signal ──
-                if let Some(pred) = pump_pred {
+                // ── Conflict resolution: if both directions fire, take only the stronger one ──
+                let (eff_pump, eff_dump) = match (pump_pred, dump_pred) {
+                    (Some(pp), Some(dp)) if pp > dp => (Some(pp), None),
+                    (Some(pp), Some(dp)) if dp > pp => (None, Some(dp)),
+                    (Some(_), Some(_)) => (None, None), // equal scores — skip both
+                    _ => (pump_pred, dump_pred),
+                };
+
+                // ── Pump signal (LONG) ──
+                if let Some(pred) = eff_pump {
                     if (sig_bar as i64 - last_pump_bar) >= cooldown as i64 {
                         let tp = entry_price * (1.0 + target_pct / 100.0);
                         let sl = entry_price * (1.0 - sl_pct / 100.0);
@@ -670,8 +702,8 @@ async fn main() -> Result<()> {
                     }
                 }
 
-                // ── Dump signal ──
-                if let Some(pred) = dump_pred {
+                // ── Dump signal (SHORT) ──
+                if let Some(pred) = eff_dump {
                     if (sig_bar as i64 - last_dump_bar) >= cooldown as i64 {
                         let tp = entry_price * (1.0 - target_pct / 100.0);
                         let sl = entry_price * (1.0 + sl_pct / 100.0);

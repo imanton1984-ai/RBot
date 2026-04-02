@@ -22,7 +22,6 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::HashMap;
@@ -529,29 +528,27 @@ pub fn generate_negative_examples(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// FULL DATASET BUILD
+// FULL DATASET BUILD (BULK-LOAD — 5 SQL queries instead of N×5)
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// Build the complete pump/dump dataset for all symbols.
 ///
-/// Steps:
-///   1. For each symbol, load all TF candle data
-///   2. Detect pumps/dumps on daily TF
-///   3. Drill down + extract features for each event
-///   4. Generate negative examples
-///   5. Return combined dataset
+/// BULK-LOAD approach (same as backtest v4):
+///   1. Load ALL candles per TF in 5 queries total
+///   2. For each symbol — process entirely in-memory (no per-symbol DB queries)
+///   3. Detect pumps/dumps on daily TF
+///   4. Validate sharpness against hourly
+///   5. Drill down + extract features for each validated event
+///   6. Generate negative examples
+///   7. Export combined dataset
 pub async fn build_pump_dump_dataset(
     pool: &PgPool,
     config: &PumpDumpConfig,
 ) -> Result<Vec<PumpDumpExample>> {
-    info!("Building pump/dump dataset...");
+    info!("Building pump/dump dataset (bulk-load mode)...");
     config.log_summary();
 
-    let symbols = fetch_active_symbols(pool).await?;
-    info!("  {} active symbols", symbols.len());
-
-    // Limits per TF (how many candles to fetch)
-    // NOTE: 1m excluded — insufficient historical data and too noisy
+    // Limits per TF (how many candles to fetch per symbol)
     let tf_limits: HashMap<i32, usize> = vec![
         (1440, 3700),  // ~10 years of daily data
         (240, 12000),  // ~8 years of 4h
@@ -560,16 +557,36 @@ pub async fn build_pump_dump_dataset(
         (5, 12000),    // ~2 months of 5m
     ].into_iter().collect();
 
-    // Process symbols SEQUENTIALLY to control memory.
-    // Each symbol loads 6 TFs of candle data — dropping after processing.
-    // With 32GB RAM and a running bot, we can't afford buffer_unordered(16)
-    // loading all symbols simultaneously.
-    let concurrency = std::env::var("PD_CONCURRENCY")
-        .ok()
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(4); // Low default to protect memory
+    // ─── Phase 1: Bulk load ALL data (5 SQL queries total) ───
+    info!("  ⏳ Bulk loading all candle data...");
+    let total_start = std::time::Instant::now();
+    let mut bulk_data: HashMap<i32, HashMap<String, Vec<CandleInd>>> = HashMap::new();
+    let mut all_symbols: Vec<String> = Vec::new();
 
-    info!("  Processing with concurrency={} (memory-safe mode)", concurrency);
+    for &tf in ANALYSIS_TIMEFRAMES {
+        let limit = tf_limits.get(&tf).copied().unwrap_or(5000);
+        let t0 = std::time::Instant::now();
+        let grouped = fetch_all_candles_for_tf(pool, tf, limit).await?;
+        let n_syms = grouped.len();
+        let n_candles: usize = grouped.values().map(|v| v.len()).sum();
+        info!("    TF {:>4}m: {:>3} symbols, {:>8} candles  ({:.1}s)",
+              tf, n_syms, n_candles, t0.elapsed().as_secs_f64());
+
+        if all_symbols.is_empty() {
+            all_symbols = grouped.keys().cloned().collect();
+            all_symbols.sort();
+        }
+
+        bulk_data.insert(tf, grouped);
+    }
+
+    let load_elapsed = total_start.elapsed().as_secs_f64();
+    info!("  ✅ Bulk load complete: {} symbols in {:.1}s", all_symbols.len(), load_elapsed);
+
+    // ─── Phase 2: Process each symbol from in-memory data ───
+    info!("  🚀 Processing symbols...");
+    let lookback = config.pre_event_lookback;
+    let min_history = lookback + 50;
 
     let mut all_examples: Vec<PumpDumpExample> = Vec::new();
     let mut n_pumps = 0usize;
@@ -577,219 +594,130 @@ pub async fn build_pump_dump_dataset(
     let mut n_negatives = 0usize;
     let mut n_symbols_with_events = 0u32;
     let mut n_rejected_not_sharp = 0usize;
+    let mut n_skipped = 0u32;
 
-    // Process in small batches to control memory
-    for batch_start in (0..symbols.len()).step_by(concurrency) {
-        let batch_end = (batch_start + concurrency).min(symbols.len());
-        let batch = &symbols[batch_start..batch_end];
+    let n_symbols = all_symbols.len();
+    let progress_interval = (n_symbols / 20).max(1);
 
-        let results: Vec<(Vec<PumpDumpExample>, usize)> = stream::iter(batch.iter().cloned())
-            .map(|symbol| {
-                let pool = pool.clone();
-                let cfg = config.clone();
-                let limits = tf_limits.clone();
+    for (si, symbol) in all_symbols.iter().enumerate() {
+        // Build per-symbol TF map from bulk data (NO DB queries!)
+        let mut sym_tf_candles: HashMap<i32, Vec<CandleInd>> = HashMap::new();
+        let mut has_daily = false;
 
-                async move {
-                    match process_symbol(&pool, &symbol, &cfg, &limits).await {
-                        Ok((examples, n_rejected)) => (examples, n_rejected),
-                        Err(e) => {
-                            tracing::warn!("Failed to process {}: {}", symbol, e);
-                            (Vec::new(), 0)
-                        }
+        for &tf in ANALYSIS_TIMEFRAMES {
+            if let Some(tf_data) = bulk_data.get(&tf) {
+                if let Some(candles) = tf_data.get(symbol) {
+                    if candles.len() >= min_history {
+                        sym_tf_candles.insert(tf, candles.clone());
+                        if tf == 1440 { has_daily = true; }
                     }
                 }
-            })
-            .buffer_unordered(concurrency)
-            .collect()
-            .await;
-
-        for (examples, rejected) in results {
-            n_rejected_not_sharp += rejected;
-            if examples.iter().any(|e| e.label == 1) {
-                n_symbols_with_events += 1;
             }
-            for ex in &examples {
-                match ex.label {
-                    1 if ex.event_type == "PUMP" => n_pumps += 1,
-                    1 if ex.event_type == "DUMP" => n_dumps += 1,
-                    _ => n_negatives += 1,
-                }
-            }
-            all_examples.extend(examples);
         }
 
-        // Memory: batch data is dropped here automatically
-        if batch_end % 20 == 0 {
-            info!("  Progress: {}/{} symbols, {} examples so far",
-                  batch_end, symbols.len(), all_examples.len());
+        if !has_daily {
+            n_skipped += 1;
+            continue;
+        }
+
+        // Step 1: Detect anomalous candles on daily
+        let daily_events = detect_anomalous_candles(
+            sym_tf_candles.get(&1440).unwrap(), config.daily_threshold_pct,
+        );
+
+        if daily_events.is_empty() { continue; }
+
+        // Collect daily times
+        let daily_time_map: Vec<(usize, EventType, f64, DateTime<Utc>)> = daily_events.iter()
+            .map(|&(idx, et, mp)| {
+                let t = sym_tf_candles.get(&1440).unwrap()[idx].time;
+                (idx, et, mp, t)
+            })
+            .collect();
+
+        // Step 2: Validate sharpness against hourly candles
+        let mut validated_events: Vec<(usize, EventType, f64, DateTime<Utc>)> = Vec::new();
+
+        for &(daily_idx, event_type, move_pct, daily_time) in &daily_time_map {
+            if let Some(hourly) = sym_tf_candles.get(&60) {
+                match validate_sharp_move(
+                    hourly, daily_time, event_type, move_pct, config.concentration_pct,
+                ) {
+                    Some((_hourly_idx, _hourly_move)) => {
+                        validated_events.push((daily_idx, event_type, move_pct, daily_time));
+                    }
+                    None => {
+                        n_rejected_not_sharp += 1;
+                    }
+                }
+            } else {
+                // No hourly data — accept without sharpness validation
+                validated_events.push((daily_idx, event_type, move_pct, daily_time));
+            }
+        }
+
+        if validated_events.is_empty() { continue; }
+
+        let mut sym_examples = Vec::new();
+        let mut event_times = Vec::new();
+
+        // Step 3: For each validated event, drill down and extract features
+        for &(_daily_idx, event_type, _move_pct, daily_time) in &validated_events {
+            event_times.push(daily_time);
+
+            if let Some((features, finest_tf, onset_time, tf_move_pct, _hold)) =
+                drill_down_and_extract(&sym_tf_candles, daily_time, event_type, config)
+            {
+                sym_examples.push(PumpDumpExample {
+                    symbol: symbol.clone(),
+                    timestamp: onset_time.to_rfc3339(),
+                    event_type: event_type.to_string(),
+                    label: 1,
+                    move_pct: tf_move_pct,
+                    finest_tf,
+                    features,
+                });
+            }
+        }
+
+        // Step 4: Generate negative examples
+        let n_pos_here = sym_examples.len();
+        let n_neg = n_pos_here * config.negative_ratio;
+
+        let neg_examples = generate_negative_examples(
+            &sym_tf_candles, &event_times, n_neg, config,
+        );
+        sym_examples.extend(neg_examples);
+
+        // Accumulate stats
+        if n_pos_here > 0 { n_symbols_with_events += 1; }
+        for ex in &sym_examples {
+            match ex.label {
+                1 if ex.event_type == "PUMP" => n_pumps += 1,
+                1 if ex.event_type == "DUMP" => n_dumps += 1,
+                _ => n_negatives += 1,
+            }
+        }
+        all_examples.extend(sym_examples);
+
+        // Progress bar
+        if (si + 1) % progress_interval == 0 || si + 1 == n_symbols {
+            info!("  [{:>3}/{}] {:>5.1}% | {} | {} examples so far",
+                  si + 1, n_symbols, (si + 1) as f64 / n_symbols as f64 * 100.0,
+                  symbol, all_examples.len());
         }
     }
 
     let total = all_examples.len();
-    info!("  Dataset built: {} total examples", total);
+    let elapsed = total_start.elapsed().as_secs_f64();
+    info!("  ✅ Dataset built: {} total examples in {:.1}s", total, elapsed);
     info!("    PUMP events:  {} ({:.1}%)", n_pumps, if total > 0 { n_pumps as f64 / total as f64 * 100.0 } else { 0.0 });
     info!("    DUMP events:  {} ({:.1}%)", n_dumps, if total > 0 { n_dumps as f64 / total as f64 * 100.0 } else { 0.0 });
     info!("    Negatives:    {} ({:.1}%)", n_negatives, if total > 0 { n_negatives as f64 / total as f64 * 100.0 } else { 0.0 });
-    info!("    Rejected (not sharp): {} (gradual moves filtered out)", n_rejected_not_sharp);
-    info!("    Symbols with events: {}", n_symbols_with_events);
+    info!("    Rejected (not sharp): {} | Skipped (no data): {}", n_rejected_not_sharp, n_skipped);
+    info!("    Symbols with events: {} | Data load: {:.1}s", n_symbols_with_events, load_elapsed);
 
     Ok(all_examples)
-}
-
-/// Process a single symbol: detect events, validate sharpness, drill down, extract features.
-///
-/// Returns (examples, n_rejected_not_sharp).
-async fn process_symbol(
-    pool: &PgPool,
-    symbol: &str,
-    config: &PumpDumpConfig,
-    tf_limits: &HashMap<i32, usize>,
-) -> Result<(Vec<PumpDumpExample>, usize)> {
-    // Load all TF data for this symbol.
-    // NOTE: We load TFs one at a time and only keep what we need.
-    // Daily + hourly are REQUIRED (for detection + sharpness validation).
-    // Lower TFs are optional (for drilling down).
-    let mut all_tf_candles: HashMap<i32, Vec<CandleInd>> = HashMap::new();
-
-    // Always load daily first (detection) and hourly (sharp validation)
-    for &tf in &[1440i32, 60] {
-        let limit = tf_limits.get(&tf).copied().unwrap_or(5000);
-        match fetch_candles_with_indicators(pool, symbol, tf, limit).await {
-            Ok(candles) if candles.len() >= config.pre_event_lookback + 10 => {
-                all_tf_candles.insert(tf, candles);
-            }
-            Ok(_) => {}
-            Err(e) => {
-                tracing::debug!("  {} TF {}m: {}", symbol, tf, e);
-            }
-        }
-    }
-
-    // Need at least daily data
-    let has_daily = all_tf_candles.get(&1440)
-        .map_or(false, |c| c.len() >= config.pre_event_lookback + 10);
-    if !has_daily {
-        return Ok((Vec::new(), 0));
-    }
-
-    // Step 1: Detect anomalous candles on daily.
-    // Extract all needed data from borrows BEFORE we mutate all_tf_candles.
-    let daily_events = detect_anomalous_candles(
-        all_tf_candles.get(&1440).unwrap(), config.daily_threshold_pct,
-    );
-
-    if daily_events.is_empty() {
-        return Ok((Vec::new(), 0));
-    }
-
-    tracing::debug!("  {} — {} daily event candidates", symbol, daily_events.len());
-
-    // Collect daily times we need (to avoid holding borrow across mutation)
-    let daily_time_map: Vec<(usize, EventType, f64, DateTime<Utc>)> = daily_events.iter()
-        .map(|&(idx, et, mp)| {
-            let t = all_tf_candles.get(&1440).unwrap()[idx].time;
-            (idx, et, mp, t)
-        })
-        .collect();
-
-    // Step 2: Validate sharpness against hourly candles.
-    // The move must be concentrated in 1-2 hourly candles, NOT a gradual 5-6 hour drift.
-    // NOTE: daily_time is the CLOSE time (DB convention). validate_sharp_move handles this.
-    let mut validated_events: Vec<(usize, EventType, f64, DateTime<Utc>)> = Vec::new();
-    let mut n_rejected = 0usize;
-
-    for &(daily_idx, event_type, move_pct, daily_time) in &daily_time_map {
-        if let Some(hourly) = all_tf_candles.get(&60) {
-            match validate_sharp_move(
-                hourly,
-                daily_time, // close time of the daily candle
-                event_type,
-                move_pct,
-                config.concentration_pct,
-            ) {
-                Some((_hourly_idx, hourly_move)) => {
-                    tracing::debug!(
-                        "  {} — {} SHARP {}: daily {:.1}%, hourly peak {:.1}%",
-                        symbol, daily_time.format("%Y-%m-%d"), event_type,
-                        move_pct, hourly_move
-                    );
-                    validated_events.push((daily_idx, event_type, move_pct, daily_time));
-                }
-                None => {
-                    tracing::debug!(
-                        "  {} — {} REJECTED (not sharp): {:.1}% spread over many hours",
-                        symbol, daily_time.format("%Y-%m-%d"), move_pct
-                    );
-                    n_rejected += 1;
-                }
-            }
-        } else {
-            // No hourly data — accept the event without sharpness validation
-            validated_events.push((daily_idx, event_type, move_pct, daily_time));
-        }
-    }
-
-    if validated_events.is_empty() {
-        return Ok((Vec::new(), n_rejected));
-    }
-
-    // Step 3: Load remaining TFs only if we have validated events (memory optimization)
-    // NOTE: 1m excluded — too noisy and insufficient historical data
-    for &tf in &[240i32, 15, 5] {
-        if all_tf_candles.contains_key(&tf) { continue; }
-        let limit = tf_limits.get(&tf).copied().unwrap_or(5000);
-        match fetch_candles_with_indicators(pool, symbol, tf, limit).await {
-            Ok(candles) if candles.len() >= config.pre_event_lookback + 10 => {
-                all_tf_candles.insert(tf, candles);
-            }
-            Ok(_) => {}
-            Err(e) => {
-                tracing::debug!("  {} TF {}m: {}", symbol, tf, e);
-            }
-        }
-    }
-
-    let mut examples = Vec::new();
-    let mut event_times = Vec::new();
-
-    // Step 4: For each VALIDATED event, drill down and extract features
-    for &(_daily_idx, event_type, _move_pct, daily_time) in &validated_events {
-        event_times.push(daily_time);
-
-        let result = drill_down_and_extract(
-            &all_tf_candles,
-            daily_time, // close time of the daily candle (DB convention)
-            event_type,
-            config,
-        );
-
-        if let Some((features, finest_tf, onset_time, tf_move_pct, _hold)) = result {
-            examples.push(PumpDumpExample {
-                symbol: symbol.to_string(),
-                timestamp: onset_time.to_rfc3339(),
-                event_type: event_type.to_string(),
-                label: 1,
-                move_pct: tf_move_pct, // use the actual move on finest TF, not daily
-                finest_tf,
-                features,
-            });
-        }
-    }
-
-    // Step 5: Generate negative examples
-    let n_positives = examples.len();
-    let n_neg = n_positives * config.negative_ratio;
-
-    let neg_examples = generate_negative_examples(
-        &all_tf_candles,
-        &event_times,
-        n_neg,
-        config,
-    );
-    examples.extend(neg_examples);
-
-    // Memory: all_tf_candles is dropped here when function returns
-    Ok((examples, n_rejected))
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
